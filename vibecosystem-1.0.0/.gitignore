@@ -1,0 +1,17 @@
+node_modules/
+# dist/ — pre-built hooks are included for zero-dependency install
+*.db
+*.sqlite
+.env
+.env.*
+*.log
+.DS_Store
+*.bak
+*.backup
+*.orig
+*.swp
+*.pem
+*.key
+.idea/
+.vscode/settings.json
+package-lock.json

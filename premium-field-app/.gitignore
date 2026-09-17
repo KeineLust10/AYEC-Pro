@@ -1,0 +1,5 @@
+node_modules/
+.expo/
+.expo-build-check/
+dist/
+web-build/

@@ -1,0 +1,18 @@
+# AYEC Pro Web — sunucuda zorunlu, sabitlenmiş çalışma zamanı
+# Desteklenen Python: 3.11, 3.12 ve 3.13
+defusedxml==0.7.1
+bcrypt==4.3.0
+pypdf==6.12.2
+numpy==1.26.4; python_version < "3.13"
+numpy==2.3.5; python_version >= "3.13"
+openpyxl==3.1.5
+pandas==3.0.3
+pdfplumber==0.11.10
+pillow==12.3.0
+pypdf==6.12.2
+pytesseract==0.3.13
+python-docx==1.2.0
+reportlab==4.4.10
+xlrd==2.0.2
+google-auth>=2.40,<3
+requests>=2.32,<3

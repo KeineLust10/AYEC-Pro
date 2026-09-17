@@ -1,0 +1,60 @@
+Theme Refactor Progress - 2026-02-20 (Update 2)
+
+Final audit scope:
+- src
+- ModernDesktopApp.py
+- DesktopAp.py
+- bulut_modules
+
+Regex audit A (hardcoded color literals):
+- #(?:[A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})
+- rgb(r,g,b)
+- QColor(r,g,b)
+Result: 0 hits
+
+Regex audit B (named color words):
+- white|black|red|green|blue|gray|grey|yellow|orange|pink
+Result: 0 hits
+
+Batch highlights in this phase:
+- Converted remaining named-color style declarations to semantic tokens (@surface, @selection_text, @danger, @text_muted, etc.).
+- Replaced Qt global colors with qc(...) where applicable.
+- Replaced reportlab colors.* literals with theme-driven HexColor(tc(...)) / _hx(...) mappings.
+- Normalized legacy bulut_modules views and dialogs to C token references.
+- Converted finance color_code labels to semantic names (accent/success/danger) and updated consumers.
+
+Validation:
+- Full py_compile pass over src + bulut_modules + DesktopAp.py + ModernDesktopApp.py passed.
+
+Generated audit files:
+- _hardcoded_full_final.txt
+- _named_color_scan_final.txt
+
+Live stress mode added:
+- ModernDesktopApp.py and DesktopAp.py now support env-driven theme stress test.
+  - AYEC_THEME_STRESS=1
+  - AYEC_THEME_STRESS_INTERVAL_MS=100 (default)
+  - AYEC_THEME_STRESS_SWITCHES=80 (default)
+- Runner shortcut added: RUN_THEME_STRESS.bat
+- tools/theme_stress_test.py updated with robust project-root path bootstrap.
+
+Note on CI/headless terminal:
+- Offscreen Qt backend may terminate with native exit code on some environments.
+- Recommended validation path is running RUN_THEME_STRESS.bat on local desktop session.
+Added automated stress reporter:
+- ThemeManager.run_stress_test now supports:
+  report_dir, report_prefix, capture_every
+- Writes stress_log.txt with switch timeline and completion marker.
+- Captures PNG snapshots when window backend supports grab() (every N switches + final).
+
+Entry integrations:
+- ModernDesktopApp.py reads env vars and starts stress+report automatically.
+- DesktopAp.py reads env vars and starts stress+report automatically.
+
+New launcher:
+- RUN_THEME_STRESS_REPORT.bat
+  Produces reports under: tools/theme_stress_reports
+
+Smoke verification:
+- tools/theme_stress_test.py executed with short cycle and produced:
+  tools/theme_stress_reports/script_smoke_YYYYMMDD_HHMMSS/stress_log.txt

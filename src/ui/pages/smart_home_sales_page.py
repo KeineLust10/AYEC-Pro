@@ -1,12 +1,16 @@
+# -*- coding: utf-8 -*-
+
 from PyQt6.QtCore import QDate, Qt
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QAbstractSpinBox,
+    QCheckBox,
     QComboBox,
     QDateEdit,
     QDoubleSpinBox,
     QFrame,
     QGridLayout,
+    QHeaderView,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -20,9 +24,11 @@ from PyQt6.QtWidgets import (
 )
 
 from src.utils.design_system import DesignTokens
+from src.utils.tax_settings import TaxSettings
 from src.utils.theme_colors import theme_qss
 from src.utils.toast_notification import show_error, show_success, show_warning
 from src.ui.widgets.modern_dialog import ModernDialog
+from src.ui.widgets.modern_inputs import InlineNumberStepper
 
 
 class SmartHomeProductPoolDialog(ModernDialog):
@@ -33,6 +39,17 @@ class SmartHomeProductPoolDialog(ModernDialog):
         self.set_footer_visible(False)
         self._build_ui()
         self.refresh_table()
+
+    @staticmethod
+    def _value(row, key, default=None):
+        if row is None:
+            return default
+        if isinstance(row, dict):
+            return row.get(key, default)
+        try:
+            return row[key]
+        except Exception:
+            return default
 
     def _build_ui(self):
         self.setStyleSheet(
@@ -68,32 +85,17 @@ class SmartHomeProductPoolDialog(ModernDialog):
         qty_lbl = QLabel("Adet")
         qty_lbl.setStyleSheet(theme_qss("font-size: 12px; font-weight: 800; color: @text_muted;"))
         controls.addWidget(qty_lbl)
-        self.spn_qty = QSpinBox()
-        self.spn_qty.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.PlusMinus)
+        self.spn_qty = InlineNumberStepper(value=1, decimals=0)
         self.spn_qty.setRange(1, 9999)
-        self.spn_qty.setValue(1)
         self.spn_qty.setMinimumHeight(42)
-        self.spn_qty.setStyleSheet(theme_qss(DesignTokens.get_input_qss() + """
-            QSpinBox::up-button, QSpinBox::down-button {
-                width: 28px;
-                background: @accent;
-                color: @selection_text;
-                border-left: 1px solid @border;
-            }
-            QSpinBox::up-button:hover, QSpinBox::down-button:hover {
-                background: @success;
-            }
-        """))
         controls.addWidget(self.spn_qty)
 
         price_lbl = QLabel("Birim Fiyat")
         price_lbl.setStyleSheet(theme_qss("font-size: 12px; font-weight: 800; color: @text_muted;"))
         controls.addWidget(price_lbl)
-        self.inp_unit_price = QDoubleSpinBox()
+        self.inp_unit_price = InlineNumberStepper(value=0.0, decimals=2)
         self.inp_unit_price.setRange(0, 999999999)
-        self.inp_unit_price.setDecimals(2)
         self.inp_unit_price.setMinimumHeight(42)
-        self.inp_unit_price.setStyleSheet(theme_qss(DesignTokens.get_input_qss()))
         controls.addWidget(self.inp_unit_price)
         root.addLayout(controls)
 
@@ -107,14 +109,18 @@ class SmartHomeProductPoolDialog(ModernDialog):
         self.tbl_products.verticalHeader().setDefaultSectionSize(38)
         self.tbl_products.itemSelectionChanged.connect(self._sync_selected_product_price)
         head = self.tbl_products.horizontalHeader()
+        head.setSectionsMovable(False)
+        head.setStretchLastSection(False)
+        for column in (0, 2, 4, 5, 6, 7, 8):
+            head.setSectionResizeMode(column, QHeaderView.ResizeMode.Fixed)
+        head.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
         head.resizeSection(0, 36)
-        head.resizeSection(2, 95)
-        head.resizeSection(3, 250)
+        head.resizeSection(2, 105)
         head.resizeSection(4, 140)
         head.resizeSection(5, 70)
         head.resizeSection(6, 85)
         head.resizeSection(7, 55)
-        head.resizeSection(8, 120)
+        head.resizeSection(8, 132)
         root.addWidget(self.tbl_products, 1)
 
         footer = QHBoxLayout()
@@ -136,57 +142,78 @@ class SmartHomeProductPoolDialog(ModernDialog):
         footer.addWidget(btn_add)
         root.addLayout(footer)
 
+    def _clear_product_rows(self):
+        for row_index in range(self.tbl_products.rowCount()):
+            for column_index in (0, 8):
+                widget = self.tbl_products.cellWidget(row_index, column_index)
+                if widget is not None:
+                    widget.setUpdatesEnabled(False)
+                    widget.hide()
+                    self.tbl_products.removeCellWidget(row_index, column_index)
+                    widget.deleteLater()
+        self.tbl_products.clearContents()
+        self.tbl_products.setRowCount(0)
+
+    @staticmethod
+    def _centered_cell_widget(widget):
+        holder = QWidget()
+        holder.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
+        holder_layout = QHBoxLayout(holder)
+        holder_layout.setContentsMargins(0, 0, 0, 0)
+        holder_layout.setSpacing(0)
+        holder_layout.addStretch(1)
+        holder_layout.addWidget(widget)
+        holder_layout.addStretch(1)
+        return holder
+
+    def _row_checkbox(self, row_index):
+        holder = self.tbl_products.cellWidget(row_index, 0)
+        return holder.findChild(QCheckBox) if holder is not None else None
+
+    def _row_quantity_spin(self, row_index):
+        holder = self.tbl_products.cellWidget(row_index, 8)
+        return holder.findChild(InlineNumberStepper, "productPoolRowQty") if holder is not None else None
+
     def refresh_table(self):
         self.parent_page._refresh_product_table(self.inp_search.text().strip().lower())
         self.lbl_result.setText(f"{len(self.parent_page.filtered_products)} ürün")
-        self.tbl_products.setRowCount(len(self.parent_page.filtered_products))
-        for r, row in enumerate(self.parent_page.filtered_products):
-            currency = str(row.get("currency") or "TRY").upper()
-            check_item = QTableWidgetItem()
-            check_item.setFlags(
-                Qt.ItemFlag.ItemIsUserCheckable
-                | Qt.ItemFlag.ItemIsEnabled
-                | Qt.ItemFlag.ItemIsSelectable
-            )
-            check_item.setCheckState(Qt.CheckState.Unchecked)
-            self.tbl_products.setItem(r, 0, check_item)
-            values = [
-                str(row.get("id") or ""),
-                str(row.get("code") or ""),
-                str(row.get("name") or ""),
-                str(row.get("category") or ""),
-                str(int(float(row.get("stock") or 0))),
-                f"{float(row.get('price') or 0):.2f}",
-                currency,
-            ]
-            for c, value in enumerate(values, start=1):
-                self.tbl_products.setItem(r, c, QTableWidgetItem(value))
-            qty_spin = QSpinBox()
-            qty_spin.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.PlusMinus)
-            qty_spin.setRange(1, 9999)
-            qty_spin.setValue(int(self.spn_qty.value() or 1))
-            qty_spin.setMinimumHeight(32)
-            qty_spin.setFixedWidth(88)
-            qty_spin.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            qty_spin.setStyleSheet(theme_qss(DesignTokens.get_input_qss() + """
-                QSpinBox::up-button, QSpinBox::down-button {
-                    width: 26px;
-                    background: @accent;
-                    color: @selection_text;
-                    border-left: 1px solid @border;
-                }
-                QSpinBox::up-button:hover, QSpinBox::down-button:hover {
-                    background: @success;
-                }
-            """))
-            holder = QWidget()
-            holder_layout = QHBoxLayout(holder)
-            holder_layout.setContentsMargins(0, 0, 0, 0)
-            holder_layout.setSpacing(0)
-            holder_layout.addStretch(1)
-            holder_layout.addWidget(qty_spin)
-            holder_layout.addStretch(1)
-            self.tbl_products.setCellWidget(r, 8, holder)
+        self.tbl_products.setUpdatesEnabled(False)
+        try:
+            self._clear_product_rows()
+            self.tbl_products.setRowCount(len(self.parent_page.filtered_products))
+            for r, row in enumerate(self.parent_page.filtered_products):
+                currency = str(self._value(row, "currency", "TRY") or "TRY").upper()
+                row_checkbox = QCheckBox()
+                row_checkbox.setObjectName("productPoolRowCheck")
+                row_checkbox.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+                self.tbl_products.setCellWidget(r, 0, self._centered_cell_widget(row_checkbox))
+                values = [
+                    str(self._value(row, "id", "") or ""),
+                    str(self._value(row, "code", "") or ""),
+                    str(self._value(row, "name", "") or ""),
+                    str(self._value(row, "category", "") or ""),
+                    str(int(float(self._value(row, "stock", 0) or 0))),
+                    f"{float(self._value(row, 'price', 0) or 0):.2f}",
+                    currency,
+                ]
+                for c, value in enumerate(values, start=1):
+                    item = QTableWidgetItem(value)
+                    if c == 2:
+                        item.setToolTip(value)
+                        item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                    elif c in (5, 6, 7):
+                        item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                    self.tbl_products.setItem(r, c, item)
+                qty_spin = InlineNumberStepper(value=int(self.spn_qty.value() or 1), decimals=0)
+                qty_spin.setObjectName("productPoolRowQty")
+                qty_spin.setRange(1, 9999)
+                qty_spin.setMinimumHeight(32)
+                qty_spin.setFixedWidth(118)
+                self.tbl_products.setCellWidget(r, 8, self._centered_cell_widget(qty_spin))
+            self.tbl_products.doItemsLayout()
+        finally:
+            self.tbl_products.setUpdatesEnabled(True)
+            self.tbl_products.viewport().update()
 
     def _selected_product_row(self):
         row_index = self.tbl_products.currentRow()
@@ -197,13 +224,13 @@ class SmartHomeProductPoolDialog(ModernDialog):
     def _sync_selected_product_price(self):
         row = self._selected_product_row()
         if row:
-            self.inp_unit_price.setValue(float(row.get("price") or 0.0))
+            self.inp_unit_price.setValue(float(self._value(row, "price", 0.0) or 0.0))
 
     def _add_selected_product(self):
         selected_rows = []
         for row_index in range(self.tbl_products.rowCount()):
-            item = self.tbl_products.item(row_index, 0)
-            if item and item.checkState() == Qt.CheckState.Checked:
+            checkbox = self._row_checkbox(row_index)
+            if checkbox is not None and checkbox.isChecked():
                 selected_rows.append((row_index, self.parent_page.filtered_products[row_index]))
 
         if not selected_rows:
@@ -216,13 +243,12 @@ class SmartHomeProductPoolDialog(ModernDialog):
             return
 
         for row_index, row in selected_rows:
-            qty_holder = self.tbl_products.cellWidget(row_index, 8)
-            qty_widget = qty_holder.findChild(QSpinBox) if qty_holder is not None else None
+            qty_widget = self._row_quantity_spin(row_index)
             qty = int(qty_widget.value()) if qty_widget is not None else int(self.spn_qty.value() or 1)
             self.parent_page._append_product_to_offer(
                 row=row,
                 qty=qty,
-                unit_price=float(row.get("price") or self.inp_unit_price.value() or 0.0),
+                unit_price=float(self._value(row, "price", self.inp_unit_price.value()) or self.inp_unit_price.value() or 0.0),
             )
         self.parent_page._refresh_selected_table()
         self.parent_page._update_offer_badge()
@@ -282,7 +308,7 @@ class SmartHomeSalesPage(QWidget):
         title_box = QVBoxLayout()
         title = QLabel("Akıllı Ev Proforma")
         title.setStyleSheet("color: white; font-size: 24px; font-weight: 900;")
-        subtitle = QLabel("Popup ürün havuzu, sade satış akışı ve Bulut Teknoloji proforma mantığıyla PDF üretimi")
+        subtitle = QLabel("Popup \u00fcr\u00fcn havuzu, sade sat\u0131\u015f ak\u0131\u015f\u0131 ve AYEC Pro proforma mant\u0131\u011f\u0131yla PDF \u00fcretimi")
         subtitle.setStyleSheet("color: rgba(255,255,255,0.82); font-size: 12px; font-weight: 600;")
         title_box.addWidget(title)
         title_box.addWidget(subtitle)
@@ -371,39 +397,13 @@ class SmartHomeSalesPage(QWidget):
         self.inp_email = self._styled_line()
         self.inp_project = self._styled_line()
 
-        self.spn_block = QSpinBox()
-        self.spn_block.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.PlusMinus)
+        self.spn_block = InlineNumberStepper(value=1, decimals=0)
         self.spn_block.setRange(1, 9999)
-        self.spn_block.setValue(1)
         self.spn_block.setMinimumHeight(42)
-        self.spn_block.setStyleSheet(theme_qss(DesignTokens.get_input_qss() + """
-            QSpinBox::up-button, QSpinBox::down-button {
-                width: 28px;
-                background: @accent;
-                color: @selection_text;
-                border-left: 1px solid @border;
-            }
-            QSpinBox::up-button:hover, QSpinBox::down-button:hover {
-                background: @success;
-            }
-        """))
 
-        self.spn_flat = QSpinBox()
-        self.spn_flat.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.PlusMinus)
+        self.spn_flat = InlineNumberStepper(value=1, decimals=0)
         self.spn_flat.setRange(1, 9999)
-        self.spn_flat.setValue(1)
         self.spn_flat.setMinimumHeight(42)
-        self.spn_flat.setStyleSheet(theme_qss(DesignTokens.get_input_qss() + """
-            QSpinBox::up-button, QSpinBox::down-button {
-                width: 28px;
-                background: @accent;
-                color: @selection_text;
-                border-left: 1px solid @border;
-            }
-            QSpinBox::up-button:hover, QSpinBox::down-button:hover {
-                background: @success;
-            }
-        """))
 
         self.txt_notes = QTextEdit()
         self.txt_notes.setPlaceholderText("Teklife eklenecek özel not, kapsam özeti veya proje açıklaması...")
@@ -502,7 +502,7 @@ class SmartHomeSalesPage(QWidget):
 
         pdf_card, pdf_layout = self._panel(
             "Teklif Çıktısı",
-            "Akıllı ev teklifi, Bulut Teknoloji proforma mantığına benzer kurumsal PDF olarak oluşturulur."
+            "Ak\u0131ll\u0131 ev teklifi, AYEC Pro proforma mant\u0131\u011f\u0131na benzer kurumsal PDF olarak olu\u015fturulur."
         )
         self.preview_hint = QLabel(
             "Akış: Müşteri ve proje bilgilerini girin, ürünleri havuzdan ekleyin ve doğrudan PDF proforma oluşturun."
@@ -536,12 +536,23 @@ class SmartHomeSalesPage(QWidget):
         for row in self.db.get_customers() or []:
             yield dict(row) if not isinstance(row, dict) else row
 
+    @staticmethod
+    def _row_value(row, key, default=None):
+        if row is None:
+            return default
+        if isinstance(row, dict):
+            return row.get(key, default)
+        try:
+            return row[key]
+        except Exception:
+            return default
+
     def _load_customers(self):
         self.cmb_customer.blockSignals(True)
         self.cmb_customer.clear()
         for row in self._iter_customers():
-            label = str(row.get("name") or "")
-            company_name = str(row.get("company_name") or "").strip()
+            label = str(self._row_value(row, "name", "") or "")
+            company_name = str(self._row_value(row, "company_name", "") or "").strip()
             if company_name and company_name.lower() != label.lower():
                 label = f"{label} / {company_name}"
             self.cmb_customer.addItem(label, row)
@@ -552,18 +563,18 @@ class SmartHomeSalesPage(QWidget):
         row = self.cmb_customer.currentData()
         if not isinstance(row, dict):
             return
-        customer_name = str(row.get("name") or "").strip()
-        company_name = str(row.get("company_name") or "").strip() or customer_name
+        customer_name = str(self._row_value(row, "name", "") or "").strip()
+        company_name = str(self._row_value(row, "company_name", "") or "").strip() or customer_name
         self.inp_company.setText(company_name)
         self.inp_contact.setText(customer_name)
-        self.inp_phone.setText(str(row.get("phone") or "").strip())
-        self.inp_email.setText(str(row.get("email") or "").strip())
+        self.inp_phone.setText(str(self._row_value(row, "phone", "") or "").strip())
+        self.inp_email.setText(str(self._row_value(row, "email", "") or "").strip())
         if not self.inp_project.text().strip():
             self.inp_project.setText(company_name)
         self._update_offer_badge()
 
     def _is_smart_home_product(self, row):
-        text = " ".join(str(row.get(key) or "") for key in ("name", "description", "category", "code", "barcode")).lower()
+        text = " ".join(str(self._row_value(row, key, "") or "") for key in ("name", "description", "category", "code", "barcode")).lower()
         return any(keyword in text for keyword in self.SMART_HOME_KEYWORDS)
 
     def _load_products(self):
@@ -581,21 +592,21 @@ class SmartHomeSalesPage(QWidget):
     def _refresh_product_table(self, query=""):
         self.filtered_products = []
         for row in self.products:
-            text = " ".join(str(row.get(key) or "").lower() for key in ("name", "code", "category", "barcode", "description"))
+            text = " ".join(str(self._row_value(row, key, "") or "").lower() for key in ("name", "code", "category", "barcode", "description"))
             if query and query not in text:
                 continue
             self.filtered_products.append(row)
 
     def _append_product_to_offer(self, row, qty, unit_price):
-        currency = str(row.get("currency") or "USD").upper()
+        currency = str(self._row_value(row, "currency", "USD") or "USD").upper()
         self.selected_items.append(
             {
-                "part_id": row.get("id"),
-                "name": str(row.get("name") or ""),
-                "brand": str(row.get("brand") or ""),
-                "code": str(row.get("code") or ""),
-                "category": str(row.get("category") or ""),
-                "description": str(row.get("description") or row.get("category") or ""),
+                "part_id": self._row_value(row, "id"),
+                "name": str(self._row_value(row, "name", "") or ""),
+                "brand": str(self._row_value(row, "brand", "") or ""),
+                "code": str(self._row_value(row, "code", "") or ""),
+                "category": str(self._row_value(row, "category", "") or ""),
+                "description": str(self._row_value(row, "description", self._row_value(row, "category", "")) or ""),
                 "qty": qty,
                 "unit_price": unit_price,
                 "currency": currency,
@@ -707,7 +718,7 @@ class SmartHomeSalesPage(QWidget):
                         "price": price_try,
                     }
                 )
-            vat_rate = 0.20
+            vat_rate = TaxSettings.get_ratio(self.db)
             vat_amount = subtotal_try * vat_rate
             total_try = subtotal_try + vat_amount
             preferred_currency = str(self.selected_items[0].get("currency") or "TRY").upper()
@@ -719,10 +730,12 @@ class SmartHomeSalesPage(QWidget):
                 (subtotal_try, 0.0, vat_rate, vat_amount, total_try),
                 data["customer_name"] or data["company_name"],
                 currency_mode=currency_mode,
+                customer_id=self._row_value(self.cmb_customer.currentData(), "id"),
                 customer_company=data["company_name"],
                 initial_company=data["company_name"],
                 initial_project=data["project_name"],
                 preferred_template="bulut_deri",
+                source="smart_home",
             )
             dialog.exec()
         except Exception as e:

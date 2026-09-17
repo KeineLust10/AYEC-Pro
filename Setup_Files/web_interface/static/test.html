@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Premium Bulut - Test</title>
+</head>
+
+<body>
+    <h1>Test Sayfası</h1>
+    <p>Eğer bu metni görüyorsanız, sunucu çalışıyor demektir.</p>
+    <div id="vue-test">{{ message }}</div>
+
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script>
+        const { createApp } = Vue
+        createApp({
+            data() {
+                return {
+                    message: 'Vue.js çalışıyor!'
+                }
+            }
+        }).mount('#vue-test')
+    </script>
+</body>
+
+</html>

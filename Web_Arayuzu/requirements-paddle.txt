@@ -1,0 +1,6 @@
+# En ağır, kutu bazlı PaddleOCR seçeneği. CPU sunucuda Python 3.11 önerilir.
+-r requirements-ocr.txt
+# Masaüstü motoruyla birebir uyumlu Paddle 2.x zinciri. Python 3.11/3.12 kullanın.
+paddleocr==2.7.3
+paddlepaddle==2.6.2
+protobuf==3.20.2

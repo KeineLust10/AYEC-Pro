@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QAbstractSpinBox,
@@ -17,6 +19,7 @@ from src.ui.dialogs.base_modern_dialog import BaseModernDialog
 from src.utils.currency_helper import CurrencyHelper
 from src.utils.theme_colors import theme_qss
 from src.utils.toast_notification import show_warning
+from src.utils.design_system import DesignTokens
 
 
 class BulkStockSelectDialog(BaseModernDialog):
@@ -41,35 +44,12 @@ class BulkStockSelectDialog(BaseModernDialog):
                     background: @surface;
                     color: @text;
                 }
-                QLineEdit, QSpinBox {
+                QLineEdit {
                     background: @surface_alt;
                     color: @text;
                     border: 1px solid @border;
                     border-radius: 10px;
                     padding: 8px 10px;
-                }
-                QSpinBox {
-                    min-height: 40px;
-                    padding-right: 42px;
-                }
-                QSpinBox::up-button, QSpinBox::down-button {
-                    width: 34px;
-                    border-left: 1px solid @border;
-                    background: @accent;
-                    color: @selection_text;
-                    subcontrol-origin: border;
-                }
-                QSpinBox::up-button {
-                    subcontrol-position: top right;
-                    border-top-right-radius: 10px;
-                }
-                QSpinBox::down-button {
-                    subcontrol-position: bottom right;
-                    border-bottom-right-radius: 10px;
-                }
-                QSpinBox::up-button:hover, QSpinBox::down-button:hover {
-                    background: @success;
-                    color: @selection_text;
                 }
                 QTreeWidget {
                     background: @surface;
@@ -328,6 +308,7 @@ class BulkStockSelectDialog(BaseModernDialog):
             qty_spin.setSingleStep(1)
             qty_spin.setAccelerated(True)
             qty_spin.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.PlusMinus)
+            DesignTokens.apply_spinbox_styles(qty_spin)
             qty_spin.valueChanged.connect(self._update_selected_count)
             self.tree.setItemWidget(item, 3, qty_spin)
 

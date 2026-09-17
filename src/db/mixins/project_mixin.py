@@ -207,6 +207,7 @@ class ProjectMixin:
     def add_project(self, data):
         try:
             from datetime import datetime as _dt
+            from src.utils.currency_helper import CurrencyHelper
 
             # Proje referans numarası oluştur (Ayarlar > Numara Serisi)
             ref_no = None
@@ -219,7 +220,12 @@ class ProjectMixin:
                 logger.warning(f"Project ref_no generation failed: {_re}")
 
             currency = data.get("currency", "TRY") or "TRY"
-            exchange_rate = float(data.get("exchange_rate", 1.0) or 1.0)
+            currency = str(currency).upper()
+            exchange_rate = float(data.get("exchange_rate", 0) or 0)
+            if currency == "TRY":
+                exchange_rate = 1.0
+            elif exchange_rate <= 0:
+                exchange_rate = CurrencyHelper.require_rate(self, currency)
 
             self.cursor.execute(
                 """
@@ -244,7 +250,6 @@ class ProjectMixin:
                     exchange_rate,
                 ),
             )
-            self.conn.commit()
             project_id = self.cursor.lastrowid
 
             # ── Proje Finans sekmesine + global accounting'e otomatik kayıt ─────
@@ -282,9 +287,11 @@ class ProjectMixin:
             pay_status = "Ödendi" if pmethod in _paid_methods else "Ödenmedi"
 
             # Bütçe (Gelir) → project_transactions tablosuna
+            pay_status = "\u00d6denmedi"
+
             if budget > 0:
                 try:
-                    self.add_project_transaction(
+                    budget_transaction_id = self.add_project_transaction(
                         {
                             "project_id": project_id,
                             "type": "Gelir",
@@ -297,15 +304,22 @@ class ProjectMixin:
                             "date": today,
                             "description": f"Proje bütçesi: {pname}{_rate_note}",
                             "status": pay_status,
-                        }
+                        },
+                        commit=False,
                     )
+                    if not budget_transaction_id:
+                        raise RuntimeError(
+                            "Project budget transaction could not be created"
+                        )
                 except Exception as _fe:
-                    logger.warning(f"Budget project_transaction failed: {_fe}")
+                    raise RuntimeError(
+                        f"Budget project transaction failed: {_fe}"
+                    ) from _fe
 
             # Maliyet (Gider) → project_transactions tablosuna
             if cost > 0:
                 try:
-                    self.add_project_transaction(
+                    cost_transaction_id = self.add_project_transaction(
                         {
                             "project_id": project_id,
                             "type": "Gider",
@@ -318,65 +332,42 @@ class ProjectMixin:
                             "date": today,
                             "description": f"Proje maliyeti: {pname}{_rate_note_cost}",
                             "status": pay_status,
-                        }
+                        },
+                        commit=False,
                     )
+                    if not cost_transaction_id:
+                        raise RuntimeError(
+                            "Project cost transaction could not be created"
+                        )
                 except Exception as _fe:
-                    logger.warning(f"Cost project_transaction failed: {_fe}")
+                    raise RuntimeError(
+                        f"Cost project transaction failed: {_fe}"
+                    ) from _fe
 
             # ── Müşteri Cari + Borç Kaydı (currency_transactions) ────────────
             customer_id = data.get("customer_id")
             if customer_id and budget > 0:
-                try:
-                    debit_desc = f"Proje: {pname} — Akıllı Ev Kurulumu"
-                    # Müşteri borçlanır (DEBIT)
-                    self.add_currency_transaction(
-                        customer_id=customer_id,
-                        amount=budget,
-                        currency="TRY",
-                        transaction_type="DEBIT",
-                        exchange_rate=1.0,
-                        description=debit_desc,
-                    )
-                    # Peşin / anında ödeme → aynı anda CREDIT ile borç kapanır
-                    _instant = {"Peşin", "Havale / EFT", "Kredi Kartı"}
-                    if pmethod in _instant:
-                        credit_desc = f"Tahsilat: {pname} ({pmethod})"
-                        credit_ok = self.add_currency_transaction(
-                            customer_id=customer_id,
-                            amount=budget,
-                            currency="TRY",
-                            transaction_type="CREDIT",
-                            exchange_rate=1.0,
-                            description=credit_desc,
-                        )
-                        if credit_ok:
-                            try:
-                                payment_txn_id = self.get_last_currency_transaction_id()
-                            except Exception:
-                                payment_txn_id = None
-                            if payment_txn_id:
-                                try:
-                                    self.create_payment_debt_links_table()
-                                except Exception:
-                                    pass
-                                try:
-                                    self.apply_payment_to_debts(
-                                        customer_id=customer_id,
-                                        payment_amount=budget,
-                                        currency="TRY",
-                                        payment_transaction_id=payment_txn_id,
-                                        selected_debt_ids=None,
-                                    )
-                                except Exception as alloc_err:
-                                    logger.warning(
-                                        f"Project instant payment debt allocation skipped: {alloc_err}"
-                                    )
-                except Exception as _ce:
-                    logger.warning(f"Customer currency_transaction failed: {_ce}")
+                debt_created = self.add_currency_transaction(
+                    customer_id=customer_id,
+                    amount=budget,
+                    currency=currency,
+                    transaction_type="DEBIT",
+                    exchange_rate=exchange_rate,
+                    description=f"Proje: {pname} - Kurulum",
+                    tracking_no=str(ref_no or f"PRJ-{project_id}"),
+                    commit=False,
+                )
+                if not debt_created:
+                    raise RuntimeError("Customer project debt could not be created")
 
+            self.conn.commit()
             return project_id
         except Exception as e:
             logger.error(f"Error adding project: {e}")
+            try:
+                self.conn.rollback()
+            except Exception as rollback_error:
+                logger.error("Project rollback failed: %s", rollback_error)
             return None
 
     def get_projects(self, active_only=False, include_archived=False):
@@ -384,7 +375,7 @@ class ProjectMixin:
         if active_only:
             conditions.append("status = 'Devam Ediyor'")
         if not include_archived:
-            conditions.append("(is_archived = 0 OR is_archived IS NULL)")
+            conditions.append("is_archived = 0")
         query = "SELECT * FROM projects"
         if conditions:
             query += " WHERE " + " AND ".join(conditions)
@@ -392,6 +383,46 @@ class ProjectMixin:
         query += " ORDER BY CASE WHEN status='Devam Ediyor' THEN 0 ELSE 1 END ASC, created_at DESC"
         self.cursor.execute(query)
         return self.cursor.fetchall()
+
+    def get_projects_paginated(
+        self,
+        limit=30,
+        offset=0,
+        search_query="",
+        active_only=False,
+        archived_only=False,
+    ):
+        limit = max(1, min(int(limit or 30), 200))
+        offset = max(0, int(offset or 0))
+        conditions = []
+        params = []
+        if active_only:
+            conditions.append("status='Devam Ediyor'")
+        if archived_only:
+            conditions.append("is_archived=1")
+        else:
+            conditions.append("is_archived=0")
+        if search_query:
+            search_like = f"%{str(search_query).strip()}%"
+            conditions.append(
+                "(name LIKE ? OR customer_name LIKE ? OR ref_no LIKE ?)"
+            )
+            params.extend([search_like, search_like, search_like])
+
+        where_sql = " WHERE " + " AND ".join(conditions)
+        count_row = self.cursor.execute(
+            "SELECT COUNT(*) FROM projects" + where_sql,
+            tuple(params),
+        ).fetchone()
+        total = int(count_row[0] or 0) if count_row else 0
+        query = (
+            "SELECT * FROM projects"
+            + where_sql
+            + " ORDER BY CASE WHEN status='Devam Ediyor' THEN 0 ELSE 1 END, "
+            "created_at DESC LIMIT ? OFFSET ?"
+        )
+        self.cursor.execute(query, tuple(params + [limit, offset]))
+        return self.cursor.fetchall(), total
 
     def get_archived_projects(self):
         self.cursor.execute(
@@ -704,8 +735,34 @@ class ProjectMixin:
         )
         return self.cursor.fetchall()
 
+    def get_subcontractors_with_balance(self, project_id):
+        """Return project subcontractors and balances in one query."""
+        self.cursor.execute(
+            """
+            SELECT
+                s.*,
+                COALESCE(s.total_contract_amount, 0)
+                - COALESCE(SUM(
+                    CASE
+                        WHEN pt.type='Gider' AND pt.status='\u00d6dendi'
+                        THEN pt.amount
+                        ELSE 0
+                    END
+                ), 0) AS remaining_balance
+            FROM subcontractors s
+            LEFT JOIN project_transactions pt
+              ON pt.ref_table='subcontractors'
+             AND pt.ref_id=s.id
+            WHERE s.project_id=?
+            GROUP BY s.id
+            ORDER BY s.id DESC
+            """,
+            (project_id,),
+        )
+        return self.cursor.fetchall()
+
     # --- TRANSACTION METHODS ---
-    def add_project_transaction(self, data):
+    def add_project_transaction(self, data, commit=True):
         try:
             self.cursor.execute(
                 """
@@ -730,6 +787,7 @@ class ProjectMixin:
                     data.get("exchange_rate", 1.0),
                 ),
             )
+            project_transaction_id = self.cursor.lastrowid
 
             # --- FINANCIAL TRIGGER for Expenses ---
             # Eğer bu bir proje gideriyse ve ÖDENDİ ise -> Merkez Kasadan Düş
@@ -753,12 +811,15 @@ class ProjectMixin:
                         project_id=data.get("project_id"),
                         payment_method=data.get("payment_method"),
                         bank_account_id=data.get("bank_account_id"),
+                        commit=False,
                     )
 
-            self.conn.commit()
-            return self.cursor.lastrowid
+            if commit:
+                self.conn.commit()
+            return project_transaction_id
         except Exception as e:
             logger.error(f"Error adding project transaction: {e}")
+            self.conn.rollback()
             return None
 
     def get_project_transactions(self, project_id, txn_type=None):
@@ -812,13 +873,61 @@ class ProjectMixin:
             row = self.cursor.fetchone()
             if row:
                 return (row[0] or "TRY", float(row[1] or 1.0))
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning(
+                "Project currency could not be loaded for project %s: %s",
+                project_id,
+                exc,
+            )
         return ("TRY", 1.0)
 
     # --- UNIT PRODUCT METHODS (Akıllı Ev Kurulum Takibi) ---
     def add_unit_product(self, data):
         try:
+            from src.utils.currency_helper import CurrencyHelper
+
+            project_id = data.get("project_id")
+            part_id = data.get("part_id")
+            part_name = str(data.get("part_name") or "")
+            qty = int(data.get("quantity", 1) or 1)
+            if qty <= 0:
+                raise ValueError("Unit product quantity must be positive")
+
+            part_currency = "TRY"
+            part_rate = 1.0
+            original_total = 0.0
+            total_cost_try = 0.0
+            if part_id:
+                self.cursor.execute(
+                    """
+                    SELECT name, COALESCE(stock, 0),
+                           COALESCE(purchase_price, price, 0),
+                           COALESCE(currency, 'TRY')
+                    FROM parts
+                    WHERE id=? AND COALESCE(is_deleted, 0)=0
+                    """,
+                    (part_id,),
+                )
+                part_row = self.cursor.fetchone()
+                if not part_row:
+                    raise ValueError(f"Stock card not found: {part_id}")
+
+                current_stock = int(part_row[1] or 0)
+                if current_stock < qty:
+                    raise ValueError(
+                        f"Insufficient stock for part {part_id}: "
+                        f"available={current_stock}, requested={qty}"
+                    )
+
+                if not part_name:
+                    part_name = str(part_row[0] or "")
+                unit_cost = float(part_row[2] or 0)
+                part_currency = str(part_row[3] or "TRY").upper()
+                original_total = unit_cost * qty
+                if part_currency != "TRY":
+                    part_rate = CurrencyHelper.require_rate(self, part_currency)
+                total_cost_try = round(original_total * part_rate, 4)
+
             self.cursor.execute(
                 """
                 INSERT INTO project_unit_products (unit_id, project_id, part_id, part_name, part_code, quantity, notes)
@@ -826,95 +935,76 @@ class ProjectMixin:
             """,
                 (
                     data.get("unit_id"),
-                    data.get("project_id"),
-                    data.get("part_id"),
-                    data.get("part_name"),
+                    project_id,
+                    part_id,
+                    part_name,
                     data.get("part_code"),
-                    data.get("quantity", 1),
+                    qty,
                     data.get("notes"),
                 ),
             )
             entry_id = self.cursor.lastrowid
 
-            # Stok düşümü (Stok Hareketlerine kayıt ekleyerek)
-            part_id = data.get("part_id")
             if part_id:
-                qty = data.get("quantity", 1)
-                p_name = data.get("part_name", "")
-                p_id = data.get("project_id", "Bilinmiyor")
-                self.adjust_stock(
-                    part_id, -qty, f"Proje Kullanımı (PRJ#:{p_id}): {p_name}", "Çıkış"
+                stock_updated = self.adjust_stock(
+                    part_id,
+                    -qty,
+                    (
+                        f"Proje Kullan\u0131m\u0131 "
+                        f"(PRJ#:{project_id or 'Bilinmiyor'}): {part_name}"
+                    ),
+                    "\u00c7\u0131k\u0131\u015f",
+                    commit=False,
                 )
+                if not stock_updated:
+                    raise RuntimeError("Project stock movement could not be recorded")
 
-            # ── Malzeme Gider Kaydı ────────────────────────────────────────────
-            project_id = data.get("project_id")
-            part_id = data.get("part_id")
-            part_name = data.get("part_name", "")
-            qty = int(data.get("quantity", 1) or 1)
-            if project_id and qty > 0:
-                unit_cost = 0.0
-                if part_id:
-                    try:
-                        self.cursor.execute(
-                            "SELECT COALESCE(purchase_price, price, 0) FROM parts WHERE id=?",
-                            (part_id,),
-                        )
-                        _row = self.cursor.fetchone()
-                        unit_cost = float(_row[0]) if _row and _row[0] else 0.0
-                    except Exception:
-                        pass
-                total_cost_try = unit_cost * qty  # stok fiyatı TL cinsinden
-
-                # Proje para birimi & kur
-                proj_currency, proj_rate = self.get_project_currency(project_id)
-                _sym_map = {
-                    "TRY": "₺",
-                    "USD": "$",
-                    "EUR": "€",
-                    "GBP": "£",
-                    "AED": "د.إ",
-                    "CAD": "C$",
-                    "CHF": "Fr",
-                }
-                _sym = _sym_map.get(proj_currency, proj_currency)
-
-                if proj_currency != "TRY" and proj_rate > 0:
-                    orig_amount = total_cost_try / proj_rate
-                    _rate_info = f" [{orig_amount:.2f} {_sym} @ {proj_rate:.4f} = {total_cost_try:.2f} TL]"
-                else:
-                    orig_amount = None
-                    _rate_info = ""
-
-                if total_cost_try > 0:
-                    try:
-                        today = datetime.now().strftime("%Y-%m-%d")
-                        self.cursor.execute(
-                            """
-                            INSERT INTO project_transactions
-                            (project_id, type, category, amount, payment_method, date,
-                             description, status, ref_table, ref_id,
-                             original_amount, original_currency, exchange_rate)
-                            VALUES (?, 'Gider', 'Malzeme Kullanımı', ?, 'Stok', ?, ?, 'Ödendi',
-                                    'project_unit_products', ?, ?, ?, ?)
-                        """,
-                            (
-                                project_id,
-                                total_cost_try,
-                                today,
-                                f"{part_name} x{qty} — Daire kurulumu{_rate_info}",
-                                entry_id,
-                                orig_amount,
-                                proj_currency,
-                                proj_rate,
-                            ),
-                        )
-                    except Exception as _fe:
-                        logger.warning(f"Unit product finance entry failed: {_fe}")
+            if project_id and total_cost_try > 0:
+                today = datetime.now().strftime("%Y-%m-%d")
+                rate_info = ""
+                original_amount = None
+                if part_currency != "TRY":
+                    original_amount = original_total
+                    rate_info = (
+                        f" [{original_total:.2f} {part_currency} @ "
+                        f"{part_rate:.4f} = {total_cost_try:.2f} TL]"
+                    )
+                self.cursor.execute(
+                    """
+                    INSERT INTO project_transactions
+                    (project_id, type, category, amount, payment_method, date,
+                     description, status, ref_table, ref_id,
+                     original_amount, original_currency, exchange_rate)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        project_id,
+                        "Gider",
+                        "Malzeme Kullan\u0131m\u0131",
+                        total_cost_try,
+                        "Stok",
+                        today,
+                        f"{part_name} x{qty} - Daire kurulumu{rate_info}",
+                        "\u00d6dendi",
+                        "project_unit_products",
+                        entry_id,
+                        original_amount,
+                        part_currency,
+                        part_rate,
+                    ),
+                )
 
             self.conn.commit()
             return entry_id
         except Exception as e:
             logger.error(f"Error adding unit product: {e}")
+            try:
+                self.conn.rollback()
+            except Exception as rollback_error:
+                logger.error(
+                    "Unit product rollback failed: %s",
+                    rollback_error,
+                )
             return None
 
     def get_unit_products(self, unit_id):
@@ -928,64 +1018,80 @@ class ProjectMixin:
             logger.error(f"Error getting unit products: {e}")
             return []
 
-    def update_unit_product_note(self, entry_id, note):
-        """Ünite ürününün teknik notunu günceller."""
+    def get_project_unit_products(self, project_id):
+        """Return all unit products for a project in one indexed query."""
         try:
             self.cursor.execute(
-                "UPDATE project_unit_products SET notes=? WHERE id=?", (note, entry_id)
+                """
+                SELECT *
+                FROM project_unit_products
+                WHERE project_id=?
+                ORDER BY unit_id, added_at DESC
+                """,
+                (project_id,),
             )
-            # İlgili proje işlem (transaction) açıklamasını da güncelle (opsiyonel ama tutarlılık için iyi olur)
-            try:
-                self.cursor.execute(
-                    "UPDATE project_transactions SET description = description || ' (GÜNCELLENDİ)' "
-                    "WHERE ref_table='project_unit_products' AND ref_id=?",
-                    (entry_id,),
-                )
-            except Exception:
-                pass
+            return self.cursor.fetchall()
+        except Exception as exc:
+            logger.error(f"Error getting project unit products: {exc}")
+            return []
 
+    def update_unit_product_note(self, entry_id, note):
+        """Update only the operational note; financial records stay immutable."""
+        try:
+            self.cursor.execute(
+                "UPDATE project_unit_products SET notes=? WHERE id=?",
+                (str(note or ""), entry_id),
+            )
             self.conn.commit()
-            return True
-        except Exception as e:
-            logger.error(f"Error updating unit product note: {e}")
+            return self.cursor.rowcount > 0
+        except Exception as exc:
+            logger.error(f"Error updating unit product note: {exc}")
             return False
 
     def remove_unit_product(self, entry_id):
         try:
-            # Stoku geri yükle
             self.cursor.execute(
                 "SELECT part_id, quantity, part_name FROM project_unit_products WHERE id=?",
                 (entry_id,),
             )
             row = self.cursor.fetchone()
-            if row:
-                part_id = row["part_id"] if isinstance(row, dict) else row[0]
-                qty = row["quantity"] if isinstance(row, dict) else row[1]
-                p_name = (
-                    row["part_name"] if isinstance(row, dict) else row[2]
-                )  # Need to check if part_name is in selected row
+            if not row:
+                return False
 
-                if part_id and qty:
-                    # Stoku geri yükle (Stok Hareketlerine kayıt ekleyerek)
-                    self.adjust_stock(
-                        part_id, qty, f"Proje Ürün İptali (ID:{entry_id})", "Giriş"
-                    )
-            # İlgili malzeme gider kaydını da sil
-            try:
-                self.cursor.execute(
-                    "DELETE FROM project_transactions WHERE ref_table='project_unit_products' AND ref_id=?",
-                    (entry_id,),
+            part_id = row["part_id"] if isinstance(row, dict) else row[0]
+            qty = row["quantity"] if isinstance(row, dict) else row[1]
+            if part_id and qty:
+                stock_restored = self.adjust_stock(
+                    part_id,
+                    qty,
+                    f"Proje Urun Iptali (ID:{entry_id})",
+                    "Giri\u015f",
+                    commit=False,
                 )
-            except Exception as _de:
-                logger.warning(f"Unit product txn delete failed: {_de}")
+                if not stock_restored:
+                    raise RuntimeError("Project stock restoration failed")
+
+            self.cursor.execute(
+                "DELETE FROM project_transactions WHERE ref_table='project_unit_products' AND ref_id=?",
+                (entry_id,),
+            )
 
             self.cursor.execute(
                 "DELETE FROM project_unit_products WHERE id=?", (entry_id,)
             )
+            if self.cursor.rowcount <= 0:
+                raise RuntimeError("Project unit product was not deleted")
             self.conn.commit()
             return True
         except Exception as e:
             logger.error(f"Error removing unit product: {e}")
+            try:
+                self.conn.rollback()
+            except Exception as rollback_error:
+                logger.error(
+                    "Unit product removal rollback failed: %s",
+                    rollback_error,
+                )
             return False
 
     def get_unit_product_count(self, unit_id):

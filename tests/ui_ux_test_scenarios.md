@@ -1,0 +1,4176 @@
+# UI/UX Test Senaryoları - AYEC Pro
+
+## Kapsam
+- src/ui altındaki sayfalar, diyaloglar ve widget'lar
+- Ana menü, alt menüler, butonlar, mouse olayları, toggle anahtarları, işlevsel butonlar (PDF/Excel dışa aktarma, fiş/yazdırma)
+- Sinyal-slot bağları, olay işleyici tetiklemeleri, servis çağrıları ve UI tepkileri
+
+## Yürütme Notları
+- Gerçek Sonuç varsayılanı 'Çalıştırılmadı' olup manuel çalıştırmada doldurulmalıdır
+- Bağlantı Durumu, sinyal bağlantıları ve olay override'larının statik taramasından türetilir
+- Son güncelleme: otomatik üretici (`scripts/generate_ui_ux_test_scenarios.py`)
+
+## Test Vakaları
+### src\ui\components\app_header.py
+- ID: TC-00001
+  - UI Öğesi: btn_interface_edit (clicked)
+  - Konum: src\ui\components\app_header.py:103
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00002
+  - UI Öğesi: btn_settings (clicked)
+  - Konum: src\ui\components\app_header.py:111
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00003
+  - UI Öğesi: btn_theme_toggle (clicked)
+  - Konum: src\ui\components\app_header.py:120
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00004
+  - UI Öğesi: cmb_theme (currentIndexChanged)
+  - Konum: src\ui\components\app_header.py:126
+  - Bağlantı: self.currentTextChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00005
+  - UI Öğesi: cmb_language (currentIndexChanged)
+  - Konum: src\ui\components\app_header.py:134
+  - Bağlantı: self.currentTextChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00006
+  - UI Öğesi: btn_minimize (clicked)
+  - Konum: src\ui\components\app_header.py:144
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00007
+  - UI Öğesi: btn_maximize (clicked)
+  - Konum: src\ui\components\app_header.py:151
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00008
+  - UI Öğesi: btn_close (clicked)
+  - Konum: src\ui\components\app_header.py:158
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\components\message_box.py
+- ID: TC-00009
+  - UI Öğesi: btn_ok (clicked)
+  - Konum: src\ui\components\message_box.py:74
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00010
+  - UI Öğesi: btn_yes (clicked)
+  - Konum: src\ui\components\message_box.py:183
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00011
+  - UI Öğesi: btn_no (clicked)
+  - Konum: src\ui\components\message_box.py:202
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\add_customer_dialog.py
+- ID: TC-00012
+  - UI Öğesi: rb_individual (toggled)
+  - Konum: src\ui\dialogs\add_customer_dialog.py:171
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00013
+  - UI Öğesi: rb_corporate (toggled)
+  - Konum: src\ui\dialogs\add_customer_dialog.py:172
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00014
+  - UI Öğesi: chk_sms (stateChanged)
+  - Konum: src\ui\dialogs\add_customer_dialog.py:186
+  - Bağlantı: self.stateChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00015
+  - UI Öğesi: chk_problem (stateChanged)
+  - Konum: src\ui\dialogs\add_customer_dialog.py:201
+  - Bağlantı: self.stateChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00016
+  - UI Öğesi: btn_save (clicked)
+  - Konum: src\ui\dialogs\add_customer_dialog.py:343
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\add_device_dialog.py
+- ID: TC-00017
+  - UI Öğesi: combo_type (currentIndexChanged)
+  - Konum: src\ui\dialogs\add_device_dialog.py:109
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00018
+  - UI Öğesi: btn_mic (clicked)
+  - Konum: src\ui\dialogs\add_device_dialog.py:139
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00019
+  - UI Öğesi: combo_urgency (currentIndexChanged)
+  - Konum: src\ui\dialogs\add_device_dialog.py:161
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00020
+  - UI Öğesi: cost_btn_try (toggled)
+  - Konum: src\ui\dialogs\add_device_dialog.py:185
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00021
+  - UI Öğesi: cost_btn_usd (toggled)
+  - Konum: src\ui\dialogs\add_device_dialog.py:186
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00022
+  - UI Öğesi: cost_btn_eur (toggled)
+  - Konum: src\ui\dialogs\add_device_dialog.py:187
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00023
+  - UI Öğesi: btn_photo (clicked)
+  - Konum: src\ui\dialogs\add_device_dialog.py:246
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\add_kb_article_dialog.py
+- ID: TC-00024
+  - UI Öğesi: btn_save (clicked)
+  - Konum: src\ui\dialogs\add_kb_article_dialog.py:55
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00025
+  - UI Öğesi: btn_cancel (clicked)
+  - Konum: src\ui\dialogs\add_kb_article_dialog.py:59
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\add_stock_dialog.py
+- ID: TC-00026
+  - UI Öğesi: inp_category (currentIndexChanged)
+  - Konum: src\ui\dialogs\add_stock_dialog.py:678
+  - Bağlantı: self.currentTextChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00027
+  - UI Öğesi: btn_try (toggled)
+  - Konum: src\ui\dialogs\add_stock_dialog.py:760
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00028
+  - UI Öğesi: btn_usd (toggled)
+  - Konum: src\ui\dialogs\add_stock_dialog.py:761
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00029
+  - UI Öğesi: btn_eur (toggled)
+  - Konum: src\ui\dialogs\add_stock_dialog.py:762
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00030
+  - UI Öğesi: cmb_position (currentIndexChanged)
+  - Konum: src\ui\dialogs\add_stock_dialog.py:886
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00031
+  - UI Öğesi: btn_clear_photo (clicked)
+  - Konum: src\ui\dialogs\add_stock_dialog.py:932
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00032
+  - UI Öğesi: cmb_bank (currentIndexChanged)
+  - Konum: src\ui\dialogs\add_stock_dialog.py:958
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\admin_approval_dialog.py
+- ID: TC-00033
+  - UI Öğesi: btn_cancel (clicked)
+  - Konum: src\ui\dialogs\admin_approval_dialog.py:89
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00034
+  - UI Öğesi: btn_confirm (clicked)
+  - Konum: src\ui\dialogs\admin_approval_dialog.py:102
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\advanced_filter.py
+- ID: TC-00035
+  - UI Öğesi: combo_fault (currentIndexChanged)
+  - Konum: src\ui\dialogs\advanced_filter.py:24
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00036
+  - UI Öğesi: inp_status (currentIndexChanged)
+  - Konum: src\ui\dialogs\advanced_filter.py:29
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\app_lock_dialog.py
+- ID: TC-00037
+  - UI Öğesi: btn_login (clicked)
+  - Konum: src\ui\dialogs\app_lock_dialog.py:47
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00038
+  - UI Öğesi: btn_exit (clicked)
+  - Konum: src\ui\dialogs\app_lock_dialog.py:51
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\bank_detail_dialog.py
+- ID: TC-00039
+  - UI Öğesi: cmb_tx_type (currentIndexChanged)
+  - Konum: src\ui\dialogs\bank_detail_dialog.py:522
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00040
+  - UI Öğesi: chk_tx_date (stateChanged)
+  - Konum: src\ui\dialogs\bank_detail_dialog.py:526
+  - Bağlantı: self.stateChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00041
+  - UI Öğesi: btn_prev (clicked)
+  - Konum: src\ui\dialogs\bank_detail_dialog.py:631
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00042
+  - UI Öğesi: btn_next (clicked)
+  - Konum: src\ui\dialogs\bank_detail_dialog.py:635
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00043
+  - UI Öğesi: cmb_page_size (currentIndexChanged)
+  - Konum: src\ui\dialogs\bank_detail_dialog.py:642
+  - Bağlantı: self.currentTextChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\bank_detail_dialog_components.py
+- ID: TC-00044
+  - UI Öğesi: chk_active (stateChanged)
+  - Konum: src\ui\dialogs\bank_detail_dialog_components.py:87
+  - Bağlantı: self.stateChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00045
+  - UI Öğesi: chk_active (stateChanged)
+  - Konum: src\ui\dialogs\bank_detail_dialog_components.py:204
+  - Bağlantı: self.stateChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\bulk_payment_dialog.py
+- ID: TC-00046
+  - UI Öğesi: btn_select_all (clicked)
+  - Konum: src\ui\dialogs\bulk_payment_dialog.py:82
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00047
+  - UI Öğesi: btn_early_close (clicked)
+  - Konum: src\ui\dialogs\bulk_payment_dialog.py:96
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00048
+  - UI Öğesi: btn_pay_all (clicked)
+  - Konum: src\ui\dialogs\bulk_payment_dialog.py:110
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00049
+  - UI Öğesi: btn_pay_selected (clicked)
+  - Konum: src\ui\dialogs\bulk_payment_dialog.py:124
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\bulk_stock_select_dialog.py
+- ID: TC-00050
+  - UI Öğesi: btn_services (clicked)
+  - Konum: src\ui\dialogs\bulk_stock_select_dialog.py:88
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00051
+  - UI Öğesi: btn_parts (clicked)
+  - Konum: src\ui\dialogs\bulk_stock_select_dialog.py:89
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\customer_360_dialog.py
+- ID: TC-00052
+  - UI Öğesi: btn_xlsx (clicked)
+  - Konum: src\ui\dialogs\customer_360_dialog.py:293
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00053
+  - UI Öğesi: btn_pdf (clicked)
+  - Konum: src\ui\dialogs\customer_360_dialog.py:294
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00054
+  - UI Öğesi: btn_add_vehicle (clicked)
+  - Konum: src\ui\dialogs\customer_360_dialog.py:442
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00055
+  - UI Öğesi: btn_edit_vehicle (clicked)
+  - Konum: src\ui\dialogs\customer_360_dialog.py:443
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00056
+  - UI Öğesi: btn_refresh_vehicle (clicked)
+  - Konum: src\ui\dialogs\customer_360_dialog.py:444
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\customer_history_dialog.py
+- ID: TC-00057
+  - UI Öğesi: btn_select_all_hist (clicked)
+  - Konum: src\ui\dialogs\customer_history_dialog.py:135
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00058
+  - UI Öğesi: btn_select_all_fin (clicked)
+  - Konum: src\ui\dialogs\customer_history_dialog.py:170
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\customer_notes_dialog.py
+- ID: TC-00059
+  - UI Öğesi: cmb_type (currentIndexChanged)
+  - Konum: src\ui\dialogs\customer_notes_dialog.py:450
+  - Bağlantı: self.currentTextChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00060
+  - UI Öğesi: btn_save (clicked)
+  - Konum: src\ui\dialogs\customer_notes_dialog.py:467
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\customer_vehicle_dialog.py
+- ID: TC-00061
+  - UI Öğesi: inp_brand (currentIndexChanged)
+  - Konum: src\ui\dialogs\customer_vehicle_dialog.py:42
+  - Bağlantı: self.currentTextChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00062
+  - UI Öğesi: inp_model (currentIndexChanged)
+  - Konum: src\ui\dialogs\customer_vehicle_dialog.py:43
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00063
+  - UI Öğesi: inp_year (currentIndexChanged)
+  - Konum: src\ui\dialogs\customer_vehicle_dialog.py:44
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00064
+  - UI Öğesi: cmb_vehicle_type (currentIndexChanged)
+  - Konum: src\ui\dialogs\customer_vehicle_dialog.py:45
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00065
+  - UI Öğesi: cmb_engine_type (currentIndexChanged)
+  - Konum: src\ui\dialogs\customer_vehicle_dialog.py:47
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00066
+  - UI Öğesi: cmb_fuel_type (currentIndexChanged)
+  - Konum: src\ui\dialogs\customer_vehicle_dialog.py:49
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\device_selection_dialog.py
+- ID: TC-00067
+  - UI Öğesi: btn_cancel (clicked)
+  - Konum: src\ui\dialogs\device_selection_dialog.py:72
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00068
+  - UI Öğesi: btn_select (clicked)
+  - Konum: src\ui\dialogs\device_selection_dialog.py:77
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\early_closure_dialog.py
+- ID: TC-00069
+  - UI Öğesi: btn_cancel (clicked)
+  - Konum: src\ui\dialogs\early_closure_dialog.py:144
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00070
+  - UI Öğesi: btn_confirm (clicked)
+  - Konum: src\ui\dialogs\early_closure_dialog.py:163
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\label_editor_dialog.py
+- ID: TC-00071
+  - UI Öğesi: cmb_filter (currentIndexChanged)
+  - Konum: src\ui\dialogs\label_editor_dialog.py:47
+  - Bağlantı: self.currentTextChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\license_lock_screen.py
+- ID: TC-00072
+  - UI Öğesi: btn_copy_hwid (clicked)
+  - Konum: src\ui\dialogs\license_lock_screen.py:79
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00073
+  - UI Öğesi: btn_activate (clicked)
+  - Konum: src\ui\dialogs\license_lock_screen.py:130
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00074
+  - UI Öğesi: btn_action (clicked)
+  - Konum: src\ui\dialogs\license_lock_screen.py:149
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\loan_wizard_advanced.py
+- ID: TC-00075
+  - UI Öğesi: btn_back (clicked)
+  - Konum: src\ui\dialogs\loan_wizard_advanced.py:86
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00076
+  - UI Öğesi: btn_next (clicked)
+  - Konum: src\ui\dialogs\loan_wizard_advanced.py:93
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00077
+  - UI Öğesi: btn_save (clicked)
+  - Konum: src\ui\dialogs\loan_wizard_advanced.py:99
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\loan_wizard_steps\step1_bank_info.py
+- ID: TC-00078
+  - UI Öğesi: cmb_bank (currentIndexChanged)
+  - Konum: src\ui\dialogs\loan_wizard_steps\step1_bank_info.py:49
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00079
+  - UI Öğesi: cmb_loan_type (currentIndexChanged)
+  - Konum: src\ui\dialogs\loan_wizard_steps\step1_bank_info.py:94
+  - Bağlantı: self.currentTextChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\loan_wizard_steps\step2_financial_details.py
+- ID: TC-00080
+  - UI Öğesi: radio_yearly (toggled)
+  - Konum: src\ui\dialogs\loan_wizard_steps\step2_financial_details.py:94
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00081
+  - UI Öğesi: radio_monthly (toggled)
+  - Konum: src\ui\dialogs\loan_wizard_steps\step2_financial_details.py:95
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\location_picker_dialog.py
+- ID: TC-00082
+  - UI Öğesi: btn_search (clicked)
+  - Konum: src\ui\dialogs\location_picker_dialog.py:92
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00083
+  - UI Öğesi: btn_whatsapp (clicked)
+  - Konum: src\ui\dialogs\location_picker_dialog.py:152
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00084
+  - UI Öğesi: btn_cancel (clicked)
+  - Konum: src\ui\dialogs\location_picker_dialog.py:158
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00085
+  - UI Öğesi: btn_confirm (clicked)
+  - Konum: src\ui\dialogs\location_picker_dialog.py:163
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\login_dialog.py
+- ID: TC-00086
+  - UI Öğesi: btn_login (clicked)
+  - Konum: src\ui\dialogs\login_dialog.py:117
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\modern_select_dialog.py
+- ID: TC-00087
+  - UI Öğesi: combo (currentIndexChanged)
+  - Konum: src\ui\dialogs\modern_select_dialog.py:17
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\new_service_dialog.py
+- ID: TC-00088
+  - UI Öğesi: cmb_customer (currentIndexChanged)
+  - Konum: src\ui\dialogs\new_service_dialog.py:139
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00089
+  - UI Öğesi: cmb_device (currentIndexChanged)
+  - Konum: src\ui\dialogs\new_service_dialog.py:168
+  - Bağlantı: self.currentTextChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00090
+  - UI Öğesi: cmb_brand (currentIndexChanged)
+  - Konum: src\ui\dialogs\new_service_dialog.py:171
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00091
+  - UI Öğesi: cmb_urgency (currentIndexChanged)
+  - Konum: src\ui\dialogs\new_service_dialog.py:209
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00092
+  - UI Öğesi: cmb_personnel (currentIndexChanged)
+  - Konum: src\ui\dialogs\new_service_dialog.py:213
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00093
+  - UI Öğesi: cmb_service_profile (currentIndexChanged)
+  - Konum: src\ui\dialogs\new_service_dialog.py:239
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00094
+  - UI Öğesi: btn_photo (clicked)
+  - Konum: src\ui\dialogs\new_service_dialog.py:324
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00095
+  - UI Öğesi: btn_photo_count (clicked)
+  - Konum: src\ui\dialogs\new_service_dialog.py:333
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00096
+  - UI Öğesi: cmb_fuel_level_entry (currentIndexChanged)
+  - Konum: src\ui\dialogs\new_service_dialog.py:373
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00097
+  - UI Öğesi: chk_customer_approval (stateChanged)
+  - Konum: src\ui\dialogs\new_service_dialog.py:380
+  - Bağlantı: self.stateChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00098
+  - UI Öğesi: chk_kvkk_approval (stateChanged)
+  - Konum: src\ui\dialogs\new_service_dialog.py:381
+  - Bağlantı: self.stateChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00099
+  - UI Öğesi: btn_edit_checklist (clicked)
+  - Konum: src\ui\dialogs\new_service_dialog.py:400
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00100
+  - UI Öğesi: btn_edit_damage (clicked)
+  - Konum: src\ui\dialogs\new_service_dialog.py:404
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00101
+  - UI Öğesi: btn_save_and_form (clicked)
+  - Konum: src\ui\dialogs\new_service_dialog.py:487
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00102
+  - UI Öğesi: btn_action (clicked)
+  - Konum: src\ui\dialogs\new_service_dialog.py:496
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\partner_documents_dialog.py
+- ID: TC-00103
+  - UI Öğesi: btn_add (clicked)
+  - Konum: src\ui\dialogs\partner_documents_dialog.py:85
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00104
+  - UI Öğesi: btn_open (clicked)
+  - Konum: src\ui\dialogs\partner_documents_dialog.py:86
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00105
+  - UI Öğesi: btn_remove (clicked)
+  - Konum: src\ui\dialogs\partner_documents_dialog.py:87
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\partner_finance_dialog.py
+- ID: TC-00106
+  - UI Öğesi: cmb_shipment (currentIndexChanged)
+  - Konum: src\ui\dialogs\partner_finance_dialog.py:216
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\partner_profile_dialog.py
+- ID: TC-00107
+  - UI Öğesi: cmb_type (currentIndexChanged)
+  - Konum: src\ui\dialogs\partner_profile_dialog.py:45
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00108
+  - UI Öğesi: cmb_service_type (currentIndexChanged)
+  - Konum: src\ui\dialogs\partner_profile_dialog.py:63
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00109
+  - UI Öğesi: cmb_contract_type (currentIndexChanged)
+  - Konum: src\ui\dialogs\partner_profile_dialog.py:81
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00110
+  - UI Öğesi: cmb_sla_level (currentIndexChanged)
+  - Konum: src\ui\dialogs\partner_profile_dialog.py:86
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\payment_dialog.py
+- ID: TC-00111
+  - UI Öğesi: combo_vat_rate (currentIndexChanged)
+  - Konum: src\ui\dialogs\payment_dialog.py:383
+  - Bağlantı: self.currentTextChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00112
+  - UI Öğesi: chk_installment (stateChanged)
+  - Konum: src\ui\dialogs\payment_dialog.py:437
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00113
+  - UI Öğesi: chk_print_receipt (stateChanged)
+  - Konum: src\ui\dialogs\payment_dialog.py:480
+  - Bağlantı: self.stateChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\project_transaction_dialog.py
+- ID: TC-00114
+  - UI Öğesi: cmb_cat (currentIndexChanged)
+  - Konum: src\ui\dialogs\project_transaction_dialog.py:46
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00115
+  - UI Öğesi: cmb_bank (currentIndexChanged)
+  - Konum: src\ui\dialogs\project_transaction_dialog.py:75
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00116
+  - UI Öğesi: txt_desc (currentIndexChanged)
+  - Konum: src\ui\dialogs\project_transaction_dialog.py:103
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00117
+  - UI Öğesi: btn_cancel (clicked)
+  - Konum: src\ui\dialogs\project_transaction_dialog.py:117
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00118
+  - UI Öğesi: btn_save (clicked)
+  - Konum: src\ui\dialogs\project_transaction_dialog.py:122
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\project_unit_sale_dialog.py
+- ID: TC-00119
+  - UI Öğesi: cmb_sales_rep (currentIndexChanged)
+  - Konum: src\ui\dialogs\project_unit_sale_dialog.py:212
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\quick_notes_editor.py
+- ID: TC-00120
+  - UI Öğesi: cmb_category (currentIndexChanged)
+  - Konum: src\ui\dialogs\quick_notes_editor.py:123
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00121
+  - UI Öğesi: cmb_profile (currentIndexChanged)
+  - Konum: src\ui\dialogs\quick_notes_editor.py:131
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00122
+  - UI Öğesi: btn_apply_profile (clicked)
+  - Konum: src\ui\dialogs\quick_notes_editor.py:139
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00123
+  - UI Öğesi: btn_add (clicked)
+  - Konum: src\ui\dialogs\quick_notes_editor.py:150
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00124
+  - UI Öğesi: btn_close (clicked)
+  - Konum: src\ui\dialogs\quick_notes_editor.py:185
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\quick_sale_dialog.py
+- ID: TC-00125
+  - UI Öğesi: cmb_payment (currentIndexChanged)
+  - Konum: src\ui\dialogs\quick_sale_dialog.py:144
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00126
+  - UI Öğesi: cmb_bank (currentIndexChanged)
+  - Konum: src\ui\dialogs\quick_sale_dialog.py:151
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\registration_dialog.py
+- ID: TC-00127
+  - UI Öğesi: cmb_purpose (currentIndexChanged)
+  - Konum: src\ui\dialogs\registration_dialog.py:259
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00128
+  - UI Öğesi: chk_remember (clicked)
+  - Konum: src\ui\dialogs\registration_dialog.py:342
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00129
+  - UI Öğesi: btn_forgot (clicked)
+  - Konum: src\ui\dialogs\registration_dialog.py:347
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\report_dialog.py
+- ID: TC-00130
+  - UI Öğesi: combo_tech (currentIndexChanged)
+  - Konum: src\ui\dialogs\report_dialog.py:122
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\send_sms_dialog.py
+- ID: TC-00131
+  - UI Öğesi: cmb_templates (currentIndexChanged)
+  - Konum: src\ui\dialogs\send_sms_dialog.py:69
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00132
+  - UI Öğesi: btn_send (clicked)
+  - Konum: src\ui\dialogs\send_sms_dialog.py:111
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\service_invoice_dialog.py
+- ID: TC-00133
+  - UI Öğesi: rb_try (toggled)
+  - Konum: src\ui\dialogs\service_invoice_dialog.py:93
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00134
+  - UI Öğesi: rb_usd (toggled)
+  - Konum: src\ui\dialogs\service_invoice_dialog.py:94
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00135
+  - UI Öğesi: rb_eur (toggled)
+  - Konum: src\ui\dialogs\service_invoice_dialog.py:95
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00136
+  - UI Öğesi: cmb_template (currentIndexChanged)
+  - Konum: src\ui\dialogs\service_invoice_dialog.py:102
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00137
+  - UI Öğesi: btn_cancel (clicked)
+  - Konum: src\ui\dialogs\service_invoice_dialog.py:221
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00138
+  - UI Öğesi: btn_generate (clicked)
+  - Konum: src\ui\dialogs\service_invoice_dialog.py:236
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\setup_wizard\basic_settings_step.py
+- ID: TC-00139
+  - UI Öğesi: currency_combo (currentIndexChanged)
+  - Konum: src\ui\dialogs\setup_wizard\basic_settings_step.py:202
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00140
+  - UI Öğesi: sector_combo (currentIndexChanged)
+  - Konum: src\ui\dialogs\setup_wizard\basic_settings_step.py:215
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\setup_wizard\setup_wizard_dialog.py
+- ID: TC-00141
+  - UI Öğesi: back_btn (clicked)
+  - Konum: src\ui\dialogs\setup_wizard\setup_wizard_dialog.py:464
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00142
+  - UI Öğesi: next_btn (clicked)
+  - Konum: src\ui\dialogs\setup_wizard\setup_wizard_dialog.py:487
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\technician_panel.py
+- ID: TC-00143
+  - UI Öğesi: cmb_technical_profile_main (currentIndexChanged)
+  - Konum: src\ui\dialogs\technician_panel.py:256
+  - Bağlantı: self.currentTextChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\technician_wizard_page2.py
+- ID: TC-00144
+  - UI Öğesi: btn_private_eye (clicked)
+  - Konum: src\ui\dialogs\technician_wizard_page2.py:422
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\technician_wizard_page3.py
+- ID: TC-00145
+  - UI Öğesi: combo_status (currentIndexChanged)
+  - Konum: src\ui\dialogs\technician_wizard_page3.py:265
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00146
+  - UI Öğesi: combo_warranty (currentIndexChanged)
+  - Konum: src\ui\dialogs\technician_wizard_page3.py:276
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00147
+  - UI Öğesi: combo_delivery (currentIndexChanged)
+  - Konum: src\ui\dialogs\technician_wizard_page3.py:307
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00148
+  - UI Öğesi: combo_payment (currentIndexChanged)
+  - Konum: src\ui\dialogs\technician_wizard_page3.py:394
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00149
+  - UI Öğesi: combo_parts (currentIndexChanged)
+  - Konum: src\ui\dialogs\technician_wizard_page3.py:437
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\transaction_dialog.py
+- ID: TC-00150
+  - UI Öğesi: cmb_p (currentIndexChanged)
+  - Konum: src\ui\dialogs\transaction_dialog.py:101
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00151
+  - UI Öğesi: cmb_t (currentIndexChanged)
+  - Konum: src\ui\dialogs\transaction_dialog.py:110
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\unified_documents_center_dialog.py
+- ID: TC-00152
+  - UI Öğesi: btn_open (clicked)
+  - Konum: src\ui\dialogs\unified_documents_center_dialog.py:119
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00153
+  - UI Öğesi: btn_refresh (clicked)
+  - Konum: src\ui\dialogs\unified_documents_center_dialog.py:120
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\vehicle_maintenance_dialog.py
+- ID: TC-00154
+  - UI Öğesi: cmb_customer (currentIndexChanged)
+  - Konum: src\ui\dialogs\vehicle_maintenance_dialog.py:86
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00155
+  - UI Öğesi: cmb_vehicle (currentIndexChanged)
+  - Konum: src\ui\dialogs\vehicle_maintenance_dialog.py:95
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00156
+  - UI Öğesi: cmb_brand (currentIndexChanged)
+  - Konum: src\ui\dialogs\vehicle_maintenance_dialog.py:102
+  - Bağlantı: self.currentTextChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00157
+  - UI Öğesi: cmb_model (currentIndexChanged)
+  - Konum: src\ui\dialogs\vehicle_maintenance_dialog.py:108
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00158
+  - UI Öğesi: cmb_year (currentIndexChanged)
+  - Konum: src\ui\dialogs\vehicle_maintenance_dialog.py:112
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00159
+  - UI Öğesi: cmb_vehicle_type (currentIndexChanged)
+  - Konum: src\ui\dialogs\vehicle_maintenance_dialog.py:117
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00160
+  - UI Öğesi: cmb_engine_type (currentIndexChanged)
+  - Konum: src\ui\dialogs\vehicle_maintenance_dialog.py:119
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00161
+  - UI Öğesi: cmb_fuel_type (currentIndexChanged)
+  - Konum: src\ui\dialogs\vehicle_maintenance_dialog.py:121
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00162
+  - UI Öğesi: btn_gallery (clicked)
+  - Konum: src\ui\dialogs\vehicle_maintenance_dialog.py:182
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00163
+  - UI Öğesi: btn_history (clicked)
+  - Konum: src\ui\dialogs\vehicle_maintenance_dialog.py:186
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\dialogs\vehicle_maintenance_photo_gallery_dialog.py
+- ID: TC-00164
+  - UI Öğesi: btn_add (clicked)
+  - Konum: src\ui\dialogs\vehicle_maintenance_photo_gallery_dialog.py:51
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00165
+  - UI Öğesi: btn_delete (clicked)
+  - Konum: src\ui\dialogs\vehicle_maintenance_photo_gallery_dialog.py:53
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00166
+  - UI Öğesi: cmb_label (currentIndexChanged)
+  - Konum: src\ui\dialogs\vehicle_maintenance_photo_gallery_dialog.py:61
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\login_window.py
+- ID: TC-00167
+  - UI Öğesi: chk_remember (stateChanged)
+  - Konum: src\ui\login_window.py:246
+  - Bağlantı: self.stateChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\modern_login_deleted_records.py
+- ID: TC-00168
+  - UI Öğesi: cmb_record (currentIndexChanged)
+  - Konum: src\ui\modern_login_deleted_records.py:51
+  - Bağlantı: self.currentTextChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\modern_login_technical_dialogs.py
+- ID: TC-00169
+  - UI Öğesi: chk_remember (stateChanged)
+  - Konum: src\ui\modern_login_technical_dialogs.py:120
+  - Bağlantı: self.stateChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00170
+  - UI Öğesi: btn_hwid (clicked)
+  - Konum: src\ui\modern_login_technical_dialogs.py:445
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00171
+  - UI Öğesi: btn_db (clicked)
+  - Konum: src\ui\modern_login_technical_dialogs.py:446
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00172
+  - UI Öğesi: btn_license (clicked)
+  - Konum: src\ui\modern_login_technical_dialogs.py:447
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00173
+  - UI Öğesi: btn_restore (clicked)
+  - Konum: src\ui\modern_login_technical_dialogs.py:448
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\modern_login_wizard.py
+- ID: TC-00174
+  - UI Öğesi: combo (currentIndexChanged)
+  - Konum: src\ui\modern_login_wizard.py:178
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\accounting_dialogs\add_expense_dialog.py
+- ID: TC-00175
+  - UI Öğesi: cmb_cat (currentIndexChanged)
+  - Konum: src\ui\pages\accounting_dialogs\add_expense_dialog.py:32
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00176
+  - UI Öğesi: cmb_bank (currentIndexChanged)
+  - Konum: src\ui\pages\accounting_dialogs\add_expense_dialog.py:37
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00177
+  - UI Öğesi: exp_btn_try (toggled)
+  - Konum: src\ui\pages\accounting_dialogs\add_expense_dialog.py:78
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00178
+  - UI Öğesi: exp_btn_usd (toggled)
+  - Konum: src\ui\pages\accounting_dialogs\add_expense_dialog.py:79
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00179
+  - UI Öğesi: exp_btn_eur (toggled)
+  - Konum: src\ui\pages\accounting_dialogs\add_expense_dialog.py:80
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\accounting_dialogs\add_income_dialog.py
+- ID: TC-00180
+  - UI Öğesi: cmb_product (currentIndexChanged)
+  - Konum: src\ui\pages\accounting_dialogs\add_income_dialog.py:45
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00181
+  - UI Öğesi: cmb_cat (currentIndexChanged)
+  - Konum: src\ui\pages\accounting_dialogs\add_income_dialog.py:55
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00182
+  - UI Öğesi: cmb_bank (currentIndexChanged)
+  - Konum: src\ui\pages\accounting_dialogs\add_income_dialog.py:60
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00183
+  - UI Öğesi: inc_btn_try (toggled)
+  - Konum: src\ui\pages\accounting_dialogs\add_income_dialog.py:101
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00184
+  - UI Öğesi: inc_btn_usd (toggled)
+  - Konum: src\ui\pages\accounting_dialogs\add_income_dialog.py:102
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00185
+  - UI Öğesi: inc_btn_eur (toggled)
+  - Konum: src\ui\pages\accounting_dialogs\add_income_dialog.py:103
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\accounting_dialogs\add_transfer_dialog.py
+- ID: TC-00186
+  - UI Öğesi: cmb_from (currentIndexChanged)
+  - Konum: src\ui\pages\accounting_dialogs\add_transfer_dialog.py:31
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00187
+  - UI Öğesi: cmb_to (currentIndexChanged)
+  - Konum: src\ui\pages\accounting_dialogs\add_transfer_dialog.py:32
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\accounting_dialogs\tax_analysis_dialog.py
+- ID: TC-00188
+  - UI Öğesi: btn_save (clicked)
+  - Konum: src\ui\pages\accounting_dialogs\tax_analysis_dialog.py:134
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00189
+  - UI Öğesi: btn_reset (clicked)
+  - Konum: src\ui\pages\accounting_dialogs\tax_analysis_dialog.py:141
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\accounting_dialogs\transaction_details_dialog.py
+- ID: TC-00190
+  - UI Öğesi: btn_open_360 (clicked)
+  - Konum: src\ui\pages\accounting_dialogs\transaction_details_dialog.py:131
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\accounting_page.py
+- ID: TC-00191
+  - UI Öğesi: combo (currentIndexChanged)
+  - Konum: src\ui\pages\accounting_page.py:31
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00192
+  - UI Öğesi: btn_archive (clicked)
+  - Konum: src\ui\pages\accounting_page.py:101
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00193
+  - UI Öğesi: cmb_fiscal_year (currentIndexChanged)
+  - Konum: src\ui\pages\accounting_page.py:105
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\ai_assistant_page.py
+- ID: TC-00194
+  - UI Öğesi: btn_search (clicked)
+  - Konum: src\ui\pages\ai_assistant_page.py:131
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\announcements_page.py
+- ID: TC-00195
+  - UI Öğesi: cmb_priority (currentIndexChanged)
+  - Konum: src\ui\pages\announcements_page.py:66
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\appointments_page.py
+- ID: TC-00196
+  - UI Öğesi: cmb_customer (currentIndexChanged)
+  - Konum: src\ui\pages\appointments_page.py:56
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00197
+  - UI Öğesi: cmb_personnel (currentIndexChanged)
+  - Konum: src\ui\pages\appointments_page.py:62
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00198
+  - UI Öğesi: cmb_type (currentIndexChanged)
+  - Konum: src\ui\pages\appointments_page.py:122
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\audit_log_page.py
+- ID: TC-00199
+  - UI Öğesi: btn_refresh (clicked)
+  - Konum: src\ui\pages\audit_log_page.py:71
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\backup_page.py
+- ID: TC-00200
+  - UI Öğesi: chk_daily (stateChanged)
+  - Konum: src\ui\pages\backup_page.py:152
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00201
+  - UI Öğesi: chk_on_exit (stateChanged)
+  - Konum: src\ui\pages\backup_page.py:172
+  - Bağlantı: self.stateChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\contracts_page.py
+- ID: TC-00202
+  - UI Öğesi: cmb_customer (currentIndexChanged)
+  - Konum: src\ui\pages\contracts_page.py:177
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00203
+  - UI Öğesi: cmb_type (currentIndexChanged)
+  - Konum: src\ui\pages\contracts_page.py:188
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00204
+  - UI Öğesi: btn_add_f (clicked)
+  - Konum: src\ui\pages\contracts_page.py:206
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\dashboard_page.py
+- ID: TC-00205
+  - UI Öğesi: critical_stock_badge (clicked)
+  - Konum: src\ui\pages\dashboard_page.py:631
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\external_tracking_page.py
+- ID: TC-00206
+  - UI Öğesi: inp_customer (currentIndexChanged)
+  - Konum: src\ui\pages\external_tracking_page.py:74
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00207
+  - UI Öğesi: cmb_status (currentIndexChanged)
+  - Konum: src\ui\pages\external_tracking_page.py:104
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00208
+  - UI Öğesi: btn_photos (clicked)
+  - Konum: src\ui\pages\external_tracking_page.py:156
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00209
+  - UI Öğesi: btn_multi (clicked)
+  - Konum: src\ui\pages\external_tracking_page.py:370
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\finance\bank_accounts_widget.py
+- ID: TC-00210
+  - UI Öğesi: btn_try (toggled)
+  - Konum: src\ui\pages\finance\bank_accounts_widget.py:124
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00211
+  - UI Öğesi: btn_usd (toggled)
+  - Konum: src\ui\pages\finance\bank_accounts_widget.py:125
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00212
+  - UI Öğesi: btn_eur (toggled)
+  - Konum: src\ui\pages\finance\bank_accounts_widget.py:126
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00213
+  - UI Öğesi: chk_active (stateChanged)
+  - Konum: src\ui\pages\finance\bank_accounts_widget.py:250
+  - Bağlantı: self.stateChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00214
+  - UI Öğesi: cmb_target (currentIndexChanged)
+  - Konum: src\ui\pages\finance\bank_accounts_widget.py:463
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00215
+  - UI Öğesi: btn_add (clicked)
+  - Konum: src\ui\pages\finance\bank_accounts_widget.py:622
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00216
+  - UI Öğesi: btn_refresh (clicked)
+  - Konum: src\ui\pages\finance\bank_accounts_widget.py:623
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00217
+  - UI Öğesi: btn_import (clicked)
+  - Konum: src\ui\pages\finance\bank_accounts_widget.py:624
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00218
+  - UI Öğesi: btn_export (clicked)
+  - Konum: src\ui\pages\finance\bank_accounts_widget.py:625
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00219
+  - UI Öğesi: filter_status (currentIndexChanged)
+  - Konum: src\ui\pages\finance\bank_accounts_widget.py:681
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00220
+  - UI Öğesi: btn_bulk_toggle (clicked)
+  - Konum: src\ui\pages\finance\bank_accounts_widget.py:685
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00221
+  - UI Öğesi: btn_bulk_delete (clicked)
+  - Konum: src\ui\pages\finance\bank_accounts_widget.py:686
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\finance\bank_loans_widget.py
+- ID: TC-00222
+  - UI Öğesi: btn_add_loan (clicked)
+  - Konum: src\ui\pages\finance\bank_loans_widget.py:44
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\finance\check_note_page.py
+- ID: TC-00223
+  - UI Öğesi: filter_status (currentIndexChanged)
+  - Konum: src\ui\pages\finance\check_note_page.py:85
+  - Bağlantı: self.currentTextChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00224
+  - UI Öğesi: cmb_type (currentIndexChanged)
+  - Konum: src\ui\pages\finance\check_note_page.py:369
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00225
+  - UI Öğesi: cmb_dir (currentIndexChanged)
+  - Konum: src\ui\pages\finance\check_note_page.py:373
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00226
+  - UI Öğesi: cmb_status (currentIndexChanged)
+  - Konum: src\ui\pages\finance\check_note_page.py:399
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\gemini_settings_widget.py
+- ID: TC-00227
+  - UI Öğesi: combo_model (currentIndexChanged)
+  - Konum: src\ui\pages\gemini_settings_widget.py:91
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00228
+  - UI Öğesi: btn_test (clicked)
+  - Konum: src\ui\pages\gemini_settings_widget.py:113
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00229
+  - UI Öğesi: btn_save (clicked)
+  - Konum: src\ui\pages\gemini_settings_widget.py:119
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\invoice_page.py
+- ID: TC-00230
+  - UI Öğesi: cmb_customer (currentIndexChanged)
+  - Konum: src\ui\pages\invoice_page.py:61
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00231
+  - UI Öğesi: btn_add_item (clicked)
+  - Konum: src\ui\pages\invoice_page.py:90
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00232
+  - UI Öğesi: btn_remove_item (clicked)
+  - Konum: src\ui\pages\invoice_page.py:92
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00233
+  - UI Öğesi: cmb_bank (currentIndexChanged)
+  - Konum: src\ui\pages\invoice_page.py:115
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00234
+  - UI Öğesi: btn_send (clicked)
+  - Konum: src\ui\pages\invoice_page.py:139
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\job_service_tracking_page.py
+- ID: TC-00235
+  - UI Öğesi: btn_report (clicked)
+  - Konum: src\ui\pages\job_service_tracking_page.py:51
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00236
+  - UI Öğesi: job_search_button (clicked)
+  - Konum: src\ui\pages\job_service_tracking_page.py:156
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00237
+  - UI Öğesi: job_search_clear_button (clicked)
+  - Konum: src\ui\pages\job_service_tracking_page.py:157
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00238
+  - UI Öğesi: service_search_button (clicked)
+  - Konum: src\ui\pages\job_service_tracking_page.py:186
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00239
+  - UI Öğesi: service_search_clear_button (clicked)
+  - Konum: src\ui\pages\job_service_tracking_page.py:187
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\knowledge_base_page.py
+- ID: TC-00240
+  - UI Öğesi: btn_new (clicked)
+  - Konum: src\ui\pages\knowledge_base_page.py:69
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00241
+  - UI Öğesi: btn_delete (clicked)
+  - Konum: src\ui\pages\knowledge_base_page.py:75
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\loaner_devices_page.py
+- ID: TC-00242
+  - UI Öğesi: btn_refresh (clicked)
+  - Konum: src\ui\pages\loaner_devices_page.py:102
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\new_transaction_v2_page.py
+- ID: TC-00243
+  - UI Öğesi: cmb_customer (currentIndexChanged)
+  - Konum: src\ui\pages\new_transaction_v2_page.py:383
+  - Bağlantı: self.currentTextChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00244
+  - UI Öğesi: cmb_currency (currentIndexChanged)
+  - Konum: src\ui\pages\new_transaction_v2_page.py:413
+  - Bağlantı: self.currentTextChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00245
+  - UI Öğesi: cmb_service_types (currentIndexChanged)
+  - Konum: src\ui\pages\new_transaction_v2_page.py:472
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00246
+  - UI Öğesi: cmb_parts (currentIndexChanged)
+  - Konum: src\ui\pages\new_transaction_v2_page.py:480
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00247
+  - UI Öğesi: inp_desc (currentIndexChanged)
+  - Konum: src\ui\pages\new_transaction_v2_page.py:505
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00248
+  - UI Öğesi: btn_add_to_cart (clicked)
+  - Konum: src\ui\pages\new_transaction_v2_page.py:516
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00249
+  - UI Öğesi: btn_bulk (clicked)
+  - Konum: src\ui\pages\new_transaction_v2_page.py:522
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00250
+  - UI Öğesi: cmb_vat (currentIndexChanged)
+  - Konum: src\ui\pages\new_transaction_v2_page.py:656
+  - Bağlantı: self.currentTextChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00251
+  - UI Öğesi: btn_save (clicked)
+  - Konum: src\ui\pages\new_transaction_v2_page.py:695
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00252
+  - UI Öğesi: btn_pay (clicked)
+  - Konum: src\ui\pages\new_transaction_v2_page.py:702
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00253
+  - UI Öğesi: btn_proforma (clicked)
+  - Konum: src\ui\pages\new_transaction_v2_page.py:709
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\pc_builder_page.py
+- ID: TC-00254
+  - UI Öğesi: cmb_brand (currentIndexChanged)
+  - Konum: src\ui\pages\pc_builder_page.py:187
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00255
+  - UI Öğesi: cmb_spec (currentIndexChanged)
+  - Konum: src\ui\pages\pc_builder_page.py:199
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00256
+  - UI Öğesi: cmb_product (currentIndexChanged)
+  - Konum: src\ui\pages\pc_builder_page.py:211
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00257
+  - UI Öğesi: cmb_customer (currentIndexChanged)
+  - Konum: src\ui\pages\pc_builder_page.py:562
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00258
+  - UI Öğesi: cmb_vat (currentIndexChanged)
+  - Konum: src\ui\pages\pc_builder_page.py:943
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\personnel_page.py
+- ID: TC-00259
+  - UI Öğesi: btn_clear (clicked)
+  - Konum: src\ui\pages\personnel_page.py:108
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00260
+  - UI Öğesi: btn_add (clicked)
+  - Konum: src\ui\pages\personnel_page.py:112
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00261
+  - UI Öğesi: cmb_personnel (currentIndexChanged)
+  - Konum: src\ui\pages\personnel_page.py:154
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\project_management\project_detail_components.py
+- ID: TC-00262
+  - UI Öğesi: btn_income (clicked)
+  - Konum: src\ui\pages\project_management\project_detail_components.py:63
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00263
+  - UI Öğesi: btn_expense (clicked)
+  - Konum: src\ui\pages\project_management\project_detail_components.py:67
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00264
+  - UI Öğesi: btn_add (clicked)
+  - Konum: src\ui\pages\project_management\project_detail_components.py:260
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00265
+  - UI Öğesi: btn_export (clicked)
+  - Konum: src\ui\pages\project_management\project_detail_components.py:283
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00266
+  - UI Öğesi: btn_add_room (clicked)
+  - Konum: src\ui\pages\project_management\project_detail_components.py:622
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00267
+  - UI Öğesi: cmb_target_room (currentIndexChanged)
+  - Konum: src\ui\pages\project_management\project_detail_components.py:633
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00268
+  - UI Öğesi: btn_save_general_note (clicked)
+  - Konum: src\ui\pages\project_management\project_detail_components.py:650
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00269
+  - UI Öğesi: btn_save_notes (clicked)
+  - Konum: src\ui\pages\project_management\project_detail_components.py:697
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00270
+  - UI Öğesi: btn_add (clicked)
+  - Konum: src\ui\pages\project_management\project_detail_components.py:1001
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00271
+  - UI Öğesi: cmb_cat (currentIndexChanged)
+  - Konum: src\ui\pages\project_management\project_detail_components.py:1081
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\project_management\project_detail_dialogs.py
+- ID: TC-00272
+  - UI Öğesi: cmb_naming (currentIndexChanged)
+  - Konum: src\ui\pages\project_management\project_detail_dialogs.py:72
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00273
+  - UI Öğesi: cmb_job (currentIndexChanged)
+  - Konum: src\ui\pages\project_management\project_detail_dialogs.py:207
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\project_management\project_detail_page.py
+- ID: TC-00274
+  - UI Öğesi: btn_pdf (clicked)
+  - Konum: src\ui\pages\project_management\project_detail_page.py:46
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00275
+  - UI Öğesi: btn_contract (clicked)
+  - Konum: src\ui\pages\project_management\project_detail_page.py:59
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\project_management\projects_page.py
+- ID: TC-00276
+  - UI Öğesi: btn_new (clicked)
+  - Konum: src\ui\pages\project_management\projects_page.py:44
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00277
+  - UI Öğesi: btn_clear_cust (clicked)
+  - Konum: src\ui\pages\project_management\projects_page.py:421
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00278
+  - UI Öğesi: cmb_currency (currentIndexChanged)
+  - Konum: src\ui\pages\project_management\projects_page.py:452
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00279
+  - UI Öğesi: cmb_payment (currentIndexChanged)
+  - Konum: src\ui\pages\project_management\projects_page.py:514
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\quick_notes_settings_widget.py
+- ID: TC-00280
+  - UI Öğesi: btn_add (clicked)
+  - Konum: src\ui\pages\quick_notes_settings_widget.py:60
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00281
+  - UI Öğesi: btn_refresh (clicked)
+  - Konum: src\ui\pages\quick_notes_settings_widget.py:75
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00282
+  - UI Öğesi: combo_filter (currentIndexChanged)
+  - Konum: src\ui\pages\quick_notes_settings_widget.py:102
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00283
+  - UI Öğesi: cmb_cat (currentIndexChanged)
+  - Konum: src\ui\pages\quick_notes_settings_widget.py:431
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00284
+  - UI Öğesi: toggle_active (toggled)
+  - Konum: src\ui\pages\quick_notes_settings_widget.py:447
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\quick_sale_page.py
+- ID: TC-00285
+  - UI Öğesi: btn_customer (clicked)
+  - Konum: src\ui\pages\quick_sale_page.py:133
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\reminders_page.py
+- ID: TC-00286
+  - UI Öğesi: cmb_personnel (currentIndexChanged)
+  - Konum: src\ui\pages\reminders_page.py:105
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00287
+  - UI Öğesi: btn_add (clicked)
+  - Konum: src\ui\pages\reminders_page.py:134
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\security_settings_widget.py
+- ID: TC-00288
+  - UI Öğesi: cmb_question (currentIndexChanged)
+  - Konum: src\ui\pages\security_settings_widget.py:114
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00289
+  - UI Öğesi: toggle_auto_login (toggled)
+  - Konum: src\ui\pages\security_settings_widget.py:234
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\service_board_page.py
+- ID: TC-00290
+  - UI Öğesi: radio_collect (toggled)
+  - Konum: src\ui\pages\service_board_page.py:123
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00291
+  - UI Öğesi: radio_debt (toggled)
+  - Konum: src\ui\pages\service_board_page.py:124
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00292
+  - UI Öğesi: method_combo (currentIndexChanged)
+  - Konum: src\ui\pages\service_board_page.py:161
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\service_status_page.py
+- ID: TC-00293
+  - UI Öğesi: btn_share (clicked)
+  - Konum: src\ui\pages\service_status_page.py:224
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00294
+  - UI Öğesi: btn_manual (clicked)
+  - Konum: src\ui\pages\service_status_page.py:236
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\services_page.py
+- ID: TC-00295
+  - UI Öğesi: btn_multi (clicked)
+  - Konum: src\ui\pages\services_page.py:122
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00296
+  - UI Öğesi: btn_edit (clicked)
+  - Konum: src\ui\pages\services_page.py:132
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00297
+  - UI Öğesi: btn_delete (clicked)
+  - Konum: src\ui\pages\services_page.py:137
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\settings_widgets\background_settings.py
+- ID: TC-00298
+  - UI Öğesi: cmb_theme (currentIndexChanged)
+  - Konum: src\ui\pages\settings_widgets\background_settings.py:185
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00299
+  - UI Öğesi: toggle_combo_popup (toggled)
+  - Konum: src\ui\pages\settings_widgets\background_settings.py:279
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00300
+  - UI Öğesi: cmb_display_profile (currentIndexChanged)
+  - Konum: src\ui\pages\settings_widgets\background_settings.py:391
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00301
+  - UI Öğesi: toggle_features (toggled)
+  - Konum: src\ui\pages\settings_widgets\background_settings.py:418
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00302
+  - UI Öğesi: btn_refresh_ticker (clicked)
+  - Konum: src\ui\pages\settings_widgets\background_settings.py:447
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00303
+  - UI Öğesi: toggle_rc (toggled)
+  - Konum: src\ui\pages\settings_widgets\background_settings.py:470
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00304
+  - UI Öğesi: btn_save (clicked)
+  - Konum: src\ui\pages\settings_widgets\background_settings.py:528
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\settings_widgets\backup_settings.py
+- ID: TC-00305
+  - UI Öğesi: btn_save_remote (clicked)
+  - Konum: src\ui\pages\settings_widgets\backup_settings.py:109
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00306
+  - UI Öğesi: btn_send_now (clicked)
+  - Konum: src\ui\pages\settings_widgets\backup_settings.py:120
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00307
+  - UI Öğesi: chk_daily (stateChanged)
+  - Konum: src\ui\pages\settings_widgets\backup_settings.py:167
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00308
+  - UI Öğesi: chk_on_exit (stateChanged)
+  - Konum: src\ui\pages\settings_widgets\backup_settings.py:178
+  - Bağlantı: self.stateChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\settings_widgets\bank_settings.py
+- ID: TC-00309
+  - UI Öğesi: default_currency (currentIndexChanged)
+  - Konum: src\ui\pages\settings_widgets\bank_settings.py:59
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00310
+  - UI Öğesi: chk_auto_fx (stateChanged)
+  - Konum: src\ui\pages\settings_widgets\bank_settings.py:68
+  - Bağlantı: self.stateChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00311
+  - UI Öğesi: chk_bank_to_finance (stateChanged)
+  - Konum: src\ui\pages\settings_widgets\bank_settings.py:71
+  - Bağlantı: self.stateChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00312
+  - UI Öğesi: chk_negative_balance_warn (stateChanged)
+  - Konum: src\ui\pages\settings_widgets\bank_settings.py:74
+  - Bağlantı: self.stateChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\settings_widgets\cargo_settings.py
+- ID: TC-00313
+  - UI Öğesi: default_cargo (currentIndexChanged)
+  - Konum: src\ui\pages\settings_widgets\cargo_settings.py:51
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00314
+  - UI Öğesi: chk_auto_track (stateChanged)
+  - Konum: src\ui\pages\settings_widgets\cargo_settings.py:69
+  - Bağlantı: self.stateChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00315
+  - UI Öğesi: chk_sms_notify (stateChanged)
+  - Konum: src\ui\pages\settings_widgets\cargo_settings.py:72
+  - Bağlantı: self.stateChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00316
+  - UI Öğesi: chk_require_receiver (stateChanged)
+  - Konum: src\ui\pages\settings_widgets\cargo_settings.py:75
+  - Bağlantı: self.stateChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\settings_widgets\company_settings_base.py
+- ID: TC-00317
+  - UI Öğesi: btn_proforma_designer (clicked)
+  - Konum: src\ui\pages\settings_widgets\company_settings_base.py:322
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\settings_widgets\company_settings_dialog.py
+- ID: TC-00318
+  - UI Öğesi: cmb_theme (currentIndexChanged)
+  - Konum: src\ui\pages\settings_widgets\company_settings_dialog.py:89
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00319
+  - UI Öğesi: cmb_currency (currentIndexChanged)
+  - Konum: src\ui\pages\settings_widgets\company_settings_dialog.py:93
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00320
+  - UI Öğesi: cmb_currency_precision (currentIndexChanged)
+  - Konum: src\ui\pages\settings_widgets\company_settings_dialog.py:98
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00321
+  - UI Öğesi: cmb_online_payment (currentIndexChanged)
+  - Konum: src\ui\pages\settings_widgets\company_settings_dialog.py:108
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\settings_widgets\gemini_settings_widget.py
+- ID: TC-00322
+  - UI Öğesi: btn_save (clicked)
+  - Konum: src\ui\pages\settings_widgets\gemini_settings_widget.py:109
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00323
+  - UI Öğesi: btn_test (clicked)
+  - Konum: src\ui\pages\settings_widgets\gemini_settings_widget.py:248
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00324
+  - UI Öğesi: cmb_model (currentIndexChanged)
+  - Konum: src\ui\pages\settings_widgets\gemini_settings_widget.py:265
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00325
+  - UI Öğesi: btn_manual_connect (clicked)
+  - Konum: src\ui\pages\settings_widgets\gemini_settings_widget.py:287
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\settings_widgets\job_service_number_widget.py
+- ID: TC-00326
+  - UI Öğesi: btn_add (clicked)
+  - Konum: src\ui\pages\settings_widgets\job_service_number_widget.py:342
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00327
+  - UI Öğesi: btn_cancel_edit (clicked)
+  - Konum: src\ui\pages\settings_widgets\job_service_number_widget.py:349
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\settings_widgets\language_settings.py
+- ID: TC-00328
+  - UI Öğesi: cmb_lang (currentIndexChanged)
+  - Konum: src\ui\pages\settings_widgets\language_settings.py:60
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00329
+  - UI Öğesi: cmb_date (currentIndexChanged)
+  - Konum: src\ui\pages\settings_widgets\language_settings.py:67
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00330
+  - UI Öğesi: cmb_global_currency (currentIndexChanged)
+  - Konum: src\ui\pages\settings_widgets\language_settings.py:81
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00331
+  - UI Öğesi: cmb_currency (currentIndexChanged)
+  - Konum: src\ui\pages\settings_widgets\language_settings.py:88
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00332
+  - UI Öğesi: cmb_timezone (currentIndexChanged)
+  - Konum: src\ui\pages\settings_widgets\language_settings.py:101
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00333
+  - UI Öğesi: btn_save (clicked)
+  - Konum: src\ui\pages\settings_widgets\language_settings.py:119
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\settings_widgets\location_settings.py
+- ID: TC-00334
+  - UI Öğesi: btn_pick (clicked)
+  - Konum: src\ui\pages\settings_widgets\location_settings.py:84
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\settings_widgets\product_bank_mapping.py
+- ID: TC-00335
+  - UI Öğesi: cmb_menu (currentIndexChanged)
+  - Konum: src\ui\pages\settings_widgets\product_bank_mapping.py:385
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00336
+  - UI Öğesi: cmb_bank (currentIndexChanged)
+  - Konum: src\ui\pages\settings_widgets\product_bank_mapping.py:397
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00337
+  - UI Öğesi: cmb_income_category (currentIndexChanged)
+  - Konum: src\ui\pages\settings_widgets\product_bank_mapping.py:435
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\settings_widgets\proforma_designer.py
+- ID: TC-00338
+  - UI Öğesi: page_selector (currentIndexChanged)
+  - Konum: src\ui\pages\settings_widgets\proforma_designer.py:158
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\settings_widgets\proforma_guide.py
+- ID: TC-00339
+  - UI Öğesi: _toggle_btn (clicked)
+  - Konum: src\ui\pages\settings_widgets\proforma_guide.py:328
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\settings_widgets\remote_settings.py
+- ID: TC-00340
+  - UI Öğesi: toggle_remote (toggled)
+  - Konum: src\ui\pages\settings_widgets\remote_settings.py:86
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00341
+  - UI Öğesi: toggle_log (toggled)
+  - Konum: src\ui\pages\settings_widgets\remote_settings.py:95
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\settings_widgets\sms_settings.py
+- ID: TC-00342
+  - UI Öğesi: cmb_status (currentIndexChanged)
+  - Konum: src\ui\pages\settings_widgets\sms_settings.py:108
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\settings_widgets\stock_settings.py
+- ID: TC-00343
+  - UI Öğesi: chk_auto_code (stateChanged)
+  - Konum: src\ui\pages\settings_widgets\stock_settings.py:174
+  - Bağlantı: self.stateChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00344
+  - UI Öğesi: chk_warn_negative (stateChanged)
+  - Konum: src\ui\pages\settings_widgets\stock_settings.py:175
+  - Bağlantı: self.stateChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00345
+  - UI Öğesi: chk_sync_finance (stateChanged)
+  - Konum: src\ui\pages\settings_widgets\stock_settings.py:176
+  - Bağlantı: self.stateChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\settings_widgets\system_identity_settings.py
+- ID: TC-00346
+  - UI Öğesi: cmb_sector (currentIndexChanged)
+  - Konum: src\ui\pages\settings_widgets\system_identity_settings.py:91
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\settings_widgets\user_management.py
+- ID: TC-00347
+  - UI Öğesi: cmb_role_filter (currentIndexChanged)
+  - Konum: src\ui\pages\settings_widgets\user_management.py:83
+  - Bağlantı: self.currentTextChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00348
+  - UI Öğesi: cmb_status_filter (currentIndexChanged)
+  - Konum: src\ui\pages\settings_widgets\user_management.py:86
+  - Bağlantı: self.currentTextChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00349
+  - UI Öğesi: btn_add (clicked)
+  - Konum: src\ui\pages\settings_widgets\user_management.py:99
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00350
+  - UI Öğesi: btn_refresh (clicked)
+  - Konum: src\ui\pages\settings_widgets\user_management.py:116
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00351
+  - UI Öğesi: btn_prev (clicked)
+  - Konum: src\ui\pages\settings_widgets\user_management.py:203
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00352
+  - UI Öğesi: btn_next (clicked)
+  - Konum: src\ui\pages\settings_widgets\user_management.py:204
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\settings_widgets\user_management_dialogs.py
+- ID: TC-00353
+  - UI Öğesi: cmb_role (currentIndexChanged)
+  - Konum: src\ui\pages\settings_widgets\user_management_dialogs.py:179
+  - Bağlantı: self.currentTextChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00354
+  - UI Öğesi: cmb_department (currentIndexChanged)
+  - Konum: src\ui\pages\settings_widgets\user_management_dialogs.py:185
+  - Bağlantı: self.currentTextChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00355
+  - UI Öğesi: toggle_active (toggled)
+  - Konum: src\ui\pages\settings_widgets\user_management_dialogs.py:204
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00356
+  - UI Öğesi: btn_cancel (clicked)
+  - Konum: src\ui\pages\settings_widgets\user_management_dialogs.py:218
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00357
+  - UI Öğesi: btn_save (clicked)
+  - Konum: src\ui\pages\settings_widgets\user_management_dialogs.py:237
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00358
+  - UI Öğesi: cmb_role (currentIndexChanged)
+  - Konum: src\ui\pages\settings_widgets\user_management_dialogs.py:579
+  - Bağlantı: self.currentTextChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00359
+  - UI Öğesi: cmb_personnel (currentIndexChanged)
+  - Konum: src\ui\pages\settings_widgets\user_management_dialogs.py:585
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00360
+  - UI Öğesi: toggle_auto_login (toggled)
+  - Konum: src\ui\pages\settings_widgets\user_management_dialogs.py:594
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\settings_widgets\voice_assistant_settings.py
+- ID: TC-00361
+  - UI Öğesi: toggle_assistant_active (toggled)
+  - Konum: src\ui\pages\settings_widgets\voice_assistant_settings.py:74
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00362
+  - UI Öğesi: toggle_voice (toggled)
+  - Konum: src\ui\pages\settings_widgets\voice_assistant_settings.py:85
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00363
+  - UI Öğesi: toggle_radio (toggled)
+  - Konum: src\ui\pages\settings_widgets\voice_assistant_settings.py:90
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00364
+  - UI Öğesi: toggle_hitap (toggled)
+  - Konum: src\ui\pages\settings_widgets\voice_assistant_settings.py:95
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00365
+  - UI Öğesi: cmb_tone (currentIndexChanged)
+  - Konum: src\ui\pages\settings_widgets\voice_assistant_settings.py:106
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00366
+  - UI Öğesi: cmb_voice (currentIndexChanged)
+  - Konum: src\ui\pages\settings_widgets\voice_assistant_settings.py:113
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00367
+  - UI Öğesi: cmb_engine (currentIndexChanged)
+  - Konum: src\ui\pages\settings_widgets\voice_assistant_settings.py:120
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00368
+  - UI Öğesi: cmb_rate (currentIndexChanged)
+  - Konum: src\ui\pages\settings_widgets\voice_assistant_settings.py:127
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\settings_widgets\voice_assistant_shortcuts.py
+- ID: TC-00369
+  - UI Öğesi: cmb_type (currentIndexChanged)
+  - Konum: src\ui\pages\settings_widgets\voice_assistant_shortcuts.py:114
+  - Bağlantı: self.currentTextChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00370
+  - UI Öğesi: cmb_filter (currentIndexChanged)
+  - Konum: src\ui\pages\settings_widgets\voice_assistant_shortcuts.py:280
+  - Bağlantı: self.currentTextChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00371
+  - UI Öğesi: btn_add_shortcut (clicked)
+  - Konum: src\ui\pages\settings_widgets\voice_assistant_shortcuts.py:290
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\settings_widgets\voice_scenario_editor.py
+- ID: TC-00372
+  - UI Öğesi: btn_add (clicked)
+  - Konum: src\ui\pages\settings_widgets\voice_scenario_editor.py:120
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00373
+  - UI Öğesi: btn_delete (clicked)
+  - Konum: src\ui\pages\settings_widgets\voice_scenario_editor.py:123
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00374
+  - UI Öğesi: btn_add_trigger (clicked)
+  - Konum: src\ui\pages\settings_widgets\voice_scenario_editor.py:155
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00375
+  - UI Öğesi: btn_delete_trigger (clicked)
+  - Konum: src\ui\pages\settings_widgets\voice_scenario_editor.py:158
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00376
+  - UI Öğesi: cmb_action (currentIndexChanged)
+  - Konum: src\ui\pages\settings_widgets\voice_scenario_editor.py:170
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00377
+  - UI Öğesi: chk_auto_search (stateChanged)
+  - Konum: src\ui\pages\settings_widgets\voice_scenario_editor.py:177
+  - Bağlantı: self.stateChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00378
+  - UI Öğesi: btn_test (clicked)
+  - Konum: src\ui\pages\settings_widgets\voice_scenario_editor.py:207
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00379
+  - UI Öğesi: btn_close (clicked)
+  - Konum: src\ui\pages\settings_widgets\voice_scenario_editor.py:210
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\settings_widgets\voice_training_base.py
+- ID: TC-00380
+  - UI Öğesi: btn_open_scenarios (clicked)
+  - Konum: src\ui\pages\settings_widgets\voice_training_base.py:224
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00381
+  - UI Öğesi: btn_add_scen (clicked)
+  - Konum: src\ui\pages\settings_widgets\voice_training_base.py:227
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00382
+  - UI Öğesi: btn_load_defaults (clicked)
+  - Konum: src\ui\pages\settings_widgets\voice_training_base.py:230
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00383
+  - UI Öğesi: btn_fix_legacy (clicked)
+  - Konum: src\ui\pages\settings_widgets\voice_training_base.py:233
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00384
+  - UI Öğesi: btn_test_scenario (clicked)
+  - Konum: src\ui\pages\settings_widgets\voice_training_base.py:236
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00385
+  - UI Öğesi: btn_healthcheck (clicked)
+  - Konum: src\ui\pages\settings_widgets\voice_training_base.py:239
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00386
+  - UI Öğesi: btn_healthcheck_details (clicked)
+  - Konum: src\ui\pages\settings_widgets\voice_training_base.py:266
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00387
+  - UI Öğesi: btn_copy_recommended (clicked)
+  - Konum: src\ui\pages\settings_widgets\voice_training_base.py:290
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00388
+  - UI Öğesi: chk_loan_enabled (toggled)
+  - Konum: src\ui\pages\settings_widgets\voice_training_base.py:365
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00389
+  - UI Öğesi: chk_check_enabled (toggled)
+  - Konum: src\ui\pages\settings_widgets\voice_training_base.py:386
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00390
+  - UI Öğesi: chk_stock_enabled (toggled)
+  - Konum: src\ui\pages\settings_widgets\voice_training_base.py:407
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00391
+  - UI Öğesi: chk_critical_override (stateChanged)
+  - Konum: src\ui\pages\settings_widgets\voice_training_base.py:469
+  - Bağlantı: self.stateChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00392
+  - UI Öğesi: btn_save (clicked)
+  - Konum: src\ui\pages\settings_widgets\voice_training_base.py:498
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\settings_widgets\whatsapp_settings.py
+- ID: TC-00393
+  - UI Öğesi: cmb_status (currentIndexChanged)
+  - Konum: src\ui\pages\settings_widgets\whatsapp_settings.py:72
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\transaction\dialogs\proforma_dialog.py
+- ID: TC-00394
+  - UI Öğesi: rb_tl (toggled)
+  - Konum: src\ui\pages\transaction\dialogs\proforma_dialog.py:152
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00395
+  - UI Öğesi: rb_usd (toggled)
+  - Konum: src\ui\pages\transaction\dialogs\proforma_dialog.py:153
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00396
+  - UI Öğesi: rb_eur (toggled)
+  - Konum: src\ui\pages\transaction\dialogs\proforma_dialog.py:154
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00397
+  - UI Öğesi: rb_modern (toggled)
+  - Konum: src\ui\pages\transaction\dialogs\proforma_dialog.py:180
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00398
+  - UI Öğesi: rb_classic (toggled)
+  - Konum: src\ui\pages\transaction\dialogs\proforma_dialog.py:182
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00399
+  - UI Öğesi: rb_simple (toggled)
+  - Konum: src\ui\pages\transaction\dialogs\proforma_dialog.py:183
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00400
+  - UI Öğesi: rb_bulut_deri (toggled)
+  - Konum: src\ui\pages\transaction\dialogs\proforma_dialog.py:184
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00401
+  - UI Öğesi: rb_custom (toggled)
+  - Konum: src\ui\pages\transaction\dialogs\proforma_dialog.py:185
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\transaction_page.py
+- ID: TC-00402
+  - UI Öğesi: cmb_customer (currentIndexChanged)
+  - Konum: src\ui\pages\transaction_page.py:249
+  - Bağlantı: self.currentIndexChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00403
+  - UI Öğesi: cmb_vat (currentIndexChanged)
+  - Konum: src\ui\pages\transaction_page.py:670
+  - Bağlantı: self.currentTextChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00404
+  - UI Öğesi: cmb_currency (currentIndexChanged)
+  - Konum: src\ui\pages\transaction_page.py:684
+  - Bağlantı: self.currentTextChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00405
+  - UI Öğesi: btn_save (clicked)
+  - Konum: src\ui\pages\transaction_page.py:747
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00406
+  - UI Öğesi: btn_pay (clicked)
+  - Konum: src\ui\pages\transaction_page.py:766
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00407
+  - UI Öğesi: btn_proforma (clicked)
+  - Konum: src\ui\pages\transaction_page.py:785
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\pages\vehicle_maintenance_page.py
+- ID: TC-00408
+  - UI Öğesi: btn_gallery (clicked)
+  - Konum: src\ui\pages\vehicle_maintenance_page.py:83
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00409
+  - UI Öğesi: btn_history (clicked)
+  - Konum: src\ui\pages\vehicle_maintenance_page.py:87
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00410
+  - UI Öğesi: btn_excel (clicked)
+  - Konum: src\ui\pages\vehicle_maintenance_page.py:91
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00411
+  - UI Öğesi: btn_pdf (clicked)
+  - Konum: src\ui\pages\vehicle_maintenance_page.py:95
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00412
+  - UI Öğesi: btn_print (clicked)
+  - Konum: src\ui\pages\vehicle_maintenance_page.py:99
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00413
+  - UI Öğesi: btn_open_linked_service (clicked)
+  - Konum: src\ui\pages\vehicle_maintenance_page.py:188
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\widgets\ayec_notification.py
+- ID: TC-00414
+  - UI Öğesi: btn_snooze (clicked)
+  - Konum: src\ui\widgets\ayec_notification.py:98
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00415
+  - UI Öğesi: btn_close (clicked)
+  - Konum: src\ui\widgets\ayec_notification.py:120
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\widgets\breadcrumb.py
+- ID: TC-00416
+  - UI Öğesi: assistant_btn (clicked)
+  - Konum: src\ui\widgets\breadcrumb.py:27
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00417
+  - UI Öğesi: mute_btn (clicked)
+  - Konum: src\ui\widgets\breadcrumb.py:50
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\widgets\empty_state.py
+- ID: TC-00418
+  - UI Öğesi: btn_action (clicked)
+  - Konum: src\ui\widgets\empty_state.py:97
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\widgets\jarvis_sidebar.py
+- ID: TC-00419
+  - UI Öğesi: btn_voice (clicked)
+  - Konum: src\ui\widgets\jarvis_sidebar.py:178
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00420
+  - UI Öğesi: btn_close (clicked)
+  - Konum: src\ui\widgets\jarvis_sidebar.py:193
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00421
+  - UI Öğesi: btn_send (clicked)
+  - Konum: src\ui\widgets\jarvis_sidebar.py:259
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\widgets\label_editor_widget.py
+- ID: TC-00422
+  - UI Öğesi: btn_cancel (clicked)
+  - Konum: src\ui\widgets\label_editor_widget.py:45
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00423
+  - UI Öğesi: btn_ok (clicked)
+  - Konum: src\ui\widgets\label_editor_widget.py:46
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00424
+  - UI Öğesi: cmb_filter (currentIndexChanged)
+  - Konum: src\ui\widgets\label_editor_widget.py:74
+  - Bağlantı: self.currentTextChanged handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\widgets\modern_dialog.py
+- ID: TC-00425
+  - UI Öğesi: btn_close (clicked)
+  - Konum: src\ui\widgets\modern_dialog.py:395
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\widgets\page_layout_editor.py
+- ID: TC-00426
+  - UI Öğesi: btn_guide_toggle (clicked)
+  - Konum: src\ui\widgets\page_layout_editor.py:118
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00427
+  - UI Öğesi: btn_reset (clicked)
+  - Konum: src\ui\widgets\page_layout_editor.py:189
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00428
+  - UI Öğesi: btn_apply (clicked)
+  - Konum: src\ui\widgets\page_layout_editor.py:193
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\widgets\premium_dialog.py
+- ID: TC-00429
+  - UI Öğesi: btn_close (clicked)
+  - Konum: src\ui\widgets\premium_dialog.py:63
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\widgets\side_drawer.py
+- ID: TC-00430
+  - UI Öğesi: btn_close (clicked)
+  - Konum: src\ui\widgets\side_drawer.py:60
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\widgets\side_menu.py
+- ID: TC-00431
+  - UI Öğesi: pin_button (clicked)
+  - Konum: src\ui\widgets\side_menu.py:268
+  - Bağlantı: self.toggled handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00432
+  - UI Öğesi: logout_btn (clicked)
+  - Konum: src\ui\widgets\side_menu.py:876
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+### src\ui\widgets\snoozeable_toast.py
+- ID: TC-00433
+  - UI Öğesi: btn_dismiss (clicked)
+  - Konum: src\ui\widgets\snoozeable_toast.py:80
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+- ID: TC-00434
+  - UI Öğesi: btn_snooze (clicked)
+  - Konum: src\ui\widgets\snoozeable_toast.py:102
+  - Bağlantı: self.clicked handler
+  - Etkileşim: Sinyali tetikleyin ve handler çalışmasını gözlemleyin
+  - Beklenen Davranış: Handler hatasız çalışır, UI güncellenir ve/veya servis çağrısı tamamlanır
+  - Gerçek Sonuç: Çalıştırılmadı
+  - Hata Senaryoları: Yanıt yok, istisna, yanlış sayfa/işlem, eksik veri doğrulaması
+  - Bağlantı Durumu: Bağlı
+
+## Bağlı Olmayan Öğeler Özeti
+
+**Toplam test:** 434 | **Bağlı olmayan:** 0

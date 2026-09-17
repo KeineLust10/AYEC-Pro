@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QTableWidget,
     QTableWidgetItem, QHeaderView, QFormLayout, QDoubleSpinBox, QSpinBox,
@@ -10,9 +12,11 @@ from PyQt6.QtGui import QColor, QFont, QIcon, QAction
 from src.utils.theme_colors import theme_qss, qc
 from src.utils.currency_helper import CurrencyHelper
 from src.utils.toast_notification import show_success, show_error
+from src.utils.message_helper import show_question, show_warning
+from src.ui.components.message_box import ModernConfirm
 from src.ui.dialogs.base_modern_dialog import BaseModernDialog
 from src.ui.dialogs.loan_wizard_advanced import AdvancedLoanWizard
-from src.ui.dialogs.payment_dialog import ModernPaymentDialog as PaymentDialog
+from src.utils.context_menu_settings import is_context_menu_enabled
 from src.utils.logger import logger
 from datetime import datetime, timedelta
 
@@ -23,6 +27,12 @@ class LoansWidget(QWidget):
         self.main_window = main_window
         self.expand_buttons = {}
         self.init_ui()
+
+    def _display_currency(self):
+        return CurrencyHelper.get_code(self.db)
+
+    def _format_display_money(self, amount_try):
+        return CurrencyHelper.format_from_try(amount_try, db=self.db, currency_code=self._display_currency())
 
     def init_ui(self):
         layout = QVBoxLayout(self)
@@ -125,11 +135,7 @@ class LoansWidget(QWidget):
             # Format Data
             bank_name = loan['bank_name']
             description = loan['description'] or "-"
-            amount_fmt = CurrencyHelper.format_try_for_display(
-                loan['amount'],
-                db=self.db,
-                include_try_reference=False,
-            )
+            amount_fmt = self._format_display_money(loan['amount'])
             rate_term = f"%{loan['interest_rate']} / {loan['term_months']} Ay"
             
             # Calculate Remaining
@@ -138,6 +144,9 @@ class LoansWidget(QWidget):
             
             total_pay = loan['total_payment']
             if total_pay is None: total_pay = 0.0
+
+            if str(loan['status']).strip().casefold() == "\u0130ptal".casefold():
+                total_pay = paid_amount
             
             # If loan is closed, force remaining to 0
             if loan['status'] == 'Kapalı':
@@ -145,11 +154,7 @@ class LoansWidget(QWidget):
             else:
                 remaining = total_pay - paid_amount
                 
-            remaining_fmt = CurrencyHelper.format_try_for_display(
-                remaining,
-                db=self.db,
-                include_try_reference=False,
-            )
+            remaining_fmt = self._format_display_money(remaining)
             
             end_date_str = ""
             if installments:
@@ -179,14 +184,7 @@ class LoansWidget(QWidget):
                 # Align child columns with parent
                 child.setText(0, f"  Taksit {inst['installment_no']}") # Under Bank
                 child.setText(1, "") # Empty description
-                child.setText(
-                    2,
-                    CurrencyHelper.format_try_for_display(
-                        inst_amount,
-                        db=self.db,
-                        include_try_reference=False,
-                    ),
-                ) # Under Amount
+                child.setText(2, self._format_display_money(inst_amount)) # Under Amount
                 child.setText(3, "") # Empty Rate/Term
                 child.setText(4, "") # Empty Remaining
                 child.setText(5, inst['status']) # Under Status (Matches index 5)
@@ -256,12 +254,14 @@ class LoansWidget(QWidget):
             self.load_loans()
 
     def open_context_menu(self, position):
+        if not is_context_menu_enabled(self.db, page_id=105):
+            return
         item = self.tree.itemAt(position)
         if not item: return
 
         item_type = item.data(0, Qt.ItemDataRole.UserRole + 1)
         # Fix: Ensure menu has valid parent
-        from PyQt6.QtWidgets import QMenu, QMessageBox
+        from PyQt6.QtWidgets import QMenu
         from PyQt6.QtGui import QAction
         
         context_menu = QMenu(self.tree)
@@ -277,6 +277,8 @@ class LoansWidget(QWidget):
             
             action_cancel = QAction("Krediyi İptal Et", self)
             
+            action_cancel.triggered.connect(lambda: self.cancel_loan(loan_id, item.text(0)))
+
             action_delete = QAction("Krediyi Sil", self)
             action_delete.triggered.connect(lambda: self.delete_loan(loan_id))
             
@@ -355,9 +357,37 @@ class LoansWidget(QWidget):
             show_success(self.main_window, "Taksit ödemesi geri alındı.")
             self.load_loans()
 
+    def cancel_loan(self, loan_id, loan_name):
+        reply = show_question(
+            self,
+            "Kredi \u0130ptali",
+            f"{loan_name} kredisini iptal etmek istiyor musunuz? Taksit kay\u0131tlar\u0131 silinmeyecektir.",
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            self.db.cursor.execute("SELECT status FROM loans WHERE id=?", (loan_id,))
+            row = self.db.cursor.fetchone()
+            if not row:
+                show_error(self.main_window, "Kredi kayd\u0131 bulunamad\u0131.")
+                return
+            if str(row[0]).strip().casefold() == "\u0130ptal".casefold():
+                show_error(self.main_window, "Bu kredi zaten iptal edilmi\u015f.")
+                return
+            self.db.cursor.execute("UPDATE loans SET status=? WHERE id=?", ("\u0130ptal", loan_id))
+            self.db.conn.commit()
+            show_success(self.main_window, "Kredi iptal edildi. Taksit ge\u00e7mi\u015fi korundu.")
+            self.load_loans()
+        except Exception as exc:
+            try:
+                self.db.conn.rollback()
+            except Exception:
+                pass
+            logger.exception("Loan cancellation failed: %s", exc)
+            show_error(self.main_window, "Kredi iptal edilirken bir hata olu\u015ftu.")
+
     def delete_loan(self, loan_id):
-        reply = QMessageBox.question(self, "Onay", "Bu krediyi ve tüm taksitlerini silmek istediğinize emin misiniz",
-                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        reply = show_question(self, "Onay", "Bu krediyi ve t\u00fcm taksitlerini silmek istedi\u011finize emin misiniz")
         if reply == QMessageBox.StandardButton.Yes:
             try:
                 if self.db.delete_loan(loan_id):
@@ -564,6 +594,12 @@ class AddLoanDialog(BaseModernDialog):
         self.db = db
         self.setup_ui()
 
+    def _display_currency(self):
+        return CurrencyHelper.get_code(self.db)
+
+    def _format_display_money(self, amount_try):
+        return CurrencyHelper.format_from_try(amount_try, db=self.db, currency_code=self._display_currency())
+
     def setup_ui(self):
         form = QFormLayout()
 
@@ -607,7 +643,7 @@ class AddLoanDialog(BaseModernDialog):
         # Result Preview
         self.lbl_result = QLabel(
             "Toplam Geri Ödeme: "
-            f"{CurrencyHelper.format_try_for_display(0, db=self.db, include_try_reference=False)}"
+            f"{self._format_display_money(0)}"
         )
         self.lbl_result.setStyleSheet(theme_qss("font-weight: bold; font-size: 14px; margin-top: 10px; color: @text;"))
         self.content_layout.addWidget(self.lbl_result)
@@ -647,9 +683,9 @@ class AddLoanDialog(BaseModernDialog):
         total_payment = monthly_payment * months
         self.lbl_result.setText(
             "Aylık: "
-            f"{CurrencyHelper.format_try_for_display(monthly_payment, db=self.db, include_try_reference=False)}\n"
+            f"{self._format_display_money(monthly_payment)}\n"
             "Toplam: "
-            f"{CurrencyHelper.format_try_for_display(total_payment, db=self.db, include_try_reference=False)}"
+            f"{self._format_display_money(total_payment)}"
         )
         
         return total_payment, monthly_payment
@@ -657,7 +693,7 @@ class AddLoanDialog(BaseModernDialog):
     def save_loan(self):
         bank = self.combo_bank.text()
         if not bank:
-            QMessageBox.warning(self, "Hata", "Banka ad giriniz.")
+            show_warning(self, "Hata", "Banka ad\u0131 giriniz.")
             return
 
         res = self.calculate_plan()
@@ -691,7 +727,5 @@ class AddLoanDialog(BaseModernDialog):
             
             self.accept()
         else:
-            QMessageBox.critical(self, "Hata", "Kredi kaydedilemedi.")
-
-
+            show_error(self, "Hata", "Kredi kaydedilemedi.")
 

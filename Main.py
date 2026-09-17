@@ -3,12 +3,36 @@
 # --- VIRTUAL ENVIRONMENT REDIRECTION ---
 import importlib
 import logging
+import multiprocessing
 import os
 import subprocess
 import sys
 import threading
 import traceback
 import faulthandler
+
+
+def _configure_software_webengine():
+    """Configure Chromium before any Qt module can initialize WebEngine."""
+    os.environ["QT_QUICK_BACKEND"] = "software"
+    os.environ["QT_OPENGL"] = "software"
+    os.environ["QT_DEVICE_PIXEL_RATIO"] = "0"
+    fallback_flags = [
+        "--disable-gpu",
+        "--disable-gpu-compositing",
+        "--disable-gpu-vsync",
+        "--disable-3d-apis",
+        "--disable-accelerated-2d-canvas",
+        "--disable-accelerated-video-decode",
+        "--disable-features=Vulkan,UseSkiaRenderer",
+    ]
+    existing = os.environ.get("QTWEBENGINE_CHROMIUM_FLAGS", "").split()
+    os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = " ".join(
+        [*existing, *(flag for flag in fallback_flags if flag not in existing)]
+    )
+
+
+_configure_software_webengine()
 
 # Segfault/C-level crash'ları da dosyaya yaz
 try:
@@ -21,174 +45,69 @@ try:
 except Exception:
     faulthandler.enable()
 
-from PyQt6.QtCore import QCoreApplication, QEventLoop, QThread, Qt, pyqtSignal
-from PyQt6.QtGui import QPixmap
+from src.utils.startup_profiler import startup_finish, startup_mark, startup_span
+
+startup_mark("main.python_imports.ready")
+
+from PyQt6.QtCore import QCoreApplication, QEventLoop, QThread, QTimer, Qt, pyqtSignal
+from PyQt6.QtGui import QIcon, QPixmap
 from PyQt6.QtWidgets import QApplication, QDialog, QSplashScreen
 
-from core import SectorManager
-from src.database import Database
-from src.ui.main_window import MainWindow
-from src.ui.modern_login_window import ModernLoginWindow
-from src.utils.auth_manager import AuthManager
-from src.utils.context_menu_guard import install_context_menu_guard
-from src.utils.message_helper import install_modern_messagebox_hooks, show_error
 from src.utils.path_helper import PathHelper
+from src.desktop_runtime import (
+    DbFullInitWorker,
+    prepare_external_runtime,
+    run_backend_server,
+    run_healthcheck,
+    setup_logging,
+)
+from src.utils.desktop_service_policy import (
+    auto_web_sync_enabled,
+    local_api_enabled,
+)
 
+startup_mark("main.qt_imports.ready")
+# Single-instance guard.
+# ---------------------------------------------------------------------------
+_shared_memory = None  # Keep a module-level reference for the application lifetime.
 
-def _ensure_venv():
-    if "RELAUNCHED_IN_VENV" in os.environ:
-        return
+def _ensure_single_instance():
+    """Return False when another AYEC Pro instance already owns the lock."""
 
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    venv_candidates = [
-        os.path.join(base_dir, ".venv_active", "Scripts", "python.exe"),
-        os.path.join(base_dir, ".venv", "Scripts", "python.exe"),
-        os.path.join(base_dir, ".venv_ai", "Scripts", "python.exe"),
-        os.path.join(base_dir, "venv", "Scripts", "python.exe"),
-    ]
-
-    for venv_python in venv_candidates:
-        if (
-            os.path.exists(venv_python)
-            and sys.executable.lower() != venv_python.lower()
-        ):
-            os.environ["RELAUNCHED_IN_VENV"] = "1"
-            subprocess.call([venv_python] + sys.argv)
-            sys.exit()
-
-
-_ensure_venv()
-# --- END VIRTUAL ENVIRONMENT REDIRECTION ---
-
-
-def setup_logging():
-    handlers = [logging.StreamHandler(sys.stdout)]
+    global _shared_memory
     try:
-        handlers.insert(
-            0, logging.FileHandler(PathHelper.get_log_path(), encoding="utf-8")
-        )
+        from PyQt6.QtCore import QSharedMemory
+        mem = QSharedMemory("AYECPro_SingleInstance_2026")
+        if mem.attach():          # Another process already owns the shared memory.
+            mem.detach()
+            return False
+        if not mem.create(1):     # Allocate the marker for this first instance.
+            # An allocation failure without an attached peer is safe to ignore.
+            return True
+        _shared_memory = mem      # Keep the marker alive until program exit.
+        return True
     except Exception as exc:
-        print(
-            f"WARNING: file logging disabled, console-only fallback active: {exc}",
-            file=sys.stderr,
-        )
-
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        handlers=handlers,
-    )
-    from src.utils.logger import install_exception_hook
-
-    install_exception_hook()
-
-
-def run_backend_server():
-    """Start the FastAPI backend in a daemon thread."""
-    try:
-        import uvicorn
-
-        try:
-            from backend.main import app as backend_app
-        except ImportError:
-            try:
-                from src.utils.server_main import app as backend_app
-            except ImportError:
-                logging.warning("Backend module not found. Server will not start.")
-                return
-
-        config = uvicorn.Config(
-            backend_app,
-            host="0.0.0.0",
-            port=8000,
-            log_level="error",
-            loop="asyncio",
-        )
-        server = uvicorn.Server(config)
-        server.run()
-    except Exception as exc:
-        logging.error("Server startup error: %s", exc)
-
-
-class DbFullInitWorker(QThread):
-    finished = pyqtSignal(bool, str)
-
-    def __init__(self, db):
-        super().__init__()
-        self._db = db
-
-    def run(self):
-        try:
-            self._db.ensure_full_initialized()
-            self.finished.emit(True, "")
-        except Exception as exc:
-            self.finished.emit(False, str(exc))
-
-
-def run_healthcheck():
-    """Run a short startup probe without entering the interactive login flow."""
-    checks = []
-
-    def record(name, ok, detail=""):
-        status = "OK" if ok else "FAIL"
-        line = f"{name}={status}"
-        if detail:
-            line += f" detail={detail}"
-        print(line)
-        checks.append(ok)
-
-    record("venv", True, sys.executable)
-
-    try:
-        db = Database(init_mode="auth")
-        record("database", True)
-    except Exception as exc:
-        record("database", False, str(exc))
-        return 1
-
-    try:
-        AuthManager(db)
-        record("auth_manager", True)
-    except Exception as exc:
-        record("auth_manager", False, str(exc))
-        return 1
-
-    try:
-        current_sector = db.get_internal_setting("current_sector", "teknik_servis")
-        sector_manager = SectorManager(db)
-        sector_manager.load_sector(current_sector)
-        record("sector_manager", True, current_sector)
-    except Exception as exc:
-        record("sector_manager", False, str(exc))
-        return 1
-
-    try:
-        window = MainWindow(db=db, user_data=None, sector_manager=sector_manager)
-        record("main_window", True, type(window).__name__)
-        window.deleteLater()
-    except Exception as exc:
-        record("main_window", False, str(exc))
-        return 1
-
-    print(f"healthcheck={'PASS' if all(checks) else 'FAIL'}")
-    return 0 if all(checks) else 1
+        logging.warning("Single-instance check failed (skipping): %s", exc)
+        return True
 
 
 def main():
-    os.environ["QT_QUICK_BACKEND"] = "software"
-    os.environ["QT_OPENGL"] = "software"
-    os.environ["QT_DEVICE_PIXEL_RATIO"] = "0"
+    multiprocessing.freeze_support()
+    startup_mark("main.enter")
+    prepare_external_runtime()
 
-    existing_webengine_flags = os.environ.get("QTWEBENGINE_CHROMIUM_FLAGS", "").strip()
-    fallback_flags = [
-        "--disable-gpu",
-        "--disable-gpu-compositing",
-        "--disable-gpu-vsync",
-        "--disable-features=Vulkan,UseSkiaRenderer",
-    ]
-    os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = " ".join(
-        flag for flag in [existing_webengine_flags, *fallback_flags] if flag
-    ).strip()
+    if os.name == "nt":
+        try:
+            import ctypes
+
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
+                "AYECPro.Desktop.2"
+            )
+        except Exception:
+            pass
+
+    from src.utils.web_sync_client import DEFAULT_WEB_SYNC_URL
+    os.environ.setdefault("AYEC_WEB_SYNC_URL", DEFAULT_WEB_SYNC_URL)
 
     QCoreApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts, True)
     QCoreApplication.setAttribute(Qt.ApplicationAttribute.AA_UseSoftwareOpenGL, True)
@@ -197,20 +116,50 @@ def main():
         importlib.import_module("PyQt6.QtWebEngineWidgets")
     except Exception as exc:
         logging.warning("QtWebEngine preload failed: %s", exc)
+    startup_mark("qt_webengine.preload.ready")
 
     setup_logging()
     app = QApplication(sys.argv)
+    app.setApplicationName("AYEC Pro")
+    app.setOrganizationName("AYEC Pro")
+    app.setApplicationDisplayName("AYEC Pro")
+    startup_mark("qt_application.ready")
+    from src.utils.context_menu_guard import install_context_menu_guard
+    from src.utils.message_helper import install_modern_messagebox_hooks, show_error
+    from src.utils.text_encoding import install_qt_text_sanitizer
+
+    app.setWindowIcon(PathHelper.get_app_icon())
+    install_qt_text_sanitizer()
     install_context_menu_guard()
+    startup_mark("qt_guards.ready")
 
     if any(arg in ("--healthcheck", "--smoke") for arg in sys.argv[1:]):
         sys.exit(run_healthcheck())
 
-    install_modern_messagebox_hooks()
+    # --- Single-instance guard ---
+    if not _ensure_single_instance():
+        from PyQt6.QtWidgets import QMessageBox
+        msg = QMessageBox()
+        msg.setWindowTitle("AYEC Pro")
+        msg.setIcon(QMessageBox.Icon.Warning)
+        msg.setText("AYEC Pro zaten \u00e7al\u0131\u015f\u0131yor!")
+        msg.setInformativeText(
+            "Ayn\u0131 anda yaln\u0131zca bir AYEC Pro penceresi a\u00e7\u0131labilir.\n"
+            "L\u00fctfen g\u00f6rev \u00e7ubu\u011fundaki mevcut pencereyi kullan\u0131n."
+        )
+        msg.setStandardButtons(QMessageBox.StandardButton.Ok)
+        msg.exec()
+        sys.exit(0)
+    # --- /Single-instance guard ---
 
-    base_assets = os.path.join(os.path.dirname(__file__), "assets")
+    install_modern_messagebox_hooks()
+    startup_mark("single_instance.ready")
+
+    base_assets = PathHelper.get_resource_path("assets")
     splash_path = os.path.join(base_assets, "app_icon.png")
     splash = None
-    if os.path.exists(splash_path):
+    show_splash = os.environ.get("AYEC_SHOW_SPLASH", "0") == "1"
+    if show_splash and os.path.exists(splash_path):
         pixmap = QPixmap(splash_path)
         splash = QSplashScreen(pixmap, Qt.WindowType.WindowStaysOnTopHint)
         splash.show()
@@ -219,25 +168,45 @@ def main():
             Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignHCenter,
             Qt.GlobalColor.white,
         )
-        QApplication.processEvents()
-
-    server_thread = threading.Thread(target=run_backend_server, daemon=True)
-    server_thread.start()
+    startup_mark("splash.ready")
 
     try:
-        db = Database(init_mode="auth")
+        from src.utils.web_sync_client import apply_pending_restore
+
+        restore_db_name = os.environ.get("AYEC_DB_NAME", "ayecpro.db")
+        restore_result = apply_pending_restore(PathHelper.get_db_path(restore_db_name))
+        if restore_result.get("applied"):
+            logging.info("Remote support restore applied: %s", restore_result)
+    except Exception as exc:
+        logging.error("Pending remote restore was not applied: %s", exc)
+    startup_mark("pending_restore.ready")
+
+    try:
+        from src.database import Database
+
+        with startup_span("database.auth.open"):
+            db = Database(init_mode="auth")
     except Exception as exc:
         show_error(None, "Hata", f"Veritabani baglantisi kurulamadi: {exc}")
         sys.exit(1)
+    startup_mark("database.auth.ready")
+
+    from src.utils.auth_manager import AuthManager
 
     auth_manager = AuthManager(db)
     login_status = {"success": False, "user": None}
     saved_token = auth_manager.get_saved_token()
+    server_bound_tenant = str(
+        db.get_setting("web_sync_tenant_id", "") or ""
+    ).strip()
+    login_window = None
 
-    if saved_token and auth_manager.auto_login(saved_token):
+    if saved_token and not server_bound_tenant and auth_manager.auto_login(saved_token):
         login_status["success"] = True
         login_status["user"] = auth_manager.current_user
     else:
+        from src.ui.modern_login_window import ModernLoginWindow
+
         if splash:
             splash.hide()
         login_window = ModernLoginWindow(db)
@@ -251,6 +220,7 @@ def main():
             sys.exit(0)
         if splash:
             splash.show()
+    startup_mark("authentication.ready")
 
     if splash:
         splash.showMessage(
@@ -259,13 +229,21 @@ def main():
             Qt.GlobalColor.white,
         )
 
+    if not hasattr(app, "_active_threads"):
+        app._active_threads = set()
     loop = QEventLoop()
     worker = DbFullInitWorker(db)
-    worker.finished.connect(lambda ok, err: loop.quit())
+    app._active_threads.add(worker)
+    worker.completed.connect(lambda ok, err: loop.quit())
     worker.start()
     loop.exec()
+    worker.wait()
+    app._active_threads.discard(worker)
+    startup_mark("database.full.ready")
 
     try:
+        from core import SectorManager
+
         sector_manager = SectorManager(db)
         current_sector = db.get_internal_setting("current_sector", "teknik_servis")
         sector_manager.load_sector(current_sector)
@@ -273,20 +251,24 @@ def main():
     except Exception as exc:
         logging.warning("Plugin system init failed (using fallback): %s", exc)
         sector_manager = None
+    startup_mark("sector_manager.ready")
 
     try:
-        main_window = MainWindow(
-            db=db,
-            user_data=login_status["user"],
-            sector_manager=sector_manager,
+        from src.ui.main_window import MainWindow
+
+        with startup_span("main_window.create"):
+            main_window = MainWindow(
+                db=db,
+                user_data=login_status["user"],
+                sector_manager=sector_manager,
+            )
+        main_window._web_sync_password = (
+            getattr(login_window, "_last_login_password", "") if login_window else ""
         )
-        try:
-            main_window._load_initial_page()
-            QApplication.processEvents()
-        except Exception as preload_err:
-            logging.warning("Initial page preload skipped: %s", preload_err)
         main_window.show()
         main_window.showMaximized()
+        PathHelper.apply_windows_taskbar_icon(main_window)
+        startup_mark("main_window.shown")
         if splash:
             splash.finish(main_window)
     except Exception as exc:
@@ -295,6 +277,29 @@ def main():
         )
         show_error(None, "Hata", f"Uygulama baslatilamadi: {exc}")
         sys.exit(1)
+
+    def start_backend_server_deferred():
+        if getattr(app, "_backend_thread", None):
+            return
+        server_thread = threading.Thread(
+            target=run_backend_server,
+            name="AYEC-Local-API",
+            daemon=True,
+        )
+        app._backend_thread = server_thread
+        server_thread.start()
+        startup_mark("backend.thread.started")
+
+    def finish_first_paint():
+        startup_mark("main_window.first_paint")
+        startup_finish()
+
+    QTimer.singleShot(0, finish_first_paint)
+    main_window.configure_auto_web_sync(auto_web_sync_enabled(db))
+    if local_api_enabled(db):
+        QTimer.singleShot(2500, start_backend_server_deferred)
+    if login_window:
+        login_window._last_login_password = ""
 
     sys.exit(app.exec())
 

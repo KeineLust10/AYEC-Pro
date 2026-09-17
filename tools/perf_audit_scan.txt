@@ -1,0 +1,1416 @@
+src\utils\async_manager.py:52:            worker.start()
+src\utils\async_manager.py:192:        _task_manager.start()
+src\utils\async_manager.py:234:        self.thread.start()
+src\utils\async_manager.py:286:    return task.start()
+src\db\mixins\bank_mixin.py:46:            cols = [r[1] for r in cur.fetchall()]
+src\db\mixins\bank_mixin.py:120:            cols = [r[1] for r in cur.fetchall()]
+src\db\mixins\bank_mixin.py:122:            q = "SELECT * FROM bank_accounts"
+src\db\mixins\bank_mixin.py:127:            return cur.fetchall() or []
+src\db\mixins\bank_mixin.py:137:            cols = [r[1] for r in cur.fetchall()]
+src\db\mixins\bank_mixin.py:156:            cols = [r[1] for r in cur.fetchall()]
+src\db\mixins\device_mixin.py:41:            columns = {row[1] for row in (self.cursor.fetchall() or [])}
+src\db\mixins\device_mixin.py:117:            cols = [row[1] for row in (self.cursor.fetchall() or [])]
+src\db\mixins\device_mixin.py:148:                self.cursor.fetchall() or []
+src\db\mixins\device_mixin.py:182:            device_cols = {row[1] for row in (self.cursor.fetchall() or [])}
+src\db\mixins\device_mixin.py:541:        return self.cursor.fetchall() or []
+src\db\mixins\device_mixin.py:548:                device_columns = {row[1] for row in (self.cursor.fetchall() or [])}
+src\db\mixins\device_mixin.py:616:        return self.cursor.fetchall()
+src\db\mixins\device_mixin.py:634:        return self.cursor.fetchall()
+src\db\mixins\device_mixin.py:649:        return self.cursor.fetchall()
+src\db\mixins\device_mixin.py:666:        return self.cursor.fetchall()
+src\db\mixins\device_mixin.py:692:            return self.cursor.fetchall()
+src\db\mixins\device_mixin.py:769:                "SELECT * FROM device_tests WHERE tracking_no=?", (tracking_no,)
+src\db\mixins\device_mixin.py:771:            return self.cursor.fetchall()
+src\db\mixins\device_mixin.py:802:            SELECT * FROM devices 
+src\db\mixins\device_mixin.py:810:        return self.cursor.fetchall()
+src\db\mixins\database_legacy_part2_mixin.py:21:            cols = [r[1] for r in self.cursor.fetchall()]
+src\db\mixins\database_legacy_part2_mixin.py:121:        cols = [r[1] for r in self.cursor.fetchall()]
+src\db\mixins\database_legacy_part2_mixin.py:123:        query = "SELECT * FROM bank_accounts"
+src\db\mixins\database_legacy_part2_mixin.py:128:        rows = self.cursor.fetchall()
+src\db\mixins\database_legacy_part2_mixin.py:184:            cols = [r[1] for r in self.cursor.fetchall()]
+src\db\mixins\database_legacy_part2_mixin.py:204:            cols = [r[1] for r in self.cursor.fetchall()]
+src\db\mixins\database_legacy_part2_mixin.py:320:            query = "SELECT * FROM bank_accounts WHERE id=?"
+src\db\mixins\database_legacy_part2_mixin.py:377:            cols = [r[1] for r in cur.fetchall()]
+src\db\mixins\database_legacy_part2_mixin.py:477:        self.cursor.execute("SELECT * FROM whatsapp_templates")
+src\db\mixins\database_legacy_part2_mixin.py:478:        return self.cursor.fetchall()
+src\db\mixins\database_legacy_part2_mixin.py:537:            existing_cols = [row[1] for row in self.cursor.fetchall()]
+src\db\mixins\database_legacy_part2_mixin.py:596:                devices = self.cursor.fetchall()
+src\db\mixins\database_legacy_part2_mixin.py:624:                devices = self.cursor.fetchall()
+src\db\mixins\database_legacy_part2_mixin.py:673:            device_history = self.cursor.fetchall()
+src\db\mixins\database_legacy_part2_mixin.py:682:            recent_jobs = self.cursor.fetchall()
+src\db\mixins\database_legacy_part2_mixin.py:700:            self.cursor.execute("SELECT * FROM devices WHERE customer_name=? ORDER BY entry_date DESC", (customer_name,))
+src\db\mixins\database_legacy_part2_mixin.py:701:            return self.cursor.fetchall()
+src\db\mixins\database_legacy_part2_mixin.py:711:            cols = [row[1] for row in self.cursor.fetchall()]
+src\db\mixins\database_legacy_part2_mixin.py:785:            self.cursor.execute("SELECT * FROM parts WHERE barcode=? OR code=?", (barcode, barcode))
+src\db\mixins\database_legacy_part2_mixin.py:815:            query = "SELECT * FROM parts"
+src\db\mixins\database_legacy_part2_mixin.py:825:            return self.cursor.fetchall()
+src\db\mixins\database_legacy_part2_mixin.py:833:            query = "SELECT * FROM parts WHERE code = ?"
+src\db\mixins\database_legacy_part2_mixin.py:847:                    query = "SELECT * FROM parts WHERE id = ?"
+src\db\mixins\database_legacy_part2_mixin.py:963:            return self.cursor.fetchall()
+src\database.py:158:            ).fetchall()
+src\database.py:365:        ).fetchall()
+src\database.py:600:        return self.cursor.fetchall()
+src\database.py:613:        return self.cursor.fetchall()
+src\database.py:617:        self.cursor.execute("SELECT * FROM offers WHERE id=?", (int(offer_id),))
+src\database.py:632:        return self.cursor.fetchall()
+src\database.py:934:                "SELECT * FROM {table_name} WHERE {fk_name}=?".format(
+src\database.py:1035:                    "SELECT * FROM customers WHERE id=? AND COALESCE(is_deleted, 0)=0",
+src\database.py:1039:                cur.execute("SELECT * FROM customers WHERE id=?", (customer_id,))
+src\database.py:1062:                        "SELECT * FROM devices WHERE id=? AND COALESCE(is_deleted, 0)=0",
+src\database.py:1066:                    cur.execute("SELECT * FROM devices WHERE id=?", (device_id,))
+src\database.py:1070:                        "SELECT * FROM devices WHERE tracking_no=? AND COALESCE(is_deleted, 0)=0",
+src\database.py:1075:                        "SELECT * FROM devices WHERE tracking_no=?", (tracking_no,)
+src\database.py:1096:                    "SELECT * FROM parts WHERE id=? AND COALESCE(is_deleted, 0)=0",
+src\database.py:1100:                cur.execute("SELECT * FROM parts WHERE id=?", (part_id,))
+src\database.py:1281:            return [row[1] for row in cur.fetchall()]
+src\database.py:1643:            tables = [row[0] for row in self.cursor.fetchall() or []]
+src\utils\asistan_motoru.py:838:    threading.Thread(target=_run_tts, daemon=True).start()
+src\db\mixins\appointments_mixin.py:24:        columns = {row[1] for row in (self.cursor.fetchall() or [])}
+src\db\mixins\appointments_mixin.py:151:        ).fetchall()
+src\db\mixins\appointments_mixin.py:298:        ).fetchall()
+src\db\mixins\appointments_mixin.py:384:            self.cursor.execute("SELECT * FROM appointments ORDER BY date, time")
+src\db\mixins\appointments_mixin.py:385:            return self.cursor.fetchall()
+src\db\mixins\appointments_mixin.py:400:                SELECT * FROM appointments 
+src\db\mixins\appointments_mixin.py:406:            return self.cursor.fetchall()
+src\db\mixins\database_legacy_part5_mixin.py:104:            cols = [r[1] for r in self.cursor.fetchall()]
+src\db\mixins\database_legacy_part5_mixin.py:105:            self.cursor.execute("SELECT * FROM accounting WHERE id=? AND COALESCE(is_deleted, 0) = 0", (t_id,))
+src\db\mixins\database_legacy_part5_mixin.py:163:        query = "SELECT * FROM appointments"
+src\db\mixins\database_legacy_part5_mixin.py:174:            return self.cursor.fetchall()
+src\db\mixins\database_legacy_part5_mixin.py:269:                    old_cols = {r[1].lower() for r in self.cursor.fetchall()}
+src\db\mixins\database_legacy_part5_mixin.py:291:            cols = [row[1].lower() for row in self.cursor.fetchall()]
+src\db\mixins\database_legacy_part5_mixin.py:336:                ).fetchall()
+src\db\mixins\database_legacy_part5_mixin.py:401:        self.cursor.execute("SELECT * FROM contract_attachments WHERE contract_id=?", (contract_id,))
+src\db\mixins\database_legacy_part5_mixin.py:402:        return self.cursor.fetchall()
+src\db\mixins\database_legacy_part5_mixin.py:463:        brand_dist = self.cursor.fetchall()
+src\db\mixins\database_legacy_part5_mixin.py:481:            return self.cursor.fetchall()
+src\db\mixins\database_legacy_part5_mixin.py:491:            return self.cursor.fetchall()
+src\db\mixins\database_legacy_part5_mixin.py:521:                "SELECT * FROM appointments WHERE date=? AND status='Aktif'",
+src\db\mixins\database_legacy_part5_mixin.py:524:            all_today = self.cursor.fetchall()
+src\db\mixins\database_legacy_part5_mixin.py:549:            self.cursor.execute("SELECT * FROM {table_name}".format(table_name=safe_table))
+src\db\mixins\database_legacy_part5_mixin.py:550:            rows = self.cursor.fetchall()
+src\db\mixins\database_legacy_part5_mixin.py:579:            results = self.cursor.fetchall()
+src\db\mixins\database_legacy_part5_mixin.py:613:            cols = [r[1] for r in self.cursor.fetchall()]
+src\db\mixins\database_legacy_part5_mixin.py:695:            cols = [row[1] for row in self.cursor.fetchall()]
+src\db\mixins\database_legacy_part5_mixin.py:745:            self.cursor.execute("SELECT * FROM reminders ORDER BY date DESC")
+src\db\mixins\database_legacy_part5_mixin.py:746:            return self.cursor.fetchall()
+src\db\mixins\database_legacy_part5_mixin.py:967:        return self.cursor.fetchall()
+src\utils\audit_logger.py:169:                SELECT * FROM audit_logs 
+src\utils\audit_logger.py:175:            return self.db.cursor.fetchall()
+src\utils\audit_logger.py:194:                SELECT * FROM audit_logs 
+src\utils\audit_logger.py:200:            return self.db.cursor.fetchall()
+src\utils\audit_logger.py:218:                SELECT * FROM audit_logs 
+src\utils\audit_logger.py:223:            return self.db.cursor.fetchall()
+src\utils\audit_logger.py:258:            by_action = dict(self.db.cursor.fetchall())
+src\utils\audit_logger.py:268:            by_user = dict(self.db.cursor.fetchall())
+src\db\mixins\customer_mixin.py:11:from src.utils.performance_monitor import perf_span
+src\db\mixins\customer_mixin.py:51:            valid_columns = {row[1] for row in (self.cursor.fetchall() or [])}
+src\db\mixins\customer_mixin.py:81:            self.cursor.execute("SELECT * FROM customers WHERE is_deleted=0 OR is_deleted IS NULL ORDER BY name")
+src\db\mixins\customer_mixin.py:82:            return self.cursor.fetchall()
+src\db\mixins\customer_mixin.py:86:            self.cursor.execute("SELECT * FROM customers ORDER BY name")
+src\db\mixins\customer_mixin.py:87:            return self.cursor.fetchall()
+src\db\mixins\customer_mixin.py:154:            with perf_span(
+src\db\mixins\customer_mixin.py:178:            with perf_span(
+src\db\mixins\customer_mixin.py:185:                rows = [dict(zip(columns, row)) for row in cur.fetchall()]
+src\db\mixins\customer_mixin.py:196:                    "SELECT * FROM customers WHERE is_deleted=0 OR is_deleted IS NULL ORDER BY name LIMIT ? OFFSET ?",
+src\db\mixins\customer_mixin.py:200:                rows = [dict(zip(cols, row)) for row in cur2.fetchall()]
+src\db\mixins\customer_mixin.py:214:            "SELECT * FROM customers WHERE (name LIKE ? OR phone LIKE ?) AND COALESCE(is_deleted, 0) = 0",
+src\db\mixins\customer_mixin.py:217:        return self.cursor.fetchall()
+src\db\mixins\customer_mixin.py:243:            SELECT *
+src\db\mixins\customer_mixin.py:254:        return self.cursor.fetchall()
+src\db\mixins\customer_mixin.py:286:            device_history = self.cursor.fetchall()
+src\db\mixins\customer_mixin.py:296:            recent_jobs = self.cursor.fetchall()
+src\db\mixins\customer_mixin.py:357:            columns = [row[1] for row in self.cursor.fetchall() or []]
+src\db\mixins\_maint_special_mixin.py:9:            self.cursor.execute("SELECT * FROM automotive_maintenance_templates WHERE COALESCE(is_active, 1)=1 ORDER BY is_default DESC, name COLLATE NOCASE ASC")
+src\db\mixins\_maint_special_mixin.py:10:            templates = self.cursor.fetchall() or []
+src\db\mixins\_maint_special_mixin.py:14:                self.cursor.execute("SELECT * FROM automotive_maintenance_template_items WHERE template_id=? ORDER BY id ASC", (tid,))
+src\db\mixins\_maint_special_mixin.py:15:                rows.append({"template": t, "items": self.cursor.fetchall() or []})
+src\db\mixins\_maint_special_mixin.py:62:            if vehicle_id: self.cursor.execute("SELECT * FROM automotive_warranty_campaigns WHERE vehicle_id=? ORDER BY created_at DESC, id DESC", (vehicle_id,))
+src\db\mixins\_maint_special_mixin.py:63:            else: self.cursor.execute("SELECT * FROM automotive_warranty_campaigns WHERE UPPER(TRIM(vehicle_plate))=? ORDER BY created_at DESC, id DESC", (str(plate or "").strip().upper(),))
+src\db\mixins\_maint_special_mixin.py:64:            return self.cursor.fetchall() or []
+src\db\mixins\_maint_special_mixin.py:83:            if vehicle_id: self.cursor.execute("SELECT * FROM automotive_tire_suspension_records WHERE vehicle_id=? ORDER BY created_at DESC, id DESC", (vehicle_id,))
+src\db\mixins\_maint_special_mixin.py:84:            else: self.cursor.execute("SELECT * FROM automotive_tire_suspension_records WHERE UPPER(TRIM(vehicle_plate))=? ORDER BY created_at DESC, id DESC", (str(plate or "").strip().upper(),))
+src\db\mixins\_maint_special_mixin.py:85:            return self.cursor.fetchall() or []
+src\db\mixins\_maint_special_mixin.py:104:            if device_id: self.cursor.execute("SELECT * FROM automotive_battery_electrical_tests WHERE device_id=? ORDER BY created_at DESC, id DESC", (device_id,))
+src\db\mixins\_maint_special_mixin.py:105:            else: self.cursor.execute("SELECT * FROM automotive_battery_electrical_tests WHERE UPPER(TRIM(vehicle_plate))=? ORDER BY created_at DESC, id DESC", (str(plate or "").strip().upper(),))
+src\db\mixins\_maint_special_mixin.py:106:            return self.cursor.fetchall() or []
+src\db\mixins\_maint_special_mixin.py:133:            if device_id: self.cursor.execute("SELECT * FROM automotive_parts_requests WHERE device_id=? ORDER BY created_at DESC, id DESC", (device_id,))
+src\db\mixins\_maint_special_mixin.py:134:            else: self.cursor.execute("SELECT * FROM automotive_parts_requests WHERE UPPER(TRIM(vehicle_plate))=? ORDER BY created_at DESC, id DESC", (str(plate or "").strip().upper(),))
+src\db\mixins\_maint_special_mixin.py:135:            rows = self.cursor.fetchall() or []; results = []
+src\db\mixins\_maint_special_mixin.py:138:                self.cursor.execute("SELECT * FROM automotive_parts_request_items WHERE request_id=? ORDER BY id ASC", (rid,))
+src\db\mixins\_maint_special_mixin.py:139:                results.append({"request": r, "items": self.cursor.fetchall() or []})
+src\db\mixins\_maint_special_mixin.py:160:            if device_id: self.cursor.execute("SELECT * FROM automotive_damage_marks WHERE device_id=? ORDER BY id ASC", (device_id,))
+src\db\mixins\_maint_special_mixin.py:161:            elif tracking_no: self.cursor.execute("SELECT * FROM automotive_damage_marks WHERE tracking_no=? ORDER BY id ASC", (tracking_no,))
+src\db\mixins\_maint_special_mixin.py:162:            else: self.cursor.execute("SELECT * FROM automotive_damage_marks WHERE UPPER(TRIM(vehicle_plate))=? ORDER BY id ASC", (str(plate or "").strip().upper(),))
+src\db\mixins\_maint_special_mixin.py:163:            return self.cursor.fetchall() or []
+src\db\mixins\_maint_special_mixin.py:170:            self.cursor.execute("SELECT * FROM vehicle_maintenance_photos WHERE card_id=? ORDER BY id ASC", (card_id,))
+src\db\mixins\_maint_special_mixin.py:171:            return self.cursor.fetchall() or []
+src\db\mixins\accounting_mixin.py:20:            q = "SELECT * FROM accounting WHERE COALESCE(is_deleted, 0) = 0"
+src\db\mixins\accounting_mixin.py:27:            return self.cursor.fetchall()
+src\db\mixins\accounting_mixin.py:34:        self.cursor.execute("SELECT * FROM accounting WHERE id=? AND COALESCE(is_deleted, 0) = 0", (t_id,))
+src\db\mixins\accounting_mixin.py:62:                self.cursor.execute("SELECT * FROM customers WHERE name LIKE ?", (q,))
+src\db\mixins\accounting_mixin.py:64:                self.cursor.execute("SELECT * FROM customers")
+src\db\mixins\accounting_mixin.py:66:            customers = self.cursor.fetchall()
+src\db\mixins\accounting_mixin.py:95:            for r in self.cursor.fetchall():
+src\db\mixins\accounting_mixin.py:110:                for r in self.cursor.fetchall():
+src\db\mixins\currency_mixin.py:195:            """).fetchall()
+src\db\mixins\currency_mixin.py:305:            ).fetchall()
+src\db\mixins\currency_mixin.py:353:            devices = self.cursor.fetchall()
+src\db\mixins\currency_mixin.py:382:            query = "SELECT * FROM currency_transactions WHERE 1=1"
+src\db\mixins\currency_mixin.py:396:            results = self.cursor.execute(query, params).fetchall()
+src\db\mixins\currency_mixin.py:503:                ).fetchall()
+src\db\mixins\currency_mixin.py:533:                    ).fetchall()
+src\db\mixins\currency_mixin.py:643:            return self.cursor.execute(query, params).fetchall()
+src\db\mixins\currency_mixin.py:685:            ).fetchall() or []
+src\db\mixins\currency_mixin.py:704:                ).fetchall() or []
+src\db\mixins\currency_mixin.py:725:                    ).fetchall() or []
+src\db\mixins\currency_mixin.py:744:                    ).fetchall() or []
+src\utils\alert_scheduler.py:159:        QTimer.singleShot(5000, self._finish_speaking)
+src\db\mixins\database_legacy_part4_mixin.py:14:        query = "SELECT * FROM devices WHERE 1=1"
+src\db\mixins\database_legacy_part4_mixin.py:42:        return self.cursor.fetchall()
+src\db\mixins\database_legacy_part4_mixin.py:63:            return dict(self.cursor.fetchall())
+src\db\mixins\database_legacy_part4_mixin.py:188:        self.cursor.execute("SELECT * FROM external_warranty_tracking ORDER BY id DESC")
+src\db\mixins\database_legacy_part4_mixin.py:189:        return self.cursor.fetchall()
+src\db\mixins\database_legacy_part4_mixin.py:253:                return {r[1] for r in (self.cursor.fetchall() or [])}
+src\db\mixins\database_legacy_part4_mixin.py:306:                    brand_dist = self.cursor.fetchall() or []
+src\db\mixins\database_legacy_part4_mixin.py:405:                rows = self.cursor.fetchall() or []
+src\db\mixins\database_legacy_part4_mixin.py:509:            return self.cursor.fetchall()
+src\db\mixins\database_legacy_part4_mixin.py:530:        return dict(self.cursor.fetchall())
+src\db\mixins\database_legacy_part4_mixin.py:567:        cols = [r[1] for r in self.cursor.fetchall()]
+src\db\mixins\database_legacy_part4_mixin.py:730:        self.cursor.execute("SELECT * FROM accounting WHERE COALESCE(is_deleted, 0) = 0 ORDER BY date DESC")
+src\db\mixins\database_legacy_part4_mixin.py:731:        return self.cursor.fetchall()
+src\db\mixins\database_legacy_part4_mixin.py:774:            self.cursor.execute("SELECT * FROM {table_name}".format(table_name=safe_table))
+src\db\mixins\database_legacy_part4_mixin.py:775:            rows = self.cursor.fetchall()
+src\db\mixins\database_legacy_part4_mixin.py:778:            headers = [col[1] for col in self.cursor.fetchall()]
+src\db\mixins\database_legacy_part4_mixin.py:793:        self.cursor.execute("SELECT * FROM parts WHERE barcode=?", (barcode,))
+src\db\mixins\database_legacy_part4_mixin.py:808:        raw_stats = self.cursor.fetchall()
+src\db\mixins\database_legacy_part4_mixin.py:831:        self.cursor.execute("SELECT * FROM personnel")
+src\db\mixins\database_legacy_part4_mixin.py:832:        return self.cursor.fetchall()
+src\db\mixins\database_legacy_part4_mixin.py:837:            self.cursor.execute("SELECT * FROM kb_articles ORDER BY id DESC")
+src\db\mixins\database_legacy_part4_mixin.py:838:            return self.cursor.fetchall()
+src\db\mixins\database_legacy_part4_mixin.py:842:        self.cursor.execute("SELECT * FROM kb_articles")
+src\db\mixins\database_legacy_part4_mixin.py:843:        all_articles = self.cursor.fetchall()
+src\db\mixins\database_legacy_part4_mixin.py:905:            columns = [row[1] for row in self.cursor.fetchall()]
+src\db\mixins\database_legacy_part4_mixin.py:924:            rows = self.cursor.fetchall()
+src\db\mixins\database_legacy_part4_mixin.py:1002:            cols = [r[1] for r in self.cursor.fetchall()]
+src\db\mixins\database_legacy_part4_mixin.py:1071:            for r in self.cursor.fetchall():
+src\db\mixins\database_legacy_part4_mixin.py:1085:            for r in self.cursor.fetchall():
+src\db\mixins\database_legacy_part3_mixin.py:90:            return self.cursor.fetchall() or []
+src\db\mixins\database_legacy_part3_mixin.py:116:        self.cursor.execute("SELECT * FROM accounting WHERE id = ? AND COALESCE(is_deleted, 0) = 0", (txn_id,))
+src\db\mixins\database_legacy_part3_mixin.py:123:            cols = [r[1] for r in self.cursor.fetchall()]
+src\db\mixins\database_legacy_part3_mixin.py:125:            self.cursor.execute("SELECT * FROM accounting WHERE id=? AND COALESCE(is_deleted, 0) = 0", (txn_id,))
+src\db\mixins\database_legacy_part3_mixin.py:188:                devices = self.cursor.fetchall()
+src\db\mixins\database_legacy_part3_mixin.py:294:            existing_cols = [row[1] for row in self.cursor.fetchall()]
+src\db\mixins\database_legacy_part3_mixin.py:309:                part_cols = [row[1] for row in self.cursor.fetchall()]
+src\db\mixins\database_legacy_part3_mixin.py:361:            existing = [row[1] for row in self.cursor.fetchall()]
+src\db\mixins\database_legacy_part3_mixin.py:396:            existing = [row[1] for row in self.cursor.fetchall()]
+src\db\mixins\database_legacy_part3_mixin.py:425:            existing = [row[1] for row in self.cursor.fetchall()]
+src\db\mixins\database_legacy_part3_mixin.py:458:            existing = [row[1] for row in self.cursor.fetchall()]
+src\db\mixins\database_legacy_part3_mixin.py:479:            cols = [c[1] for c in cursor.fetchall()]
+src\db\mixins\database_legacy_part3_mixin.py:516:            rows = cursor.fetchall()
+src\db\mixins\database_legacy_part3_mixin.py:596:            return self.cursor.fetchall()
+src\db\mixins\database_legacy_part3_mixin.py:605:                SELECT * FROM devices 
+src\db\mixins\database_legacy_part3_mixin.py:610:            return self.cursor.fetchall()
+src\db\mixins\database_legacy_part3_mixin.py:628:        return self.cursor.fetchall()
+src\db\mixins\database_legacy_part3_mixin.py:642:        self.cursor.execute("SELECT * FROM service_logs WHERE device_tracking_no=? ORDER BY created_at DESC", (tracking_no,))
+src\db\mixins\database_legacy_part3_mixin.py:643:        return self.cursor.fetchall()
+src\db\mixins\database_legacy_part3_mixin.py:653:            return self.cursor.fetchall()
+src\db\mixins\database_legacy_part3_mixin.py:672:        query = "SELECT * FROM appointments"
+src\db\mixins\database_legacy_part3_mixin.py:682:        return self.cursor.fetchall()
+src\db\mixins\database_legacy_part3_mixin.py:715:            return self.cursor.fetchall()
+src\db\mixins\database_legacy_part3_mixin.py:735:        self.cursor.execute("SELECT * FROM reminders WHERE is_read=0 AND due_date <= ?", (today,))
+src\db\mixins\database_legacy_part3_mixin.py:736:        return self.cursor.fetchall()
+src\db\mixins\database_legacy_part3_mixin.py:777:                    cols = {r[1] for r in self.cursor.fetchall()}
+src\db\mixins\database_legacy_part3_mixin.py:800:                cols = {r[1] for r in self.cursor.fetchall()}
+src\db\mixins\database_legacy_part3_mixin.py:843:                    cols = {r[1] for r in self.cursor.fetchall()}
+src\db\mixins\database_legacy_part3_mixin.py:1043:            self.cursor.execute("SELECT * FROM devices ORDER BY id DESC LIMIT ?", (limit,))
+src\db\mixins\database_legacy_part3_mixin.py:1044:            return self.cursor.fetchall()
+src\db\mixins\database_legacy_part3_mixin.py:1066:                self.cursor.execute("SELECT * FROM devices ORDER BY id DESC")
+src\db\mixins\database_legacy_part3_mixin.py:1068:                self.cursor.execute("SELECT * FROM devices WHERE is_archived = 0 ORDER BY id DESC")
+src\db\mixins\database_legacy_part3_mixin.py:1069:            return self.cursor.fetchall()
+src\db\mixins\database_legacy_part3_mixin.py:1076:        self.cursor.execute("SELECT * FROM devices WHERE status=?", (status,))
+src\db\mixins\database_legacy_part3_mixin.py:1077:        return self.cursor.fetchall()
+src\db\mixins\database_legacy_part3_mixin.py:1083:            SELECT * FROM devices WHERE 
+src\db\mixins\database_legacy_part3_mixin.py:1089:        return self.cursor.fetchall()
+src\db\migrations\migration_manager.py:56:        return [row[0] for row in cursor.fetchall()]
+src\db\mixins\_maint_schema_mixin.py:109:            cols = {row[1] for row in (self.cursor.fetchall() or [])}
+src\db\mixins\_maint_schema_mixin.py:116:            tcols = {row[1] for row in (self.cursor.fetchall() or [])}
+src\db\migrations\migrations.py:26:    columns = [row[1] for row in cursor.fetchall()]
+src\utils\email_manager.py:55:        thread.start()
+src\db\mixins\_maint_quotes_mixin.py:15:            self.cursor.execute("SELECT * FROM automotive_quote_items WHERE quote_form_id=? ORDER BY id ASC", (quote_form_id,))
+src\db\mixins\_maint_quotes_mixin.py:16:            return self.cursor.fetchall() or []
+src\utils\license_manager.py:318:        QTimer.singleShot(delay_ms, lambda: self._run_async_check(callback))
+src\utils\license_manager.py:349:        thread.start()
+src\utils\desktop_web_sync.py:70:            company = conn.execute("SELECT * FROM company_info LIMIT 1").fetchone()
+src\utils\desktop_web_sync.py:79:                "SELECT * FROM users WHERE username=? COLLATE NOCASE LIMIT 1",
+src\utils\income_tax_tariff_service.py:57:        segment = normalized[previous_end:match.start()]
+src\utils\ai_prediction.py:262:            rows = self.db.cursor.fetchall()
+src\utils\ai_prediction.py:289:            rows = self.db.cursor.fetchall()
+src\utils\ai_prediction.py:322:            rows = self.db.cursor.fetchall()
+src\utils\ai_prediction.py:343:            rows = self.db.cursor.fetchall()
+src\utils\multi_tenant.py:213:        self.cursor.execute('SELECT * FROM tenants WHERE tenant_code = ?', (tenant_code,))
+src\utils\multi_tenant.py:253:            SELECT * FROM tenant_users 
+src\utils\multi_tenant.py:299:        query = 'SELECT * FROM tenants'
+src\utils\multi_tenant.py:309:        rows = self.cursor.fetchall()
+src\utils\multi_tenant.py:359:        rows = self.cursor.fetchall()
+src\utils\mail_manager.py:198:        w_cust.start()
+src\utils\mail_manager.py:256:            w_admin.start()
+src\db\mixins\_maint_notify_mixin.py:9:            self.cursor.execute("SELECT * FROM vehicle_maintenance_cards WHERE inspection_notice_date=? ORDER BY inspection_due_date ASC, id ASC", (target,))
+src\db\mixins\_maint_notify_mixin.py:10:            rows = self.cursor.fetchall() or []
+src\db\mixins\_maint_notify_mixin.py:21:            self.cursor.execute("SELECT * FROM vehicle_maintenance_cards WHERE inspection_notice_date=? AND COALESCE(TRIM(customer_phone), '') != '' AND (inspection_notified_at IS NULL OR substr(inspection_notified_at, 1, 10) != ?) ORDER BY inspection_due_date ASC, id ASC", (target, target))
+src\db\mixins\_maint_notify_mixin.py:22:            return self.cursor.fetchall() or []
+src\db\mixins\_maint_notify_mixin.py:46:            rows = self.cursor.fetchall() or []
+src\db\mixins\_maint_notify_mixin.py:58:            rows = self.cursor.fetchall() or []
+src\db\mixins\_maint_notify_mixin.py:79:            return self.cursor.fetchall() or []
+src\db\mixins\_maint_notify_mixin.py:96:            return self.cursor.fetchall() or []
+src\db\mixins\_maint_notify_mixin.py:104:            return self.cursor.fetchall() or []
+src\utils\logger.py:134:    t.start()
+src\db\mixins\_maint_history_mixin.py:10:            cols = {row[1] for row in (self.cursor.fetchall() or []) if len(row) > 1}
+src\db\mixins\_maint_history_mixin.py:13:                self.cursor.execute(f"SELECT * FROM devices WHERE tracking_no=?{del_cl}", (tracking_no,))
+src\db\mixins\_maint_history_mixin.py:16:                self.cursor.execute(f"SELECT * FROM devices WHERE id=?{del_cl}", (device_id,))
+src\db\mixins\_maint_history_mixin.py:25:            self.cursor.execute(f"SELECT * FROM {self._safe_identifier(table_name)} WHERE {self._safe_identifier(key_column)}=?", (key_value,))
+src\db\mixins\_maint_history_mixin.py:38:            vcols = {row[1] for row in (self.cursor.fetchall() or [])}
+src\db\mixins\_maint_history_mixin.py:66:            m_rows = self.cursor.fetchall() or []
+src\db\mixins\_maint_history_mixin.py:68:            s_rows = self.cursor.fetchall() or []
+src\db\mixins\_maint_history_mixin.py:76:            self.cursor.execute("SELECT * FROM automotive_vehicle_history_events WHERE ((? IS NOT NULL AND vehicle_id=?) OR (? != '' AND UPPER(TRIM(vehicle_plate))=?) OR (? IS NOT NULL AND customer_id=?)) ORDER BY created_at DESC, id DESC", (vehicle_id, vehicle_id, plate_clean, plate_clean, customer_id, customer_id))
+src\db\mixins\_maint_history_mixin.py:77:            ev = self.cursor.fetchall() or []
+src\db\mixins\_maint_history_mixin.py:78:            self.cursor.execute("SELECT * FROM automotive_quote_forms WHERE UPPER(TRIM(vehicle_plate))=? ORDER BY updated_at DESC, id DESC", (plate_clean,))
+src\db\mixins\_maint_history_mixin.py:79:            q = self.cursor.fetchall() or []
+src\db\mixins\_maint_history_mixin.py:80:            self.cursor.execute("SELECT * FROM automotive_delivery_forms WHERE UPPER(TRIM(vehicle_plate))=? ORDER BY updated_at DESC, id DESC", (plate_clean,))
+src\db\mixins\_maint_history_mixin.py:81:            de = self.cursor.fetchall() or []
+src\db\mixins\_maint_history_mixin.py:97:            self.cursor.execute("PRAGMA table_info(devices)"); ex_cols = {row[1] for row in (self.cursor.fetchall() or [])}
+src\db\mixins\_maint_history_mixin.py:108:        self.cursor.execute("SELECT * FROM vehicle_maintenance_cards WHERE id=?", (card_id,))
+src\utils\finance_manager.py:517:        for row in cursor.fetchall():
+src\utils\finance_manager.py:629:            for row in ct_cursor.fetchall():
+src\utils\finance_manager.py:686:        for row in cursor.fetchall():
+src\utils\finance_manager.py:730:        for row in cursor.fetchall():
+src\utils\startup_updater.py:136:        self.worker.start()
+src\utils\startup_updater.py:172:        self.check_worker.start()
+src\db\mixins\_maint_forms_mixin.py:13:            self.cursor.execute("SELECT * FROM automotive_service_forms WHERE device_id=?", (device_id,))
+src\db\mixins\_maint_forms_mixin.py:27:            valid_cols = {row[1] for row in (self.cursor.fetchall() or [])}
+src\db\mixins\_maint_core_mixin.py:9:            self.cursor.execute("SELECT * FROM customer_vehicles WHERE customer_id=? AND COALESCE(is_active, 1)=1 ORDER BY plate COLLATE NOCASE ASC, id ASC", (customer_id,))
+src\db\mixins\_maint_core_mixin.py:10:            return self.cursor.fetchall() or []
+src\db\mixins\_maint_core_mixin.py:16:            self.cursor.execute("SELECT * FROM customer_vehicles WHERE id=?", (vehicle_id,))
+src\db\mixins\_maint_core_mixin.py:25:            self.cursor.execute("SELECT * FROM customer_vehicles WHERE UPPER(TRIM(plate))=? LIMIT 1", (plate_clean,))
+src\db\mixins\_maint_core_mixin.py:60:            self.cursor.execute(query, tuple(params)); return self.cursor.fetchall() or []
+src\db\mixins\_maint_core_mixin.py:66:            self.cursor.execute("SELECT * FROM vehicle_maintenance_cards WHERE id=?", (card_id,))
+src\db\mixins\_maint_core_mixin.py:69:            self.cursor.execute("SELECT * FROM vehicle_maintenance_items WHERE card_id=? ORDER BY id ASC", (card_id,))
+src\db\mixins\_maint_core_mixin.py:70:            return card, self.cursor.fetchall() or []
+src\utils\offer_pdf_data.py:22:    cursor.execute("SELECT * FROM offers WHERE id=?", (int(offer_id),))
+src\utils\offer_pdf_data.py:42:        "SELECT * FROM offer_items WHERE offer_id=? ORDER BY id",
+src\utils\offer_pdf_data.py:45:    item_rows = [_row_as_dict(cursor, row) for row in cursor.fetchall()]
+src\utils\performance_monitor.py:37:def perf_span(label, extra="", threshold_ms=None):
+src\utils\performance_monitor.py:56:            with perf_span(metric_label):
+src\utils\performance_monitor.py:72:        with perf_span(metric_label):
+src\utils\performance_monitor.py:85:    # perf_span ile oluşturma/yükleme aşamasında ölçülür.
+src\utils\performance_profiler.py:265:        # SELECT * kontrolü
+src\utils\performance_profiler.py:269:                'message': 'SELECT * kullanımı performansı düşürür. Sadece gerekli sütunları seçin.',
+src\utils\performance_profiler.py:335:    test_query = "SELECT * FROM customers WHERE name LIKE '%test%'"
+src\utils\parse_subprocess_worker.py:91:        self._proc.start()
+src\utils\parse_subprocess_worker.py:145:        self._proc.start()
+src\db\mixins\_db_legacy_support_mixin.py:18:        self.cursor.execute("SELECT * FROM audit_logs ORDER BY id DESC LIMIT ?", (limit,))
+src\db\mixins\_db_legacy_support_mixin.py:19:        return self.cursor.fetchall()
+src\db\mixins\_db_legacy_support_mixin.py:26:        return self.cursor.fetchall()
+src\db\mixins\_db_legacy_support_mixin.py:49:            self.cursor.execute("SELECT * FROM kb_articles ORDER BY id DESC")
+src\db\mixins\_db_legacy_support_mixin.py:50:        return self.cursor.fetchall()
+src\db\mixins\_db_legacy_support_mixin.py:73:            rows = self.cursor.fetchall()
+src\utils\service_pdf_generator.py:37:                "SELECT * FROM devices WHERE tracking_no=? AND COALESCE(is_deleted, 0)=0",
+src\utils\service_pdf_generator.py:41:            self.db.cursor.execute("SELECT * FROM devices WHERE tracking_no=?", (tracking_no,))
+src\utils\service_work_details.py:30:                row[1] for row in cursor.execute("PRAGMA table_info(devices)").fetchall()
+src\utils\service_work_details.py:57:                ).fetchall()
+src\db\mixins\_db_legacy_schema_mixin.py:96:            cols = [row[1] for row in (self.cursor.fetchall() or [])]
+src\db\mixins\_db_legacy_schema_mixin.py:119:            cols = [row[1] for row in self.cursor.fetchall()]
+src\db\mixins\_db_legacy_schema_mixin.py:204:                cols = [row[1] for row in self.cursor.fetchall()]
+src\db\mixins\_db_legacy_maintenance_mixin.py:16:            existing_tables = {row[0] for row in self.cursor.fetchall() or []}
+src\db\mixins\_db_legacy_maintenance_mixin.py:19:                personnel_columns = {row[1] for row in self.cursor.fetchall() or []}
+src\db\mixins\_db_legacy_maintenance_mixin.py:41:                all_tables = [row[0] for row in (cursor.fetchall() or []) if row and row[0]]
+src\utils\theme_manager.py:14:from src.utils.performance_monitor import perf_span
+src\utils\theme_manager.py:1138:        with perf_span("theme.refresh_all_widgets"):
+src\utils\theme_manager.py:1207:        with perf_span(f"theme.apply_raw.{cls._current_theme}"):
+src\utils\theme_manager.py:1213:            QTimer.singleShot(0, lambda: cls.refresh_all_widgets(app))
+src\utils\theme_manager.py:1293:                QTimer.singleShot(duration_ms + 300, _cleanup)
+src\utils\theme_manager.py:1294:                progress_anim.start()
+src\utils\theme_manager.py:1295:                opacity_anim.start()
+src\db\mixins\_db_legacy_crm_mixin.py:10:            self.cursor.execute("SELECT * FROM quick_notes WHERE group_name=? ORDER BY id", (group_name,))
+src\db\mixins\_db_legacy_crm_mixin.py:12:            self.cursor.execute("SELECT * FROM quick_notes ORDER BY group_name, id")
+src\db\mixins\_db_legacy_crm_mixin.py:13:        return self.cursor.fetchall()
+src\db\mixins\_db_legacy_crm_mixin.py:29:        query = "SELECT * FROM fast_notes"
+src\db\mixins\_db_legacy_crm_mixin.py:35:        return self.cursor.execute(query, params).fetchall()
+src\utils\toast_notification.py:201:        self.slide_anim.start()
+src\utils\toast_notification.py:202:        self.fade_in_anim.start()
+src\utils\toast_notification.py:203:        QTimer.singleShot(int(self.duration), self.hide_notification)
+src\utils\toast_notification.py:207:        self.fade_out_anim.start()
+src\utils\theme_filters.py:107:                QTimer.singleShot(0, obj.showPopup)
+src\utils\theme_filters.py:124:                    QTimer.singleShot(0, parent_combo.showPopup)
+src\utils\update_manager.py:105:        self.check_worker.start()
+src\utils\update_manager.py:147:        self.download_worker.start()
+src\db\mixins\support_mixin.py:29:        return self.cursor.fetchall()
+src\db\mixins\support_mixin.py:78:            self.cursor.execute("SELECT * FROM kb_articles ORDER BY id DESC")
+src\db\mixins\support_mixin.py:79:        return self.cursor.fetchall()
+src\utils\web_sync_client.py:345:                    existing = conn.execute(f'SELECT * FROM "{table}" WHERE id=?', (clean["id"],)).fetchone()
+src\utils\web_sync_client.py:376:                    stored = conn.execute(f'SELECT * FROM "{table}" WHERE id=?', (clean["id"],)).fetchone()
+src\utils\web_sync_client.py:385:                for record in conn.execute(f'SELECT * FROM "{table}" ORDER BY id DESC LIMIT 5000').fetchall():
+src\db\mixins\logging_mixin.py:31:        self.cursor.execute("SELECT * FROM logs WHERE tracking_no=? ORDER BY created_at DESC", (tracking_no,))
+src\db\mixins\logging_mixin.py:32:        return self.cursor.fetchall()
+src\db\mixins\logging_mixin.py:37:        self.cursor.execute("SELECT * FROM logs ORDER BY created_at DESC LIMIT ?", (safe_limit,))
+src\db\mixins\logging_mixin.py:38:        return self.cursor.fetchall()
+src\db\mixins\logging_mixin.py:54:        self.cursor.execute("SELECT * FROM audit_logs ORDER BY id DESC LIMIT ?", (limit,))
+src\db\mixins\logging_mixin.py:55:        return self.cursor.fetchall()
+src\db\mixins\logging_mixin.py:79:            rows = self.cursor.fetchall()
+src\db\mixins\reminders_mixin.py:32:            self.cursor.execute("SELECT * FROM reminders ORDER BY date DESC")
+src\db\mixins\reminders_mixin.py:33:            return self.cursor.fetchall()
+src\db\mixins\reminders_mixin.py:41:        self.cursor.execute("SELECT * FROM reminders WHERE is_read=0 AND date <= ?", (today,))
+src\db\mixins\reminders_mixin.py:42:        return self.cursor.fetchall()
+src\db\mixins\security_mixin.py:38:            for row in self.cursor.execute("PRAGMA table_info(users)").fetchall()
+src\db\mixins\security_mixin.py:94:        self.cursor.execute("SELECT * FROM users WHERE username=?", (username,))
+src\db\mixins\security_mixin.py:111:            self.cursor.execute("SELECT * FROM users WHERE id=?", (user["id"],))
+src\db\mixins\security_mixin.py:155:        self.cursor.execute("SELECT * FROM registration LIMIT 1")
+src\db\mixins\security_mixin.py:169:            columns = [row[1] for row in self.cursor.fetchall()]
+src\db\mixins\product_bank_mapping_mixin.py:96:            for row in self.cursor.fetchall():
+src\db\mixins\product_bank_mapping_mixin.py:119:                for row in self.cursor.fetchall():
+src\db\mixins\product_bank_mapping_mixin.py:143:            for row in self.cursor.fetchall():
+src\db\mixins\product_bank_mapping_mixin.py:206:            part_ids = [row[0] for row in self.cursor.fetchall()]
+src\db\mixins\settings_mixin.py:28:        ).fetchall()
+src\db\mixins\settings_mixin.py:150:        self.cursor.execute("SELECT * FROM whatsapp_templates")
+src\db\mixins\settings_mixin.py:151:        return self.cursor.fetchall()
+src\db\mixins\settings_mixin.py:170:                "SELECT * FROM quick_notes WHERE group_name=?",
+src\db\mixins\settings_mixin.py:174:            self.cursor.execute("SELECT * FROM quick_notes")
+src\db\mixins\settings_mixin.py:175:        return self.cursor.fetchall()
+src\db\mixins\settings_mixin.py:199:                "SELECT * FROM fast_notes WHERE category=? ORDER BY display_order",
+src\db\mixins\settings_mixin.py:203:            self.cursor.execute("SELECT * FROM fast_notes ORDER BY display_order")
+src\db\mixins\settings_mixin.py:204:        return self.cursor.fetchall()
+src\db\mixins\services_mixin.py:35:        columns = {row[1] for row in self.cursor.fetchall()}
+src\db\mixins\services_mixin.py:86:            return [dict(zip(columns, row)) for row in self.cursor.fetchall()]
+src\db\mixins\services_mixin.py:94:            self.cursor.execute("SELECT * FROM services WHERE barcode=? AND COALESCE(is_deleted, 0) = 0", (barcode,))
+src\db\mixins\label_mixin.py:62:            rows = self.cursor.fetchall()
+src\db\mixins\label_mixin.py:81:            rows = self.cursor.fetchall()
+src\db\mixins\label_mixin.py:126:            return self.cursor.fetchall()
+src\db\mixins\stock_mixin.py:40:            columns = {str(col[1]).lower() for col in (self.cursor.fetchall() or [])}
+src\db\mixins\stock_mixin.py:146:            columns = {str(col[1]).lower() for col in (cur.fetchall() or [])}
+src\db\mixins\stock_mixin.py:298:            return cur.fetchall() or [], total
+src\db\mixins\stock_mixin.py:340:            rows = cur.fetchall() or []
+src\db\mixins\stock_mixin.py:573:            return self.cursor.fetchall()
+src\db\mixins\stock_mixin.py:1033:                "SELECT * FROM parts WHERE barcode=? AND COALESCE(is_deleted, 0) = 0",
+src\db\mixins\stock_mixin.py:1217:            columns = [row[1] for row in self.cursor.fetchall()]
+src\db\mixins\stock_mixin.py:1261:            columns = [row[1] for row in self.cursor.fetchall()]
+src\db\mixins\stock_mixin.py:1336:            columns = [row[1] for row in self.cursor.fetchall()]
+src\db\mixins\stock_mixin.py:1343:            query = "SELECT * FROM used_parts WHERE tracking_no=?"
+src\db\mixins\stock_mixin.py:1349:            return self.cursor.fetchall()
+src\db\mixins\stock_mixin.py:1358:            columns = [row[1] for row in self.cursor.fetchall()]
+src\db\mixins\stock_mixin.py:1377:            return self.cursor.fetchall()
+src\db\mixins\stock_mixin.py:1387:                SELECT * FROM parts 
+src\db\mixins\stock_mixin.py:1395:            return self.cursor.fetchall()
+src\db\mixins\stock_mixin.py:1463:            missing_rows = self.cursor.fetchall() or []
+src\db\mixins\stock_mixin.py:1570:                rows = cur.fetchall()
+src\db\mixins\stock_mixin.py:1602:                        for r in cur2.fetchall():
+src\db\mixins\stock_mixin.py:1628:                        up_rows = cur2.fetchall()
+src\db\mixins\project_mixin.py:54:                for r in self.cursor.fetchall()
+src\db\mixins\project_mixin.py:379:        query = "SELECT * FROM projects"
+src\db\mixins\project_mixin.py:385:        return self.cursor.fetchall()
+src\db\mixins\project_mixin.py:419:            "SELECT * FROM projects"
+src\db\mixins\project_mixin.py:425:        return self.cursor.fetchall(), total
+src\db\mixins\project_mixin.py:429:            "SELECT * FROM projects WHERE is_archived=1 ORDER BY created_at DESC"
+src\db\mixins\project_mixin.py:431:        return self.cursor.fetchall()
+src\db\mixins\project_mixin.py:459:        self.cursor.execute("SELECT * FROM projects WHERE id=?", (project_id,))
+src\db\mixins\project_mixin.py:593:            "SELECT * FROM project_units WHERE project_id=? ORDER BY block_name, floor_no, unit_no",
+src\db\mixins\project_mixin.py:596:        return self.cursor.fetchall()
+src\db\mixins\project_mixin.py:602:                SELECT *
+src\db\mixins\project_mixin.py:610:            return self.cursor.fetchall()
+src\db\mixins\project_mixin.py:619:                SELECT *
+src\db\mixins\project_mixin.py:626:            return self.cursor.fetchall()
+src\db\mixins\project_mixin.py:645:            self.cursor.execute("SELECT * FROM project_units WHERE id=?", (unit_id,))
+src\db\mixins\project_mixin.py:734:            "SELECT * FROM subcontractors WHERE project_id=?", (project_id,)
+src\db\mixins\project_mixin.py:736:        return self.cursor.fetchall()
+src\db\mixins\project_mixin.py:762:        return self.cursor.fetchall()
+src\db\mixins\project_mixin.py:826:        query = "SELECT * FROM project_transactions WHERE project_id=?"
+src\db\mixins\project_mixin.py:834:        return self.cursor.fetchall()
+src\db\mixins\project_mixin.py:1013:                "SELECT * FROM project_unit_products WHERE unit_id=? ORDER BY added_at DESC",
+src\db\mixins\project_mixin.py:1016:            return self.cursor.fetchall()
+src\db\mixins\project_mixin.py:1026:                SELECT *
+src\db\mixins\project_mixin.py:1033:            return self.cursor.fetchall()
+src\db\mixins\personnel_mixin.py:45:        self.cursor.execute("SELECT * FROM personnel")
+src\db\mixins\personnel_mixin.py:46:        return self.cursor.fetchall()
+src\db\mixins\personnel_mixin.py:70:        return self.cursor.fetchall()
+src\db\mixins\personnel_mixin.py:81:        return self.cursor.fetchall()
+src\db\mixins\personnel_mixin.py:91:        return self.cursor.fetchall()
+src\db\mixins\personnel_mixin.py:98:        query = "SELECT * FROM personnel WHERE role LIKE '%Saha%' OR role LIKE '%Teknisyen%' OR role LIKE '%Destek%' OR role LIKE '%Personel%'"
+src\db\mixins\personnel_mixin.py:100:        rows = self.cursor.fetchall()
+src\db\mixins\personnel_mixin.py:129:            existing_cols = [info[1] for info in self.cursor.fetchall()]
+src\db\mixins\personnel_mixin.py:155:            staff = self.cursor.fetchall()
+src\db\mixins\personnel_mixin.py:185:            existing_cols = [row[1] for row in self.cursor.fetchall()]
+src\db\mixins\personnel_mixin.py:254:             existing_cols = [row[1] for row in self.cursor.fetchall()]
+src\db\mixins\finance_mixin.py:22:        ).fetchall()
+src\db\mixins\finance_mixin.py:385:        query = "SELECT * FROM loans"
+src\db\mixins\finance_mixin.py:396:        return self.cursor.fetchall()
+src\db\mixins\finance_mixin.py:519:        return self.cursor.fetchall()
+src\db\mixins\finance_mixin.py:540:        return self.cursor.fetchall()
+src\db\mixins\finance_mixin.py:579:        return self.cursor.fetchall()
+src\db\mixins\finance_mixin.py:582:        self.cursor.execute("SELECT * FROM loans WHERE id=?", (loan_id,))
+src\db\mixins\finance_mixin.py:591:            SELECT * FROM scheduled_alerts
+src\db\mixins\finance_mixin.py:596:        return self.cursor.fetchall()
+src\db\mixins\finance_mixin.py:600:        self.cursor.execute("SELECT * FROM scheduled_alerts ORDER BY trigger_time")
+src\db\mixins\finance_mixin.py:601:        return self.cursor.fetchall()
+src\db\mixins\finance_mixin.py:634:        query = "SELECT * FROM bank_cards WHERE bank_account_id=?"
+src\db\mixins\finance_mixin.py:640:        return self.cursor.fetchall()
+src\db\mixins\finance_mixin.py:757:            rows = self.cursor.fetchall() or []
+src\db\mixins\finance_mixin.py:769:        query = "SELECT * FROM loan_installments WHERE loan_id=?"
+src\db\mixins\finance_mixin.py:775:        return self.cursor.fetchall()
+src\db\mixins\finance_mixin.py:878:        query = "SELECT * FROM checks_notes"
+src\db\mixins\finance_mixin.py:889:        return self.cursor.fetchall()
+src\db\mixins\finance_mixin.py:959:            for row in self.cursor.fetchall():
+src\db\mixins\finance_mixin.py:977:            for row in self.cursor.fetchall():
+src\db\mixins\reports_mixin.py:60:            status_rows = self.cursor.fetchall() or []
+src\db\mixins\reports_mixin.py:172:                "SELECT * FROM {table_name}".format(table_name=safe_table)
+src\db\mixins\reports_mixin.py:174:            rows = self.cursor.fetchall()
+src\db\mixins\reports_mixin.py:179:            headers = [col[1] for col in self.cursor.fetchall()]
+src\db\mixins\reports_mixin.py:220:                status_rows = self.cursor.fetchall() or []
+src\db\mixins\notification_mixin.py:67:                SELECT *
+src\db\mixins\notification_mixin.py:81:            return self.cursor.fetchall()
+src\db\mixins\notification_mixin.py:89:            query = "SELECT * FROM notifications WHERE 1=1"
+src\db\mixins\notification_mixin.py:101:            return self.cursor.fetchall()
+src\db\mixins\stock_location_mixin.py:103:                    row[1] for row in cur.execute("PRAGMA table_info(used_parts)").fetchall()
+src\db\mixins\stock_location_mixin.py:132:        return [dict(row) for row in self.conn.execute(sql).fetchall()]
+src\db\mixins\stock_location_mixin.py:157:        return [dict(row) for row in self.conn.execute(sql).fetchall()]
+src\db\mixins\stock_location_mixin.py:171:        ).fetchall()
+src\db\mixins\stock_location_mixin.py:225:        ).fetchall()
+src\db\mixins\stock_location_mixin.py:502:        ).fetchall()
+src\db\mixins\schema_mixin.py:51:                    self.cursor.fetchall()
+src\db\mixins\schema_mixin.py:144:                    self.cursor.fetchall()
+src\db\mixins\schema_mixin.py:182:                existing_cols = [row[1] for row in self.cursor.fetchall()]
+src\db\mixins\schema_mixin.py:197:            columns = [row[1] for row in self.cursor.fetchall()]
+src\db\mixins\schema_mixin.py:284:            return self.cursor.fetchall()
+src\utils\_pdf_service_mixin.py:262:                "SELECT * FROM customers WHERE id=?", (customer_id,)
+src\ui\modern_login_window.py:207:        QTimer.singleShot(0, lambda: PathHelper.apply_windows_taskbar_icon(self))
+src\ui\modern_login_window.py:219:        QTimer.singleShot(80, self._deferred_init)
+src\ui\modern_login_window.py:733:            rows = self.db.cursor.fetchall() or []
+src\ui\modern_login_window.py:780:            personnel_rows = self.db.cursor.fetchall() or []
+src\ui\modern_login_window.py:873:                    rows = db.cursor.fetchall() or []
+src\ui\modern_login_window.py:944:        self._user_loader.start()
+src\ui\modern_login_window.py:1253:            self._init_worker.start()
+src\ui\modern_login_window.py:1367:                QTimer.singleShot(0, self.start_opening)
+src\ui\modern_login_window.py:1371:            worker.start()
+src\ui\modern_login_technical_dialogs.py:455:            rows = self.db.cursor.fetchall() or []
+src\utils\_sip_invoice_line.py:140:            left  = text[max(0, match.start() - 3): match.start()]
+src\utils\_sip_invoice_line.py:199:            name_end    = adet_match.start()
+src\utils\_sip_invoice_line.py:222:                    name_end    = num_matches[-2].start()
+src\utils\_sip_invoice_line.py:235:                name_end      = num_matches[unit_price_i].start()
+src\utils\_sip_invoice_line.py:243:                                name_end = num_matches[i].start()
+src\utils\_sip_invoice_line.py:303:            cut_index = qty_match.start()
+src\utils\_sip_invoice_line.py:306:            cut_index = money_matches[0].start()
+src\utils\_sip_invoice_line.py:315:                        cut_index = m.start()
+src\utils\_sip_invoice_line.py:424:            cut_index = amount_matches[0].start() if amount_matches else len(compact_masked)
+src\ui\modern_login_deleted_records.py:219:        self.load_data()
+src\ui\modern_login_deleted_records.py:230:            cols = [row[1] for row in self.db.cursor.fetchall()]
+src\ui\modern_login_deleted_records.py:254:            ucols = [row[1] for row in self.db.cursor.fetchall()]
+src\ui\modern_login_deleted_records.py:272:            ccols = [row[1] for row in self.db.cursor.fetchall()]
+src\ui\modern_login_deleted_records.py:286:            bcols = [row[1] for row in self.db.cursor.fetchall()]
+src\ui\modern_login_deleted_records.py:300:            pcols = [row[1] for row in self.db.cursor.fetchall()]
+src\ui\modern_login_deleted_records.py:310:            acols = [row[1] for row in self.db.cursor.fetchall()]
+src\ui\modern_login_deleted_records.py:324:            rcols = [row[1] for row in self.db.cursor.fetchall()]
+src\ui\modern_login_deleted_records.py:338:            accols = [row[1] for row in self.db.cursor.fetchall()]
+src\ui\modern_login_deleted_records.py:352:            svcols = [row[1] for row in self.db.cursor.fetchall()]
+src\ui\modern_login_deleted_records.py:366:            actcols = [row[1] for row in self.db.cursor.fetchall()]
+src\ui\modern_login_deleted_records.py:380:            smcols = [row[1] for row in self.db.cursor.fetchall()]
+src\ui\modern_login_deleted_records.py:396:    def load_data(self):
+src\ui\modern_login_deleted_records.py:402:            self.table.insertRow(0)
+src\ui\modern_login_deleted_records.py:443:            rows = self.db.cursor.fetchall() or []
+src\ui\modern_login_deleted_records.py:451:            self.table.insertRow(i)
+src\ui\modern_login_deleted_records.py:486:            rows = self.db.cursor.fetchall() or []
+src\ui\modern_login_deleted_records.py:494:            self.table.insertRow(i)
+src\ui\modern_login_deleted_records.py:527:            rows = self.db.cursor.fetchall() or []
+src\ui\modern_login_deleted_records.py:533:            self.table.insertRow(i)
+src\ui\modern_login_deleted_records.py:564:            rows = self.db.cursor.fetchall() or []
+src\ui\modern_login_deleted_records.py:570:            self.table.insertRow(i)
+src\ui\modern_login_deleted_records.py:601:            rows = self.db.cursor.fetchall() or []
+src\ui\modern_login_deleted_records.py:607:            self.table.insertRow(i)
+src\ui\modern_login_deleted_records.py:640:            rows = self.db.cursor.fetchall() or []
+src\ui\modern_login_deleted_records.py:648:            self.table.insertRow(i)
+src\ui\modern_login_deleted_records.py:685:            rows = self.db.cursor.fetchall() or []
+src\ui\modern_login_deleted_records.py:693:            self.table.insertRow(i)
+src\ui\modern_login_deleted_records.py:730:            rows = self.db.cursor.fetchall() or []
+src\ui\modern_login_deleted_records.py:738:            self.table.insertRow(i)
+src\ui\modern_login_deleted_records.py:773:            rows = self.db.cursor.fetchall() or []
+src\ui\modern_login_deleted_records.py:781:            self.table.insertRow(i)
+src\ui\modern_login_deleted_records.py:827:            rows = self.db.cursor.fetchall() or []
+src\ui\modern_login_deleted_records.py:835:            self.table.insertRow(i)
+src\ui\modern_login_deleted_records.py:872:            rows = self.db.cursor.fetchall() or []
+src\ui\modern_login_deleted_records.py:880:            self.table.insertRow(i)
+src\ui\modern_login_deleted_records.py:937:                self.load_data()
+src\ui\modern_login_deleted_records.py:954:                self.load_data()
+src\ui\modern_login_deleted_records.py:965:                self.load_data()
+src\ui\modern_login_deleted_records.py:973:                self.load_data()
+src\ui\modern_login_deleted_records.py:981:                self.load_data()
+src\ui\modern_login_deleted_records.py:989:                self.load_data()
+src\ui\modern_login_deleted_records.py:997:                self.load_data()
+src\ui\modern_login_deleted_records.py:1005:                self.load_data()
+src\ui\modern_login_deleted_records.py:1013:                self.load_data()
+src\ui\modern_login_deleted_records.py:1021:                self.load_data()
+src\ui\modern_login_deleted_records.py:1036:                self.load_data()
+src\ui\modern_login_deleted_records.py:1056:            self.load_data()
+src\repositories\base_repository.py:165:        rows = cursor.fetchall()
+src\repositories\base_repository.py:295:        query = "SELECT * FROM {table_name} WHERE {id_column} = ?".format(
+src\repositories\base_repository.py:323:        query = "SELECT * FROM {table_name}".format(table_name=table_name)
+src\repositories\customer_repository.py:55:            SELECT * FROM customers
+src\repositories\customer_repository.py:73:            SELECT * FROM customers
+src\repositories\customer_repository.py:96:            SELECT * FROM customers
+src\repositories\customer_repository.py:124:            SELECT * FROM customers
+src\ui\_main_window_theme_mixin.py:11:from src.utils.performance_monitor import perf_span
+src\ui\_main_window_theme_mixin.py:113:            with perf_span(f"theme.apply.{normalized}"):
+src\ui\_main_window_theme_mixin.py:162:            QTimer.singleShot(50, _rebuild_sidebar)
+src\repositories\accounting_repository.py:70:            SELECT * FROM accounting
+src\repositories\accounting_repository.py:96:                SELECT * FROM accounting
+src\repositories\accounting_repository.py:105:                SELECT * FROM accounting
+src\repositories\accounting_repository.py:231:            SELECT * FROM accounting
+src\utils\_theme_qss_transformer.py:146:            rebuilt.append(qss_text[last_end:match.start()])
+src\utils\_theme_qss_transformer.py:154:                body_out.append(body[body_last:decl.start()])
+src\repositories\personnel_repository.py:54:            SELECT * FROM personnel
+src\repositories\personnel_repository.py:71:            SELECT * FROM personnel
+src\repositories\personnel_repository.py:89:            SELECT * FROM personnel
+src\repositories\personnel_repository.py:103:            SELECT * FROM personnel
+src\repositories\personnel_repository.py:120:            SELECT * FROM personnel
+src\repositories\personnel_repository.py:142:            SELECT * FROM personnel
+src\utils\_sip_normalize.py:37:            if m and m.start() > 5:
+src\utils\_sip_normalize.py:38:                candidate = name[m.start():].strip()
+src\utils\_sip_normalize.py:89:            if m and m.start() > 4:
+src\utils\_sip_normalize.py:90:                candidate = cleaned[m.start():].strip()
+src\repositories\device_repository.py:56:            SELECT * FROM devices
+src\repositories\device_repository.py:74:            SELECT * FROM devices
+src\repositories\device_repository.py:92:            SELECT * FROM devices
+src\repositories\device_repository.py:133:            SELECT * FROM devices
+src\repositories\device_repository.py:151:            SELECT * FROM devices
+src\repositories\device_repository.py:175:            SELECT * FROM devices
+src\repositories\service_repository.py:53:            SELECT * FROM services
+src\repositories\service_repository.py:71:            SELECT * FROM services
+src\repositories\service_repository.py:94:            SELECT * FROM services
+src\repositories\service_repository.py:124:                SELECT * FROM services
+src\repositories\service_repository.py:132:                SELECT * FROM services
+src\repositories\service_repository.py:223:            SELECT * FROM services
+src\repositories\stock_repository.py:53:            SELECT * FROM parts
+src\repositories\stock_repository.py:70:            SELECT * FROM parts
+src\repositories\stock_repository.py:95:                SELECT * FROM parts
+src\repositories\stock_repository.py:105:                SELECT * FROM parts
+src\repositories\stock_repository.py:124:            SELECT * FROM parts
+src\repositories\stock_repository.py:161:            SELECT * FROM parts
+src\repositories\stock_repository.py:175:            SELECT * FROM parts
+src\repositories\stock_repository.py:279:            SELECT * FROM stock_movements
+src\services\offer_acceptance_service.py:137:                ).fetchall()
+src\services\offer_acceptance_service.py:162:            ).fetchall()
+src\ui\main_window.py:95:        QTimer.singleShot(1200, lambda: self.configure_auto_web_sync(auto_sync))
+src\ui\main_window.py:208:                hourly_timer.start()
+src\ui\main_window.py:212:        startup_timer.start()
+src\ui\main_window.py:329:        worker.start()
+src\ui\main_window.py:340:                worker.start()
+src\ui\main_window.py:353:        worker.start()
+src\ui\main_window.py:382:        QTimer.singleShot(750, self._run_web_sync_from_event)
+src\ui\main_window.py:465:                    page.request_reload()
+src\ui\main_window.py:467:                    page.refresh_data()
+src\ui\main_window.py:472:        QTimer.singleShot(0, self.refresh_side_menu)
+src\ui\main_window.py:486:        QTimer.singleShot(0, _refresh)
+src\ui\main_window.py:622:                QTimer.singleShot(
+src\ui\main_window.py:629:        worker.start()
+src\repositories\unit_of_work.py:127:        rows = cursor.fetchall()
+src\ui\main_window_backup.py:118:        QTimer.singleShot(1000, self.check_notifications)
+src\ui\main_window_backup.py:160:            self.jarvis_anim.start()
+src\ui\main_window_backup.py:161:            self.jarvis_anim_max.start()
+src\ui\main_window_backup.py:174:            self.jarvis_anim.start()
+src\ui\main_window_backup.py:175:            self.jarvis_anim_max.start()
+src\ui\main_window_backup.py:198:        QTimer.singleShot(300, lambda: setattr(self, '_switching', False))
+src\ui\main_window_backup.py:217:            self.page_status_screen.load_data()
+src\ui\main_window_backup.py:287:                self.page_customers.load_data()
+src\ui\main_window_backup.py:300:                self.db.cursor.execute("SELECT * FROM devices WHERE tracking_no=? OR id=?", (device_id, device_id))
+src\ui\main_window_backup.py:383:            self.page_dashboard.refresh_data()
+src\ui\main_window_backup.py:406:            overdue = self.db.cursor.fetchall()
+src\services\license_service.py:25:            self.enforcement_timer.start()
+src\services\offer_service.py:11:            ).fetchall()
+src\services\offer_service.py:34:        return self.db.cursor.execute(query, params).fetchall()
+src\services\offer_service.py:72:        ).fetchall()
+src\services\offer_service.py:85:        ).fetchall()
+src\services\offer_service.py:100:        ).fetchall()
+src\ui\mixins\_main_window_base_mixin.py:9:from src.utils.performance_monitor import perf_span
+src\ui\mixins\_main_window_base_mixin.py:61:            with perf_span(f"theme.apply.{normalized}"):
+src\ui\user_selection_window.py:153:        self.hover_anim.start()
+src\ui\user_selection_window.py:166:        self.hover_anim.start()
+src\ui\user_selection_window.py:298:            return [{'id': r[0], 'username': r[1], 'email': r[2], 'role': r[3]} for r in self.db.cursor.fetchall()]
+src\services\fiscal_year_service.py:537:        ).fetchall()
+src\services\fiscal_year_service.py:585:        ).fetchall()
+src\ui\dialogs\admin_approval_dialog.py:172:        self.anim.start()
+src\ui\mixins\_main_window_nav_mixin.py:14:from src.utils.performance_monitor import perf_span, wrap_method_once
+src\ui\mixins\_main_window_nav_mixin.py:66:        with perf_span(f"navigation.page.{index}"):
+src\ui\mixins\_main_window_nav_mixin.py:88:            with perf_span(f"page_create.{index}"):
+src\ui\mixins\_main_window_nav_mixin.py:146:            QTimer.singleShot(0, lambda page=target_widget: self._apply_active_page_appearance(page))
+src\ui\mixins\_main_window_nav_mixin.py:163:        QTimer.singleShot(0, lambda page=target_widget: self._apply_active_page_appearance(page))
+src\ui\mixins\_main_window_nav_mixin.py:173:        anim.start()
+src\services\assistant_manager.py:120:            self.voice_assistant_thread.start()
+src\services\assistant_manager.py:270:            self.assistant_monitor_worker.start()
+src\services\assistant_manager.py:509:        anim.start()
+src\services\assistant_manager.py:521:        QTimer.singleShot(int(duration_ms), stop)
+src\services\assistant_manager.py:550:                QTimer.singleShot(700, lambda: self.main_window.perform_search_on_page(parametre))
+src\ui\dialogs\add_stock_dialog.py:194:        self.anim.start()
+src\ui\dialogs\add_stock_dialog.py:315:                        "SELECT * FROM parts WHERE id=? AND COALESCE(is_deleted, 0)=0",
+src\ui\dialogs\add_stock_dialog.py:320:                        "SELECT * FROM parts WHERE id=?",
+src\ui\dialogs\add_stock_dialog.py:419:            for row in self.db.cursor.fetchall() or []:
+src\ui\dialogs\add_stock_dialog.py:431:            for row in self.db.cursor.fetchall() or []:
+src\ui\dialogs\add_stock_dialog.py:1277:                            page.refresh_data()
+src\ui\mixins\_main_window_service_mixin.py:11:from src.utils.performance_monitor import perf_span
+src\ui\mixins\_main_window_service_mixin.py:57:        QTimer.singleShot(delay, lambda: self._run_ui_task(callback, pri, lbl))
+src\ui\mixins\_main_window_service_mixin.py:60:        with perf_span(f"ui_task.{pri}.{lbl}"): cb()
+src\ui\mixins\_main_window_service_mixin.py:73:        QTimer.singleShot(8000, self._run_assistant_greeting)
+src\ui\mixins\_main_window_service_mixin.py:74:        QTimer.singleShot(20000, self._run_assistant_greeting)
+src\ui\mixins\_main_window_service_mixin.py:75:        QTimer.singleShot(180000, self._run_delayed_daily_backup)
+src\ui\mixins\_main_window_service_mixin.py:76:        QTimer.singleShot(600000, self._refresh_income_tax_tariffs)
+src\ui\mixins\_main_window_service_mixin.py:83:        with perf_span("assistant_manager.create"):
+src\ui\mixins\_main_window_service_mixin.py:127:        worker.start()
+src\ui\mixins\_main_window_service_mixin.py:142:            self._gemini_startup_model_worker.start()
+src\ui\mixins\_main_window_service_mixin.py:176:                if hasattr(p, "request_reload"): p.request_reload()
+src\ui\mixins\_main_window_service_mixin.py:177:                elif hasattr(p, "refresh_data"): p.refresh_data()
+src\ui\mixins\_main_window_service_mixin.py:219:        QTimer.singleShot(0, self._reload_all_pages)
+src\ui\mixins\_main_window_service_mixin.py:220:        QTimer.singleShot(120, self.refresh_side_menu)
+src\ui\mixins\_main_window_service_mixin.py:221:        QTimer.singleShot(260, lambda: self._refresh_active_page(40))
+src\ui\mixins\_main_window_service_mixin.py:222:        QTimer.singleShot(500, lambda: self.show_notification("Veriler temizlendi.", "success"))
+src\ui\mixins\_main_window_service_mixin.py:242:        QTimer.singleShot(0, lambda: self.on_menu_click(idx))
+src\ui\mixins\_main_window_service_mixin.py:248:            if hasattr(p, "request_reload"): p.request_reload(); return True
+src\ui\mixins\_main_window_service_mixin.py:249:            if hasattr(p, "refresh_data"): p.refresh_data(); return True
+src\ui\dialogs\archive_detail_dialog.py:64:            use_photos = bool(self.db.cursor.fetchall())
+src\ui\dialogs\archive_detail_dialog.py:144:                "SELECT * FROM devices WHERE tracking_no=? AND COALESCE(is_deleted, 0)=0",
+src\ui\dialogs\archive_detail_dialog.py:176:            table.insertRow(i)
+src\ui\dialogs\archive_detail_dialog.py:212:            table.insertRow(i)
+src\ui\dialogs\add_device_dialog.py:495:        threading.Thread(target=run_intel, daemon=True).start()
+src\ui\dialogs\add_device_dialog.py:519:            self.voice_thread.start()
+src\ui\dialogs\add_device_dialog.py:538:            threading.Thread(target=refine, daemon=True).start()
+src\ui\dialogs\add_device_dialog.py:601:                columns = {row[1] for row in (self.db.cursor.fetchall() or [])}
+src\ui\widgets\advanced_toast_manager.py:250:        self.slide_anim.start()
+src\ui\widgets\advanced_toast_manager.py:254:        self.fade_in_anim.start()
+src\ui\widgets\advanced_toast_manager.py:287:        self.fade_out_anim.start()
+src\ui\widgets\advanced_toast_manager.py:430:                anim.start()
+src\ui\widgets\animated_toggle.py:40:        self.animation.start()
+src\ui\widgets\assistant_sidebar.py:295:                threading.Thread(target=lambda: self._tts_run(text), daemon=True).start()
+src\ui\widgets\assistant_sidebar.py:311:        QTimer.singleShot(100, self.scroll_to_bottom)
+src\ui\widgets\assistant_sidebar.py:333:        QTimer.singleShot(500, lambda: self.process_query(text))
+src\ui\widgets\ayec_notification.py:158:            QTimer.singleShot(self.auto_close_duration, self._on_close)
+src\ui\widgets\ayec_notification.py:178:        self.animation.start()
+src\ui\widgets\ayec_notification.py:196:        self.slide_animation.start()
+src\ui\widgets\ayec_notification.py:301:    QTimer.singleShot(3000, show_second)
+src\ui\dialogs\bank_detail_dialog.py:73:            return [r[1] for r in self.db.cursor.fetchall()]
+src\ui\dialogs\bank_detail_dialog.py:94:                self.db.cursor.execute("SELECT * FROM bank_accounts WHERE id=?", (self.acc_id,))
+src\ui\dialogs\bank_detail_dialog.py:142:                cols = [c[1] for c in self.db.cursor.fetchall()]
+src\ui\dialogs\bank_detail_dialog.py:147:                query = "SELECT * FROM loans WHERE bank_account_id=?"
+src\ui\dialogs\bank_detail_dialog.py:153:                query = "SELECT * FROM loans"
+src\ui\dialogs\bank_detail_dialog.py:158:            rows = self.db.cursor.fetchall()
+src\ui\dialogs\bank_detail_dialog.py:865:            cols = [c[1] for c in self.db.cursor.execute("PRAGMA table_info(loan_installments)").fetchall()]
+src\ui\dialogs\bank_detail_transactions_mixin.py:82:        query = "SELECT * FROM accounting{where} ORDER BY date DESC, id DESC".format(where=where)
+src\ui\dialogs\bank_detail_transactions_mixin.py:106:            rows = self.db.cursor.fetchall()
+src\ui\dialogs\bank_detail_transactions_mixin.py:358:            rows = self.db.cursor.fetchall()
+src\ui\dialogs\bank_detail_transactions_mixin.py:411:            rows = self.db.cursor.fetchall()
+src\ui\dialogs\bank_detail_transactions_mixin.py:448:            rows = self.db.cursor.fetchall()
+src\ui\dialogs\bank_detail_transactions_mixin.py:458:            rows = self.db.cursor.fetchall()
+src\ui\dialogs\bank_detail_transactions_mixin.py:502:                self.alert_table.setCellWidget(i, 3, cell)
+src\ui\dialogs\bank_detail_transactions_mixin.py:540:            self.cards_table.setCellWidget(i, 4, cell)
+src\ui\dialogs\add_customer_dialog.py:41:        QTimer.singleShot(0, self._deferred_bootstrap)
+src\ui\dialogs\add_customer_dialog.py:416:                        "SELECT * FROM customers WHERE id=? AND COALESCE(is_deleted, 0)=0",
+src\ui\dialogs\add_customer_dialog.py:421:                        "SELECT * FROM customers WHERE id=?",
+src\ui\dialogs\add_customer_dialog.py:584:                valid_columns = {row[1] for row in (self.db.cursor.fetchall() or [])}
+src\ui\dialogs\add_customer_dialog.py:651:                            self.welcome_mail.start()
+src\ui\utils\background_task.py:126:    worker.start()
+src\ui\dialogs\bulk_payment_dialog.py:194:            self.table.setCellWidget(row, 0, checkbox)
+src\ui\dialogs\bulk_payment_dialog.py:293:                "SELECT * FROM loans WHERE id=?", (self.loan_id,)
+src\ui\widgets\jarvis_sidebar.py:304:        QTimer.singleShot(100, self._scroll_to_bottom)
+src\ui\widgets\jarvis_sidebar.py:336:        self.query_thread.start()
+src\ui\widgets\jarvis_sidebar.py:355:        threading.Thread(target=lambda: (self.tts_engine.say(clean_text), self.tts_engine.runAndWait()), daemon=True).start()
+src\ui\dialogs\customer_360_dialog.py:931:                for row in (cur.fetchall() or [])
+src\ui\dialogs\customer_360_dialog.py:1035:        rows = cur.fetchall()
+src\ui\dialogs\customer_360_dialog.py:1044:                cols = {str(row[1]) for row in (cur.fetchall() or [])}
+src\ui\dialogs\customer_360_dialog.py:1076:                for part_row in cur.fetchall() or []:
+src\ui\dialogs\customer_360_dialog.py:1117:                for tx_row in cur.fetchall() or []:
+src\ui\dialogs\customer_360_dialog.py:1285:        transaction_rows = list(cur.fetchall() or [])
+src\ui\dialogs\customer_360_dialog.py:1465:            cols = {str(row[1]) for row in cur.fetchall() or []}
+src\ui\dialogs\customer_360_dialog.py:1499:            for row in cur.fetchall() or []:
+src\ui\dialogs\customer_360_dialog.py:1585:            return [row[0] for row in (cur.fetchall() or [])]
+src\ui\dialogs\customer_360_dialog.py:1656:                        parent.request_reload(delay_ms=0)
+src\ui\dialogs\customer_360_dialog.py:1658:                        parent.request_reload()
+src\ui\dialogs\customer_360_dialog.py:1798:        for created_at, currency, tx_type, amount, balance in cur.fetchall():
+src\ui\dialogs\customer_360_dialog.py:1855:        ) in cur.fetchall():
+src\ui\dialogs\customer_360_dialog.py:2389:            cols = [col[1] for col in cur.fetchall() or []]
+src\ui\dialogs\customer_360_dialog.py:2402:            for name, price, qty in cur.fetchall() or []:
+src\ui\dialogs\customer_history_dialog.py:154:            self.history_table.insertRow(i)
+src\ui\dialogs\customer_history_dialog.py:162:            self.history_table.setCellWidget(i, 0, cb_container)
+src\ui\dialogs\customer_history_dialog.py:208:                fin_records = self.db.cursor.fetchall()
+src\ui\dialogs\customer_history_dialog.py:212:            self.fin_table.insertRow(i)
+src\ui\dialogs\customer_history_dialog.py:220:            self.fin_table.setCellWidget(i, 0, cb_container)
+src\ui\pages\accounting_dialogs\add_expense_dialog.py:168:                QTimer.singleShot(0, self.cmb_bank.showPopup)
+src\ui\pages\accounting_dialogs\add_expense_dialog.py:216:                bank_page.refresh_data()
+src\ui\components\app_sidebar.py:68:        self.anim.start()
+src\ui\components\app_sidebar.py:69:        self.anim2.start()
+src\ui\pages\accounting_dialogs\add_income_dialog.py:307:                QTimer.singleShot(0, self.cmb_bank.showPopup)
+src\ui\pages\accounting_dialogs\add_income_dialog.py:369:                bank_page.refresh_data()
+src\ui\components\app_top_nav_bar.py:244:        self._close_timer.start()
+src\ui\pages\accounting_dialogs\tax_analysis_dialog.py:235:            self.table.insertRow(row)
+src\ui\pages\accounting_dialogs\tax_analysis_dialog.py:283:                row[1] for row in cursor.execute("PRAGMA table_info(financial_reports)").fetchall()
+src\ui\dialogs\customer_select_dialog.py:123:        self.load_data()
+src\ui\dialogs\customer_select_dialog.py:150:    def load_data(self, customers=None):
+src\ui\dialogs\customer_select_dialog.py:157:            self.list_widget.insertRow(i)
+src\ui\dialogs\customer_select_dialog.py:176:            self.load_data()
+src\ui\dialogs\customer_select_dialog.py:179:            self.load_data(results)
+src\ui\dialogs\customer_select_dialog.py:205:                    self.load_data()
+src\ui\dialogs\customer_select_dialog.py:230:            self.load_data()
+src\ui\pages\accounting_dialogs\transaction_details_dialog.py:364:            ).fetchall()
+src\ui\pages\accounting_dialogs\transaction_details_dialog.py:445:            rows = self.db.cursor.execute(sql, tuple(params)).fetchall()
+src\ui\pages\accounting_dialogs\transaction_details_dialog.py:507:            self.items_table.insertRow(i)
+src\ui\dialogs\early_closure_dialog.py:232:            self.table.insertRow(row)
+src\ui\dialogs\device_selection_dialog.py:88:        QTimer.singleShot(50, self.load_data)
+src\ui\dialogs\device_selection_dialog.py:221:            rows = self.db.cursor.fetchall() or []
+src\ui\dialogs\device_selection_dialog.py:265:    def load_data(self, devices=None):
+src\ui\dialogs\device_selection_dialog.py:273:            self.table.insertRow(i)
+src\ui\dialogs\device_selection_dialog.py:293:            self.load_data()
+src\ui\dialogs\device_selection_dialog.py:295:        self.load_data(self._get_active_devices(query))
+src\ui\components\notification_center.py:69:        self.anim.start()
+src\ui\components\notification_center.py:79:                self.shake_timer.start()
+src\ui\components\modern_toast.py:151:        self._slide_anim.start()
+src\ui\components\modern_toast.py:156:        self._opacity_anim.start()
+src\ui\components\modern_toast.py:159:        QTimer.singleShot(self.duration, self._hide_toast)
+src\ui\components\modern_toast.py:167:        self._opacity_anim.start()
+src\ui\dialogs\device_history_dialog.py:99:            # We need to SELECT * FROM devices WHERE serial_no = 
+src\ui\dialogs\device_history_dialog.py:119:            results = cursor.fetchall()
+src\ui\dialogs\device_history_dialog.py:128:                self.table.insertRow(row_idx)
+src\ui\widgets\modern_sidebar.py:141:        self.anim.start()
+src\ui\dialogs\label_editor_dialog.py:74:        self.load_data()
+src\ui\dialogs\label_editor_dialog.py:76:    def load_data(self):
+src\ui\dialogs\label_editor_dialog.py:89:            self.table.insertRow(row)
+src\ui\dialogs\label_editor_dialog.py:94:            self.table.setCellWidget(row, 2, txt_edit)
+src\ui\dialogs\label_editor_dialog.py:108:            self.table.setCellWidget(row, 4, action_widget)
+src\ui\dialogs\label_editor_dialog.py:120:            self.load_data()
+src\ui\widgets\loading_overlay.py:243:        self._wave.start()
+src\ui\widgets\modern_inputs.py:213:            QTimer.singleShot(50, lambda: setattr(self, '_popup_pending', False))
+src\ui\widgets\modern_inputs.py:222:                QTimer.singleShot(0, self.showPopup)
+src\ui\widgets\modern_inputs.py:269:                    QTimer.singleShot(0, self.showPopup)
+src\ui\widgets\modern_inputs.py:278:                    QTimer.singleShot(0, self.showPopup)
+src\ui\pages\announcements_page.py:404:                cols = [col[1] for col in self.db.cursor.fetchall()]
+src\ui\pages\announcements_page.py:412:            announcements = self.db.cursor.fetchall()
+src\ui\pages\announcements_page.py:440:            self.table.insertRow(row_num)
+src\ui\pages\authorization_groups_widget.py:107:            groups = self.db.cursor.fetchall()
+src\ui\pages\authorization_groups_widget.py:112:                self.table.insertRow(row_num)
+src\ui\pages\authorization_groups_widget.py:135:                self.table.setCellWidget(row_num, 3, btn_edit)
+src\ui\pages\authorization_groups_widget.py:142:                self.table.setCellWidget(row_num, 4, btn_delete)
+src\ui\widgets\label_editor_widget.py:174:            self.table.setCellWidget(row, 2, action)
+src\ui\pages\ai_assistant_page.py:294:        self.query_thread.start()
+src\ui\dialogs\loan_detail_dialog.py:34:        self.db.cursor.execute("SELECT * FROM loans WHERE id=?", (self.loan_id,))
+src\ui\dialogs\loan_detail_dialog.py:53:            self.db.cursor.execute("SELECT * FROM loan_attachments WHERE loan_id=?", (self.loan_id,))
+src\ui\dialogs\loan_detail_dialog.py:54:            raw_attachments = self.db.cursor.fetchall()
+src\ui\pages\accounting_page.py:327:        QTimer.singleShot(100, self.refresh_data); self.apply_theme_styles()
+src\ui\pages\accounting_page.py:397:        self.anim.start()
+src\ui\pages\accounting_page.py:398:        self.anim_max.start()
+src\ui\pages\accounting_page.py:416:        self.anim.start()
+src\ui\pages\accounting_page.py:417:        self.anim_max.start()
+src\ui\pages\accounting_page.py:419:        QTimer.singleShot(200, lambda: self._set_right_panel_content_visible(True))
+src\ui\pages\accounting_page.py:434:    def request_reload(self, delay_ms=50):
+src\ui\widgets\kanban_board.py:478:            ).fetchall()
+src\ui\widgets\kanban_board.py:493:                ).fetchall()
+src\ui\widgets\jarvis_toast.py:110:        self.slide_anim.start()
+src\ui\widgets\jarvis_toast.py:120:        self.slide_anim.start()
+src\ui\pages\appointments_page.py:46:            self.load_data()
+src\ui\pages\appointments_page.py:246:            for p in curs.fetchall(): self.cmb_personnel.addItem(p[0])
+src\ui\pages\appointments_page.py:271:            columns = {row[1] for row in (cursor.fetchall() or [])}
+src\ui\pages\appointments_page.py:284:            for row in cursor.fetchall() or []:
+src\ui\pages\appointments_page.py:313:    def load_data(self):
+src\ui\pages\appointments_page.py:518:            self.plan_table.setCellWidget(row_index, 4, stepper)
+src\ui\pages\appointments_page.py:641:            self.plan_table.setCellWidget(row_index, 2, used)
+src\ui\pages\appointments_page.py:642:            self.plan_table.setCellWidget(row_index, 3, returned)
+src\ui\pages\appointments_page.py:895:            rows = self.db.cursor.execute(query, (week_start, week_end)).fetchall() or []
+src\ui\pages\appointments_page.py:1061:            cols = [c[1] for c in curs.fetchall()]
+src\ui\pages\appointments_page.py:1267:                        self.table.setCellWidget(r, c, None)
+src\ui\pages\appointments_page.py:1291:                rows = curs.fetchall()
+src\ui\pages\appointments_page.py:1312:                        self.table.setCellWidget(row, col, card)
+src\ui\pages\appointments_page.py:1320:                    QTimer.singleShot(0, self._run_scheduled_refresh)
+src\ui\pages\appointments_page.py:1453:            rows = curs.fetchall()
+src\ui\pages\appointments_page.py:1716:    def refresh_data(self): self.schedule_refresh(40)
+src\ui\dialogs\location_picker_dialog.py:161:            self.search_timer.start()
+src\ui\dialogs\location_picker_dialog.py:170:        worker.start()
+src\ui\dialogs\loan_wizard_steps\step1_bank_info.py:229:                QTimer.singleShot(0, self.cmb_bank.showPopup)
+src\ui\widgets\snoozeable_toast.py:138:            QTimer.singleShot(self.duration, self._on_dismiss)
+src\ui\widgets\snoozeable_toast.py:158:        self.animation.start()
+src\ui\widgets\ticker_widget.py:53:        QTimer.singleShot(150, self.update_content)
+src\ui\widgets\ticker_widget.py:153:        self.animation.start()
+src\ui\widgets\side_menu_backup.py:349:        self.anim.start()
+src\ui\pages\customers_page_parts.py:35:        QTimer.singleShot(100, self.load_data)
+src\ui\pages\customers_page_parts.py:45:    def load_data(self):
+src\ui\pages\customers_page.py:57:                lambda: self.request_reload(0)
+src\ui\pages\customers_page.py:70:                self.refresh_data()
+src\ui\pages\customers_page.py:72:                QTimer.singleShot(300, self.refresh_data)
+src\ui\pages\customers_page.py:76:            QTimer.singleShot(
+src\ui\pages\customers_page.py:100:    def request_reload(self, delay_ms=50):
+src\ui\pages\customers_page.py:104:    def load_data(self, customers=None):
+src\ui\pages\customers_page.py:106:        self.request_reload()
+src\ui\widgets\side_menu.py:883:        self.anim.start()
+src\ui\widgets\side_menu.py:884:        self.anim2.start()
+src\ui\widgets\side_menu.py:907:        self.anim.start()
+src\ui\widgets\side_menu.py:908:        self.anim2.start()
+src\ui\widgets\side_menu.py:1112:            ).fetchall()
+src\ui\widgets\toast_notification.py:204:        self.slide_out_animation.start()
+src\ui\widgets\toast_notification.py:265:    anim.start()
+src\ui\widgets\toast_notification.py:321:        anim.start()
+src\ui\dialogs\loan_wizard_steps\step4_summary.py:187:            self.table.insertRow(i)
+src\ui\widgets\side_drawer.py:112:        self.anim.start()
+src\ui\widgets\side_drawer.py:123:        self.anim.start()
+src\ui\widgets\toast_manager.py:206:        animation.start()
+src\ui\widgets\toast_manager.py:216:        QTimer.singleShot(100, self._reposition_toasts)
+src\ui\widgets\toast_manager.py:259:                animation.start()
+src\ui\widgets\_side_menu_accordion.py:363:        self.anim.start()
+src\ui\widgets\_side_menu_accordion.py:364:        QTimer.singleShot(60, lambda: self.parent_menu.ensure_item_visible(self))
+src\ui\widgets\_side_menu_accordion.py:377:        self.anim.start()
+src\ui\dialogs\new_service_dialog_media_mixin.py:310:                    page.load_data()
+src\ui\dialogs\new_service_dialog_media_mixin.py:319:                    page.load_data()
+src\ui\pages\contracts_page.py:506:            rows = self.db.cursor.fetchall()
+src\ui\pages\contracts_page.py:510:                self.table.insertRow(i)
+src\ui\dialogs\new_service_dialog.py:117:        QTimer.singleShot(0, self._deferred_bootstrap_step_customers)
+src\ui\dialogs\new_service_dialog.py:121:        QTimer.singleShot(0, self._deferred_bootstrap_step_personnel)
+src\ui\dialogs\new_service_dialog.py:125:        QTimer.singleShot(0, self._deferred_bootstrap_finalize)
+src\ui\dialogs\new_service_dialog.py:250:            rows = cur.fetchall() or []
+src\ui\dialogs\new_service_dialog.py:904:            cur.execute("SELECT * FROM personnel ORDER BY name")
+src\ui\dialogs\new_service_dialog.py:905:            rows = cur.fetchall()
+src\ui\dialogs\new_service_dialog.py:1351:                    rows = cur.fetchall() or []
+src\ui\dialogs\new_service_dialog.py:1362:                    rows = cur.fetchall() or []
+src\ui\dialogs\new_service_dialog.py:1373:                    rows = cur.fetchall() or []
+src\ui\dialogs\new_service_dialog.py:1383:                    rows = cur.fetchall() or []
+src\ui\dialogs\new_service_dialog.py:1445:                pragma_rows = self.db.cursor.execute("PRAGMA table_info(devices)").fetchall()
+src\ui\dialogs\new_service_dialog.py:1612:                    QTimer.singleShot(0, lambda tn=tracking_no: self._open_saved_service_form(tn))
+src\ui\dialogs\new_service_dialog.py:1684:                    QTimer.singleShot(0, lambda tn=data["tracking_no"]: self._open_saved_service_form(tn))
+src\ui\pages\backup_page.py:214:        self.worker.start()
+src\ui\pages\backup_page.py:223:        self.worker.start()
+src\ui\pages\backup_page.py:311:        self.worker.start()
+src\ui\pages\backup_page.py:451:            self.table.insertRow(i)
+src\ui\pages\brands_page.py:41:        self.load_data()
+src\ui\pages\brands_page.py:200:    def load_data(self):
+src\ui\pages\brands_page.py:206:            self._all_rows = cur.fetchall() or []
+src\ui\pages\brands_page.py:220:            self.load_data()
+src\ui\pages\brands_page.py:281:            self.table.insertRow(i)
+src\ui\pages\brands_page.py:313:            self.table.setCellWidget(i, 3, btn_edit)
+src\ui\pages\brands_page.py:324:            self.table.setCellWidget(i, 4, btn_delete)
+src\ui\pages\brands_page.py:344:            self.load_data()
+src\ui\pages\brands_page.py:358:            self.load_data()
+src\ui\pages\brands_page.py:457:            self.load_data()
+src\ui\dialogs\partner_profile_dialog.py:27:            self.load_data()
+src\ui\dialogs\partner_profile_dialog.py:111:    def load_data(self):
+src\ui\dialogs\partner_profile_dialog.py:132:        existing = {row[1] for row in (self.db.cursor.fetchall() or [])}
+src\ui\dialogs\partner_documents_dialog.py:51:        existing = {row[1] for row in (self.db.cursor.fetchall() or [])}
+src\ui\dialogs\partner_documents_dialog.py:124:        rows = self.db.cursor.fetchall() or []
+src\ui\dialogs\partner_documents_dialog.py:127:            self.table.insertRow(row_idx)
+src\ui\dialogs\partner_finance_dialog.py:96:        shipment_columns = {row[1] for row in (self.db.cursor.fetchall() or [])}
+src\ui\dialogs\partner_finance_dialog.py:263:        for shipment_id, product_name, serial_no, sent_at in (self.db.cursor.fetchall() or []):
+src\ui\dialogs\partner_finance_dialog.py:280:        for partner_cost, customer_price, currency in (self.db.cursor.fetchall() or []):
+src\ui\dialogs\partner_finance_dialog.py:294:        for amount, currency in (self.db.cursor.fetchall() or []):
+src\ui\dialogs\partner_finance_dialog.py:323:        rows = self.db.cursor.fetchall() or []
+src\ui\dialogs\partner_finance_dialog.py:326:            self.table.insertRow(row_idx)
+src\ui\dialogs\partner_finance_dialog.py:359:        rows = self.db.cursor.fetchall() or []
+src\ui\dialogs\partner_finance_dialog.py:362:            self.reconciliation_table.insertRow(row_idx)
+src\ui\dialogs\personnel_edit_dialog.py:79:            self.db.cursor.execute("SELECT * FROM personnel WHERE id=?", (self.personnel_id,))
+src\ui\dialogs\partner_shipment_dialog.py:82:        existing = {row[1] for row in (self.db.cursor.fetchall() or [])}
+src\ui\dialogs\partner_shipment_dialog.py:149:            ).fetchall()
+src\ui\dialogs\payment_dialog.py:740:            raw_items = cursor.fetchall() or []
+src\ui\dialogs\payment_dialog.py:1113:            for part_name, qty in cur.fetchall() or []:
+src\ui\dialogs\project_unit_sale_dialog.py:323:            rows = self.db.cursor.fetchall()
+src\ui\dialogs\project_unit_sale_dialog.py:356:        self.tbl_plan.insertRow(row)
+src\ui\dialogs\project_unit_sale_dialog.py:369:        self.tbl_plan.setCellWidget(row, 0, date_edit)
+src\ui\dialogs\project_unit_sale_dialog.py:370:        self.tbl_plan.setCellWidget(row, 1, amount_spin)
+src\ui\dialogs\project_unit_sale_dialog.py:371:        self.tbl_plan.setCellWidget(row, 2, status_combo)
+src\ui\pages\loaner_devices_page.py:36:            inventory = cur.execute("SELECT * FROM loaner_devices ORDER BY id DESC").fetchall()
+src\ui\pages\loaner_devices_page.py:44:            ).fetchall()
+src\ui\pages\loaner_devices_page.py:68:        QTimer.singleShot(0, self._prepare_initial_view)
+src\ui\pages\loaner_devices_page.py:69:        QTimer.singleShot(140, self.request_refresh)
+src\ui\pages\loaner_devices_page.py:347:        QTimer.singleShot(delay_ms, self.refresh_data)
+src\ui\pages\loaner_devices_page.py:349:    def refresh_data(self):
+src\ui\pages\loaner_devices_page.py:360:        self._worker.start()
+src\ui\pages\loaner_devices_page.py:373:            QTimer.singleShot(0, self.refresh_data)
+src\ui\pages\loaner_devices_page.py:379:        QTimer.singleShot(0, self._load_inventory_deferred)
+src\ui\pages\loaner_devices_page.py:380:        QTimer.singleShot(0, self._load_active_deferred)
+src\ui\pages\loaner_devices_page.py:392:                records = self.db.cursor.execute("SELECT * FROM loaner_devices ORDER BY id DESC").fetchall()
+src\ui\pages\loaner_devices_page.py:395:                self.table_inventory.insertRow(row)
+src\ui\pages\loaner_devices_page.py:448:                self.table_inventory.setCellWidget(row, 7, actions_container)
+src\ui\pages\loaner_devices_page.py:462:                ''').fetchall()
+src\ui\pages\loaner_devices_page.py:466:                self.table_active.insertRow(row)
+src\ui\pages\loaner_devices_page.py:510:                self.table_active.setCellWidget(row, 7, btn_return)
+src\ui\pages\loaner_devices_page.py:590:                "SELECT * FROM loaner_devices WHERE id=?",
+src\ui\dialogs\quick_notes_editor.py:79:        self.load_data()
+src\ui\dialogs\quick_notes_editor.py:95:        self.load_data()
+src\ui\dialogs\quick_notes_editor.py:237:        self.load_data()
+src\ui\dialogs\quick_notes_editor.py:244:        self.load_data()
+src\ui\dialogs\quick_notes_editor.py:250:    def load_data(self):
+src\ui\dialogs\quick_notes_editor.py:256:            self.table.insertRow(row_idx)
+src\ui\dialogs\quick_notes_editor.py:291:            self.table.setCellWidget(row_idx, 2, toggle_widget)
+src\ui\dialogs\quick_notes_editor.py:306:            self.table.setCellWidget(row_idx, 3, check_widget)
+src\ui\dialogs\quick_notes_editor.py:339:            self.load_data()
+src\ui\dialogs\quick_notes_editor.py:362:            self.load_data()
+src\ui\dialogs\quick_notes_editor.py:382:                self.load_data()
+src\ui\pages\field_service_page.py:81:            self.search_timer.start()
+src\ui\pages\field_service_page.py:92:        t.start()
+src\ui\pages\field_service_page.py:736:                QTimer.singleShot(500, self.refresh_data)
+src\ui\pages\field_service_page.py:741:    def refresh_data(self):
+src\ui\pages\field_service_page.py:853:                 self.refresh_data()
+src\ui\pages\field_service_page.py:866:        QTimer.singleShot(100, self.refresh_data)
+src\ui\pages\external_tracking_page.py:38:            self.load_data()
+src\ui\pages\external_tracking_page.py:204:    def load_data(self):
+src\ui\pages\external_tracking_page.py:290:        self.refresh_data()
+src\ui\pages\external_tracking_page.py:473:    def refresh_data(self):
+src\ui\pages\external_tracking_page.py:509:                self.table.setCellWidget(i, 1, lbl_cp)
+src\ui\pages\external_tracking_page.py:516:                self.table.setCellWidget(i, 2, lbl_serv)
+src\ui\pages\external_tracking_page.py:528:                self.table.setCellWidget(i, 4, lbl_cargo)
+src\ui\pages\external_tracking_page.py:553:                self.table.setCellWidget(i, 5, st_lbl)
+src\ui\pages\external_tracking_page.py:582:                self.table.setCellWidget(i, 6, btn_container)
+src\ui\pages\external_tracking_page.py:661:                self.refresh_data()
+src\ui\pages\external_tracking_page.py:668:            self.refresh_data()
+src\ui\pages\external_tracking_page.py:673:            self.refresh_data()
+src\ui\pages\external_tracking_page.py:862:            self.refresh_data()
+src\ui\dialogs\registration_dialog.py:473:                QTimer.singleShot(500, lambda: self._finish_auth(data))
+src\ui\pages\dashboard_page.py:121:                self.refresh_data()
+src\ui\pages\dashboard_page.py:122:            QTimer.singleShot(150, self._refresh_initial_device_list)
+src\ui\pages\dashboard_page.py:632:        QTimer.singleShot(0, self.refresh_data)
+src\ui\pages\dashboard_page.py:986:            self.refresh_data()
+src\ui\pages\dashboard_page.py:1001:                    self.refresh_data()
+src\ui\pages\dashboard_page.py:1007:                self.refresh_data()
+src\ui\pages\dashboard_page.py:1330:            rows = self.db.cursor.fetchall() or []
+src\ui\pages\dashboard_page.py:1354:            self.appointments_table.insertRow(row_idx)
+src\ui\pages\dashboard_page.py:1404:            self.appointments_table.setCellWidget(row_idx, 3, btn_status)
+src\ui\dialogs\quick_sale_dialog.py:219:            self.table_products.insertRow(i)
+src\ui\dialogs\quick_sale_dialog.py:297:            self.table_cart.insertRow(i)
+src\ui\dialogs\quick_sale_dialog.py:314:            self.table_cart.setCellWidget(i, 4, btn_del)
+src\ui\dialogs\quick_sale_dialog.py:390:                        prices = {row[0]: float(row[1] or 0) for row in self.db.cursor.fetchall()}
+src\ui\pages\invoice_page.py:213:                for row in cursor.execute("PRAGMA table_info(customers)").fetchall()
+src\ui\pages\invoice_page.py:226:            customers = cursor.execute(query).fetchall()
+src\ui\pages\invoice_page.py:253:        self.items_table.insertRow(row)
+src\ui\pages\invoice_page.py:363:            self.worker.start()
+src\ui\pages\job_service_tracking_page.py:433:                "SELECT * FROM devices WHERE tracking_no=? AND COALESCE(is_deleted, 0)=0",
+src\ui\pages\job_service_tracking_page.py:534:        self.service_table.setCellWidget(row, 8, container)
+src\ui\pages\job_service_tracking_page.py:575:            rows = cur.fetchall() or []
+src\ui\pages\job_service_tracking_page.py:745:            tx_table.insertRow(r)
+src\ui\pages\job_service_tracking_page.py:796:            rows = cur.fetchall()
+src\ui\pages\job_service_tracking_page.py:825:            self.job_table.insertRow(r)
+src\ui\pages\job_service_tracking_page.py:851:            rows = cur.fetchall()
+src\ui\pages\job_service_tracking_page.py:879:            self.service_table.insertRow(r)
+src\ui\pages\job_service_tracking_page.py:926:                open_groups = cur.fetchall() or []
+src\ui\pages\job_service_tracking_page.py:944:                paid_groups = cur.fetchall() or []
+src\ui\dialogs\report_dialog.py:38:        self.load_data()
+src\ui\dialogs\report_dialog.py:180:            self.test_table.setCellWidget(i, 1, combo)
+src\ui\dialogs\report_dialog.py:303:    def load_data(self):
+src\ui\dialogs\report_dialog.py:392:            up_cols = [r[1] for r in self.db.cursor.fetchall()]
+src\ui\dialogs\report_dialog.py:403:                cost_rows = self.db.cursor.execute(cost_query, (self.tracking_no,)).fetchall()
+src\ui\dialogs\report_dialog.py:420:                parts_rows = self.db.cursor.execute(parts_query, (self.tracking_no,)).fetchall()
+src\ui\dialogs\report_dialog.py:438:                    ).fetchall()
+src\ui\pages\finance\bank_accounts_widget.py:429:            rows = cur.fetchall() or []
+src\ui\pages\finance\bank_accounts_widget.py:432:                self.history_table.insertRow(r)
+src\ui\pages\finance\bank_accounts_widget.py:574:        self.load_data()
+src\ui\pages\finance\bank_accounts_widget.py:821:    def load_data(self):
+src\ui\pages\finance\bank_accounts_widget.py:856:            self.table.insertRow(r)
+src\ui\pages\finance\bank_accounts_widget.py:949:        rows = cur.fetchall() or []
+src\ui\pages\finance\bank_accounts_widget.py:952:            self.history_table.insertRow(r)
+src\ui\pages\finance\bank_accounts_widget.py:1027:            self.load_data()
+src\ui\pages\finance\bank_accounts_widget.py:1036:            self.load_data()
+src\ui\pages\finance\bank_accounts_widget.py:1046:            self.load_data()
+src\ui\pages\finance\bank_accounts_widget.py:1068:            self.load_data()
+src\ui\pages\finance\bank_accounts_widget.py:1087:            self.load_data()
+src\ui\pages\finance\bank_accounts_widget.py:1111:            self.load_data()
+src\ui\pages\finance\bank_accounts_widget.py:1236:            self.load_data()
+src\ui\pages\finance\bank_accounts_widget.py:1288:            self.load_data()
+src\ui\dialogs\service_import_preview_dialog.py:154:        QTimer.singleShot(80, self._auto_map)
+src\ui\dialogs\service_import_preview_dialog.py:442:        self._table.insertRow(r)
+src\ui\pages\report_templates_page.py:29:        self.refresh_data()
+src\ui\pages\report_templates_page.py:112:    def refresh_data(self):
+src\ui\pages\report_templates_page.py:187:        self.refresh_data()
+src\ui\pages\finance\bank_page.py:69:    def refresh_data(self):
+src\ui\pages\finance\bank_page.py:71:            self.accounts_tab.load_data()
+src\ui\pages\personnel_page.py:343:            for row_index, row in enumerate(self.db.cursor.fetchall()):
+src\ui\pages\personnel_page.py:344:                self.tbl_payroll.insertRow(row_index)
+src\ui\pages\personnel_page.py:371:                self.tbl_payroll.setCellWidget(row_index, 6, action_widget)
+src\ui\pages\personnel_page.py:438:            self.db.cursor.execute("SELECT * FROM personnel WHERE id=?", (pid,))
+src\ui\pages\personnel_page.py:598:                    row[0] for row in self.db.cursor.fetchall() if row[0]
+src\ui\pages\personnel_page.py:623:            self.db.cursor.execute("SELECT * FROM personnel")
+src\ui\pages\personnel_page.py:624:            rows = self.db.cursor.fetchall()
+src\ui\pages\personnel_page.py:627:                self.table.insertRow(r)
+src\ui\pages\personnel_page.py:659:            for pid, name in self.db.cursor.fetchall():
+src\ui\pages\personnel_page.py:684:                    for name, pid in self.db.cursor.fetchall():
+src\ui\pages\finance\check_note_page.py:106:        self.load_data()
+src\ui\pages\finance\check_note_page.py:123:            self.load_data()
+src\ui\pages\finance\check_note_page.py:125:    def load_data(self):
+src\ui\pages\finance\check_note_page.py:155:            self.table.insertRow(r)
+src\ui\pages\finance\check_note_page.py:314:        self.load_data()
+src\ui\pages\service_status_page.py:323:        QTimer.singleShot(150, self.load_data)
+src\ui\pages\service_status_page.py:329:            self.load_data()
+src\ui\pages\service_status_page.py:332:    def load_data(self):
+src\ui\pages\service_status_page.py:341:            """).fetchall()
+src\ui\pages\service_status_page.py:344:                self.table.insertRow(row_idx)
+src\ui\pages\service_status_page.py:401:                self.broadcast_thread.start()
+src\ui\pages\service_status_page.py:423:            """).fetchall()
+src\ui\pages\reminders_page.py:183:            for pid, name in self.db.cursor.fetchall():
+src\ui\pages\reminders_page.py:231:                self.table.insertRow(r)
+src\ui\pages\new_transaction_v2_page.py:81:        QTimer.singleShot(0, self._deferred_load_customers)
+src\ui\pages\new_transaction_v2_page.py:104:        QTimer.singleShot(0, self._deferred_load_services)
+src\ui\pages\new_transaction_v2_page.py:108:        QTimer.singleShot(0, self._deferred_load_exchange_rates)
+src\ui\pages\new_transaction_v2_page.py:152:            parts = self.db.cursor.fetchall() or []
+src\ui\pages\new_transaction_v2_page.py:264:                QTimer.singleShot(0, combo.lineEdit().setFocus)
+src\ui\pages\new_transaction_v2_page.py:339:        QTimer.singleShot(0, self._restore_draft)
+src\ui\pages\service_board_page.py:371:                QTimer.singleShot(0, self._refresh_data_once_visible)
+src\ui\pages\service_board_page.py:379:        self.refresh_data()
+src\ui\pages\service_board_page.py:482:    def refresh_data(self):
+src\ui\pages\service_board_page.py:493:                row[1] for row in cur.execute("PRAGMA table_info(devices)").fetchall()
+src\ui\pages\service_board_page.py:538:        rows = cur.fetchall() or []
+src\ui\pages\service_board_page.py:608:            ).fetchall()
+src\ui\pages\service_board_page.py:632:            ).fetchall()
+src\ui\pages\service_board_page.py:667:            self.refresh_data()
+src\ui\pages\service_board_page.py:692:                "SELECT * FROM devices WHERE tracking_no=? AND COALESCE(is_deleted, 0)=0",
+src\ui\pages\service_board_page.py:708:            self.refresh_data()
+src\ui\pages\service_board_page.py:764:            self.refresh_data()
+src\ui\pages\service_board_page.py:775:                "SELECT * FROM devices WHERE tracking_no=? AND COALESCE(is_deleted, 0)=0",
+src\ui\pages\service_board_page.py:957:            return [row[0] for row in (self.db.cursor.fetchall() or [])]
+src\ui\pages\service_board_page.py:984:                            "SELECT * FROM devices WHERE tracking_no=? AND COALESCE(is_deleted, 0)=0",
+src\ui\pages\service_board_page.py:1023:                    self.refresh_data()
+src\ui\pages\service_board_page.py:1043:                    self.refresh_data()
+src\ui\pages\service_board_page.py:1240:            tbl.setCellWidget(i, 0, cb_w)
+src\ui\pages\service_board_page.py:1312:            self.refresh_data()
+src\ui\pages\quick_sale_page.py:308:            rows = self.db.cursor.fetchall()
+src\ui\pages\quick_sale_page.py:499:            self.table.insertRow(i)
+src\ui\pages\quick_sale_page.py:508:            self.table.setCellWidget(i, 1, lbl_qty)
+src\ui\pages\quick_sale_page.py:520:            self.table.setCellWidget(i, 3, btn_del)
+src\ui\pages\quick_sale_page.py:578:                stocks = {row[0]: row[1] for row in self.db.cursor.fetchall()}
+src\ui\pages\quick_sale_page.py:632:                        prices = {row[0]: float(row[1] or 0) for row in self.db.cursor.fetchall()}
+src\ui\pages\quick_sale_page.py:705:                    threading.Thread(target=run_backup, daemon=True).start()
+src\ui\pages\offer_pages.py:192:        self.refresh_data()
+src\ui\pages\offer_pages.py:347:        self.refresh_data()
+src\ui\pages\offer_pages.py:349:    def refresh_data(self, *_args):
+src\ui\pages\offer_pages.py:425:            self.table.setCellWidget(row_index, 8, btn_open)
+src\ui\pages\offer_pages.py:426:            self.table.setCellWidget(row_index, 9, btn_edit)
+src\ui\pages\offer_pages.py:532:        self.refresh_data()
+src\ui\pages\offer_pages.py:612:    def refresh_data(self):
+src\ui\pages\sales_hub_page.py:161:    def refresh_data(self):
+src\ui\pages\sales_hub_page.py:168:                    page.refresh_data()
+src\ui\pages\services_page.py:83:        QTimer.singleShot(100, self.load_services)
+src\ui\pages\services_page.py:344:            self.table.insertRow(r)
+src\ui\pages\services_page.py:386:            self.table.insertRow(row_index)
+src\ui\pages\services_page.py:428:            self.table.setCellWidget(row_index, 6, edit_button)
+src\ui\pages\services_page.py:433:            self.table.setCellWidget(row_index, 7, delete_button)
+src\ui\pages\services_page.py:1018:            self._svc_parse_worker.start()
+src\ui\pages\product_groups_page.py:47:        self.load_data()
+src\ui\pages\product_groups_page.py:81:                    for row in (self.db.cursor.fetchall() or [])
+src\ui\pages\product_groups_page.py:230:        self.load_data()
+src\ui\pages\product_groups_page.py:238:    def load_data(self):
+src\ui\pages\product_groups_page.py:258:        rows = self.db.cursor.fetchall() or []
+src\ui\pages\product_groups_page.py:287:            self.table.setCellWidget(row_index, 2, btn_edit)
+src\ui\pages\product_groups_page.py:300:            self.table.setCellWidget(row_index, 3, btn_delete)
+src\ui\pages\product_groups_page.py:338:            self.load_data()
+src\ui\pages\product_groups_page.py:374:            self.load_data()
+src\ui\pages\product_groups_page.py:394:            self.load_data()
+src\ui\pages\product_groups_page.py:403:            self.load_data()
+src\ui\pages\product_groups_page.py:408:            self.load_data()
+src\ui\pages\product_groups_page.py:423:            for row in (self.db.cursor.fetchall() or [])
+src\ui\pages\quick_notes_settings_widget.py:226:            self.table.insertRow(row)
+src\ui\pages\quick_notes_settings_widget.py:274:            self.table.setCellWidget(row, 4, container)
+src\ui\pages\security_settings_widget.py:35:        self.load_data()
+src\ui\pages\security_settings_widget.py:312:    def load_data(self):
+src\ui\dialogs\stock_import_preview_dialog.py:138:        QTimer.singleShot(0, self.showMaximized)
+src\ui\dialogs\sms_settings_dialog.py:123:        self.sms_test_worker.start()
+src\ui\pages\stock_page.py:85:        QTimer.singleShot(50, self._delayed_db_setup)
+src\ui\pages\stock_page.py:105:    def request_reload(self):
+src\ui\pages\stock_page.py:107:        self.refresh_data()
+src\ui\pages\stock_page.py:161:        self.reload_data()
+src\ui\pages\stock_page.py:163:    def reload_data(self):
+src\ui\pages\stock_page.py:189:            self.worker.start()
+src\ui\pages\stock_page.py:262:            self.history_worker.start()
+src\ui\pages\stock_page.py:264:    def refresh_data(self):
+src\ui\pages\stock_page.py:278:        self.reload_data()
+src\ui\pages\stock_page.py:286:        self.reload_data()
+src\ui\pages\stock_page.py:305:                self.refresh_data()
+src\ui\pages\stock_page.py:400:            self.reload_data()
+src\ui\pages\stock_page.py:405:            self.reload_data()
+src\ui\pages\stock_locations_page.py:382:            rows = cur.fetchall() or []
+src\ui\pages\stock_locations_page.py:443:        self.refresh_data()
+src\ui\pages\stock_locations_page.py:716:                    self.refresh_data()
+src\ui\pages\stock_locations_page.py:770:                self.refresh_data()
+src\ui\pages\stock_locations_page.py:1005:    def refresh_data(self):
+src\ui\pages\stock_locations_page.py:1076:            self.refresh_data()
+src\ui\pages\stock_locations_page.py:1235:            self.kit_table.setCellWidget(row, 2, btn_container)
+src\ui\pages\stock_locations_page.py:1251:            self.refresh_data()
+src\ui\pages\stock_locations_page.py:1288:            self.transfer_table.setCellWidget(row, 3, btn_container)
+src\ui\pages\stock_locations_page.py:1313:            self.refresh_data()
+src\ui\pages\stock_locations_page.py:1345:            self.count_table.setCellWidget(row_index, 2, stepper)
+src\ui\pages\stock_locations_page.py:1388:            self.refresh_data()
+src\ui\pages\smart_home_sales_page.py:189:                self.tbl_products.setCellWidget(r, 0, self._centered_cell_widget(row_checkbox))
+src\ui\pages\smart_home_sales_page.py:212:                self.tbl_products.setCellWidget(r, 8, self._centered_cell_widget(qty_spin))
+src\ui\pages\smart_home_sales_page.py:276:        self.refresh_data()
+src\ui\pages\smart_home_sales_page.py:744:    def refresh_data(self):
+src\ui\pages\transaction_page.py:54:        QTimer.singleShot(0, self._deferred_initial_load)
+src\ui\pages\transaction_page.py:64:        QTimer.singleShot(0, self._deferred_load_customers)
+src\ui\pages\transaction_page.py:68:        QTimer.singleShot(0, self._deferred_load_services)
+src\ui\pages\transaction_page.py:72:        QTimer.singleShot(0, self._deferred_load_exchange_rates)
+src\ui\dialogs\technician_login_dialog.py:116:        QTimer.singleShot(200, lambda: self.inp_id.setFocus())
+src\ui\pages\project_management\project_detail_components.py:89:        self.load_data()
+src\ui\pages\project_management\project_detail_components.py:92:        self.load_data()
+src\ui\pages\project_management\project_detail_components.py:172:    def load_data(self):
+src\ui\pages\project_management\project_detail_components.py:232:            self.load_data()
+src\ui\pages\project_management\project_detail_components.py:311:        self.load_data()
+src\ui\pages\project_management\project_detail_components.py:316:    def load_data(self):
+src\ui\pages\project_management\project_detail_components.py:353:            self.load_data()
+src\ui\pages\project_management\project_detail_components.py:358:        self.load_data()
+src\ui\pages\project_management\project_detail_components.py:362:        self.load_data()
+src\ui\pages\project_management\project_detail_components.py:643:        QTimer.singleShot(0, lambda: self.scroll_area.verticalScrollBar().setValue(0))
+src\ui\pages\project_management\project_detail_components.py:890:            self.table_installed.setCellWidget(row, 4, remove_widget)
+src\ui\pages\project_management\project_detail_components.py:949:                self.parent().load_data()
+src\ui\pages\project_management\project_detail_components.py:1012:                self.parent().load_data()
+src\ui\pages\project_management\project_detail_components.py:1023:                self.parent().load_data()
+src\ui\pages\project_management\project_detail_components.py:1100:        self.load_data()
+src\ui\pages\project_management\project_detail_components.py:1112:    def load_data(self):
+src\ui\pages\project_management\project_detail_components.py:1143:            self.table.setCellWidget(row, 4, action_widget)
+src\ui\pages\project_management\project_detail_components.py:1148:            self.load_data()
+src\ui\pages\project_management\project_detail_components.py:1154:            self.load_data()
+src\ui\pages\settings_widgets\background_settings.py:46:        self.load_data()
+src\ui\pages\settings_widgets\background_settings.py:804:    def load_data(self):
+src\ui\pages\settings_widgets\background_settings.py:922:        self._scale_apply_timer.start()
+src\ui\dialogs\technician_panel.py:61:        from src.utils.performance_monitor import perf_span
+src\ui\dialogs\technician_panel.py:62:        with perf_span(perf_key):
+src\ui\dialogs\technician_panel.py:86:                QTimer.singleShot(0, self.reject)
+src\ui\dialogs\technician_panel.py:98:                        "SELECT * FROM automotive_service_forms WHERE tracking_no=?", (self.tracking_no,)
+src\ui\dialogs\technician_panel.py:129:        QTimer.singleShot(0, lambda: self._ensure_lazy_tab_loaded(0))
+src\ui\pages\transaction_page_behaviors.py:159:            parts = self.db.cursor.fetchall() or []
+src\ui\pages\project_management\project_detail_page.py:150:        QTimer.singleShot(100, self.refresh_summary)
+src\ui\pages\settings_widgets\backup_settings.py:292:        self._wipe_worker.start()
+src\ui\pages\settings_widgets\backup_settings.py:302:                QTimer.singleShot(300, self.main_window.handle_wipe_completed)
+src\ui\pages\settings_widgets\backup_settings.py:303:                QTimer.singleShot(
+src\ui\pages\settings_widgets\bank_settings.py:34:        self.load_data()
+src\ui\pages\settings_widgets\bank_settings.py:103:    def load_data(self):
+src\ui\dialogs\technician_panel_inventory_mixin.py:55:            _cols = [r[1] for r in self.db.cursor.fetchall()]
+src\ui\dialogs\technician_panel_inventory_mixin.py:77:        parts = self.db.cursor.fetchall()
+src\ui\dialogs\technician_panel_inventory_mixin.py:125:            self.table_used_parts.setCellWidget(i, 3, btn_del)
+src\ui\dialogs\technician_panel_inventory_mixin.py:154:            parts = self.db.cursor.fetchall() or []
+src\ui\dialogs\technician_panel_inventory_mixin.py:181:                used_part_cols = [row[1] for row in self.db.cursor.fetchall()]
+src\ui\dialogs\technician_panel_inventory_mixin.py:203:                used_parts = self.db.cursor.fetchall()
+src\ui\dialogs\technician_panel_inventory_mixin.py:395:            self.voice_thread.start()
+src\ui\dialogs\technician_panel_inventory_mixin.py:423:            threading.Thread(target=refine, daemon=True).start()
+src\ui\pages\_accounting_data_mixin.py:10:from src.utils.performance_monitor import perf_span
+src\ui\pages\_accounting_data_mixin.py:28:            with perf_span(
+src\ui\pages\_accounting_data_mixin.py:34:            with perf_span(
+src\ui\pages\_accounting_data_mixin.py:212:    def refresh_data(self):
+src\ui\pages\_accounting_data_mixin.py:239:            self.worker.start()
+src\ui\pages\_accounting_data_mixin.py:273:                QTimer.singleShot(50, self.refresh_data)
+src\ui\pages\_accounting_data_mixin.py:294:        self.refresh_data()
+src\ui\pages\_accounting_data_mixin.py:300:        self.refresh_data()
+src\ui\pages\settings_widgets\cargo_settings.py:33:        self.load_data()
+src\ui\pages\settings_widgets\cargo_settings.py:106:    def load_data(self):
+src\ui\pages\_accounting_base_mixin.py:91:        self._right_panel_anim.start()
+src\ui\pages\vehicle_maintenance_page.py:49:        QTimer.singleShot(120, self.load_cards)
+src\ui\pages\vehicle_maintenance_page.py:244:            self.table.insertRow(row_idx)
+src\ui\pages\settings_widgets\company_settings_base.py:37:        self.load_data()
+src\ui\pages\settings_widgets\company_settings_base.py:288:    def load_data(self):
+src\ui\pages\_accounting_func_mixin.py:66:            self.refresh_data()
+src\ui\pages\_accounting_func_mixin.py:70:        if AddIncomeDialog(self.db, self).exec(): self.refresh_data()
+src\ui\pages\_accounting_func_mixin.py:73:        if AddExpenseDialog(self.db, self).exec(): self.refresh_data()
+src\ui\pages\_accounting_func_mixin.py:76:        if AddTransferDialog(self.db, self).exec(): self.refresh_data()
+src\ui\pages\settings_widgets\company_settings_dialog.py:33:        self.load_data()
+src\ui\pages\settings_widgets\company_settings_dialog.py:260:    def load_data(self):
+src\ui\pages\_accounting_fiscal_mixin.py:55:            self.refresh_data()
+src\ui\pages\_accounting_fiscal_mixin.py:69:        self.refresh_data()
+src\ui\pages\_accounting_fiscal_mixin.py:119:            self.refresh_data()
+src\ui\pages\_accounting_fiscal_mixin.py:133:        self.refresh_data()
+src\ui\pages\_accounting_fiscal_mixin.py:193:                    self.refresh_data()
+src\ui\pages\_accounting_fiscal_mixin.py:200:                self.refresh_data()
+src\ui\pages\_accounting_fiscal_mixin.py:218:                    self.refresh_data()
+src\ui\pages\_accounting_fiscal_mixin.py:230:                        self.refresh_data()
+src\ui\pages\settings_widgets\gemini_settings_widget.py:53:        self.load_data()
+src\ui\pages\settings_widgets\gemini_settings_widget.py:436:                QTimer.singleShot(0, self.cmb_model.showPopup)
+src\ui\pages\settings_widgets\gemini_settings_widget.py:463:    def load_data(self):
+src\ui\pages\settings_widgets\gemini_settings_widget.py:592:        self.worker.start()
+src\ui\pages\settings_widgets\gemini_settings_widget.py:614:        self.worker.start()
+src\ui\pages\settings_widgets\gemini_settings_widget.py:658:        self.model_list_worker.start()
+src\ui\dialogs\technician_wizard_page3.py:555:            parts = cur.fetchall()
+src\ui\dialogs\technician_wizard_page3.py:576:                _cols = [r[1] for r in cur.fetchall()]
+src\ui\dialogs\technician_wizard_page3.py:600:            parts = cur.fetchall()
+src\ui\dialogs\technician_wizard_page3.py:606:                self.table_used_parts.insertRow(row)
+src\ui\dialogs\technician_wizard_page3.py:634:                self.table_used_parts.setCellWidget(row, 3, btn_del)
+src\ui\dialogs\template_manager.py:67:            for template in self.db.cursor.fetchall():
+src\ui\dialogs\transaction_detail_dialog.py:125:                ).fetchall()
+src\ui\pages\_cpp_dialog.py:25:            self.load_data()
+src\ui\pages\_cpp_dialog.py:86:    def load_data(self):
+src\ui\pages\settings_widgets\job_service_number_widget.py:639:    def load_data(self):
+src\ui\pages\settings_widgets\job_service_number_widget.py:655:            self.table.insertRow(i)
+src\ui\pages\settings_widgets\job_service_number_widget.py:687:            self.table.setCellWidget(i, 6, w_t)
+src\ui\pages\settings_widgets\job_service_number_widget.py:699:            self.table.setCellWidget(i, 7, w_e)
+src\ui\pages\settings_widgets\job_service_number_widget.py:712:            self.table.setCellWidget(i, 8, widget)
+src\ui\pages\settings_widgets\job_service_number_widget.py:740:            self.load_data()
+src\ui\pages\settings_widgets\job_service_number_widget.py:794:            self.load_data()
+src\ui\pages\_cpp_db_mixin.py:75:            cols = {row[1] for row in cur.execute("PRAGMA table_info(partner_shipments)").fetchall()}
+src\ui\pages\_cpp_db_mixin.py:94:            doc_cols = {row[1] for row in cur.execute("PRAGMA table_info(partner_documents)").fetchall()}
+src\ui\pages\_cpp_db_mixin.py:103:            fin_cols = {row[1] for row in cur.execute("PRAGMA table_info(partner_finance_entries)").fetchall()}
+src\ui\pages\_cpp_db_mixin.py:114:            time_cols = {row[1] for row in cur.execute("PRAGMA table_info(partner_timeline)").fetchall()}
+src\ui\pages\_cpp_db_mixin.py:143:            return [self._normalize_tracking(row) for row in (self.db.cursor.fetchall() or [])]
+src\ui\pages\_cpp_db_mixin.py:175:        return self.db.cursor.fetchall() or []
+src\ui\pages\_cpp_db_mixin.py:180:        return self.db.cursor.fetchall() or []
+src\ui\pages\_cpp_db_mixin.py:192:        return self.db.cursor.fetchall() or []
+src\ui\dialogs\setup_wizard\welcome_step.py:78:        QTimer.singleShot(80, self._animate_in)
+src\ui\dialogs\setup_wizard\welcome_step.py:289:            QTimer.singleShot(i * 45, anim.start)
+src\ui\pages\settings_widgets\license_settings.py:349:            self.mail_worker.start()
+src\ui\dialogs\unified_documents_center_dialog.py:52:        document_columns = {row[1] for row in (self.db.cursor.fetchall() or [])}
+src\ui\dialogs\unified_documents_center_dialog.py:79:        shipment_columns = {row[1] for row in (self.db.cursor.fetchall() or [])}
+src\ui\dialogs\unified_documents_center_dialog.py:159:                rows.extend(self.db.cursor.fetchall() or [])
+src\ui\dialogs\unified_documents_center_dialog.py:172:                shipments = self.db.cursor.fetchall() or []
+src\ui\dialogs\unified_documents_center_dialog.py:185:                    for source, label, stage, shipment_ref, path, created_at in (self.db.cursor.fetchall() or []):
+src\ui\dialogs\unified_documents_center_dialog.py:205:            rows.extend(self.db.cursor.fetchall() or [])
+src\ui\dialogs\unified_documents_center_dialog.py:222:            rows.extend(self.db.cursor.fetchall() or [])
+src\ui\dialogs\unified_documents_center_dialog.py:239:            for source, title, category, ref_id, path, created_at in (self.db.cursor.fetchall() or []):
+src\ui\dialogs\unified_documents_center_dialog.py:259:            rows.extend(self.db.cursor.fetchall() or [])
+src\ui\dialogs\unified_documents_center_dialog.py:266:            self.table.insertRow(row_idx)
+src\ui\pages\_accounting_table_mixin.py:34:                    header_row = self.table.rowCount(); self.table.insertRow(header_row)
+src\ui\pages\_accounting_table_mixin.py:42:                        data_row = self.table.rowCount(); self.table.insertRow(data_row)
+src\ui\pages\settings_widgets\location_settings.py:25:        self.load_data()
+src\ui\pages\settings_widgets\location_settings.py:158:    def load_data(self):
+src\ui\dialogs\setup_wizard\setup_wizard_dialog.py:129:        QTimer.singleShot(600, self._run_test_autofill_preview)
+src\ui\dialogs\setup_wizard\setup_wizard_dialog.py:177:        QTimer.singleShot(420, self._advance_test_preview)
+src\ui\dialogs\setup_wizard\setup_wizard_dialog.py:709:            fade_in.start()
+src\ui\dialogs\setup_wizard\setup_wizard_dialog.py:713:        fade_out.start()
+src\ui\dialogs\setup_wizard\setup_wizard_dialog.py:779:                ).fetchall()
+src\ui\dialogs\setup_wizard\setup_wizard_dialog.py:1075:                worker.start()
+src\ui\dialogs\vehicle_history_qr_dialog.py:21:        self._load_data()
+src\ui\dialogs\vehicle_history_qr_dialog.py:86:    def _load_data(self):
+src\ui\dialogs\vehicle_history_qr_dialog.py:99:            self.table_maintenance.insertRow(row_idx)
+src\ui\dialogs\vehicle_history_qr_dialog.py:112:            self.table_services.insertRow(row_idx)
+src\ui\dialogs\setup_wizard\completion_step.py:169:        QTimer.singleShot(100, self._animate_icon)
+src\ui\dialogs\setup_wizard\completion_step.py:184:        anim.start()
+src\ui\pages\_cpp_ui_mixin.py:232:                table.insertRow(i)
+src\ui\pages\_cpp_ui_mixin.py:252:            table.insertRow(i)
+src\ui\pages\_cpp_ui_mixin.py:263:            table.insertRow(i)
+src\ui\dialogs\technician_panel_modules\components\parts_manager.py:38:            cols = [row[1] for row in self.db.cursor.fetchall() or []]
+src\ui\dialogs\technician_panel_modules\components\parts_manager.py:60:        parts = self.db.cursor.execute(self._used_parts_query(), (self.tracking_no,)).fetchall()
+src\ui\dialogs\technician_panel_modules\components\parts_manager.py:66:            self.table_used_parts.insertRow(row_index)
+src\ui\dialogs\technician_panel_modules\components\parts_manager.py:90:            self.table_used_parts.setCellWidget(row_index, 3, btn_del)
+src\ui\pages\_cpp_logic_mixin.py:98:        for sn, sent, ret, qc, mp in (self.db.cursor.fetchall() or []):
+src\ui\pages\_cpp_logic_mixin.py:132:        if self.selected_partner and PartnerProfileDialog(self.db, self, self.selected_partner).exec(): self.load_data()
+src\ui\pages\_cpp_logic_mixin.py:142:            try: PartnerFinanceDialog(self.db, self.selected_partner, self.window() or self).exec(); self.load_data()
+src\ui\pages\_cpp_logic_mixin.py:164:        if PartnerProfileDialog(self.db, self).exec(): self.load_data()
+src\ui\pages\settings_widgets\product_bank_mapping.py:33:        self.load_data()
+src\ui\pages\settings_widgets\product_bank_mapping.py:128:    def load_data(self):
+src\ui\pages\settings_widgets\product_bank_mapping.py:292:            self.table.setCellWidget(row_idx, 1, bank_combo)
+src\ui\pages\settings_widgets\product_bank_mapping.py:300:            self.table.setCellWidget(row_idx, 2, kdv_spin)
+src\ui\pages\settings_widgets\product_bank_mapping.py:304:            self.table.setCellWidget(row_idx, 3, cat_combo)
+src\ui\pages\settings_widgets\product_bank_mapping.py:354:            self.load_data()
+src\ui\pages\settings_widgets\proforma_guide.py:29:        t.start()
+src\ui\pages\_customers_ui_mixin.py:10:from src.utils.performance_monitor import perf_span
+src\ui\pages\_cpp_legacy.py:33:        QTimer.singleShot(100, self.load_data)
+src\ui\pages\_cpp_legacy.py:151:    def load_data(self):
+src\ui\pages\_cpp_legacy.py:213:        self.table.insertRow(row_idx)
+src\ui\pages\_cpp_legacy.py:232:        self.table.setCellWidget(row_idx, 8, self.create_action_widget(c))
+src\ui\pages\_cpp_legacy.py:286:                    self.load_data()
+src\ui\pages\_cpp_legacy.py:297:        if PartnerDialog(self.db, self).exec(): self.load_data()
+src\ui\pages\_cpp_legacy.py:301:        if PartnerDialog(self.db, self, c).exec(): self.load_data()
+src\ui\pages\settings_widgets\remote_settings.py:35:        self.load_data()
+src\ui\pages\settings_widgets\remote_settings.py:133:    def load_data(self):
+src\ui\pages\_customers_func_mixin.py:17:from src.utils.performance_monitor import perf_span
+src\ui\pages\_customers_func_mixin.py:40:                with perf_span("dialog.open.Customer360Dialog"):
+src\ui\pages\_customers_func_mixin.py:43:            QTimer.singleShot(0, _open)
+src\ui\pages\_customers_func_mixin.py:72:            self.request_reload()
+src\ui\pages\_customers_func_mixin.py:82:            self.request_reload()
+src\ui\pages\_customers_func_mixin.py:93:            self.request_reload()
+src\ui\pages\_customers_func_mixin.py:224:                    self.request_reload()
+src\ui\pages\_customers_func_mixin.py:242:            self.request_reload()
+src\ui\pages\_customers_func_mixin.py:391:                    self.db.conn.commit(); self.request_reload(); show_success(self, f"'{c['name']}' silindi.")
+src\ui\pages\_customers_data_mixin.py:13:from src.utils.performance_monitor import perf_span
+src\ui\pages\_customers_data_mixin.py:19:    def refresh_data(self):
+src\ui\pages\_customers_data_mixin.py:46:                self.worker.start()
+src\ui\pages\_customers_data_mixin.py:96:            self.table.insertRow(row_idx)
+src\ui\pages\_customers_data_mixin.py:154:            self.table.setCellWidget(
+src\ui\pages\_customers_data_mixin.py:228:            QTimer.singleShot(100, self.refresh_data)
+src\ui\pages\_customers_data_mixin.py:233:        self.request_reload()
+src\ui\pages\_cpp_worker.py:89:            rows = [dict(zip(columns, row)) for row in cur.fetchall()]
+src\ui\dialogs\setup_wizard\admin_user_step.py:233:                    ).fetchall()
+src\ui\pages\settings_widgets\sms_settings.py:51:        self.load_data()
+src\ui\pages\settings_widgets\sms_settings.py:196:    def load_data(self):
+src\ui\pages\settings_widgets\sms_settings.py:286:        self.load_data()
+src\ui\pages\settings_widgets\sms_settings.py:351:    def load_data(self):
+src\ui\pages\settings_widgets\sms_settings.py:354:        self.db.cursor.execute("SELECT * FROM whatsapp_templates")
+src\ui\pages\settings_widgets\sms_settings.py:355:        templates = self.db.cursor.fetchall()
+src\ui\pages\settings_widgets\sms_settings.py:364:            self.table.insertRow(row)
+src\ui\pages\settings_widgets\sms_settings.py:372:            self.table.setCellWidget(row, 2, btn_edit)
+src\ui\pages\settings_widgets\sms_settings.py:457:            self.load_data()
+src\ui\pages\_customers_base_mixin.py:477:            self.request_reload()
+src\ui\pages\_customers_base_mixin.py:483:            self.request_reload()
+src\ui\pages\_customers_base_mixin.py:513:        self.request_reload()
+src\ui\pages\_dashboard_base_mixin.py:45:    def refresh_data(self):
+src\ui\pages\settings_widgets\stock_settings.py:31:        self.load_data()
+src\ui\pages\settings_widgets\stock_settings.py:205:    def load_data(self):
+src\ui\pages\_dashboard_dialog_mixin.py:7:from src.utils.performance_monitor import perf_span
+src\ui\pages\_dashboard_dialog_mixin.py:20:                    QTimer.singleShot(150, _open_vehicle_card)
+src\ui\pages\_dashboard_dialog_mixin.py:26:        QTimer.singleShot(0, self._open_new_service_dialog_deferred)
+src\ui\pages\_dashboard_dialog_mixin.py:38:                self.refresh_data()
+src\ui\pages\_dashboard_dialog_mixin.py:43:        QTimer.singleShot(0, self._open_new_customer_dialog_deferred)
+src\ui\pages\_dashboard_dialog_mixin.py:54:                if hasattr(self, "refresh_data"): self.refresh_data()
+src\ui\pages\_dashboard_dialog_mixin.py:60:        QTimer.singleShot(0, lambda: self._open_customer_360_dialog_deferred(customer_name, tracking_no))
+src\ui\pages\_dashboard_dialog_mixin.py:83:        QTimer.singleShot(0, lambda: self._open_technician_panel_deferred(tracking_no))
+src\ui\pages\_dashboard_dialog_mixin.py:87:            with perf_span("Dashboard.technician_panel.device_lookup", extra=str(tracking_no)):
+src\ui\pages\_dashboard_dialog_mixin.py:91:                    cur.execute("SELECT * FROM devices WHERE tracking_no=? AND COALESCE(is_deleted, 0)=0", (tracking_no,))
+src\ui\pages\_dashboard_dialog_mixin.py:100:                    with perf_span("Dashboard.technician_panel.create", extra=str(tracking_no)):
+src\ui\pages\_dashboard_dialog_mixin.py:106:                QTimer.singleShot(0, self.refresh_data)
+src\ui\pages\_dashboard_dialog_mixin.py:107:                QTimer.singleShot(250, self._refresh_service_board)
+src\ui\pages\_dashboard_dialog_mixin.py:116:        QTimer.singleShot(0, self._open_add_stock_dialog_deferred)
+src\ui\pages\_dashboard_dialog_mixin.py:129:        QTimer.singleShot(0, lambda: self._open_edit_dialog_deferred(tracking_no))
+src\ui\pages\_dashboard_dialog_mixin.py:135:                self.db.cursor.execute("SELECT * FROM devices WHERE tracking_no=? AND COALESCE(is_deleted, 0)=0", (tracking_no,))
+src\ui\pages\_dashboard_dialog_mixin.py:145:                if dlg.exec(): self.refresh_data()
+src\ui\pages\_dashboard_dialog_mixin.py:152:                self.main_window.page_service_board.refresh_data(); return
+src\ui\pages\_dashboard_dialog_mixin.py:154:                self.main_window.service_board_page.refresh_data(); return
+src\ui\pages\_dashboard_dialog_mixin.py:156:            if page and hasattr(page, "refresh_data"): page.refresh_data()
+src\ui\pages\_dashboard_ui_mixin.py:155:            QTimer.singleShot(250, lambda: setattr(self, "_dashboard_double_click_busy", False))
+src\ui\pages\_dashboard_func_mixin.py:38:                self.refresh_data()
+src\ui\pages\_dashboard_func_mixin.py:78:                cur = self.db.cursor.execute("SELECT * FROM devices WHERE tracking_no=? AND COALESCE(is_deleted, 0)=0", (tracking_no,))
+src\ui\pages\_dashboard_func_mixin.py:114:                cur = self.db.cursor.execute("SELECT * FROM devices WHERE tracking_no=? AND COALESCE(is_deleted, 0)=0", (tracking_no,))
+src\ui\pages\_dashboard_func_mixin.py:155:                    SELECT *
+src\ui\pages\_dashboard_func_mixin.py:181:                "SELECT * FROM devices WHERE tracking_no=? AND COALESCE(is_deleted, 0)=0",
+src\ui\pages\_dashboard_func_mixin.py:195:                    "SELECT * FROM used_parts WHERE tracking_no=?",
+src\ui\pages\_dashboard_func_mixin.py:197:                ).fetchall() or []
+src\ui\pages\_dashboard_func_mixin.py:312:                    self.refresh_data()
+src\ui\pages\_dashboard_func_mixin.py:351:            QTimer.singleShot(0, lambda: self._open_context_menu_action_deferred(action_type, tracking_no))
+src\ui\pages\_dashboard_func_mixin.py:388:                self.refresh_data()
+src\ui\pages\_dashboard_func_mixin.py:434:                        self._announce_payment_received(); self.refresh_data()
+src\ui\pages\_dashboard_data_mixin.py:23:            rows = self.db.cursor.fetchall() or []
+src\ui\pages\_dashboard_data_mixin.py:57:            rows = self.db.cursor.fetchall() or []
+src\ui\pages\_dashboard_data_mixin.py:252:            services = self.db.cursor.fetchall() or []
+src\ui\pages\_dashboard_data_mixin.py:439:        label.setPalette(palette); layout.addWidget(label); self.table.setCellWidget(row, col, frame)
+src\ui\pages\_dashboard_data_mixin.py:538:        self.table.setCellWidget(row, 1, cell)
+src\ui\dialogs\_sipd_logic_mixin.py:96:        idx = self.table.rowCount(); self.table.insertRow(idx)
+src\ui\dialogs\_sipd_logic_mixin.py:168:        thread.started.connect(worker.run); worker.finished.connect(_on_done); self._ocr_thread = thread; self._ocr_worker = worker; thread.start()
+src\ui\dialogs\_sipd_logic_mixin.py:178:        self._full_parse_worker.finished.connect(_done); self._full_parse_worker.error.connect(_err); self._full_parse_worker.start()
+src\ui\dialogs\_sipd_logic_mixin.py:204:            cur = str(r.get("currency") or "TRY").strip(); idx = self.live_preview_table.rowCount(); self.live_preview_table.insertRow(idx)
+src\ui\dialogs\_sipd_logic_mixin.py:221:        if r and self.source_preview_label: QTimer.singleShot(0, lambda: self.source_preview_label.focus_on_original_rect(r))
+src\ui\dialogs\_sipd_logic_mixin.py:269:                SELECT *
+src\ui\dialogs\_sipd_logic_mixin.py:280:                SELECT *
+src\ui\pages\_stock_context_menus.py:87:                self.reload_data()
+src\ui\pages\_stock_context_menus.py:183:            self.reload_data()
+src\ui\pages\_stock_context_menus.py:262:                self.refresh_data()
+src\ui\pages\settings_widgets\telegram_settings.py:19:        self.load_data()
+src\ui\pages\settings_widgets\telegram_settings.py:69:    def load_data(self):
+src\ui\pages\settings_widgets\user_management.py:52:        QTimer.singleShot(100, self.load_users)
+src\ui\pages\settings_widgets\user_management.py:296:            users = self.db.cursor.fetchall()
+src\ui\pages\settings_widgets\user_management.py:298:                self.table.insertRow(row_idx)
+src\ui\pages\settings_widgets\user_management.py:339:                self.table.setCellWidget(row_idx, 5, status_widget)
+src\ui\pages\settings_widgets\user_management.py:353:                self.table.setCellWidget(row_idx, 6, iface_widget)
+src\ui\pages\settings_widgets\user_management.py:368:                self.table.setCellWidget(row_idx, 7, edit_widget)
+src\ui\pages\settings_widgets\user_management.py:383:                self.table.setCellWidget(row_idx, 8, delete_widget)
+src\ui\pages\settings_widgets\user_management.py:412:            for pid, name in self.db.cursor.fetchall():
+src\ui\pages\_stock_history_tab.py:107:                self.table_hist.insertRow(i)
+src\ui\pages\_stock_import.py:54:            self.parse_worker.start()
+src\ui\pages\_stock_import.py:87:                self.reload_data()
+src\ui\pages\settings_widgets\user_management_rbac.py:146:            users = self.db.cursor.fetchall()
+src\ui\pages\settings_widgets\user_management_rbac.py:154:            self.table.insertRow(i)
+src\ui\pages\settings_widgets\user_management_rbac.py:203:            self.table.setCellWidget(i, 3, w_toggle)
+src\ui\pages\_stock_list_tab.py:301:                str(row[0]).strip() for row in (cursor.fetchall() or []) if row[0]
+src\ui\pages\_stock_list_tab.py:359:        self.reload_data()
+src\ui\pages\_stock_list_tab.py:429:        self.reload_data()
+src\ui\pages\_stock_list_tab.py:438:        self.reload_data()
+src\ui\pages\_stock_list_tab.py:447:            self.table_stock.insertRow(i)
+src\ui\dialogs\_tp_operations.py:56:                cols = [row[1] for row in self.db.cursor.fetchall()]
+src\ui\dialogs\_tp_operations.py:67:                self.db.cursor.execute(query, (self.tracking_no,)).fetchall() or []
+src\ui\dialogs\_tp_operations.py:425:                            listener.start()
+src\ui\dialogs\_tp_operations.py:643:                                    up_cols = [r[1] for r in self.db.cursor.fetchall()]
+src\ui\dialogs\_tp_operations.py:666:                                    ).fetchall()
+src\ui\pages\settings_widgets\user_management_dialogs.py:835:            personnel = self.db.cursor.fetchall()
+src\ui\dialogs\_tp_styles.py:738:        QTimer.singleShot(0, _apply)
+src\ui\dialogs\_tp_tabs.py:128:        QTimer.singleShot(50, self.reload_test_toggles)
+src\ui\dialogs\_tp_tabs.py:180:        QTimer.singleShot(0, self.refresh_logs)
+src\ui\pages\_stock_workers.py:7:from src.utils.performance_monitor import perf_span
+src\ui\pages\_stock_workers.py:41:            with perf_span(
+src\ui\pages\_stock_workers.py:56:            with perf_span("sql.stock.stats", threshold_ms=75):
+src\ui\pages\_stock_workers.py:94:            with perf_span(
+src\ui\pages\settings_widgets\voice_assistant_shortcuts.py:28:            QTimer.singleShot(0, self.showPopup)
+src\ui\pages\settings_widgets\voice_training_base.py:40:        self.load_data()
+src\ui\pages\settings_widgets\voice_training_base.py:516:    def load_data(self):
+src\ui\pages\settings_widgets\whatsapp_settings.py:20:        self.load_data()
+src\ui\pages\settings_widgets\whatsapp_settings.py:103:    def load_data(self):

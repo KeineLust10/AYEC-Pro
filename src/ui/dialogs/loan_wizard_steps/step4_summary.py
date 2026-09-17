@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 """
 Advanced Loan Wizard - Step 4: Summary and Confirmation
 Özet ve onay ekranı

@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "products": [
+    {
+      "code": "teknik_servis",
+      "name": "AYEC Pro Teknik Servis",
+      "folder_name": "AYEC Pro Teknik Servis",
+      "backup_folder": "Teknik-Servis-AYEC",
+      "database_name": "Teknik-Servis-AYEC.db",
+      "smart_import": true,
+      "active": true
+    },
+    {
+      "code": "barkod_okuyucu",
+      "name": "AYEC Pro Barkod Okuyucu",
+      "folder_name": "AYEC Pro Barkod Okuyucu",
+      "backup_folder": "Barkod-AYEC",
+      "database_name": "Barkod-AYEC.db",
+      "smart_import": true,
+      "active": true
+    },
+    {
+      "code": "elek",
+      "name": "AYEC Pro Elek",
+      "folder_name": "AYEC Pro Elek",
+      "backup_folder": "Elek-AYEC",
+      "database_name": "Elek-AYEC.db",
+      "smart_import": false,
+      "active": true
+    },
+    {
+      "code": "ciro",
+      "name": "AYEC Pro Ciro",
+      "folder_name": "AYEC Pro Ciro",
+      "backup_folder": "Ciro-AYEC",
+      "database_name": "Ciro-AYEC.db",
+      "smart_import": false,
+      "active": true
+    }
+  ]
+}

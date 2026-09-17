@@ -1,0 +1,135 @@
+﻿/* AYEC Light Theme - Video guided */
+QMainWindow, QDialog { background-color: #F4F7FB; color: #172033; }
+QLabel { color: #172033; }
+
+QFrame, QGroupBox {
+  background-color: #FFFFFF;
+  border: 1px solid #CAD5E3;
+  border-radius: 12px;
+}
+QGroupBox::title { subcontrol-origin: margin; left: 8px; padding: 0 4px; color: #334155; }
+
+QPushButton {
+  background-color: #2563EB;
+  color: #FFFFFF;
+  border: 1px solid #1D4ED8;
+  border-radius: 10px;
+  padding: 7px 12px;
+  font-weight: 600;
+}
+QPushButton:hover { background-color: #1D4ED8; }
+QPushButton:pressed { background-color: #1E40AF; }
+QPushButton:disabled { background-color: #8A96A8; color: #F3F4F6; border-color: #8A96A8; }
+
+QLineEdit, QTextEdit, QPlainTextEdit, QComboBox {
+  background-color: #FFFFFF;
+  color: #172033;
+  border: 1px solid #CAD5E3;
+  border-radius: 10px;
+  padding: 6px;
+}
+QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus, QComboBox:focus { border: 1px solid #2563EB; }
+QLineEdit:disabled, QTextEdit:disabled, QComboBox:disabled { background-color: #E5EBF3; color: #8A96A8; }
+QComboBox:hover { background-color: #F8FAFC; color: #172033; border: 1px solid #2563EB; }
+QComboBox QAbstractItemView {
+  background-color: #FFFFFF;
+  color: #172033;
+  border: 1px solid #CAD5E3;
+  selection-background-color: #BFDBFE;
+  selection-color: #0F172A;
+  outline: none;
+}
+QComboBox QAbstractItemView::item:hover { background-color: #E9EEF6; color: #172033; }
+QComboBox QAbstractItemView::item:selected { background-color: #BFDBFE; color: #0F172A; }
+
+QTableWidget, QTreeWidget, QListWidget {
+  background-color: #FFFFFF;
+  alternate-background-color: #EEF3F9;
+  color: #172033;
+  border: 1px solid #CAD5E3;
+  gridline-color: #E3EAF3;
+  border-radius: 10px;
+  outline: none;
+}
+QTableWidget::item, QTreeWidget::item, QListWidget::item {
+  color: #172033;
+  padding: 6px 8px;
+  outline: none;
+}
+QTableWidget::item:alternate, QTreeWidget::item:alternate, QListWidget::item:alternate {
+  background-color: #EEF3F9;
+  color: #172033;
+}
+QTableWidget::item:hover, QTreeWidget::item:hover, QListWidget::item:hover {
+  background-color: #E9EEF6;
+  color: #172033;
+}
+QTableWidget::item:selected, QTreeWidget::item:selected, QListWidget::item:selected {
+  background-color: #BFDBFE;
+  color: #0F172A;
+  border: none;
+  outline: none;
+}
+QTableWidget::item:selected:hover, QTreeWidget::item:selected:hover, QListWidget::item:selected:hover {
+  background-color: #93C5FD;
+  color: #0F172A;
+  border: none;
+  outline: none;
+}
+QTableWidget::item:focus, QTreeWidget::item:focus, QListWidget::item:focus,
+QTableWidget::item:selected:focus, QTreeWidget::item:selected:focus, QListWidget::item:selected:focus,
+QTableWidget::item:selected:active, QTreeWidget::item:selected:active, QListWidget::item:selected:active {
+  border: none;
+  outline: none;
+}
+QHeaderView::section {
+  background-color: #E9EEF6;
+  color: #334155;
+  border: 1px solid #CAD5E3;
+  padding: 6px;
+}
+QHeaderView::section:hover {
+  background-color: #DDE6F1;
+  color: #172033;
+}
+
+QTabWidget::pane { border: 1px solid #CAD5E3; background: #FFFFFF; border-radius: 10px; }
+QTabBar::tab {
+  background: #E9EEF6;
+  color: #475569;
+  border: 1px solid #CAD5E3;
+  padding: 7px 12px;
+  border-radius: 10px;
+  margin-right: 4px;
+}
+QTabBar::tab:selected {
+  background: #FFFFFF;
+  color: #0F172A;
+  border-color: #CAD5E3;
+}
+
+QMenuBar, QStatusBar { background-color: #E9EEF6; color: #172033; border-top: 1px solid #CAD5E3; }
+QMenu { background-color: #FFFFFF; color: #172033; border: 1px solid #CAD5E3; }
+QMenu::item:selected { background-color: #BFDBFE; color: #0F172A; }
+
+QScrollBar:vertical, QScrollBar:horizontal {
+  background: #E5EBF3;
+  border: 1px solid #CAD5E3;
+  border-radius: 4px;
+}
+QScrollBar::handle:vertical, QScrollBar::handle:horizontal {
+  background: #C4D0DF;
+  border-radius: 4px;
+  min-height: 20px;
+  min-width: 20px;
+}
+QScrollBar::handle:vertical:hover, QScrollBar::handle:horizontal:hover { background: #A9B9CD; }
+
+/* Sidebar look from app/video guidance */
+#SideMenu, QWidget#SideMenu {
+  background: qlineargradient(x1:0,y1:0,x2:0,y2:1, stop:0 #F4F7FB, stop:0.34 #FFFFFF, stop:1 #E9EEF6);
+  color: #172033;
+  border-right: 1px solid #CAD5E3;
+}
+#SideMenu QPushButton:hover { background-color: rgba(37,99,235,0.08); }
+#SideMenu QPushButton[active="true"] { background-color: #2563EB; color: #FFFFFF; }

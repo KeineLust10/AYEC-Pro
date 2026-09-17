@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ayec-core"
+version = "0.3.0"
+description = "Shared AYEC desktop integration contracts"
+requires-python = ">=3.8"
+dependencies = ["cryptography>=42,<47"]
+
+[project.optional-dependencies]
+smart-import = ["defusedxml>=0.7", "pandas>=2.2,<4", "openpyxl>=3.1,<4", "xlrd>=2,<3", "Pillow>=10", "pdfplumber>=0.11", "pytesseract>=0.3"]
+ocr = ["easyocr>=1.7,<2"]
+
+[tool.setuptools.packages.find]
+where = ["src"]

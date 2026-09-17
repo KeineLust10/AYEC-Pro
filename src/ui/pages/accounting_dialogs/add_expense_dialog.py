@@ -1,6 +1,8 @@
+# -*- coding: utf-8 -*-
+
 from PyQt6.QtWidgets import (QFormLayout, QComboBox, QLineEdit, QDateEdit,
                              QDoubleSpinBox, QPushButton, QHBoxLayout, QRadioButton, QButtonGroup)
-from PyQt6.QtCore import Qt, QDate, QEvent
+from PyQt6.QtCore import Qt, QDate, QEvent, QTimer
 from PyQt6.QtGui import QCursor
 from src.utils.theme_colors import theme_qss
 from src.utils.currency_helper import CurrencyHelper
@@ -9,13 +11,19 @@ from src.utils.toast_notification import show_warning, show_error, show_success
 from src.utils.logger import logger
 
 
+
 class AddExpenseDialog(PremiumDialog):
+
+    def _on_ui_widget_changed(self, *args):
+        from src.ui.utils.ui_signal_helpers import on_ui_widget_changed
+        on_ui_widget_changed(self, *args)
     def __init__(self, db, parent=None):
         super().__init__("Gider Ekle", parent)
         self.db = db
         self.resize(400, 500)
         self.setup_ui()
         
+        self._wire_ui_signals()
     def setup_ui(self):
         form = QFormLayout()
         form.setSpacing(15)
@@ -35,7 +43,11 @@ class AddExpenseDialog(PremiumDialog):
             self.cmb_bank.lineEdit().installEventFilter(self)
         self.cmb_bank.addItem("Banka hesabı seçin", None)
         for acc in self.bank_accounts:
-            acc_id, bank, branch, acc_name, acc_no, iban, balance_val, is_active_val, created_at = acc
+            acc_id = self._bank_field(acc, "id", 0)
+            bank = self._bank_field(acc, "bank_name", 1, "")
+            acc_name = self._bank_field(acc, "account_holder", 2, "")
+            acc_no = self._bank_field(acc, "account_number", 4, "")
+            is_active_val = self._bank_field(acc, "is_active", 7, 0)
             if int(is_active_val or 0) != 1:
                 continue
             label_parts = [str(bank or "").strip(), str(acc_name or "").strip()]
@@ -61,7 +73,7 @@ class AddExpenseDialog(PremiumDialog):
             }
             QRadioButton::indicator { width: 0; height: 0; }
             QRadioButton:checked { background: @danger; color: @selection_text; border: 1px solid @danger; }
-            QRadioButton:hover:!checked { background: @surface; color: @text; }
+            QRadioButton:!checked:hover { background: @surface; color: @text; }
         """)
         self.exp_btn_try = QRadioButton("TRY")
         self.exp_btn_usd = QRadioButton("$ USD")
@@ -118,16 +130,43 @@ class AddExpenseDialog(PremiumDialog):
         btn_save.clicked.connect(self.save)
         self.body_layout.addWidget(btn_save)
         
+    def _wire_ui_signals(self):
+        self.cmb_cat.currentIndexChanged.connect(self._on_ui_widget_changed)
+        self.cmb_bank.currentIndexChanged.connect(self._on_ui_widget_changed)
+
     def _load_bank_accounts(self):
         try:
             return self.db.get_bank_accounts() or []
         except Exception:
             return []
 
+    @staticmethod
+    def _bank_field(account, key, index, default=None):
+        if account is None:
+            return default
+        if hasattr(account, "keys"):
+            try:
+                if key in account.keys():
+                    return account[key]
+            except Exception:
+                pass
+        if isinstance(account, dict):
+            if key in account:
+                return account.get(key, default)
+            if key == "account_holder":
+                return account.get("account_name", default)
+            if key == "account_number":
+                return account.get("account_no", default)
+        try:
+            return account[index]
+        except Exception:
+            return default
+
     def eventFilter(self, obj, event):
-        if obj == self.cmb_bank.lineEdit() and event.type() == QEvent.Type.MouseButtonPress:
-            self.cmb_bank.showPopup()
-            return True
+        if obj == self.cmb_bank.lineEdit() and event.type() == QEvent.Type.MouseButtonRelease:
+            if not self.cmb_bank.view().isVisible():
+                QTimer.singleShot(0, self.cmb_bank.showPopup)
+            return False
         return super().eventFilter(obj, event)
         
     def save(self):
@@ -156,7 +195,12 @@ class AddExpenseDialog(PremiumDialog):
             account = self.db.get_bank_account_by_id(bank_account_id)
             acc_label = ""
             if account:
-                acc_label = f" ({account[1]} - {account[3]})"
+                bank = self._bank_field(account, "bank_name", 1, "")
+                acc_name = self._bank_field(account, "account_holder", 2, "")
+                label_parts = [str(bank or "").strip(), str(acc_name or "").strip()]
+                label_parts = [p for p in label_parts if p]
+                if label_parts:
+                    acc_label = f" ({' - '.join(label_parts)})"
             show_success(self, f"Gider kaydedildi. {CurrencyHelper.format_amount(amt, db=self.db, currency_code='USD' if self.exp_btn_usd.isChecked() else 'EUR' if self.exp_btn_eur.isChecked() else 'TRY')}{acc_label} bakiyesinden düşüldü.")
             self.accept()
         except Exception as e:

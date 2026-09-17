@@ -1,6 +1,8 @@
+# -*- coding: utf-8 -*-
+
 from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel,
                              QLineEdit, QPushButton, QFormLayout, QRadioButton, QButtonGroup, QComboBox, QDoubleSpinBox, QSpinBox,
-                             QFrame, QGraphicsDropShadowEffect, QFileDialog, QScrollArea, QApplication, QCompleter)
+                             QFrame, QGraphicsDropShadowEffect, QFileDialog, QScrollArea, QCompleter, QAbstractSpinBox)
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtCore import QSize
 from src.utils.toast_notification import show_success, show_error, show_warning, show_info
@@ -10,10 +12,81 @@ from PyQt6.QtGui import QFont, QColor
 from src.utils.currency_helper import CurrencyHelper
 from src.utils.theme_colors import theme_qss
 from src.utils.logger import logger
+from src.utils.system_config import SystemConfig
 from src.ui.widgets.modern_dialog import ModernDialog, NoWheelScrollArea
 
+
+class BarcodeLineEdit(QLineEdit):
+    """Line edit that accepts scanner suffix Enter without closing the dialog."""
+
+    def keyPressEvent(self, event):
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            event.accept()
+            try:
+                self.editingFinished.emit()
+            except Exception as signal_error:
+                logger.debug(
+                    "Barcode editingFinished signal failed: %s",
+                    signal_error,
+                )
+            return
+        super().keyPressEvent(event)
+
+
 class AddStockDialog(ModernDialog):
+
+    def _on_ui_widget_changed(self, *args):
+        from src.ui.utils.ui_signal_helpers import on_ui_widget_changed
+        on_ui_widget_changed(self, *args)
+    AUTOMOTIVE_POSITIONS = [
+        "",
+        "On Sol",
+        "On Sag",
+        "Arka Sol",
+        "Arka Sag",
+        "Sag",
+        "Sol",
+        "On",
+        "Arka",
+        "Motor",
+        "Sanziman",
+        "Ic Mekan",
+        "Dis Trim",
+        "Genel",
+    ]
+
+    AUTOMOTIVE_CATEGORIES = [
+        "Motor Ya\u011f\u0131",
+        "Filtre",
+        "Fren Sistemi",
+        "S\u00fcspansiyon / Y\u00fcr\u00fcyen Aksam",
+        "Elektrik / Elektronik",
+        "Ayd\u0131nlatma",
+        "Motor / Mekanik",
+        "\u015eanz\u0131man / Debriyaj",
+        "So\u011futma Sistemi",
+        "Kaporta / Trim",
+        "Lastik / Jant",
+        "Sarf / Kimyasal",
+        "Aksesuar",
+        "Di\u011fer",
+    ]
+
+    GENERAL_CATEGORIES = [
+        "Genel", "G\u00fcvenlik Sistemleri", "Bilgisayar Bile\u015fenleri",
+        "Ak\u0131ll\u0131 Ev Sistemleri", "A\u011f / Network", "Yedek Par\u00e7a",
+        "Aksesuar", "Sarf Malzeme", "Di\u011fer"
+    ]
+
     CATEGORY_BRAND_MAP = {
+        "Motor Ya\u011f\u0131": ["Castrol", "Mobil", "Motul", "Shell", "Elf", "Liqui Moly", "Petronas"],
+        "Filtre": ["Bosch", "Mann", "Mahle", "Filtron", "Sakura", "Purflux"],
+        "Fren Sistemi": ["Bosch", "TRW", "Valeo", "Ferodo", "Brembo", "ATE"],
+        "S\u00fcspansiyon / Y\u00fcr\u00fcyen Aksam": ["Monroe", "Sachs", "Lemforder", "Febi", "SKF"],
+        "Elektrik / Elektronik": ["Bosch", "Valeo", "Hella", "Delphi", "NGK", "Denso"],
+        "Ayd\u0131nlatma": ["Osram", "Philips", "Hella", "Valeo"],
+        "Motor / Mekanik": ["Gates", "Dayco", "INA", "SKF", "Contitech"],
+        "Kaporta / Trim": ["Valeo", "Magneti Marelli", "Depo"],
         "Güvenlik Sistemleri": [
             "Hikvision", "Dahua", "Axis", "Hanwha Vision", "Bosch", "Uniview", "Tiandy",
             "Vivotek", "Avigilon", "Pelco", "Honeywell", "Mobotix", "TVT", "HiLook",
@@ -36,6 +109,18 @@ class AddStockDialog(ModernDialog):
     }
 
     CATEGORY_KEYWORDS = {
+        "Motor Ya\u011f\u0131": ["5w30", "5w40", "10w40", "motor ya\u011f\u0131", "yag", "ya\u011f", "antifriz"],
+        "Filtre": ["ya\u011f filtresi", "hava filtresi", "polen filtresi", "yak\u0131t filtresi", "filtre"],
+        "Fren Sistemi": ["fren", "balata", "disk", "kampana", "hidrolik"],
+        "S\u00fcspansiyon / Y\u00fcr\u00fcyen Aksam": ["amortis\u00f6r", "rot", "sal\u0131ncak", "z rot", "bilya", "rulman"],
+        "Elektrik / Elektronik": ["sens\u00f6r", "sensor", "mar\u015f", "alternat\u00f6r", "ak\u00fc", "buji", "bobin"],
+        "Ayd\u0131nlatma": ["far", "stop", "ampul", "sis far\u0131", "led"],
+        "Motor / Mekanik": ["triger", "devirdaim", "conta", "supap", "kay\u0131\u015f"],
+        "\u015eanz\u0131man / Debriyaj": ["debriyaj", "bask\u0131", "balata seti", "\u015fanz\u0131man"],
+        "So\u011futma Sistemi": ["radyat\u00f6r", "termostat", "fan m\u00fc\u015f\u00fcr\u00fc", "so\u011futma"],
+        "Kaporta / Trim": ["tampon", "ayna", "kap\u0131 kolu", "\u0131zgara", "\u00e7amurluk"],
+        "Lastik / Jant": ["lastik", "jant", "sibop"],
+        "Sarf / Kimyasal": ["sprey", "temizleyici", "katk\u0131", "gres", "kimyasal"],
         "Güvenlik Sistemleri": [
             "kamera", "nvr", "dvr", "ip kamera", "güvenlik", "guvenlik", "cctv", "dedektör",
             "dedektor", "alarm", "siren", "poe", "bullet", "dome", "ptz", "interkom",
@@ -78,19 +163,24 @@ class AddStockDialog(ModernDialog):
         "WiiHOM", "WiiPro", "Ubiquiti", "MikroTik", "Ruijie", "Tenda", "Mercusys",
     ]
 
-    def __init__(self, db, parent=None, item_id=None, *args, **kwargs):
+    def __init__(self, db, parent=None, item_id=None, sector_manager=None, *args, **kwargs):
         # Backward compatibility:
         # some call sites may still pass an extra positional argument.
         if item_id is None and args:
             item_id = args[0]
-        super().__init__(title="Yeni Stok Ekle", parent=parent, width=1080, height=860)
         self.db = db
         self.item_id = item_id
+        self.sector_manager = sector_manager
+        self.is_automotive = self._detect_automotive_mode()
+        self.labels = self._dialog_labels()
+        super().__init__(title=self.labels["title"], parent=parent, width=1080, height=860)
         self._photo_path = None  # seçili fotoğraf yolu
         self.set_footer_visible(False)
+        self.set_wheel_scroll_enabled(True)
         self.resize(1080, 860)
         self.setMinimumSize(1020, 820)
         self.setup_ui()
+        self._wire_ui_signals()
         self._setup_brand_completer()
         self._load_item_if_edit_mode()
         
@@ -103,17 +193,141 @@ class AddStockDialog(ModernDialog):
         self.anim.setEasingCurve(QEasingCurve.Type.OutCubic)
         self.anim.start()
 
+    def _detect_automotive_mode(self):
+        try:
+            if self.sector_manager and self.sector_manager.is_feature_available("oem_parts"):
+                return True
+        except Exception:
+            pass
+        try:
+            return SystemConfig.get_current_sector(self.db) == "otomotiv"
+        except Exception:
+            return False
+
+    def _dialog_labels(self):
+        if self.is_automotive:
+            return {
+                "title": "Yeni Otomotiv Par\u00e7as\u0131 Ekle",
+                "subtitle": "Servis panosu ve yedek par\u00e7a ak\u0131\u015f\u0131na uygun otomotiv stok kart\u0131 olu\u015fturun",
+                "name": "Par\u00e7a Ad\u0131",
+                "name_placeholder": "\u00d6rn: Ya\u011f Filtresi, Fren Balatas\u0131, Triger Seti...",
+                "brand": "Marka / \u00dcretici",
+                "brand_placeholder": "\u00d6rn: Bosch, Mann, Valeo, SKF...",
+                "category": "Par\u00e7a Kategorisi",
+                "code": "Stok / Par\u00e7a Kodu",
+                "code_placeholder": "Stok kodu, barkod veya par\u00e7a kodu girin...",
+                "stock": "Mevcut Par\u00e7a Miktar\u0131",
+                "purchase": "Al\u0131\u015f Fiyat\u0131 (Birim)",
+                "sale": "Sat\u0131\u015f Fiyat\u0131 (Birim)",
+                "desc": "Par\u00e7a A\u00e7\u0131klamas\u0131 / Notlar",
+                "desc_placeholder": "Par\u00e7a ile ilgili detay, motor bilgisi veya kullan\u0131m notu girin...",
+                "compatibility": "Uyumlu Ara\u00e7 / Motor",
+                "compatibility_placeholder": "\u00d6rn: Ford Courier 1.5 TDCi, Fiat Doblo 1.3 Multijet",
+                "photo": "Par\u00e7a Foto\u011fraf\u0131 (Opsiyonel)",
+                "save": "Par\u00e7ay\u0131 Kaydet",
+                "saving": "Kaydediliyor...",
+                "finance_category": "Yedek Par\u00e7a Al\u0131m\u0131",
+            }
+        return {
+            "title": "Yeni Stok Ekle",
+            "subtitle": "Envanterinize yeni bir \u00fcr\u00fcn veya par\u00e7a kazand\u0131r\u0131n",
+            "name": "\u00dcr\u00fcn Ad\u0131",
+            "name_placeholder": "\u00d6rn: iPhone 13 Ekran, SSD 500GB...",
+            "brand": "Marka",
+            "brand_placeholder": "\u00d6rn: WiiHOM, ASUS, TP-Link...",
+            "category": "Kategori",
+            "code": "Barkod / \u00dcr\u00fcn Kodu",
+            "code_placeholder": "Barkod okutun veya yaz\u0131n...",
+            "stock": "Mevcut Stok Miktar\u0131",
+            "purchase": "Al\u0131\u015f Fiyat\u0131 (Birim)",
+            "sale": "Sat\u0131\u015f Fiyat\u0131 (Birim)",
+            "desc": "\u00dcr\u00fcn A\u00e7\u0131klamas\u0131 / Notlar",
+            "desc_placeholder": "\u00dcr\u00fcn hakk\u0131nda detayl\u0131 bilgi girin...",
+            "compatibility": "Uyumlu Marka / Model",
+            "compatibility_placeholder": "\u00d6rn: Ford Courier 1.5 TDCi, Fiat Doblo 1.3",
+            "photo": "\u00dcr\u00fcn Foto\u011fraf\u0131 (Opsiyonel)",
+            "save": "\u00dcr\u00fcn\u00fc Kaydet",
+            "saving": "Kaydediliyor...",
+            "finance_category": "Stok Al\u0131m\u0131",
+        }
+
+
+    def _extract_automotive_meta(self, description):
+        meta = {
+            "supplier": "",
+            "vehicle_brand": "",
+            "vehicle_model": "",
+            "position": "",
+        }
+        lines = []
+        for raw_line in str(description or "").splitlines():
+            line = raw_line.strip()
+            if line.startswith("[OTO_SUPPLIER]"):
+                meta["supplier"] = line.replace("[OTO_SUPPLIER]", "", 1).strip()
+                continue
+            if line.startswith("[OTO_VEHICLE_BRAND]"):
+                meta["vehicle_brand"] = line.replace("[OTO_VEHICLE_BRAND]", "", 1).strip()
+                continue
+            if line.startswith("[OTO_VEHICLE_MODEL]"):
+                meta["vehicle_model"] = line.replace("[OTO_VEHICLE_MODEL]", "", 1).strip()
+                continue
+            if line.startswith("[OTO_POSITION]"):
+                meta["position"] = line.replace("[OTO_POSITION]", "", 1).strip()
+                continue
+            lines.append(raw_line)
+        return meta, "\n".join(lines).strip()
+
+    def _compose_description(self, base_description):
+        description = str(base_description or "").strip()
+        if not self.is_automotive:
+            return description
+
+        meta_lines = []
+        supplier = self.inp_supplier.text().strip() if hasattr(self, "inp_supplier") else ""
+        vehicle_brand = self.inp_vehicle_brand.text().strip() if hasattr(self, "inp_vehicle_brand") else ""
+        vehicle_model = self.inp_vehicle_model.text().strip() if hasattr(self, "inp_vehicle_model") else ""
+        position = self.cmb_position.currentText().strip() if hasattr(self, "cmb_position") else ""
+
+        if supplier:
+            meta_lines.append(f"[OTO_SUPPLIER] {supplier}")
+        if vehicle_brand:
+            meta_lines.append(f"[OTO_VEHICLE_BRAND] {vehicle_brand}")
+        if vehicle_model:
+            meta_lines.append(f"[OTO_VEHICLE_MODEL] {vehicle_model}")
+        if position:
+            meta_lines.append(f"[OTO_POSITION] {position}")
+
+        if not meta_lines:
+            return description
+        if description:
+            return description + "\n" + "\n".join(meta_lines)
+        return "\n".join(meta_lines)
 
     def _load_item_if_edit_mode(self):
         if not self.item_id:
             return
         try:
-            self.db.cursor.execute("SELECT * FROM parts WHERE id=?", (self.item_id,))
-            row = self.db.cursor.fetchone()
+            if self.sector_manager and hasattr(self.db, "get_part_with_extensions"):
+                row = self.db.get_part_with_extensions(self.item_id, "otomotiv" if self.is_automotive else "teknik_servis")
+            else:
+                try:
+                    db_row = self.db.cursor.execute(
+                        "SELECT * FROM parts WHERE id=? AND COALESCE(is_deleted, 0)=0",
+                        (self.item_id,),
+                    ).fetchone()
+                except Exception:
+                    db_row = self.db.cursor.execute(
+                        "SELECT * FROM parts WHERE id=?",
+                        (self.item_id,),
+                    ).fetchone()
+                row = dict(db_row) if db_row and hasattr(db_row, "keys") else db_row
             if not row:
                 return
 
-            if hasattr(row, 'keys'):
+            if isinstance(row, dict):
+                def val(k, d=None):
+                    return row.get(k, d)
+            elif hasattr(row, 'keys'):
                 def val(k, d=None):
                     return row[k] if k in row.keys() else d
             else:
@@ -124,12 +338,31 @@ class AddStockDialog(ModernDialog):
             self.inp_brand.setText(str(val('brand', '') or ''))
             self.inp_category.setCurrentText(str(val('category', '') or ''))
             self.inp_code.setText(str(val('code', '') or ''))
-            self.inp_stock.setValue(int(float(val('stock', 0) or 0)))
-            self.inp_min_stock.setValue(int(float(val('min_stock', 0) or 0)))
+            self.inp_oem_code.setText(str(val('oem_code', '') or ''))
+            self.inp_equivalent_code.setText(str(val('equivalent_code', '') or ''))
+            self.inp_shelf.setText(str(val('shelf_number', '') or ''))
+            self.inp_compatible_models.setText(str(val('compatible_models', '') or ''))
+            self.inp_stock.setValue(float(val('stock', 0) or 0))
+            self.inp_min_stock.setValue(float(val('min_stock', 0) or 0))
+            saved_unit = str(val('unit', 'Adet') or 'Adet')
+            if hasattr(self, 'cmb_unit'):
+                idx = self.cmb_unit.findText(saved_unit)
+                self.cmb_unit.setCurrentIndex(idx if idx >= 0 else 0)
             self.inp_purchase_price.setValue(float(val('purchase_price', 0) or 0))
 
             self.inp_price.setValue(float(val('price', 0) or 0))
-            self.inp_desc.setText(str(val('description', '') or ''))
+            raw_description = str(val('description', '') or '')
+            meta, plain_description = self._extract_automotive_meta(raw_description)
+            self.inp_desc.setText(plain_description)
+            if self.is_automotive:
+                if hasattr(self, "inp_supplier"):
+                    self.inp_supplier.setText(meta.get("supplier", ""))
+                if hasattr(self, "inp_vehicle_brand"):
+                    self.inp_vehicle_brand.setText(meta.get("vehicle_brand", ""))
+                if hasattr(self, "inp_vehicle_model"):
+                    self.inp_vehicle_model.setText(meta.get("vehicle_model", ""))
+                if hasattr(self, "cmb_position"):
+                    self.cmb_position.setCurrentText(meta.get("position", ""))
             
             # Load Currency
             saved_curr = str(val('currency', 'TRY') or 'TRY')
@@ -156,6 +389,26 @@ class AddStockDialog(ModernDialog):
 
         except Exception as e:
             logger.warning(f"AddStock edit-mode preload failed: {e}")
+
+    def _apply_compact_spinbox_style(self, widget):
+        widget.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
+        widget.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        widget.setStyleSheet(theme_qss("""
+            QAbstractSpinBox {
+                padding: 6px 12px;
+                border: 1px solid @border;
+                border-radius: 12px;
+                background: @surface_alt;
+                color: @text;
+                min-height: 24px;
+                selection-background-color: @selection_bg;
+                selection-color: @selection_text;
+            }
+            QAbstractSpinBox:focus {
+                border: 1px solid @accent;
+                background: @surface;
+            }
+        """))
 
     def _load_brand_suggestions(self):
         suggestions = set(self.BUILTIN_BRAND_SUGGESTIONS)
@@ -305,6 +558,7 @@ class AddStockDialog(ModernDialog):
             self._refresh_brand_completer()
 
     def setup_ui(self):
+        labels = self.labels
         self.setStyleSheet(theme_qss("""
             QLabel { color: @text; background: transparent; }
             QLineEdit, QTextEdit, QComboBox, QAbstractSpinBox {
@@ -356,12 +610,12 @@ class AddStockDialog(ModernDialog):
         title_vbox.setSpacing(2)
         title_vbox.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
-        title_lbl = QLabel("Yeni Stok Ekle")
+        title_lbl = QLabel(labels["title"])
         title_lbl.setFont(QFont("Segoe UI", 20, QFont.Weight.Bold))
         title_lbl.setStyleSheet(theme_qss("color: @text; background: transparent; border: none;"))
         title_vbox.addWidget(title_lbl)
         
-        subtitle_lbl = QLabel("Envanterinize yeni bir ürün veya parça kazandırın")
+        subtitle_lbl = QLabel(labels["subtitle"])
         subtitle_lbl.setStyleSheet(theme_qss("color: @text_muted; font-size: 13px; background: transparent; border: none;"))
         title_vbox.addWidget(subtitle_lbl)
         
@@ -396,7 +650,7 @@ class AddStockDialog(ModernDialog):
         
         # Styles
         input_style = theme_qss("""
-            QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {
+            QLineEdit, QComboBox {
                 padding: 6px 12px;
                 border: 1px solid @border;
                 border-radius: 12px;
@@ -406,31 +660,7 @@ class AddStockDialog(ModernDialog):
                 color: @text;
                 min-height: 24px;
             }
-            QSpinBox, QDoubleSpinBox {
-                min-height: 42px;
-                padding-right: 42px;
-            }
-            QSpinBox::up-button, QSpinBox::down-button,
-            QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {
-                width: 34px;
-                background: @accent;
-                color: @selection_text;
-                border-left: 1px solid @border;
-                subcontrol-origin: border;
-            }
-            QSpinBox::up-button, QDoubleSpinBox::up-button {
-                subcontrol-position: top right;
-                border-top-right-radius: 12px;
-            }
-            QSpinBox::down-button, QDoubleSpinBox::down-button {
-                subcontrol-position: bottom right;
-                border-bottom-right-radius: 12px;
-            }
-            QSpinBox::up-button:hover, QSpinBox::down-button:hover,
-            QDoubleSpinBox::up-button:hover, QDoubleSpinBox::down-button:hover {
-                background: @success;
-            }
-            QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus {
+            QLineEdit:focus, QComboBox:focus {
                 border: 1px solid @accent;
                 background-color: @surface;
             }
@@ -441,9 +671,9 @@ class AddStockDialog(ModernDialog):
         r1 = QHBoxLayout()
         r1.setSpacing(16)
         v1 = QVBoxLayout(); v1.setSpacing(8)
-        v1.addWidget(QLabel("Ürün Adı", styleSheet=label_style))
+        v1.addWidget(QLabel(labels["name"], styleSheet=label_style))
         self.inp_name = QLineEdit()
-        self.inp_name.setPlaceholderText("Örn: iPhone 13 Ekran, SSD 500GB...")
+        self.inp_name.setPlaceholderText(labels["name_placeholder"])
         self.inp_name.setStyleSheet(input_style)
         self.inp_name.setMinimumHeight(42)
         self.inp_name.editingFinished.connect(self._suggest_category)
@@ -451,9 +681,9 @@ class AddStockDialog(ModernDialog):
         r1.addLayout(v1, 2)
 
         v1b = QVBoxLayout(); v1b.setSpacing(8)
-        v1b.addWidget(QLabel("Marka", styleSheet=label_style))
+        v1b.addWidget(QLabel(labels["brand"], styleSheet=label_style))
         self.inp_brand = QLineEdit()
-        self.inp_brand.setPlaceholderText("Örn: WiiHOM, ASUS, TP-Link...")
+        self.inp_brand.setPlaceholderText(labels["brand_placeholder"])
         self.inp_brand.setStyleSheet(input_style)
         self.inp_brand.setMinimumHeight(42)
         self.inp_brand.textEdited.connect(lambda _text: self._refresh_brand_completer())
@@ -465,13 +695,9 @@ class AddStockDialog(ModernDialog):
         r2 = QHBoxLayout()
         r2.setSpacing(16)
         v2_1 = QVBoxLayout(); v2_1.setSpacing(8)
-        v2_1.addWidget(QLabel("Kategori", styleSheet=label_style))
+        v2_1.addWidget(QLabel(labels["category"], styleSheet=label_style))
         self.inp_category = QComboBox()
-        self.inp_category.addItems([
-            "Genel", "Güvenlik Sistemleri", "Bilgisayar Bileşenleri",
-            "Akıllı Ev Sistemleri", "Ağ / Network", "Yedek Parça",
-            "Aksesuar", "Sarf Malzeme", "Diğer"
-        ])
+        self.inp_category.addItems(self.AUTOMOTIVE_CATEGORIES if self.is_automotive else self.GENERAL_CATEGORIES)
         self.inp_category.setEditable(True)
         self.inp_category.setStyleSheet(input_style)
         self.inp_category.setMinimumHeight(42)
@@ -480,36 +706,95 @@ class AddStockDialog(ModernDialog):
         r2.addLayout(v2_1, 1)
         
         v2_2 = QVBoxLayout(); v2_2.setSpacing(8)
-        v2_2.addWidget(QLabel("Barkod / Ürün Kodu", styleSheet=label_style))
-        self.inp_code = QLineEdit()
-        self.inp_code.setPlaceholderText("Barkod okutun veya yazın...")
+        v2_2.addWidget(QLabel(labels["code"], styleSheet=label_style))
+        self.inp_code = BarcodeLineEdit()
+        self.inp_code.setPlaceholderText(labels["code_placeholder"])
         self.inp_code.setStyleSheet(input_style)
         self.inp_code.setMinimumHeight(42)
         self.inp_code.editingFinished.connect(self._suggest_category)
         v2_2.addWidget(self.inp_code)
         r2.addLayout(v2_2, 2)
         content_layout.addLayout(r2)
+
+        r2b = QHBoxLayout()
+        r2b.setSpacing(16)
+        self.inp_oem_code = QLineEdit()
+        self.inp_oem_code.setPlaceholderText("Orijinal par\u00e7a kodu")
+        self.inp_oem_code.setStyleSheet(input_style)
+        self.inp_oem_code.setMinimumHeight(42)
+
+        self.inp_equivalent_code = QLineEdit()
+        self.inp_equivalent_code.setPlaceholderText("Muadil / alternatif kod")
+        self.inp_equivalent_code.setStyleSheet(input_style)
+        self.inp_equivalent_code.setMinimumHeight(42)
+
+        if self.is_automotive:
+            v2b_1 = QVBoxLayout(); v2b_1.setSpacing(8)
+            v2b_1.addWidget(QLabel("OEM Kod", styleSheet=label_style))
+            v2b_1.addWidget(self.inp_oem_code)
+            r2b.addLayout(v2b_1, 1)
+
+            v2b_2 = QVBoxLayout(); v2b_2.setSpacing(8)
+            v2b_2.addWidget(QLabel("Muadil Kod", styleSheet=label_style))
+            v2b_2.addWidget(self.inp_equivalent_code)
+            r2b.addLayout(v2b_2, 1)
+
+        v2b_3 = QVBoxLayout(); v2b_3.setSpacing(8)
+        v2b_3.addWidget(QLabel("Raf", styleSheet=label_style))
+        self.inp_shelf = QLineEdit()
+        self.inp_shelf.setPlaceholderText("Raf / g\u00f6z")
+        self.inp_shelf.setStyleSheet(input_style)
+        self.inp_shelf.setMinimumHeight(42)
+        v2b_3.addWidget(self.inp_shelf)
+        r2b.addLayout(v2b_3, 1)
+        content_layout.addLayout(r2b)
         
         # Row 3: Stock & Min
         r3 = QHBoxLayout()
         r3.setSpacing(16)
         v3_1 = QVBoxLayout(); v3_1.setSpacing(8)
-        v3_1.addWidget(QLabel("Mevcut Stok Miktarı", styleSheet=label_style))
-        self.inp_stock = QSpinBox()
-        self.inp_stock.setRange(0, 100000); self.inp_stock.setValue(1)
-        self.inp_stock.setStyleSheet(input_style)
+        v3_1.addWidget(QLabel(labels["stock"], styleSheet=label_style))
+        self.inp_stock = QDoubleSpinBox()
+        self.inp_stock.setRange(0, 1000000)
+        self.inp_stock.setDecimals(3)
+        self.inp_stock.setValue(1)
+        self.inp_stock.setSingleStep(0.5)
+        self._apply_compact_spinbox_style(self.inp_stock)
         self.inp_stock.setFixedHeight(42)
         v3_1.addWidget(self.inp_stock)
         r3.addLayout(v3_1, 1)
-        
+
+        v3_unit = QVBoxLayout(); v3_unit.setSpacing(8)
+        v3_unit.addWidget(QLabel("Birim", styleSheet=label_style))
+        self.cmb_unit = QComboBox()
+        self.cmb_unit.addItems(["Adet", "Metre", "Kg", "Lt", "Paket", "Kutu"])
+        self.cmb_unit.setStyleSheet(input_style)
+        self.cmb_unit.setFixedHeight(42)
+
+        def _on_unit_changed(unit_text):
+            is_decimal = unit_text in ("Metre", "Kg", "Lt")
+            self.inp_stock.setDecimals(3 if is_decimal else 0)
+            self.inp_stock.setSingleStep(0.5 if is_decimal else 1)
+            if hasattr(self, "inp_min_stock"):
+                self.inp_min_stock.setDecimals(3 if is_decimal else 0)
+                self.inp_min_stock.setSingleStep(0.5 if is_decimal else 1)
+
+        self.cmb_unit.currentTextChanged.connect(_on_unit_changed)
+        v3_unit.addWidget(self.cmb_unit)
+        r3.addLayout(v3_unit, 1)
+
         v3_2 = QVBoxLayout(); v3_2.setSpacing(8)
         v3_2.addWidget(QLabel("Kritik Stok Limiti", styleSheet=label_style))
-        self.inp_min_stock = QSpinBox()
-        self.inp_min_stock.setRange(0, 10000); self.inp_min_stock.setValue(5)
-        self.inp_min_stock.setStyleSheet(input_style)
+        self.inp_min_stock = QDoubleSpinBox()
+        self.inp_min_stock.setRange(0, 100000)
+        self.inp_min_stock.setDecimals(3)
+        self.inp_min_stock.setValue(5)
+        self.inp_min_stock.setSingleStep(1)
+        self._apply_compact_spinbox_style(self.inp_min_stock)
         self.inp_min_stock.setFixedHeight(42)
         v3_2.addWidget(self.inp_min_stock)
         r3.addLayout(v3_2, 1)
+        _on_unit_changed(self.cmb_unit.currentText())
         content_layout.addLayout(r3)
         
 
@@ -544,7 +829,7 @@ class AddStockDialog(ModernDialog):
                 color: @selection_text;
                 border: 1px solid @accent;
             }
-            QRadioButton:hover:!checked {
+            QRadioButton:!checked:hover {
                 background: @surface;
                 color: @text;
             }
@@ -583,19 +868,19 @@ class AddStockDialog(ModernDialog):
         r4 = QHBoxLayout()
         r4.setSpacing(16)
         v4_1 = QVBoxLayout(); v4_1.setSpacing(8)
-        v4_1.addWidget(QLabel("Alış Fiyatı (Birim)", styleSheet=label_style))
+        v4_1.addWidget(QLabel(labels["purchase"], styleSheet=label_style))
         self.inp_purchase_price = QDoubleSpinBox()
         self.inp_purchase_price.setRange(0, 1000000); self.inp_purchase_price.setSuffix(f" {CurrencyHelper.get_symbol(currency_code=CurrencyHelper.get_code(self.db))}")
-        self.inp_purchase_price.setStyleSheet(input_style)
+        self._apply_compact_spinbox_style(self.inp_purchase_price)
         self.inp_purchase_price.setFixedHeight(42)
         v4_1.addWidget(self.inp_purchase_price)
         r4.addLayout(v4_1, 1)
         
         v4_2 = QVBoxLayout(); v4_2.setSpacing(8)
-        v4_2.addWidget(QLabel("Satış Fiyatı (Birim)", styleSheet=label_style))
+        v4_2.addWidget(QLabel(labels["sale"], styleSheet=label_style))
         self.inp_price = QDoubleSpinBox()
         self.inp_price.setRange(0, 1000000); self.inp_price.setSuffix(f" {CurrencyHelper.get_symbol(currency_code=CurrencyHelper.get_code(self.db))}")
-        self.inp_price.setStyleSheet(input_style)
+        self._apply_compact_spinbox_style(self.inp_price)
         self.inp_price.setFixedHeight(42)
         v4_2.addWidget(self.inp_price)
         r4.addLayout(v4_2, 1)
@@ -603,16 +888,70 @@ class AddStockDialog(ModernDialog):
         
         # Row 5: Desc
         v5 = QVBoxLayout(); v5.setSpacing(8)
-        v5.addWidget(QLabel("Ürün Açıklaması / Notlar", styleSheet=label_style))
+        v5.addWidget(QLabel(labels["desc"], styleSheet=label_style))
         self.inp_desc = QLineEdit()
-        self.inp_desc.setPlaceholderText("Ürün hakkında detaylı bilgi girin...")
+        self.inp_desc.setPlaceholderText(labels["desc_placeholder"])
         self.inp_desc.setStyleSheet(input_style)
         self.inp_desc.setMinimumHeight(42)
         self.inp_desc.editingFinished.connect(self._suggest_category)
         v5.addWidget(self.inp_desc)
         content_layout.addLayout(v5)
+
+        self.inp_compatible_models = QLineEdit()
+        self.inp_compatible_models.setPlaceholderText(labels["compatibility_placeholder"])
+        self.inp_compatible_models.setStyleSheet(input_style)
+        self.inp_compatible_models.setMinimumHeight(42)
+        if self.is_automotive:
+            v5b = QVBoxLayout(); v5b.setSpacing(8)
+            v5b.addWidget(QLabel(labels["compatibility"], styleSheet=label_style))
+            v5b.addWidget(self.inp_compatible_models)
+            content_layout.addLayout(v5b)
+
+            r5c = QHBoxLayout()
+            r5c.setSpacing(16)
+
+            v5c_1 = QVBoxLayout(); v5c_1.setSpacing(8)
+            v5c_1.addWidget(QLabel("Arac Marka", styleSheet=label_style))
+            self.inp_vehicle_brand = QLineEdit()
+            self.inp_vehicle_brand.setPlaceholderText("Orn: Ford, Fiat, Renault")
+            self.inp_vehicle_brand.setStyleSheet(input_style)
+            self.inp_vehicle_brand.setMinimumHeight(42)
+            v5c_1.addWidget(self.inp_vehicle_brand)
+            r5c.addLayout(v5c_1, 1)
+
+            v5c_2 = QVBoxLayout(); v5c_2.setSpacing(8)
+            v5c_2.addWidget(QLabel("Arac Model", styleSheet=label_style))
+            self.inp_vehicle_model = QLineEdit()
+            self.inp_vehicle_model.setPlaceholderText("Orn: Courier, Doblo, Clio")
+            self.inp_vehicle_model.setStyleSheet(input_style)
+            self.inp_vehicle_model.setMinimumHeight(42)
+            v5c_2.addWidget(self.inp_vehicle_model)
+            r5c.addLayout(v5c_2, 1)
+
+            v5c_3 = QVBoxLayout(); v5c_3.setSpacing(8)
+            v5c_3.addWidget(QLabel("Parca Konumu", styleSheet=label_style))
+            self.cmb_position = QComboBox()
+            self.cmb_position.addItems(self.AUTOMOTIVE_POSITIONS)
+            self.cmb_position.setEditable(True)
+            self.cmb_position.setStyleSheet(input_style)
+            self.cmb_position.setMinimumHeight(42)
+            v5c_3.addWidget(self.cmb_position)
+            r5c.addLayout(v5c_3, 1)
+            content_layout.addLayout(r5c)
+
+            v5d = QVBoxLayout(); v5d.setSpacing(8)
+            v5d.addWidget(QLabel("Tedarikci", styleSheet=label_style))
+            self.inp_supplier = QLineEdit()
+            self.inp_supplier.setPlaceholderText("Orn: oto yedek parca tedarikcisi")
+            self.inp_supplier.setStyleSheet(input_style)
+            self.inp_supplier.setMinimumHeight(42)
+            v5d.addWidget(self.inp_supplier)
+            content_layout.addLayout(v5d)
         
         # Row 5b: Fotoğraf
+        if not self.is_automotive:
+            for widget in (self.inp_oem_code, self.inp_equivalent_code, self.inp_compatible_models):
+                widget.clear()
         photo_row = QHBoxLayout()
         photo_row.setSpacing(14)
         photo_row.setAlignment(Qt.AlignmentFlag.AlignTop)
@@ -647,7 +986,7 @@ class AddStockDialog(ModernDialog):
         self.btn_clear_photo.clicked.connect(self._clear_photo)
         self.btn_clear_photo.setVisible(False)
 
-        photo_label = QLabel("Ürün Fotoğrafı (Opsiyonel)")
+        photo_label = QLabel(labels["photo"])
         photo_label.setWordWrap(True)
         photo_label.setStyleSheet(label_style)
         photo_btns.addWidget(photo_label)
@@ -681,7 +1020,7 @@ class AddStockDialog(ModernDialog):
         
         content_layout.addStretch()
 
-        scroll = NoWheelScrollArea()
+        scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -722,6 +1061,8 @@ class AddStockDialog(ModernDialog):
         footer_layout.setSpacing(15)
         
         btn_cancel = QPushButton("Vazgeç")
+        btn_cancel.setDefault(False)
+        btn_cancel.setAutoDefault(False)
         btn_cancel.setFixedSize(140, 50)
         btn_cancel.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_cancel.setStyleSheet(theme_qss("""
@@ -739,7 +1080,9 @@ class AddStockDialog(ModernDialog):
         
         footer_layout.addStretch()
         
-        btn_save = QPushButton("✅ Ürünü Kaydet")
+        btn_save = QPushButton(f"\u2705 {labels['save']}")
+        btn_save.setDefault(False)
+        btn_save.setAutoDefault(False)
         btn_save.setFixedSize(200, 50)
         btn_save.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_save.setStyleSheet(theme_qss("""
@@ -754,12 +1097,19 @@ class AddStockDialog(ModernDialog):
             QPushButton:hover { background: @accent_hover; }
         """))
         self.btn_save = btn_save
+        self._save_button_default_text = f"\u2705 {labels['save']}"
+        self._save_button_progress_text = f"\u23f3 {labels['saving']}"
         btn_save.clicked.connect(self.save)
         footer_layout.addWidget(btn_save)
         
         container_layout.addWidget(footer)
         
         main_layout.addWidget(self.container)
+
+    def _wire_ui_signals(self):
+        self.cmb_bank.currentIndexChanged.connect(self._on_ui_widget_changed)
+        if hasattr(self, "cmb_position"):
+            self.cmb_position.currentIndexChanged.connect(self._on_ui_widget_changed)
 
     def _pick_photo(self):
         path, _ = QFileDialog.getOpenFileName(
@@ -791,55 +1141,118 @@ class AddStockDialog(ModernDialog):
     def save(self):
         # Disable button to prevent double clicks
         self.btn_save.setEnabled(False)
-        self.btn_save.setText("⏳ Kaydediliyor...")
-        QApplication.processEvents()
+        self.btn_save.setText(self._save_button_progress_text)
 
         name = self.inp_name.text().strip()
         if not name:
-            show_warning(self, "Lütfen ürün adı giriniz!")
+            show_warning(self, f"L\u00fctfen {self.labels['name'].lower()} giriniz!")
             self.btn_save.setEnabled(True)
-            self.btn_save.setText("✅ Ürünü Kaydet")
+            self.btn_save.setText(self._save_button_default_text)
             return
             
         category = self.inp_category.currentText()
         brand = self.inp_brand.text().strip()
         code = self.inp_code.text()
+        oem_code = self.inp_oem_code.text().strip()
+        equivalent_code = self.inp_equivalent_code.text().strip()
+        shelf = self.inp_shelf.text().strip()
+        compatible_models = self.inp_compatible_models.text().strip()
         stock = self.inp_stock.value()
         min_stock = self.inp_min_stock.value()
+        unit = self.cmb_unit.currentText() if hasattr(self, 'cmb_unit') else 'Adet'
 
         purchase_price = self.inp_purchase_price.value()
         price = self.inp_price.value()
-        desc = self.inp_desc.text()
-        
+        desc = self._compose_description(self.inp_desc.text())
+
         currency = 'TRY'
         if self.btn_usd.isChecked(): currency = 'USD'
         elif self.btn_eur.isChecked(): currency = 'EUR'
-        
+
+        # Kur: Non-TRY secilirse 1.0 ile gecici olarak kaydet;
+        # Boyle DB'de kur tanimli olmasa bile kayit basarisiz olmaz.
+        # Gercek kur ayarlar uzerinden sonradan guncellenir.
+        tx_exchange_rate = None  # Let CurrencyHelper use a rate when available.
+        if currency != 'TRY':
+            from src.utils.currency_helper import CurrencyHelper
+            raw_rate = CurrencyHelper._get_rate(self.db, currency)
+            tx_exchange_rate = float(raw_rate) if raw_rate and float(raw_rate) > 0 else 1.0
+
         bank_id = self.cmb_bank.currentData()
+        bank_account_id = None if bank_id == -1 else bank_id
+        payment_method = "Banka/Kasa" if bank_account_id else "Nakit"
         
+        finance_recorded = False
         if self.item_id:
-            ok = self.db.update_part(self.item_id, name, category, stock, price, desc, min_stock, code, None, purchase_price, currency, photo_path=self._photo_path, brand=brand)
+            ok = self.db.update_part(
+                self.item_id, name, category, stock, price, desc, min_stock, code, shelf,
+                purchase_price, currency, photo_path=self._photo_path, brand=brand,
+                oem_code=oem_code, equivalent_code=equivalent_code, compatible_models=compatible_models,
+                bank_account_id=bank_account_id, payment_method=payment_method,
+                unit=unit,
+            )
             part_id = self.item_id if ok else None
         else:
-            part_id = self.db.add_part(name, category, stock, price, desc=desc, min_stock=min_stock, code=code, purchase_price=purchase_price, currency=currency, photo_path=self._photo_path, brand=brand)
+            try:
+                part_id = self.db.add_part(
+                    name,
+                    category,
+                    stock,
+                    price,
+                    desc=desc,
+                    min_stock=min_stock,
+                    code=code,
+                    shelf=shelf,
+                    purchase_price=purchase_price,
+                    currency=currency,
+                    photo_path=self._photo_path,
+                    brand=brand,
+                    oem_code=oem_code,
+                    equivalent_code=equivalent_code,
+                    compatible_models=compatible_models,
+                    unit=unit,
+                    commit=True,
+                )
+                if not part_id:
+                    raise RuntimeError("Stock card could not be recorded")
+            except Exception as save_error:
+                try:
+                    self.db.conn.rollback()
+                except Exception as rollback_error:
+                    logger.error(
+                        "Stock card rollback failed: %s",
+                        rollback_error,
+                    )
+                logger.exception("Atomic stock card save failed")
+                show_error(
+                    self,
+                    f"Stok karti kaydedilemedi: {save_error}",
+                )
+                self.btn_save.setEnabled(True)
+                self.btn_save.setText(self._save_button_default_text)
+                return
 
         if part_id:
             # ... existing success logic ...
             finance_warning = None
-            if not self.item_id and purchase_price > 0 and stock > 0:
+            if (
+                not self.item_id
+                and purchase_price > 0
+                and stock > 0
+                and not finance_recorded
+            ):
                 try:
                     total_cost = purchase_price * stock
-                    b_id = None if bank_id == -1 else bank_id
-                    pm_method = "Banka/Kasa" if b_id else "Nakit"
                     self.db.add_transaction(
                         t_type="Gider",
-                        category="Stok Alımı",
+                        category=self.labels["finance_category"],
                         amount=total_cost,
-                        description=f"Stok Alımı: {stock} x {name}",
-                        bank_account_id=b_id,
-                        payment_method=pm_method,
+                        description=f"{self.labels['finance_category']}: {stock} {unit} x {name}",
+                        bank_account_id=bank_account_id,
+                        payment_method=payment_method,
                         currency=currency,
                         original_amount=total_cost,
+                        exchange_rate=tx_exchange_rate,
                         selected_services=[{
                             "kind": "stock_purchase",
                             "name": name,
@@ -852,6 +1265,7 @@ class AddStockDialog(ModernDialog):
                 except Exception as e:
                     logger.error("AddStockDialog bank slip transaction error: %s", e)
                     finance_warning = str(e)
+            refresh_warning = None
             try:
                 parent_page = self.parent() if callable(getattr(self, "parent", None)) else None
                 main_window = getattr(parent_page, "main_window", None) or getattr(self.window(), "main_window", None)
@@ -861,29 +1275,53 @@ class AddStockDialog(ModernDialog):
                         page = getattr(main_window, "pages", {}).get(page_index)
                         if page and hasattr(page, "refresh_data"):
                             page.refresh_data()
-            except Exception:
-                pass
+            except Exception as refresh_error:
+                refresh_warning = str(refresh_error)
+                logger.warning(
+                    "Stock saved but page refresh failed: %s",
+                    refresh_error,
+                )
             if finance_warning:
                 show_warning(self, f"Stok kaydedildi ancak finans fisine yazilamadi: {finance_warning}")
+            elif refresh_warning:
+                show_warning(
+                    self,
+                    (
+                        "Stok kaydedildi ancak ekran yenilenemedi: "
+                        f"{refresh_warning}"
+                    ),
+                )
             else:
                 if self.item_id:
                     show_success(self, "Stok karti guncellendi.")
                 else:
-                    show_success(self, "Stok karti ve finans kaydi olusturuldu.")
+                    if self.is_automotive:
+                        show_success(self, "Par\u00e7a kart\u0131 ve finans kayd\u0131 olu\u015fturuldu.")
+                    else:
+                        show_success(self, "Stok karti ve finans kaydi olusturuldu.")
             self.accept()
         else:
             show_error(self, "Stok kartı eklenirken bir hata oluştu.")
             self.btn_save.setEnabled(True)
-            self.btn_save.setText("✅ Ürünü Kaydet")
+            self.btn_save.setText(self._save_button_default_text)
     
     def get_data(self):
         return {
             "name": self.inp_name.text(),
             "category": self.inp_category.currentText(),
             "code": self.inp_code.text(),
+            "oem_code": self.inp_oem_code.text(),
+            "equivalent_code": self.inp_equivalent_code.text(),
+            "shelf_number": self.inp_shelf.text(),
+            "compatible_models": self.inp_compatible_models.text(),
             "stock": self.inp_stock.value(),
             "min_stock": self.inp_min_stock.value(),
+            "unit": self.cmb_unit.currentText() if hasattr(self, "cmb_unit") else "Adet",
             "purchase_price": self.inp_purchase_price.value(),
             "price": self.inp_price.value(),
-            "desc": self.inp_desc.text()
+            "desc": self._compose_description(self.inp_desc.text()),
+            "supplier": self.inp_supplier.text() if hasattr(self, "inp_supplier") else "",
+            "vehicle_brand": self.inp_vehicle_brand.text() if hasattr(self, "inp_vehicle_brand") else "",
+            "vehicle_model": self.inp_vehicle_model.text() if hasattr(self, "inp_vehicle_model") else "",
+            "position": self.cmb_position.currentText() if hasattr(self, "cmb_position") else "",
         }

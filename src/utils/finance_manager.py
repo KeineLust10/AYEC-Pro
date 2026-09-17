@@ -3,9 +3,33 @@
 from datetime import datetime, timedelta
 import re
 from src.utils.logger import logger
+from src.utils.income_tax_tariff_service import IncomeTaxTariffService
 
 
 class FinanceManager:
+    def _repair_accounting_currency_values(self):
+        """Keep accounting amount and TRY equivalent canonical for foreign rows."""
+        try:
+            columns = set(self.db._get_table_columns("accounting"))
+            required = {"amount", "original_amount", "try_equivalent", "currency", "exchange_rate"}
+            if not required.issubset(columns):
+                return
+            self.db.cursor.execute(
+                """
+                UPDATE accounting
+                   SET amount = ROUND(original_amount * exchange_rate, 4),
+                       try_equivalent = ROUND(original_amount * exchange_rate, 4)
+                 WHERE UPPER(COALESCE(currency, 'TRY')) IN ('USD', 'EUR')
+                   AND COALESCE(original_amount, 0) > 0
+                   AND COALESCE(exchange_rate, 0) > 1
+                   AND ABS(COALESCE(try_equivalent, 0) - (original_amount * exchange_rate)) > 0.01
+                """
+            )
+            if self.db.cursor.rowcount:
+                self.db.conn.commit()
+        except Exception as exc:
+            logger.warning("Accounting currency repair skipped: %s", exc)
+
     """
     Centralized Finance Manager to aggregate data from:
     1. 'transactions' table (Legacy Customer Transactions)
@@ -15,6 +39,10 @@ class FinanceManager:
 
     def __init__(self, db):
         self.db = db
+
+    def get(self, key, default=None):
+        """Allow FinanceManager to be accessed partially like a dictionary for compatibility."""
+        return getattr(self, key, default)
 
     @staticmethod
     def _safe_float(value, default=0.0):
@@ -29,6 +57,36 @@ class FinanceManager:
             return float(text)
         except Exception:
             return default
+
+    @staticmethod
+    def _parse_sort_datetime(value):
+        text = str(value or "").strip()
+        if not text:
+            return datetime.min
+        text = text.replace("T", " ")
+        if "." in text:
+            text = text.split(".", 1)[0]
+        formats = (
+            "%Y-%m-%d %H:%M:%S",
+            "%Y-%m-%d %H:%M",
+            "%Y-%m-%d",
+            "%d.%m.%Y %H:%M:%S",
+            "%d.%m.%Y %H:%M",
+            "%d.%m.%Y",
+        )
+        for fmt in formats:
+            try:
+                return datetime.strptime(text, fmt)
+            except Exception:
+                pass
+        return datetime.min
+
+    @classmethod
+    def _sort_payload(cls, value):
+        parsed = cls._parse_sort_datetime(value)
+        if parsed == datetime.min:
+            return "", 0.0
+        return parsed.strftime("%Y-%m-%d %H:%M:%S"), parsed.timestamp()
 
     def _extract_original_amount(self, description, currency):
         if not description or currency == "TRY":
@@ -111,6 +169,8 @@ class FinanceManager:
                 ).strip()
                 if fiscal_start:
                     start = datetime.strptime(fiscal_start, "%Y-%m-%d")
+                    if start > now:
+                        start = None
             except Exception:
                 start = None
 
@@ -301,20 +361,39 @@ class FinanceManager:
         totals = {"TRY": 0.0, "USD": 0.0, "EUR": 0.0}
         total_try = 0.0
         try:
-            rows = self.db.cursor.execute(
+            row = self.db.cursor.execute(
                 """
-                SELECT UPPER(COALESCE(currency, 'TRY')), COALESCE(current_balance, 0), COALESCE(exchange_rate, 1)
+                SELECT
+                    SUM(
+                        CASE WHEN UPPER(COALESCE(currency, 'TRY')) = 'TRY'
+                            THEN ABS(current_balance) ELSE 0 END
+                    ) AS try_balance,
+                    SUM(
+                        CASE WHEN UPPER(COALESCE(currency, 'TRY')) = 'USD'
+                            THEN ABS(current_balance) ELSE 0 END
+                    ) AS usd_balance,
+                    SUM(
+                        CASE WHEN UPPER(COALESCE(currency, 'TRY')) = 'EUR'
+                            THEN ABS(current_balance) ELSE 0 END
+                    ) AS eur_balance,
+                    SUM(
+                        CASE
+                            WHEN UPPER(COALESCE(currency, 'TRY')) = 'TRY'
+                                THEN ABS(current_balance)
+                            ELSE ABS(current_balance)
+                                * COALESCE(NULLIF(exchange_rate, 0), 1)
+                        END
+                    ) AS try_total
                 FROM currency_transactions
                 WHERE transaction_type = 'DEBIT'
-                  AND COALESCE(current_balance, 0) < 0
+                  AND current_balance < 0
                 """
-            ).fetchall()
-            for currency, balance, rate in rows:
-                cur = str(currency or "TRY").upper()
-                bal = abs(self._safe_float(balance))
-                fx = self._safe_float(rate, 1.0) or 1.0
-                totals[cur] = totals.get(cur, 0.0) + bal
-                total_try += bal if cur == "TRY" else bal * fx
+            ).fetchone()
+            if row:
+                totals["TRY"] = self._safe_float(row[0])
+                totals["USD"] = self._safe_float(row[1])
+                totals["EUR"] = self._safe_float(row[2])
+                total_try = self._safe_float(row[3])
         except Exception as exc:
             logger.error(f"Pending collections calc error: {exc}")
 
@@ -329,16 +408,20 @@ class FinanceManager:
         Calculates Total Revenue, Total Expenses, and Net Profit for a given period.
         Refined for Turkish Market: Gross/Net Ciro, Hot Cash, Pocket Net.
         """
+        self._repair_accounting_currency_values()
         start_date, end_date = self._get_date_range(period)
 
         gross_revenue = self._calculate_revenue(start_date, end_date)
-        net_revenue = gross_revenue / 1.20
+        # Per-entry VAT rates are not reliable in the current ledger schema.
+        # Keep revenue unchanged instead of inventing a blanket 20 percent VAT.
+        net_revenue = gross_revenue
         expenses = self._calculate_expenses(start_date, end_date)
         hot_cash = self._calculate_hot_cash(start_date, end_date)
         service_revenue = self._calculate_service_revenue(start_date, end_date)
         # BUG FİX: calculate_income_tax artık KDV dâhil değerleri (gross) alıp kendi içinde nete çeviriyor.
-        tax_res = self.calculate_income_tax(gross_revenue, expenses, period=period)
-        pocket_net = tax_res.get("net_after_tax", 0.0)
+        # Dashboard net reflects the actual ledger. Tax/VAT estimates stay in
+        # the tax analysis because rows can use different rates or no VAT.
+        pocket_net = gross_revenue - expenses
         pending, pending_details = self._calculate_pending_collections()
         uninvoiced_data = self._calculate_uninvoiced_stats(start_date, end_date)
 
@@ -402,11 +485,15 @@ class FinanceManager:
             logger.error(f"Service revenue calc error (accounting): {exc}")
         return total
 
-    def get_unified_ledger(self, limit=1000):
+    def get_unified_ledger(self, limit=1000, offset=0):
         """
         Returns a merged list of latest transactions from all sources.
         Sorted by date DESC.
         """
+        self._repair_accounting_currency_values()
+        limit = max(1, int(limit or 1000))
+        offset = max(0, int(offset or 0))
+        source_limit = limit + offset
         ledger = []
         try:
             accounting_cols = (
@@ -418,77 +505,7 @@ class FinanceManager:
             accounting_cols = set()
 
         start_date, end_date = self._get_date_range("fiscal")
-
-        cursor = self.db.cursor.execute(
-            """
-            SELECT ct.id, ct.created_at, ct.description, ct.amount, ct.currency, ct.transaction_type,
-                   ct.customer_id, ct.try_equivalent, ct.current_balance, ct.is_invoiced,
-                   ct.tracking_no, c.name as customer_name
-            FROM currency_transactions ct
-            LEFT JOIN customers c ON ct.customer_id = c.id
-            WHERE ct.created_at BETWEEN ? AND ?
-            ORDER BY ct.created_at DESC LIMIT ?
-            """,
-            (start_date, end_date, limit),
-        )
-
-        for row in cursor.fetchall():
-            (
-                rid,
-                date,
-                desc,
-                amt,
-                curr,
-                gtype,
-                cid,
-                try_val,
-                cur_bal,
-                is_inv,
-                tracking_no,
-                cname,
-            ) = row
-            cname = cname or "Genel Müşteri"
-            full_desc = f"{cname} - {desc}"
-            label_type = "Satış" if gtype == "DEBIT" else "Tahsilat"
-            if gtype == "DEBIT":
-                status = (
-                    "Tahsilat Bekliyor"
-                    if self._safe_float(cur_bal, 0.0) < 0
-                    else "Tamamlandı"
-                )
-            else:
-                status = "Tamamlandı"
-            item_color = "blue" if gtype == "DEBIT" else "green"
-
-            try:
-                actual_try = try_val if try_val is not None else amt
-                calc_rate = round(actual_try / amt, 4) if amt not in (None, 0) else 1.0
-            except Exception:
-                actual_try = amt
-                calc_rate = 1.0
-
-            ledger.append(
-                {
-                    "id": rid,
-                    "source": "currency",
-                    "date": date,
-                    "description": full_desc,
-                    "amount": amt,
-                    "amount_try": actual_try,
-                    "currency": curr,
-                    "rate": calc_rate if curr != "TRY" else 1.0,
-                    "status": status,
-                    "type_label": label_type,
-                    "color_code": item_color,
-                    "customer_id": cid,
-                    "customer_name": cname,
-                    "tracking_no": tracking_no,
-                    "ref_no": tracking_no,
-                    "balance": cur_bal,
-                    "is_invoiced": is_inv,
-                    "sort_key": date,
-                }
-            )
+        cur = self.db.conn.cursor()
 
         optional_accounting_fields = [
             "customer_id",
@@ -504,6 +521,7 @@ class FinanceManager:
             "original_amount",
             "product_service_id",
             "product_service_type",
+            "created_at",
         ]
         accounting_select_parts = [
             "id",
@@ -516,9 +534,9 @@ class FinanceManager:
         accounting_select_parts.extend(
             [field for field in optional_accounting_fields if field in accounting_cols]
         )
-        cursor = self.db.cursor.execute(
+        cursor = cur.execute(
             f"SELECT {', '.join(accounting_select_parts)} FROM accounting WHERE date >= SUBSTR(?, 1, 10) AND date <= SUBSTR(?, 1, 10) ORDER BY date DESC LIMIT ?",
-            (start_date, end_date, limit),
+            (start_date, end_date, source_limit),
         )
 
         for row in cursor.fetchall():
@@ -527,6 +545,7 @@ class FinanceManager:
                 continue
             rid = entry.get("id")
             date = entry.get("date")
+            created_at = entry.get("created_at")
             desc = entry.get("description") or ""
             amt = entry.get("amount") or 0
             ttype = entry.get("type")
@@ -538,6 +557,8 @@ class FinanceManager:
             )
             status = "Devredildi" if is_opening else "Tamamlandı"
             type_label = "Açılış" if is_opening else ttype
+            if not is_opening and "tahsilat" in self._normalized_category(cat):
+                type_label = "Tahsilat"
             currency = (entry.get("currency") or "TRY").upper()
             amount_try = entry.get("try_equivalent")
             if amount_try is None:
@@ -609,12 +630,65 @@ class FinanceManager:
                     "bank_account_id": entry.get("bank_account_id"),
                     "product_service_id": entry.get("product_service_id"),
                     "product_service_type": entry.get("product_service_type"),
-                    "sort_key": date,
+                    "sort_key": self._sort_payload(created_at or date)[0],
+                    "sort_ts": self._sort_payload(created_at or date)[1],
                 }
             )
 
-        ledger.sort(key=lambda x: x["sort_key"], reverse=True)
-        return ledger[:limit]
+
+        # --- Merge currency_transactions (payments, collections) ---
+        try:
+            ct_cursor = cur.execute(
+                """
+                SELECT ct.id, ct.created_at, ct.description, ct.amount,
+                       ct.currency, ct.transaction_type, ct.exchange_rate,
+                       ct.try_equivalent, ct.current_balance, ct.customer_id,
+                       ct.tracking_no, c.name AS customer_name
+                FROM currency_transactions ct
+                LEFT JOIN customers c ON c.id=ct.customer_id
+                WHERE ct.created_at >= ? AND ct.created_at <= ?
+                ORDER BY ct.created_at DESC LIMIT ?
+                """,
+                (start_date, end_date, source_limit),
+            )
+            for row in ct_cursor.fetchall():
+                (
+                    rid, date, desc, amt, curr, gtype, rate, try_val,
+                    current_balance, customer_id, tracking_no, customer_name,
+                ) = row
+                curr = (curr or "TRY").upper()
+                rate = self._safe_float(rate, 1.0) or 1.0
+                try_val = self._safe_float(try_val, 0.0) or self._safe_float(amt, 0.0)
+                amt_foreign = self._safe_float(amt, 0.0)
+                if gtype == "DEBIT":
+                    type_label = "Sat\u0131\u015f/Devir"
+                    status = "Tamamland\u0131" if self._safe_float(current_balance, 0.0) >= 0 else "Tahsilat Bekliyor"
+                    color = "green"
+                elif gtype == "CREDIT":
+                    type_label = "Tahsilat"
+                    status = "Tamamland\u0131"
+                    color = "blue"
+                else:
+                    type_label = gtype or "\u0130\u015flem"
+                    status = "Tamamland\u0131"
+                    color = "green"
+                ledger.append({
+                    "id": rid, "source": "currency", "date": date,
+                    "description": desc or type_label,
+                    "amount": amt_foreign, "amount_try": try_val,
+                    "currency": curr, "rate": rate,
+                    "status": status, "type_label": type_label, "color_code": color,
+                    "customer_id": customer_id, "customer_name": customer_name,
+                    "tracking_no": tracking_no, "ref_no": tracking_no, "selected_services": None,
+                    "payment_method": None, "bank_account_id": None,
+                    "product_service_id": None, "product_service_type": None,
+                    "sort_key": self._sort_payload(date)[0],
+                    "sort_ts": self._sort_payload(date)[1],
+                })
+        except Exception as exc:
+            logger.error(f"Unified ledger currency_transactions error: {exc}")
+        ledger.sort(key=lambda x: (x.get("sort_ts") or 0, x.get("id") or 0), reverse=True)
+        return ledger[offset : offset + limit]
 
     def get_customer_ledger(self, customer_id, limit=100):
         """
@@ -663,7 +737,8 @@ class FinanceManager:
                     "status": status,
                     "type_label": label_type,
                     "color_code": item_color,
-                    "sort_key": date,
+                    "sort_key": self._sort_payload(date)[0],
+                    "sort_ts": self._sort_payload(date)[1],
                 }
             )
 
@@ -704,11 +779,12 @@ class FinanceManager:
                     "status": status,
                     "type_label": type_label,
                     "color_code": item_color,
-                    "sort_key": date,
+                    "sort_key": self._sort_payload(date)[0],
+                    "sort_ts": self._sort_payload(date)[1],
                 }
             )
 
-        ledger.sort(key=lambda x: x["sort_key"], reverse=True)
+        ledger.sort(key=lambda x: (x.get("sort_ts") or 0, x.get("id") or 0), reverse=True)
         return ledger[:limit]
 
     def calculate_cogs(self, start_date=None, end_date=None):
@@ -745,30 +821,27 @@ class FinanceManager:
             logger.error(f"COGS calc error: {e}")
             return 0.0
 
-    def calculate_income_tax(self, income, expense, period="year"):
+    def calculate_income_tax(
+        self, income, expense, period="year", tax_year=None, income_type="non_wage"
+    ):
         """
-        Calculates progressive income tax based on 2026 TR Tax Brackets.
-        Matches User Prompt Requirements.
+        Calculates progressive income tax using the cached official GIB tariff.
         """
         # Calculate Year-to-Date COGS
         start, end = self._get_date_range(period)
         cogs = self.calculate_cogs(start, end)
 
         # VAT Separation (Tüm girişlerin KDV DAHİL (Gross) olduğunu varsayıyoruz)
-        vat_rate_sales = 0.20
-        vat_rate_expenses = 0.20
-
-        # Income is treated as GROSS (VAT included)
-        income_excl_vat = income / (1 + vat_rate_sales)
-        vat_collected = income - income_excl_vat
-
-        # Expenses are treated as GROSS (VAT included)
-        expense_excl_vat = expense / (1 + vat_rate_expenses)
-        vat_paid = expense - expense_excl_vat
+        # Accounting rows do not store a reliable per-entry VAT rate. Applying
+        # a blanket rate understates zero-rated and non-VAT expenses.
+        income_excl_vat = float(income or 0)
+        expense_excl_vat = float(expense or 0)
+        vat_collected = 0.0
+        vat_paid = 0.0
 
         # Ödenecek KDV (Tahmini): Tahsil Edilen KDV - Ödenen KDV
         # Eğer sonuç negatifse "0" görünmeli.
-        vat_payable = max(0, vat_collected - vat_paid)
+        vat_payable = 0.0
 
         # Net Kâr (Vergi Matrahı): Toplam Gelir (KDV Hariç) - Toplam Gider (KDV Hariç) - SMM
         profit = income_excl_vat - (expense_excl_vat + cogs)
@@ -790,37 +863,27 @@ class FinanceManager:
             result_template["net_after_tax"] = profit - vat_payable
             return result_template
 
-        tax_total = 0.0
-        remaining_profit = profit
-        breakdown = []
-
-        # 2025/2026 TR Official Brackets (Şahıs Şirketi / Gelir Vergisi Dilimleri)
-        # Thresholds: 158k (%15), 330k (%20), 1.2M (%27), 4.3M (%35), 4.3M+ (%40)
-        brackets = [
-            (158000, 0.15),
-            (330000 - 158000, 0.20),
-            (1200000 - 330000, 0.27),
-            (4300000 - 1200000, 0.35),
-            (float("inf"), 0.40),
-        ]
-
-        for limit, rate in brackets:
-            if remaining_profit <= 0:
-                break
-
-            taxable_amount = min(remaining_profit, limit)
-            tax_chunk = taxable_amount * rate
-
-            tax_total += tax_chunk
-            remaining_profit -= taxable_amount
-
-            breakdown.append({"base": taxable_amount, "rate": rate, "tax": tax_chunk})
+        tariff_result = IncomeTaxTariffService().calculate(
+            profit,
+            year=tax_year or datetime.now().year,
+            income_type=income_type,
+        )
+        tax_total = tariff_result["tax"]
+        breakdown = tariff_result["brackets"]
 
         # Vergi ve KDV Sonrası Net: Net Kâr - Hesaplanan Gelir Vergisi - Ödenecek KDV
         net_result = profit - tax_total - vat_payable
 
         result_template.update(
-            {"tax": tax_total, "net_after_tax": net_result, "brackets": breakdown}
+            {
+                "tax": tax_total,
+                "net_after_tax": net_result,
+                "brackets": breakdown,
+                "tax_year": tariff_result["year"],
+                "income_type": tariff_result["income_type"],
+                "tariff_source": tariff_result["source"],
+                "tariff_updated_at": tariff_result["updated_at"],
+            }
         )
 
         return result_template

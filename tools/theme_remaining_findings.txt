@@ -1,0 +1,470 @@
+
+=== PATTERN: background(-color)?\s*:\s*@text\b ===
+
+src/ui\main_window_backup.py:394:                QMainWindow, QWidget { background-color: @text; color: @selection_text; }
+src/ui\main_window_backup.py:395:                QTableWidget { background-color: @text; color: @selection_text; gridline-color: @text_muted; }
+src/ui\main_window_backup.py:396:                QLineEdit { background-color: @text; color: @selection_text; }
+src/ui\main_window_backup.py:397:                QHeaderView::section { background-color: @text; color: @selection_text; }
+src/ui\main_window_backup.py:404:                QHeaderView::section { background-color: @text; color: @selection_text; }
+src/ui\main_window_backup.py:406:        self.side_menu.setStyleSheet(theme_qss("background-color: @text; color: @selection_text;"))
+src/ui\modern_login_window.py:1306:                selection-background-color: @text;
+src/ui\modern_login_window.py:2044:            QPushButton { background: @text; color: @selection_text; border-radius: 6px; font-weight: 600; font-size: 12px; }
+src/ui\modern_login_window.py:2054:            QPushButton { background: @text; color: @selection_text; border-radius: 6px; font-weight: 600; font-size: 12px; }
+src/ui\modern_login_window.py:2397:        logo.setStyleSheet(theme_qss("background: @text; color: @selection_text; border-radius: 25px; font-weight: bold;"))
+src/ui\dialogs\customer_360_dialog.py:92:            background-color: @text;
+src/ui\dialogs\add_device_dialog.py:313:        self.btn_mic.setStyleSheet(theme_qss("background: @text; color: @warning; border: 2px solid @warning; border-radius: 20px; font-size: 18px;"))
+src/ui\dialogs\add_device_dialog.py:333:        self.btn_mic.setStyleSheet(theme_qss("background: @text; color: @warning; border: 2px solid @warning; border-radius: 20px; font-size: 18px;"))
+src/ui\pages\announcements_page.py:248:                background-color: @text;
+src/ui\pages\appointments_page.py:76:                QCalendarWidget QToolButton:hover { background-color: @text; border-radius: 4px; }
+src/ui\pages\customers_page.py:740:            html += "<tr style='background:@text;color: @selection_text;font-weight:bold;'>"
+src/ui\dialogs\global_search_dialog.py:31:                background-color: @text;
+src/ui\dialogs\global_search_dialog.py:47:                background-color: @text;
+src/ui\pages\quick_notes_settings_widget.py:581:            QPushButton:hover { background: @text; }
+src/ui\dialogs\new_service_dialog.py:944:                background-color: @text;
+src/ui\dialogs\new_service_dialog.py:950:            QPushButton:hover { background-color: @text; }
+src/ui\dialogs\photo_gallery_dialog.py:209:                    background-color: @text;
+src/ui\dialogs\photo_gallery_dialog.py:215:                QPushButton:hover { background-color: @text; }
+src/ui\dialogs\registration_dialog.py:495:            QPushButton:hover { background: @text; }
+src/ui\dialogs\security_confirm_dialog.py:126:                background-color: @text;
+src/ui\dialogs\security_confirm_dialog.py:134:                background-color: @text;
+src/ui\widgets\side_menu_backup.py:154:        line.setStyleSheet(theme_qss("background-color: @text; margin-top: 5px; margin-bottom: 5px;"))
+src/ui\widgets\side_menu_backup.py:201:                background-color: @text;
+src/ui\widgets\side_menu_backup.py:360:                background-color: @text;
+src/ui\widgets\modern_sidebar.py:174:                background-color: @text;
+src/ui\widgets\modern_sidebar.py:188:        header.setStyleSheet(theme_qss("background-color: @text; border-bottom: 2px solid @selection_text;"))
+src/ui\widgets\modern_sidebar.py:208:            QScrollArea { border: none; background-color: @text; }
+src/ui\widgets\modern_sidebar.py:215:        container.setStyleSheet(theme_qss("background-color: @text;"))
+
+=== PATTERN: background(-color)?\s*:\s*@selection_text\b ===
+
+src/ui\login_window.py:26:                background-color: @selection_text; 
+src/ui\modern_login_window.py:1294:                background: @selection_text;
+src/ui\modern_login_window.py:1324:            QTableWidget { background: @selection_text; color: @border; border: 1px solid @text; border-radius: 10px; }
+src/ui\modern_login_window.py:1325:            QHeaderView::section { background: @selection_text; color: @disabled_text; padding: 6px; border: none; }
+src/ui\modern_login_window.py:1338:                    background: @selection_text;
+src/ui\modern_login_window.py:1352:                background: @selection_text;
+src/ui\modern_login_window.py:1367:            background: @selection_text;
+src/ui\modern_login_window.py:2063:            QPushButton { background: @selection_text; color: @border; border-radius: 16px; font-weight: 700; }
+src/ui\modern_login_window.py:2096:                    background: @selection_text;
+src/ui\modern_login_window.py:2111:                background: @selection_text;
+src/ui\dialogs\archive_detail_dialog.py:189:            lbl.setStyleSheet(theme_qss("background:@selection_text;border-radius:10px"))
+src/ui\dialogs\archive_detail_dialog.py:209:        fr.setStyleSheet(theme_qss("background:@selection_text;border-radius:12px"))
+src/ui\pages\appointments_page.py:69:                QCalendarWidget QWidget#qt_calendar_navigationbar { background-color: @selection_text; }
+src/ui\dialogs\registration_dialog.py:487:                background: @selection_text;
+src/ui\dialogs\photo_gallery_dialog.py:197:        item.setStyleSheet(theme_qss("QFrame{background:@selection_text;border-radius:12px}"))
+src/ui\dialogs\payment_dialog.py:48:                    background-color: @selection_text;
+src/ui\dialogs\payment_dialog.py:201:                    background-color: @selection_text;
+src/ui\dialogs\payment_dialog.py:329:                background-color: @selection_text;
+src/ui\dialogs\new_service_dialog.py:929:                background: @selection_text;
+src/ui\dialogs\technician_panel.py:1112:            QPushButton { background: @selection_text; color: @warning; border: 1px solid @warning; border-radius: 18px; font-size: 14px; }
+src/ui\dialogs\technician_panel.py:1184:                    QPushButton { background: @selection_text; color: @warning; border: 1px solid @warning; border-radius: 18px; font-size: 14px; }
+src/ui\dialogs\technician_panel.py:1204:                QPushButton { background: @selection_text; color: @warning; border: 1px solid @warning; border-radius: 18px; font-size: 14px; }
+src/ui\dialogs\technician_panel.py:1209:        mic_button.setStyleSheet(theme_qss("background: @selection_text; color: @warning; border: 1px solid @warning; border-radius: 18px; font-size: 14px;"))
+src/ui\dialogs\technician_panel.py:1226:        mic_button.setStyleSheet(theme_qss("background: @selection_text; color: @warning; border: 1px solid @warning; border-radius: 18px; font-size: 14px;"))
+src/ui\dialogs\technician_login_dialog.py:64:                background-color: @selection_text;
+src/ui\dialogs\technician_login_dialog.py:71:                background-color: @selection_text;
+src/ui\dialogs\technician_login_dialog.py:133:                    background-color: @selection_text;
+src/ui\pages\quick_notes_settings_widget.py:578:                background: @selection_text; border: none; border-radius: 10px; 
+src/ui\widgets\modern_sidebar.py:226:        footer.setStyleSheet(theme_qss("background-color: @selection_text;"))
+src/ui\widgets\modern_dialog.py:46:            self.setStyleSheet(theme_qss("QDialog { background-color: @selection_text; }"))
+
+=== PATTERN: color\s*:\s*@surface\b ===
+
+src/ui\main_window_backup.py:402:                QTableWidget { background-color: @surface; color: @text; }
+src/ui\main_window_backup.py:403:                QLineEdit { background-color: @surface; color: @text; }
+src/ui\components\modern_dialog.py:63:                background-color: @surface;
+src/ui\components\modern_dialog.py:122:                color: @surface;
+src/ui\components\modern_dialog.py:150:        self.content_widget.setStyleSheet(theme_qss("background-color: @surface;"))
+src/ui\components\notification_center.py:132:                background-color: @surface;
+src/ui\login_window.py:66:                background-color: @surface;
+src/ui\login_window.py:96:                background-color: @surface; 
+src/ui\modern_login_window.py:891:                                    background-color: @surface;
+src/ui\modern_login_window.py:969:                background-color: @surface;
+src/ui\modern_login_window.py:2328:            QWizard { background-color: @surface; }
+src/ui\dialogs\add_service_definition_dialog.py:27:                background-color: @surface;
+src/ui\pages\announcements_page.py:21:            QDialog { background-color: @surface; }
+src/ui\pages\announcements_page.py:25:                background-color: @surface; color: @text; font-size: 10pt;
+src/ui\pages\announcements_page.py:228:                background-color: @surface;
+src/ui\dialogs\add_stock_dialog.py:44:                background-color: @surface;
+src/ui\dialogs\add_stock_dialog.py:121:        content_frame.setStyleSheet(theme_qss("background-color: @surface; border: none;"))
+src/ui\dialogs\add_stock_dialog.py:139:                background-color: @surface;
+src/ui\dialogs\add_stock_dialog.py:251:                background-color: @surface;
+src/ui\dialogs\admin_approval_dialog.py:28:                background-color: @surface;
+src/ui\dialogs\admin_approval_dialog.py:78:                background-color: @surface;
+src/ui\pages\accounting_page.py:45:                background-color: @surface;
+src/ui\pages\accounting_page.py:748:            QTableWidget { border: 1px solid @border; border-radius: 8px; background-color: @surface; }
+src/ui\pages\audit_log_page.py:30:                background-color: @surface;
+src/ui\pages\audit_log_page.py:54:                background-color: @surface; color: @accent; border: 1px solid @accent; border-radius: 10px; font-weight: bold;
+src/ui\dialogs\app_lock_dialog.py:55:                background-color: @surface;
+src/ui\pages\appointments_page.py:81:                    background-color: @surface;
+src/ui\pages\appointments_page.py:83:                    selection-color: @surface; 
+src/ui\pages\appointments_page.py:87:                    background-color: @surface; 
+src/ui\pages\appointments_page.py:325:                background-color: @surface;
+src/ui\pages\appointments_page.py:777:                        background-color: @surface;
+src/ui\pages\backup_page.py:213:                background-color: @surface;
+src/ui\pages\authorization_groups_widget.py:184:                background-color: @surface;
+src/ui\pages\authorization_groups_widget.py:194:                background-color: @surface;
+src/ui\pages\authorization_groups_widget.py:280:                        background-color: @surface;
+src/ui\dialogs\base_modern_dialog.py:37:                background-color: @surface;
+src/ui\dialogs\base_modern_dialog.py:96:                color: @surface;
+src/ui\dialogs\base_modern_dialog.py:124:        self.content_widget.setStyleSheet(theme_qss("background-color: @surface;"))
+src/ui\dialogs\customer_360_dialog.py:19:                background-color: @surface;
+src/ui\dialogs\customer_360_dialog.py:364:             QMenu { background-color: @surface; border: 1px solid @border; padding: 5px; }
+src/ui\dialogs\customer_360_dialog.py:496:            box.setStyleSheet(theme_qss(f"background-color: @surface; border: 1px solid @border; border-radius: 12px;"))
+src/ui\dialogs\customer_notes_dialog.py:64:                background-color: @surface;
+src/ui\dialogs\customer_notes_dialog.py:211:                background-color: @surface;
+src/ui\dialogs\customer_notes_dialog.py:231:                background-color: @surface;
+src/ui\dialogs\customer_select_dialog.py:63:                background-color: @surface;
+src/ui\wizards\setup_wizard.py:83:                background-color: @surface;
+src/ui\dialogs\customer_history_dialog.py:38:                background-color: @surface;
+src/ui\dialogs\customer_history_dialog.py:188:            QTableWidget { background-color: @surface; border: none; }
+src/ui\dialogs\customer_history_dialog.py:266:            QTableWidget { background-color: @surface; border: none; }
+src/ui\dialogs\customer_history_dialog.py:647:             QMenu { background-color: @surface; border: 1px solid @border; padding: 5px; }
+src/ui\pages\dashboard_page.py:217:                background-color: @surface;
+src/ui\pages\dashboard_page.py:306:                background-color: @surface;
+src/ui\pages\dashboard_page.py:581:                background-color: @surface;
+src/ui\pages\dashboard_page.py:686:                background-color: @surface;
+src/ui\pages\dashboard_page.py:795:                    background-color: @surface;
+src/ui\pages\dashboard_page.py:886:                background-color: @surface;
+src/ui\pages\dashboard_page.py:966:                background-color: @surface;
+src/ui\pages\dashboard_page.py:1007:                background-color: @surface;
+src/ui\pages\dashboard_page.py:1042:                background-color: @surface;
+src/ui\pages\dashboard_page.py:1158:                background-color: @surface;
+src/ui\pages\dashboard_page.py:1385:                        background-color: @surface;
+src/ui\pages\dashboard_page.py:1522:                    background-color: @surface;
+src/ui\dialogs\device_history_dialog.py:63:                background-color: @surface;
+src/ui\pages\customers_page.py:150:            QPushButton:hover {{ background-color: @surface; color: {color}; border: 2px solid {color}; }}
+src/ui\dialogs\device_selection_dialog.py:114:                background-color: @surface;
+src/ui\dialogs\device_selection_dialog.py:128:                color: @surface;
+src/ui\dialogs\device_selection_dialog.py:156:                background-color: @surface;
+src/ui\widgets\assistant_sidebar.py:42:                    background-color: @surface;
+src/ui\widgets\assistant_sidebar.py:124:                background-color: @surface;
+src/ui\widgets\assistant_sidebar.py:197:                background-color: @surface;
+src/ui\widgets\assistant_sidebar.py:222:                background-color: @surface;
+src/ui\dialogs\license_keygen_dialog.py:34:        form_card.setStyleSheet(theme_qss("background-color: @surface; border-radius: 12px; border: 1px solid @border;"))
+src/ui\dialogs\license_lock_screen.py:41:                background-color: @surface;
+src/ui\dialogs\license_lock_screen.py:122:                background-color: @surface;
+src/ui\pages\external_tracking_page.py:551:                background-color: @surface;
+src/ui\dialogs\loan_wizard_advanced.py:33:                background-color: @surface;
+src/ui\dialogs\loan_wizard_dialog.py:152:                background-color: @surface;
+src/ui\dialogs\location_picker_dialog.py:91:                background-color: @surface;
+src/ui\dialogs\login_dialog.py:37:        left_panel.setStyleSheet(theme_qss("QFrame { background-color: @surface; }"))
+src/ui\dialogs\modern_confirm.py:23:                background-color: @surface;
+src/ui\dialogs\modern_confirm.py:61:                background-color: @surface;
+src/ui\dialogs\modern_select_dialog.py:24:                background-color: @surface;
+src/ui\dialogs\modern_select_dialog.py:71:                background-color: @surface;
+src/ui\dialogs\modern_input_dialog.py:27:                background-color: @surface;
+src/ui\dialogs\modern_input_dialog.py:138:                background-color: @surface;
+src/ui\dialogs\password_prompt_dialog.py:34:                background-color: @surface;
+src/ui\dialogs\password_prompt_dialog.py:105:                background-color: @surface;
+src/ui\dialogs\new_service_dialog.py:54:                background-color: @surface;
+src/ui\dialogs\new_service_dialog.py:109:        self.step_indicator_widget.setStyleSheet(theme_qss("background-color: @surface; border-bottom: 1px solid @border;"))
+src/ui\dialogs\payment_dialog.py:105:                background-color: @surface;
+src/ui\dialogs\payment_dialog.py:246:                background-color: @surface;
+src/ui\dialogs\payment_dialog.py:288:                background-color: @surface;
+src/ui\dialogs\payment_dialog.py:316:                background-color: @surface;
+src/ui\dialogs\payment_dialog.py:417:            QTextEdit:focus { border-color: @accent; background-color: @surface; }
+src/ui\dialogs\password_reset_dialog.py:17:            QDialog { background-color: @surface; }
+src/ui\pages\field_service_page.py:31:                background-color: @surface;
+src/ui\pages\field_service_page.py:46:                background-color: @surface;
+src/ui\pages\field_service_page.py:238:                background-color: @surface;
+src/ui\pages\field_service_page.py:269:                background-color: @surface;
+src/ui\pages\field_service_page.py:570:        self.sidebar.setStyleSheet(theme_qss("background-color: @surface; border-right: 1px solid @border;"))
+src/ui\pages\field_service_page.py:603:                background-color: @surface;
+src/ui\pages\field_service_page.py:620:                background-color: @surface;
+src/ui\pages\field_service_page.py:750:                background-color: @surface;
+src/ui\dialogs\premium_dialogs.py:22:                background-color: @surface;
+src/ui\dialogs\premium_dialogs.py:147:                background-color: @surface;
+src/ui\dialogs\loan_wizard_steps\step3_document_upload.py:214:                background-color: @surface;
+src/ui\pages\user_manual_page.py:62:        viewer.setStyleSheet(theme_qss("border: none; padding: 15px; background-color: @surface;"))
+src/ui\dialogs\loan_wizard_steps\step4_summary.py:85:                background-color: @surface;
+src/ui\dialogs\loan_wizard_steps\step1_bank_info.py:56:                background-color: @surface;
+src/ui\dialogs\quick_sale_dialog.py:38:                background-color: @surface;
+src/ui\dialogs\quick_sale_dialog.py:94:        self.table_cart.setStyleSheet(theme_qss("background-color: @surface;"))
+src/ui\dialogs\quick_sale_dialog.py:99:        totals_frame.setStyleSheet(theme_qss("background-color: @surface; border-radius: 8px; border: 1px solid @border;"))
+src/ui\pages\transaction_page.py:62:                background-color: @surface;
+src/ui\pages\transaction_page.py:775:                background-color: @surface;
+src/ui\dialogs\registration_dialog.py:32:                background-color: @surface;
+src/ui\dialogs\registration_dialog.py:65:                background-color: @surface;
+src/ui\dialogs\registration_dialog.py:98:                background-color: @surface;
+src/ui\dialogs\registration_dialog.py:134:            background-color: @surface;
+src/ui\dialogs\security_confirm_dialog.py:38:                background-color: @surface;
+src/ui\dialogs\security_confirm_dialog.py:114:                background-color: @surface;
+src/ui\dialogs\send_sms_dialog.py:24:            QDialog { background-color: @surface; }
+src/ui\dialogs\send_sms_dialog.py:37:                background-color: @surface;
+src/ui\dialogs\send_sms_dialog.py:97:                background-color: @surface;
+src/ui\dialogs\service_invoice_dialog.py:138:                background-color: @surface;
+src/ui\dialogs\service_invoice_dialog.py:152:            QTreeWidget::indicator:unchecked { background-color: @surface; border: 2px solid @border; border-radius: 4px; }
+src/ui\widgets\side_drawer.py:31:                background-color: @surface;
+src/ui\widgets\service_flow.py:30:                background-color: @surface;
+src/ui\pages\reports_page.py:17:                background-color: @surface;
+src/ui\pages\reports_page.py:145:        frame.setStyleSheet(theme_qss("background-color: @surface; border-radius: 10px; border: 1px solid @border;"))
+src/ui\pages\reminders_page.py:73:                    background-color: @surface;
+src/ui\widgets\premium_dialog.py:30:                background-color: @surface;
+src/ui\pages\quick_sale_page.py:33:                background-color: @surface;
+src/ui\pages\quick_sale_page.py:122:            QFrame { background-color: @surface; border-radius: 12px; border: 1px solid @border; }
+src/ui\pages\quick_sale_page.py:200:        right_panel.setStyleSheet(theme_qss("background-color: @surface; border-left: 1px solid @border;"))
+src/ui\pages\quick_sale_page.py:348:                QPushButton { background-color: @surface; color: @text_muted; border-radius: 20px; padding: 8px 20px; font-weight: 600; border: 1px solid @border; }
+src/ui\dialogs\setup_wizard\wizard_ui.py:124:                background-color: @surface;
+src/ui\pages\quick_notes_settings_widget.py:67:                background-color: @surface; 
+src/ui\pages\quick_notes_settings_widget.py:84:        filter_frame.setStyleSheet(theme_qss(".QFrame { background-color: @surface; border-radius: 12px; border: 1px solid @border; }"))
+src/ui\pages\quick_notes_settings_widget.py:134:        table_frame.setStyleSheet(theme_qss("QFrame { background-color: @surface; border-radius: 12px; border: 1px solid @border; }"))
+src/ui\pages\quick_notes_settings_widget.py:194:        sidebar.setStyleSheet(theme_qss("QFrame { background-color: @surface; border-radius: 12px; border: 1px solid @border; }"))
+src/ui\pages\quick_notes_settings_widget.py:492:                background-color: @surface; 
+src/ui\pages\quick_notes_settings_widget.py:503:            QLineEdit:focus, QComboBox:focus { border-color: @accent; background-color: @surface; }
+src/ui\widgets\kanban_board.py:48:                background-color: @surface;
+src/ui\widgets\kanban_board.py:54:                background-color: @surface;
+src/ui\widgets\kanban_board.py:340:                background-color: @surface;
+src/ui\pages\dashboard_widgets\stat_card.py:33:                background-color: @surface;
+src/ui\widgets\jarvis_toast.py:24:                background-color: @surface;
+src/ui\dialogs\simple_confirm.py:25:                background-color: @surface;
+src/ui\dialogs\technician_panel.py:395:            <div style="font-family: 'Segoe UI', sans-serif; padding: 20px; background-color: @surface; color: @text;">
+src/ui\dialogs\technician_panel.py:489:                background-color: @surface;
+src/ui\dialogs\user_switch_dialog.py:32:                background-color: @surface;
+src/ui\dialogs\transaction_dialog.py:30:        self.container.setStyleSheet(theme_qss(".QFrame { background-color: @surface; border-radius: 20px; border: 1px solid @border; }"))
+src/ui\widgets\side_menu.py:75:        self.sub_container.setStyleSheet(theme_qss("background-color: @surface;"))
+src/ui\widgets\signature_widget.py:10:        self.setStyleSheet(theme_qss("background-color: @surface; border: 1px solid @border;"))
+src/ui\pages\job_service_tracking_page.py:582:            QMenu { background-color: @surface; border: 1px solid @border; padding: 4px; }
+src/ui\pages\job_service_tracking_page.py:584:            QMenu::item:selected { background-color: @accent_hover; color: @surface; }
+src/ui\pages\job_service_tracking_page.py:615:            QMenu { background-color: @surface; border: 1px solid @border; padding: 4px; }
+src/ui\pages\job_service_tracking_page.py:617:            QMenu::item:selected { background-color: @accent_hover; color: @surface; }
+src/ui\pages\project_management\projects_page.py:138:                background-color: @surface;
+src/ui\pages\mobile_guide_page.py:32:                background-color: @surface;
+src/ui\pages\service_status_page.py:101:                background-color: @surface;
+src/ui\pages\service_status_page.py:203:        page_header.setStyleSheet(theme_qss("background-color: @surface; border-bottom: 1px solid @border;"))
+src/ui\pages\service_status_page.py:235:                background-color: @surface; color: @text_muted; border: 1px solid @border; border-radius: 8px; font-weight: bold;
+src/ui\pages\stock_page.py:34:                background-color: @surface;
+src/ui\pages\settings_page.py:72:                background-color: @surface;
+src/ui\pages\settings_page.py:756:                background-color: @surface;
+src/ui\pages\settings_page.py:1610:                background-color: @surface;
+src/ui\pages\settings_page.py:1632:                    background-color: @surface;
+src/ui\pages\settings_page.py:1668:                background-color: @surface;
+src/ui\pages\settings_page.py:2198:        frm.setStyleSheet(theme_qss("background-color: @surface; border: 1px solid @border; border-radius: 8px;"))
+src/ui\pages\settings_page.py:2919:            QDialog { background-color: @surface; }
+src/ui\pages\settings_page.py:2960:                    background-color: @surface;
+src/ui\pages\service_board_page.py:38:                background-color: @surface;
+src/ui\pages\service_board_page.py:183:                background-color: @surface;
+src/ui\pages\service_board_page.py:262:                color: @surface;
+src/ui\pages\support_page.py:114:                    background-color: @surface;
+src/ui\pages\support_page.py:137:                    background-color: @surface;
+src/ui\pages\support_page.py:217:                background-color: @surface;
+src/ui\pages\services_page.py:242:            QMenu { background-color: @surface; border: 1px solid @border; }
+src/ui\pages\services_page.py:244:            QMenu::item:selected { background-color: @accent; color: @surface; }
+src/ui\pages\settings_widgets\backup_settings.py:89:        grp_remote.setStyleSheet(theme_qss("QGroupBox { background-color: @surface; border: 1px solid @border; border-radius: 8px; margin-top: 15px; padding-top: 25px; font-weight: bold; }"))
+src/ui\pages\settings_widgets\backup_settings.py:155:        grp_auto.setStyleSheet(theme_qss("QGroupBox { background-color: @surface; border: 1px solid @border; border-radius: 8px; margin-top: 15px; padding-top: 25px; }"))
+src/ui\pages\settings_widgets\bank_settings.py:174:                background-color: @surface;
+src/ui\pages\settings_widgets\bank_settings.py:191:                background-color: @surface;
+src/ui\pages\settings_widgets\bank_settings.py:855:                background-color: @surface;
+src/ui\pages\settings_widgets\company_settings.py:203:                background-color: @surface;
+src/ui\pages\settings_widgets\license_settings.py:37:            "background-color: @surface; border-radius: 10px; "
+src/ui\pages\settings_widgets\user_management_rbac.py:75:                background-color: @surface;
+src/ui\pages\settings_widgets\voice_assistant_settings.py:161:                background-color: @surface;
+src/ui\pages\settings_widgets\voice_assistant_settings.py:176:                background-color: @surface;
+src/ui\pages\settings_widgets\voice_assistant_settings.py:196:                background-color: @surface;
+src/ui\pages\settings_widgets\voice_assistant_settings.py:208:                background-color: @surface;
+src/ui\pages\settings_widgets\voice_training_widget.py:105:                background-color: @surface;
+src/ui\pages\settings_widgets\voice_training_widget.py:170:                background-color: @surface;
+
+=== PATTERN: color\s*:\s*@surface_alt\b ===
+
+src/ui\login_window.py:56:                background-color: @surface_alt; /* Slate 100 */
+src/ui\login_window.py:111:        pass_style = "QPushButton { color: @text_muted; border: none; font-weight: bold; border-radius: 5px; background: transparent; } QPushButton:hover { background-color: @surface_alt; color: @text; }"
+src/ui\modern_login_window.py:69:                color: @surface_alt;
+src/ui\modern_login_window.py:422:                background-color: @surface_alt;
+src/ui\modern_login_window.py:444:                background-color: @surface_alt;
+src/ui\modern_login_window.py:452:                background-color: @surface_alt;
+src/ui\pages\announcements_page.py:245:                background-color: @surface_alt;
+src/ui\pages\announcements_page.py:260:                background-color: @surface_alt;
+src/ui\pages\accounting_page.py:679:                background-color: @surface_alt;
+src/ui\pages\accounting_page.py:749:            QHeaderView::section { background-color: @surface_alt; padding: 8px; border-bottom: 1px solid @border; color: @selection_text; font-weight: bold; font-size: 11px; }
+src/ui\pages\appointments_page.py:329:                alternate-background-color: @surface_alt; /* Slate 50 - Çok hafif gri */
+src/ui\pages\appointments_page.py:337:                background-color: @surface_alt;
+src/ui\pages\appointments_page.py:347:                background-color: @surface_alt;
+src/ui\pages\authorization_groups_widget.py:295:                        background-color: @surface_alt;
+src/ui\pages\audit_log_page.py:23:        self.setStyleSheet(theme_qss("background-color: @surface_alt;"))
+src/ui\pages\audit_log_page.py:89:                background-color: @surface_alt;
+src/ui\pages\backup_page.py:220:                background-color: @surface_alt;
+src/ui\pages\brands_page.py:116:            QHeaderView::section { background-color: @surface_alt; color: @text; padding: 12px; font-weight: bold; border: none; }
+src/ui\pages\contracts_page.py:197:                background-color: @surface_alt; border: 1px dashed @border; border-radius: 8px;
+src/ui\pages\dashboard_page.py:454:        self.setStyleSheet(theme_qss("background-color: @surface_alt;"))
+src/ui\pages\dashboard_page.py:498:        self.setStyleSheet(theme_qss("background-color: @surface_alt;"))
+src/ui\pages\dashboard_page.py:647:                background-color: @surface_alt;
+src/ui\pages\dashboard_page.py:687:                gridline-color: @surface_alt;
+src/ui\pages\dashboard_page.py:690:                background-color: @surface_alt;
+src/ui\pages\dashboard_page.py:806:                    background-color: @surface_alt;
+src/ui\pages\dashboard_page.py:967:                gridline-color: @surface_alt;
+src/ui\pages\dashboard_page.py:970:                background-color: @surface_alt;
+src/ui\pages\dashboard_page.py:1176:                background-color: @surface_alt;
+src/ui\pages\dashboard_page.py:1390:                        background-color: @surface_alt;
+src/ui\pages\customers_page.py:220:            QHeaderView::section { background-color: @surface_alt; color: @text; padding: 15px; font-weight: bold; border: none; }
+src/ui\pages\customers_page.py:1004:            QHeaderView::section { background-color: @surface_alt; color: @text; padding: 14px; font-weight: bold; border: none; }
+src/ui\pages\field_service_page.py:40:                background-color: @surface_alt;
+src/ui\pages\field_service_page.py:60:                background-color: @surface_alt;
+src/ui\pages\field_service_page.py:70:            QPushButton#close_btn:hover { color: @danger; background-color: @surface_alt; }
+src/ui\pages\field_service_page.py:277:                background-color: @surface_alt;
+src/ui\pages\field_service_page.py:588:        search_card.setStyleSheet(theme_qss("background-color: @surface_alt; border-radius: 12px; border: 1px solid @border;"))
+src/ui\pages\field_service_page.py:628:                background-color: @surface_alt;
+src/ui\pages\field_service_page.py:702:            self.map_view.setStyleSheet(theme_qss("background-color: @surface_alt;"))
+src/ui\pages\field_service_page.py:705:            map_container.setStyleSheet(theme_qss("background-color: @surface_alt; border: 1px solid @border;"))
+src/ui\pages\field_service_page.py:759:                background-color: @surface_alt;
+src/ui\pages\external_tracking_page.py:272:        self.setStyleSheet(theme_qss("background-color: @surface_alt;"))
+src/ui\pages\finance\bank_page.py:241:                        background-color: @surface_alt;
+src/ui\pages\finance\finance_report_page.py:44:                background-color: @surface_alt;
+src/ui\dialogs\customer_select_dialog.py:28:                background-color: @surface_alt;
+src/ui\dialogs\customer_select_dialog.py:64:                alternate-background-color: @surface_alt;
+src/ui\dialogs\customer_select_dialog.py:70:                background-color: @surface_alt; color: @text_muted; font-weight: 800; font-size: 11px; border: none; padding: 12px;
+src/ui\pages\quick_sale_page.py:39:                background-color: @surface_alt;
+src/ui\pages\quick_sale_page.py:113:        left_panel.setStyleSheet(theme_qss("background-color: @surface_alt;"))
+src/ui\pages\quick_sale_page.py:132:                background-color: @surface_alt; 
+src/ui\pages\quick_sale_page.py:208:        r_header.setStyleSheet(theme_qss("background-color: @surface_alt; border-bottom: 1px solid @border;"))
+src/ui\pages\quick_sale_page.py:247:        summary_box.setStyleSheet(theme_qss("background-color: @surface_alt; color: @text; border-top-left-radius: 20px; border-top-right-radius: 20px; border: 1px solid @border;"))
+src/ui\pages\quick_sale_page.py:349:                QPushButton:hover { background-color: @surface_alt; color: @text; }
+src/ui\pages\quick_sale_page.py:530:            self.btn_customer.setStyleSheet(theme_qss("background-color: @surface_alt; border: 1px solid @success; border-radius: 8px; padding: 8px; font-weight: bold; color: @success;"))
+src/ui\pages\quick_sale_page.py:536:        self.btn_customer.setStyleSheet(theme_qss("background-color: @surface_alt; border: 1px solid @border; border-radius: 8px; padding: 8px; font-weight: bold;"))
+src/ui\pages\knowledge_base_page.py:122:        line.setStyleSheet(theme_qss("background-color: @surface_alt; border: none; height: 1px;"))
+src/ui\dialogs\customer_notes_dialog.py:33:                    background-color: @surface_alt;
+src/ui\dialogs\customer_notes_dialog.py:193:                background-color: @surface_alt;
+src/ui\pages\quick_notes_settings_widget.py:73:            QPushButton:hover { background-color: @surface_alt; border-color: @disabled_text; }
+src/ui\pages\quick_notes_settings_widget.py:145:                gridline-color: @surface_alt;
+src/ui\pages\quick_notes_settings_widget.py:158:                background-color: @surface_alt;
+src/ui\pages\quick_notes_settings_widget.py:500:                background-color: @surface_alt;
+src/ui\pages\job_service_tracking_page.py:416:        dlg.setStyleSheet(theme_qss("QDialog { background-color: @surface_alt; }"))
+src/ui\dialogs\customer_history_dialog.py:23:                background-color: @surface_alt; 
+src/ui\dialogs\customer_history_dialog.py:51:            background-color: @surface_alt;
+src/ui\dialogs\customer_history_dialog.py:189:            QHeaderView::section { background-color: @surface_alt; color: @text; font-weight: bold; padding: 5px; }
+src/ui\dialogs\customer_history_dialog.py:267:            QHeaderView::section { background-color: @surface_alt; color: @text; font-weight: bold; padding: 5px; }
+src/ui\dialogs\customer_360_dialog.py:214:        btn_close.setStyleSheet(theme_qss("background-color: @surface_alt; border: 1px solid @border; border-radius: 6px;"))
+src/ui\pages\security_settings_widget.py:131:        line.setStyleSheet(theme_qss("background-color: @surface_alt;"))
+src/ui\pages\invoice_page.py:78:        self.total_panel.setStyleSheet(theme_qss("background-color: @surface_alt; border-radius: 8px; padding: 10px;"))
+src/ui\pages\service_status_page.py:110:                background-color: @surface_alt;
+src/ui\pages\service_status_page.py:198:        self.setStyleSheet(theme_qss("background-color: @surface_alt;"))
+src/ui\pages\service_status_page.py:237:            QPushButton:hover { background-color: @surface_alt; }
+src/ui\pages\service_status_page.py:287:            QTableWidget { border: none; background: transparent; alternate-background-color: @surface_alt; font-size: 13px; }
+src/ui\pages\service_status_page.py:299:        footer_frame.setStyleSheet(theme_qss("background-color: @surface_alt; border-top: 1px solid @border;"))
+src/ui\pages\reports_page.py:326:                        background-color: @surface_alt;
+src/ui\dialogs\critical_alert_dialog.py:13:            QDialog { background-color: @surface_alt; } /* Red tint bg */
+src/ui\pages\stock_page.py:38:            QFrame:hover {{ border: 1px solid {color}; background-color: @surface_alt; }}
+src/ui\pages\stock_page.py:137:        self.setStyleSheet(theme_qss("background-color: @surface_alt;"))
+src/ui\pages\transaction_page.py:783:                background-color: @surface_alt;
+src/ui\pages\transaction_page.py:913:        line.setStyleSheet(theme_qss("color: @surface_alt;"))
+src/ui\dialogs\app_lock_dialog.py:21:                background-color: @surface_alt;
+src/ui\dialogs\app_lock_dialog.py:59:                background-color: @surface_alt;
+src/ui\widgets\page_layout_editor.py:30:                background-color: @surface_alt;
+src/ui\widgets\page_layout_editor.py:40:                background-color: @surface_alt;
+src/ui\widgets\page_layout_editor.py:58:                background-color: @surface_alt;
+src/ui\widgets\page_layout_editor.py:122:                background-color: @surface_alt;
+src/ui\pages\support_page.py:143:                    background-color: @surface_alt;
+src/ui\dialogs\admin_approval_dialog.py:74:                background-color: @surface_alt;
+src/ui\dialogs\admin_approval_dialog.py:91:                background-color: @surface_alt;
+src/ui\dialogs\add_stock_dialog.py:236:                background-color: @surface_alt; 
+src/ui\dialogs\add_stock_dialog.py:257:            QPushButton:hover { background-color: @surface_alt; color: @text_muted; }
+src/ui\widgets\breadcrumb.py:53:                background-color: @surface_alt;
+src/ui\widgets\label_editor_widget.py:54:            QHeaderView::section { background-color: @surface_alt; border: none; padding: 6px; font-weight: bold; }
+src/ui\widgets\kanban_board.py:97:            tag_style = "background-color: @surface_alt; color: @danger; border: 1px solid @danger;"
+src/ui\widgets\kanban_board.py:100:            tag_style = "background-color: @surface_alt; color: @success; border: 1px solid @success;"
+src/ui\widgets\kanban_board.py:109:            lbl_type.setStyleSheet(theme_qss("border-radius: 10px; padding: 3px 10px; font-size: 10px; font-weight: 900; background-color: @surface_alt; color: @accent; border: 1px solid @accent;"))
+src/ui\widgets\kanban_board.py:113:            lbl_cat.setStyleSheet(theme_qss("border-radius: 10px; padding: 3px 10px; font-size: 10px; font-weight: 900; background-color: @surface_alt; color: @warning; border: 1px solid rgba(180, 83, 9, 0.22);"))
+src/ui\widgets\kanban_board.py:352:                background-color: @surface_alt;
+src/ui\widgets\assistant_sidebar.py:149:                background-color: @surface_alt;
+src/ui\widgets\assistant_sidebar.py:218:                background-color: @surface_alt;
+src/ui\dialogs\payment_dialog.py:19:                background-color: @surface_alt;
+src/ui\dialogs\payment_dialog.py:58:                    background-color: @surface_alt;
+src/ui\dialogs\payment_dialog.py:136:                background-color: @surface_alt;
+src/ui\dialogs\payment_dialog.py:155:                background-color: @surface_alt;
+src/ui\dialogs\payment_dialog.py:175:                background-color: @surface_alt;
+src/ui\dialogs\payment_dialog.py:213:                background-color: @surface_alt;
+src/ui\dialogs\payment_dialog.py:253:                background-color: @surface_alt;
+src/ui\dialogs\payment_dialog.py:300:                background-color: @surface_alt;
+src/ui\dialogs\payment_dialog.py:353:                background-color: @surface_alt;
+src/ui\dialogs\payment_dialog.py:372:                background-color: @surface_alt;
+src/ui\dialogs\payment_dialog.py:411:                background-color: @surface_alt;
+src/ui\dialogs\payment_dialog.py:429:                background-color: @surface_alt;
+src/ui\widgets\side_drawer.py:51:        self.header.setStyleSheet(theme_qss("border-bottom: 1px solid @border; background-color: @surface_alt;"))
+src/ui\widgets\side_drawer.py:66:                background-color: @surface_alt; color: @danger; border-radius: 15px;
+src/ui\dialogs\password_prompt_dialog.py:67:                background-color: @surface_alt;
+src/ui\dialogs\password_prompt_dialog.py:95:                background-color: @surface_alt;
+src/ui\dialogs\new_service_dialog.py:150:        self.stack.setStyleSheet(theme_qss("background-color: @surface_alt;")) 
+src/ui\dialogs\new_service_dialog.py:945:                color: @surface_alt;
+src/ui\dialogs\new_service_dialog.py:1023:                    background-color: @surface_alt; border: 2px solid @success; border-radius: 8px;
+src/ui\widgets\premium_dialog.py:51:                background-color: @surface_alt;
+src/ui\dialogs\modern_select_dialog.py:64:                background-color: @surface_alt;
+src/ui\dialogs\modern_select_dialog.py:92:                background-color: @surface_alt;
+src/ui\dialogs\modern_input_dialog.py:85:                background-color: @surface_alt;
+src/ui\dialogs\modern_input_dialog.py:131:                background-color: @surface_alt;
+src/ui\dialogs\license_lock_screen.py:77:        hwid_box.setStyleSheet(theme_qss("background-color: @surface_alt; border-radius: 12px; border: 1px solid @border;"))
+src/ui\pages\settings_widgets\whatsapp_settings.py:36:        info.setStyleSheet(theme_qss("background-color: @surface_alt; padding: 10px; border-left: 4px solid @success; color: @text_muted;"))
+src/ui\dialogs\modern_confirm.py:57:                background-color: @surface_alt;
+src/ui\dialogs\modern_confirm.py:108:            self.inp_pass.setStyleSheet(theme_qss("border: 2px solid @danger; border-radius: 8px; padding: 10px; background-color: @surface_alt;"))
+src/ui\pages\settings_widgets\voice_training_widget.py:182:                background-color: @surface_alt;
+src/ui\pages\settings_widgets\voice_training_widget.py:185:                background-color: @surface_alt;
+src/ui\pages\settings_widgets\voice_assistant_shortcuts.py:309:                alternate-background-color: @surface_alt;
+src/ui\dialogs\login_dialog.py:359:            role_style = "color: @surface_alt; font-size: 12px; font-weight: 600;"
+src/ui\dialogs\license_keygen_dialog.py:14:        self.setStyleSheet(theme_qss("background-color: @surface_alt;"))
+src/ui\pages\settings_widgets\voice_assistant_settings.py:172:                background-color: @surface_alt;
+src/ui\pages\settings_widgets\voice_assistant_settings.py:211:                background-color: @surface_alt;
+src/ui\pages\settings_widgets\user_management_rbac.py:78:                gridline-color: @surface_alt;
+src/ui\pages\settings_widgets\user_management_rbac.py:83:                background-color: @surface_alt;
+src/ui\pages\settings_widgets\user_management_rbac.py:95:                background-color: @surface_alt;
+src/ui\pages\settings_widgets\user_management.py:132:                gridline-color: @surface_alt;
+src/ui\pages\settings_widgets\user_management.py:687:                color: @surface_alt;
+src/ui\dialogs\user_switch_dialog.py:110:                background-color: @surface_alt;
+src/ui\pages\settings_widgets\telegram_settings.py:31:        info.setStyleSheet(theme_qss("background-color: @surface_alt; padding: 10px; border-left: 4px solid @accent; color: @text_muted;"))
+src/ui\dialogs\location_picker_dialog.py:98:                background-color: @surface_alt;
+src/ui\dialogs\loan_wizard_dialog.py:120:                background-color: @surface_alt;
+src/ui\dialogs\loan_wizard_dialog.py:157:                background-color: @surface_alt;
+src/ui\dialogs\early_closure_dialog.py:95:                gridline-color: @surface_alt;
+src/ui\dialogs\early_closure_dialog.py:101:                background-color: @surface_alt;
+src/ui\dialogs\transaction_dialog.py:79:                padding: 12px; border: 2px solid @border; border-radius: 10px; font-size: 14px; color: @text; bg-color: @surface_alt;
+src/ui\dialogs\service_invoice_dialog.py:135:                gridline-color: @surface_alt;
+src/ui\dialogs\loan_wizard_advanced.py:69:        footer.setStyleSheet(theme_qss("background-color: @surface_alt; border-top: 1px solid @border;"))
+src/ui\dialogs\loan_wizard_advanced.py:148:                    background-color: @surface_alt; 
+src/ui\dialogs\device_selection_dialog.py:74:                background-color: @surface_alt;
+src/ui\dialogs\device_selection_dialog.py:115:                gridline-color: @surface_alt;
+src/ui\dialogs\device_selection_dialog.py:116:                alternate-background-color: @surface_alt;
+src/ui\dialogs\device_selection_dialog.py:133:                background-color: @surface_alt;
+src/ui\dialogs\device_selection_dialog.py:162:            QPushButton:hover { background-color: @surface_alt; color: @text; }
+src/ui\dialogs\transaction_detail_dialog.py:26:                background-color: @surface_alt;
+src/ui\dialogs\send_sms_dialog.py:31:                background-color: @surface_alt;
+src/ui\dialogs\send_sms_dialog.py:104:            QPushButton:hover { background-color: @surface_alt; }
+src/ui\pages\settings_widgets\sms_settings.py:39:        info.setStyleSheet(theme_qss("background-color: @surface_alt; padding: 10px; border-left: 4px solid @accent; color: @text_muted;"))
+src/ui\pages\settings_widgets\remote_settings.py:74:        info_card.setStyleSheet(theme_qss("background-color: @surface_alt; border: 1px solid @border; border-radius: 8px; padding: 15px;"))
+src/ui\dialogs\template_manager.py:17:                background-color: @surface_alt;
+src/ui\dialogs\security_confirm_dialog.py:72:                background-color: @surface_alt;
+src/ui\dialogs\security_confirm_dialog.py:105:                background-color: @surface_alt;
+src/ui\pages\settings_widgets\location_settings.py:38:        info_card.setStyleSheet(theme_qss("background-color: @surface_alt; border: 1px solid @surface_alt; border-radius: 8px; padding: 15px;"))
+src/ui\pages\settings_widgets\location_settings.py:63:        self.inp_lat.setStyleSheet(theme_qss(f"border: 1px solid {BORDER_COLOR}; border-radius: 6px; padding: 10px; background-color: @surface_alt;"))
+src/ui\pages\settings_widgets\location_settings.py:68:        self.inp_lng.setStyleSheet(theme_qss(f"border: 1px solid {BORDER_COLOR}; border-radius: 6px; padding: 10px; background-color: @surface_alt;"))
+src/ui\dialogs\loan_wizard_steps\step3_document_upload.py:29:                background-color: @surface_alt;
+src/ui\dialogs\loan_wizard_steps\step3_document_upload.py:109:                background-color: @surface_alt;
+src/ui\dialogs\loan_wizard_steps\step3_document_upload.py:112:                background-color: @surface_alt;
+src/ui\dialogs\report_dialog.py:27:                background-color: @surface_alt; 
+src/ui\dialogs\loan_wizard_steps\step1_bank_info.py:136:                background-color: @surface_alt;
+src/ui\dialogs\registration_dialog.py:22:                background-color: @surface_alt;
+src/ui\dialogs\registration_dialog.py:278:                background-color: @surface_alt; border: 1px solid @border; border-radius: 12px; padding: 0 20px;
+src/ui\dialogs\loan_wizard_steps\step4_summary.py:88:                background-color: @surface_alt;
+src/ui\dialogs\loan_wizard_steps\step4_summary.py:105:                background-color: @surface_alt;
+src/ui\dialogs\quick_sale_dialog.py:26:                background-color: @surface_alt; 
+src/ui\dialogs\quick_sale_dialog.py:32:                background-color: @surface_alt;
+src/ui\dialogs\quick_sale_dialog.py:80:        right_panel.setStyleSheet(theme_qss("background-color: @surface_alt; border-left: 1px solid @border;"))
+src/ui\dialogs\premium_dialogs.py:78:                background-color: @surface_alt;
+src/ui\dialogs\premium_dialogs.py:143:                background-color: @surface_alt;
+src/ui\dialogs\sms_settings_dialog.py:30:                background-color: @surface_alt;
+src/ui\pages\settings_widgets\bank_settings.py:224:                    background-color: @surface_alt;
+src/ui\pages\settings_widgets\bank_settings.py:873:                background-color: @surface_alt;
+src/ui\dialogs\photo_gallery_dialog.py:32:                background-color: @surface_alt;
+src/ui\dialogs\photo_gallery_dialog.py:210:                    color: @surface_alt;
+src/ui\pages\settings_widgets\backup_settings.py:59:        grp_local.setStyleSheet(theme_qss("QGroupBox { background-color: @surface_alt; border: 1px solid @border; border-radius: 8px; margin-top: 15px; padding-top: 25px; font-weight: bold; }"))
+src/ui\pages\settings_widgets\backup_settings.py:126:        grp_gdrive.setStyleSheet(theme_qss("QGroupBox { background-color: @surface_alt; border: 1px solid @border; border-radius: 8px; margin-top: 15px; padding-top: 25px; font-weight: bold; }"))
+src/ui\pages\settings_widgets\backup_settings.py:133:            QPushButton { background-color: @surface_alt; color: @text; border-radius: 8px; padding: 15px; font-size: 14px; font-weight: bold; text-align: left; padding-left: 20px;}
+src/ui\pages\settings_widgets\backup_settings.py:191:                background-color: @surface_alt; 
+src/ui\dialogs\simple_confirm.py:69:                background-color: @surface_alt;
+src/ui\dialogs\technician_login_dialog.py:65:                color: @surface_alt;
+src/ui\dialogs\technician_panel.py:678:                    background-color: @surface_alt;
+src/ui\dialogs\technician_panel.py:755:                alternate-background-color: @surface_alt;
+src/ui\dialogs\technician_panel.py:763:                background-color: @surface_alt;
+src/ui\pages\settings_page.py:405:                background-color: @surface_alt;
+src/ui\pages\settings_page.py:876:        info.setStyleSheet(theme_qss("background-color: @surface_alt; padding: 10px; border-left: 4px solid @accent; color: @text_muted;"))
+src/ui\pages\settings_page.py:2966:                    background-color: @surface_alt;
+src/ui\pages\settings_page.py:3037:                background-color: @surface_alt;
+src/ui\dialogs\setup_wizard\wizard_ui.py:98:        self.sidebar_container.setStyleSheet(theme_qss("background-color: @surface_alt; color: @text; border-right: 1px solid @border;"))
+src/ui\dialogs\setup_wizard\wizard_ui.py:246:        self.preview_frame.setStyleSheet(theme_qss("background-color: @surface_alt; border-radius: 10px; margin-top: 20px;"))

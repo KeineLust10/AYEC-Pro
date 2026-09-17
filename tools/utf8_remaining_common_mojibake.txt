@@ -1,0 +1,8 @@
+src\ui\dialogs\registration_dialog.py
+src\ui\dialogs\technician_panel.py
+src\ui\pages\contracts_page.py
+src\ui\pages\security_settings_widget.py
+src\ui\pages\services_page.py
+src\ui\pages\finance\bank_accounts_widget.py
+src\ui\dialogs\setup_wizard\wizard_ui.py
+src\db\mixins\stock_mixin.py

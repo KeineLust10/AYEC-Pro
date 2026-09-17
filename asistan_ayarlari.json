@@ -1,0 +1,22 @@
+{
+    "stok_sorgu": [
+        "stoklar",
+        "eksik stok",
+        "stok durumu"
+    ],
+    "servis_ac": [
+        "yeni servis",
+        "kayıt oluştur",
+        "servis aç"
+    ],
+    "excel_islem": [
+        "excel aç",
+        "öğrenci bul",
+        "rapor al"
+    ],
+    "panel_ac": [
+        "teknisyen paneli",
+        "panel aç",
+        "teknisyen"
+    ]
+}

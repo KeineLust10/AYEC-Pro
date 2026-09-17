@@ -1,0 +1,999 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Premium Bulut Enterprise</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <style>
+        [v-cloak] {
+            display: none !important;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #F8FAFC;
+            margin: 0;
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        .animate-fade-in {
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+
+<body class="h-screen overflow-hidden">
+    <div id="app" v-cloak class="flex h-full w-full">
+
+        <!-- SIDEBAR -->
+        <aside class="w-64 bg-white border-r border-slate-200 flex flex-col flex-shrink-0">
+            <div class="h-16 flex items-center px-6 border-b border-slate-100">
+                <div
+                    class="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg">
+                    B</div>
+                <div class="ml-3">
+                    <div class="font-bold text-lg leading-none">Bulut<span class="text-blue-600">Teknik</span></div>
+                    <div class="text-[10px] text-slate-400 font-medium">Enterprise Panel</div>
+                </div>
+            </div>
+
+            <nav class="flex-1 overflow-y-auto py-6 px-3 space-y-1">
+                <button v-for="item in menu" :key="item.id" @click="currentPage = item.id"
+                    class="w-full flex items-center px-3 py-2.5 rounded-xl transition-all group"
+                    :class="currentPage === item.id ? 'bg-blue-50 text-blue-700 font-semibold shadow-sm' : 'text-slate-600 hover:bg-slate-50'">
+                    <i :data-lucide="item.icon" class="w-5 h-5"
+                        :class="currentPage === item.id ? 'text-blue-600' : 'text-slate-400 group-hover:text-slate-600'"></i>
+                    <span class="ml-3 text-sm">{{ item.label }}</span>
+                    <span v-if="item.badge"
+                        class="ml-auto bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{{
+                        item.badge }}</span>
+                </button>
+            </nav>
+
+            <div class="p-4 border-t border-slate-100">
+                <div
+                    class="flex items-center p-3 rounded-xl bg-gradient-to-r from-slate-50 to-slate-100 border border-slate-200">
+                    <div
+                        class="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm">
+                        AD</div>
+                    <div class="ml-3 flex-1">
+                        <div class="text-xs font-bold text-slate-700">Admin User</div>
+                        <div class="text-[10px] text-slate-500">Yönetici</div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- MAIN -->
+        <main class="flex-1 flex flex-col bg-[#F8FAFC] overflow-hidden">
+
+            <!-- HEADER -->
+            <header
+                class="h-16 bg-white/90 backdrop-blur-lg border-b border-slate-200 flex items-center justify-between px-8 sticky top-0 z-10">
+                <div class="flex items-center space-x-4">
+                    <h1 class="text-xl font-bold text-slate-800">{{ pageTitle }}</h1>
+                    <span v-if="loading" class="text-xs text-slate-400 animate-pulse">Yükleniyor...</span>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <button @click="refreshData"
+                        class="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all">
+                        <i data-lucide="refresh-cw" class="w-4 h-4" :class="{'animate-spin': loading}"></i>
+                    </button>
+                    <button @click="openCreateModal"
+                        class="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-blue-200 hover:shadow-xl transition-all flex items-center">
+                        <i data-lucide="plus" class="w-4 h-4 mr-2"></i>Yeni Ekle
+                    </button>
+                </div>
+            </header>
+
+            <!-- CONTENT -->
+            <div class="flex-1 overflow-auto p-8">
+
+                <!-- DASHBOARD -->
+                <div v-if="currentPage === 'dashboard'" class="space-y-6 animate-fade-in">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <div v-for="stat in dashboardStats" :key="stat.label"
+                            class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer group">
+                            <div class="flex justify-between items-start mb-4">
+                                <div class="p-3 rounded-xl" :class="stat.bg">
+                                    <i :data-lucide="stat.icon" class="w-6 h-6" :class="stat.color"></i>
+                                </div>
+                            </div>
+                            <h3 class="text-3xl font-bold text-slate-800 mb-1">{{ stat.value }}</h3>
+                            <p class="text-xs text-slate-500 font-medium">{{ stat.label }}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- KANBAN -->
+                <div v-if="currentPage === 'kanban'" class="h-full animate-fade-in">
+                    <div class="flex space-x-6 h-full overflow-x-auto pb-4">
+                        <div v-for="(cards, status) in kanban" :key="status" class="w-80 flex-shrink-0 flex flex-col">
+                            <div class="bg-white border-b-3 rounded-t-2xl px-5 py-4 flex justify-between items-center mb-3 shadow-sm"
+                                :class="getStatusColor(status)">
+                                <span class="font-bold text-slate-700 text-sm uppercase tracking-wide">{{ status
+                                    }}</span>
+                                <span class="bg-slate-100 text-slate-700 text-xs font-bold px-2.5 py-1 rounded-lg">{{
+                                    cards.length }}</span>
+                            </div>
+                            <div
+                                class="flex-1 bg-white border border-slate-200 rounded-b-2xl p-3 overflow-y-auto space-y-3">
+                                <div v-for="card in cards" :key="card.id" @click="openDetail(card, 'service')"
+                                    class="bg-white border border-slate-200 rounded-xl p-4 cursor-pointer hover:shadow-lg hover:border-blue-400 transition-all group">
+                                    <div class="flex justify-between items-start mb-3">
+                                        <span
+                                            class="text-[10px] font-mono text-slate-400 bg-slate-50 px-2 py-1 rounded border border-slate-100">#{{
+                                            card.tracking_no }}</span>
+                                        <span v-if="card.urgency === 'Acil'"
+                                            class="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                                    </div>
+                                    <h4
+                                        class="font-bold text-slate-800 text-sm mb-2 line-clamp-2 group-hover:text-blue-600">
+                                        {{ card.fault_desc }}</h4>
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-xs text-slate-600">{{ card.customer_name }}</span>
+                                        <span class="text-[10px] text-slate-400">{{ card.device_brand }}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SERVICES MANAGEMENT -->
+                <div v-if="currentPage === 'services'" class="animate-fade-in">
+                    <!-- Filter Tabs -->
+                    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm mb-6 p-4">
+                        <div class="flex items-center justify-between flex-wrap gap-4">
+                            <div class="flex space-x-2 flex-wrap">
+                                <button @click="serviceFilter = 'all'"
+                                    class="px-4 py-2 rounded-lg text-sm font-bold transition-all"
+                                    :class="serviceFilter === 'all' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'">
+                                    TÜM SERVİSLER
+                                </button>
+                                <button @click="serviceFilter = 'Bekliyor'"
+                                    class="px-4 py-2 rounded-lg text-sm font-bold transition-all"
+                                    :class="serviceFilter === 'Bekliyor' ? 'bg-slate-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'">
+                                    BEKLİYOR
+                                </button>
+                                <button @click="serviceFilter = 'Tamirde'"
+                                    class="px-4 py-2 rounded-lg text-sm font-bold transition-all"
+                                    :class="serviceFilter === 'Tamirde' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'">
+                                    TAMİRDE
+                                </button>
+                                <button @click="serviceFilter = 'Teslim Edildi'"
+                                    class="px-4 py-2 rounded-lg text-sm font-bold transition-all"
+                                    :class="serviceFilter === 'Teslim Edildi' ? 'bg-green-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'">
+                                    TESLİM EDİLDİ
+                                </button>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <input v-model="searchQuery" placeholder="Takip No, Müşteri, Cihaz..."
+                                    class="px-4 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none w-64">
+                                <button @click="modalType='service'; wizardStep=1; showModal=true"
+                                    class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-bold hover:bg-green-700 flex items-center">
+                                    <i data-lucide="plus" class="w-4 h-4 mr-1"></i>YENİ SERVİS
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Services Table -->
+                    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                        <table class="w-full">
+                            <thead class="bg-slate-50 border-b border-slate-200">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-bold text-slate-600 uppercase">TAKİP NO
+                                    </th>
+                                    <th class="px-6 py-3 text-left text-xs font-bold text-slate-600 uppercase">MÜŞTERİ
+                                    </th>
+                                    <th class="px-6 py-3 text-left text-xs font-bold text-slate-600 uppercase">CİHAZ
+                                    </th>
+                                    <th class="px-6 py-3 text-left text-xs font-bold text-slate-600 uppercase">ARIZA
+                                    </th>
+                                    <th class="px-6 py-3 text-left text-xs font-bold text-slate-600 uppercase">TARİH
+                                    </th>
+                                    <th class="px-6 py-3 text-left text-xs font-bold text-slate-600 uppercase">DURUM
+                                    </th>
+                                    <th class="px-6 py-3 text-left text-xs font-bold text-slate-600 uppercase">ACİLİYET
+                                    </th>
+                                    <th class="px-6 py-3 text-left text-xs font-bold text-slate-600 uppercase">İŞLEMLER
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                <tr v-for="(s, idx) in filteredServices" :key="s.id"
+                                    class="hover:bg-blue-50 transition-colors"
+                                    :class="idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'">
+                                    <td class="px-4 py-3">
+                                        <span class="font-mono text-sm font-bold text-blue-600">#{{ s.tracking_no
+                                            }}</span>
+                                    </td>
+                                    <td class="px-6 py-3">
+                                        <div class="font-medium text-slate-800">{{ s.customer_name }}</div>
+                                    </td>
+                                    <td class="px-6 py-3">
+                                        <div class="text-sm text-slate-700">{{ s.device_brand }} {{ s.device_model }}
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-3">
+                                        <div class="text-sm text-slate-600 max-w-xs truncate">{{ s.fault_description ||
+                                            s.fault_desc }}</div>
+                                    </td>
+                                    <td class="px-6 py-3">
+                                        <div class="text-xs text-slate-500 font-mono">{{ formatDate(s.entry_date) }}
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-3">
+                                        <select v-model="s.status" @change="updateServiceStatus(s)"
+                                            class="px-3 py-1 text-xs font-bold rounded-lg border-0 outline-none cursor-pointer"
+                                            :class="getStatusClass(s.status)">
+                                            <option value="Bekliyor">Bekliyor</option>
+                                            <option value="Tamirde">Tamirde</option>
+                                            <option value="Parça Bekliyor">Parça Bekliyor</option>
+                                            <option value="Test Sürecinde">Test Sürecinde</option>
+                                            <option value="Teslim Edildi">Teslim Edildi</option>
+                                        </select>
+                                    </td>
+                                    <td class="px-6 py-3">
+                                        <span v-if="s.urgency === 'Acil'"
+                                            class="px-3 py-1 bg-red-100 text-red-700 text-xs font-bold rounded-full flex items-center w-fit">
+                                            <span
+                                                class="w-2 h-2 bg-red-500 rounded-full mr-1.5 animate-pulse"></span>ACİL
+                                        </span>
+                                        <span v-else-if="s.urgency === 'Yüksek'"
+                                            class="px-3 py-1 bg-orange-100 text-orange-700 text-xs font-bold rounded-full">YÜKSEK</span>
+                                        <span v-else
+                                            class="px-3 py-1 bg-slate-100 text-slate-600 text-xs font-bold rounded-full">NORMAL</span>
+                                    </td>
+                                    <td class="px-6 py-3">
+                                        <div class="flex items-center space-x-2">
+                                            <button @click="openServiceDetail(s)"
+                                                class="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                                                title="Detay">
+                                                <i data-lucide="eye" class="w-4 h-4"></i>
+                                            </button>
+                                            <button @click="downloadServicePdf(s.id)"
+                                                class="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-all"
+                                                title="PDF">
+                                                <i data-lucide="file-text" class="w-4 h-4"></i>
+                                            </button>
+                                            <button @click="deleteService(s.id)"
+                                                class="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                                title="Sil">
+                                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr v-if="filteredServices.length === 0">
+                                    <td colspan="8" class="px-6 py-12 text-center text-slate-400">
+                                        <i data-lucide="inbox" class="w-12 h-12 mx-auto mb-3 opacity-50"></i>
+                                        <p class="text-sm font-medium">Kayıt bulunamadı</p>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- CUSTOMERS -->
+                <div v-if="currentPage === 'customers'" class="animate-fade-in">
+                    <!-- Filter Tabs -->
+                    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm mb-6 p-4">
+                        <div class="flex items-center justify-between flex-wrap gap-4">
+                            <div class="flex space-x-2">
+                                <button @click="customerFilter = 'all'"
+                                    class="px-4 py-2 rounded-lg text-sm font-bold transition-all"
+                                    :class="customerFilter === 'all' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'">
+                                    TÜM MÜŞTERİLER
+                                </button>
+                                <button @click="customerFilter = 'debt'"
+                                    class="px-4 py-2 rounded-lg text-sm font-bold transition-all"
+                                    :class="customerFilter === 'debt' ? 'bg-red-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'">
+                                    BORÇLU BULUNANLAR
+                                </button>
+                            </div>
+                            <div class="flex items-center space-x-2 flex-wrap">
+                                <button
+                                    class="px-3 py-2 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-200 flex items-center">
+                                    <i data-lucide="copy" class="w-3 h-3 mr-1"></i>KOPYALA
+                                </button>
+                                <button
+                                    class="px-3 py-2 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-200 flex items-center">
+                                    <i data-lucide="file-text" class="w-3 h-3 mr-1"></i>CSV
+                                </button>
+                                <button
+                                    class="px-3 py-2 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-200 flex items-center">
+                                    <i data-lucide="file-spreadsheet" class="w-3 h-3 mr-1"></i>EXCEL
+                                </button>
+                                <button
+                                    class="px-3 py-2 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-200 flex items-center">
+                                    <i data-lucide="file" class="w-3 h-3 mr-1"></i>PDF
+                                </button>
+                                <button
+                                    class="px-3 py-2 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-200 flex items-center">
+                                    <i data-lucide="printer" class="w-3 h-3 mr-1"></i>YAZDIR
+                                </button>
+                                <button @click="modalType='customer'; showModal=true"
+                                    class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-bold hover:bg-green-700 flex items-center">
+                                    <i data-lucide="plus" class="w-4 h-4 mr-1"></i>YENİ MÜŞTERI
+                                </button>
+                            </div>
+                        </div>
+                        <div class="mt-4">
+                            <input v-model="searchQuery" placeholder="Arama..."
+                                class="px-4 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none w-64">
+                        </div>
+                    </div>
+
+                    <!-- Customer Table -->
+                    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                        <table class="w-full">
+                            <thead class="bg-slate-50 border-b border-slate-200">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-bold text-slate-600 uppercase">M.NO</th>
+                                    <th class="px-6 py-3 text-left text-xs font-bold text-slate-600 uppercase">MÜŞTERİ
+                                    </th>
+                                    <th class="px-6 py-3 text-left text-xs font-bold text-slate-600 uppercase">FİRMA
+                                    </th>
+                                    <th class="px-6 py-3 text-left text-xs font-bold text-slate-600 uppercase">TELEFON
+                                    </th>
+                                    <th class="px-6 py-3 text-left text-xs font-bold text-slate-600 uppercase">E-POSTA
+                                    </th>
+                                    <th class="px-6 py-3 text-left text-xs font-bold text-slate-600 uppercase">BAKİYE
+                                    </th>
+                                    <th class="px-6 py-3 text-left text-xs font-bold text-slate-600 uppercase">İŞLEMLER
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                <tr v-for="(c, idx) in filteredCustomers" :key="c.id"
+                                    class="hover:bg-blue-50 transition-colors"
+                                    :class="(c.balance || 0) < 0 ? 'bg-red-50' : idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'">
+                                    <td class="px-4 py-3 text-sm text-slate-600">{{ c.id }}</td>
+                                    <td class="px-6 py-3">
+                                        <div class="font-medium text-slate-800">{{ c.name }}</div>
+                                    </td>
+                                    <td class="px-6 py-3 text-sm text-slate-600">{{ c.tax_no || '-' }}</td>
+                                    <td class="px-6 py-3 text-sm text-slate-600">{{ c.phone }}</td>
+                                    <td class="px-6 py-3 text-sm text-slate-600">{{ c.email || '-' }}</td>
+                                    <td class="px-6 py-3">
+                                        <span class="font-bold"
+                                            :class="(c.balance || 0) < 0 ? 'text-red-600' : 'text-green-600'">
+                                            {{ (c.balance || 0).toFixed(2) }} ₺
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-3">
+                                        <button @click="openCustomerActions(c)"
+                                            class="bg-green-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold hover:bg-green-700 transition-all">
+                                            İşlem Yap
+                                        </button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- STOCK -->
+                <div v-if="currentPage === 'stock'" class="animate-fade-in">
+                    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                        <div class="p-6 border-b border-slate-100">
+                            <h2 class="font-bold text-lg text-slate-800">Stok Yönetimi</h2>
+                            <p class="text-sm text-slate-500 mt-1">{{ stats.low_stock }} kritik stok uyarısı</p>
+                        </div>
+                        <table class="w-full">
+                            <thead class="bg-slate-50 border-b border-slate-200">
+                                <tr>
+                                    <th class="px-6 py-4 text-left text-xs font-bold text-slate-600 uppercase">Parça
+                                    </th>
+                                    <th class="px-6 py-4 text-left text-xs font-bold text-slate-600 uppercase">Stok</th>
+                                    <th class="px-6 py-4 text-left text-xs font-bold text-slate-600 uppercase">Min. Stok
+                                    </th>
+                                    <th class="px-6 py-4 text-left text-xs font-bold text-slate-600 uppercase">Fiyat
+                                    </th>
+                                    <th class="px-6 py-4 text-left text-xs font-bold text-slate-600 uppercase">Durum
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                <tr v-for="p in stock" :key="p.id" class="hover:bg-slate-50">
+                                    <td class="px-6 py-4 font-medium text-slate-800">{{ p.part_name }}</td>
+                                    <td class="px-6 py-4 font-bold"
+                                        :class="p.stock <= p.min_stock ? 'text-red-600' : 'text-green-600'">{{ p.stock
+                                        }}</td>
+                                    <td class="px-6 py-4 text-sm text-slate-600">{{ p.min_stock }}</td>
+                                    <td class="px-6 py-4 font-mono text-sm text-slate-700">{{ p.price }} ₺</td>
+                                    <td class="px-6 py-4">
+                                        <span v-if="p.stock <= p.min_stock"
+                                            class="px-3 py-1 bg-red-100 text-red-700 text-xs font-bold rounded-full">KRİTİK</span>
+                                        <span v-else
+                                            class="px-3 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full">NORMAL</span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- ACCOUNTING -->
+                <div v-if="currentPage === 'accounting'" class="animate-fade-in">
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                        <div class="bg-white p-6 rounded-2xl border border-slate-200">
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="p-3 bg-green-100 rounded-xl">
+                                    <i data-lucide="trending-up" class="w-6 h-6 text-green-600"></i>
+                                </div>
+                            </div>
+                            <h3 class="text-2xl font-bold text-green-600">{{ stats.monthly_income || 0 }} ₺</h3>
+                            <p class="text-xs text-slate-500 font-medium mt-1">Aylık Gelir</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                        <div class="p-6 border-b border-slate-100">
+                            <h2 class="font-bold text-lg text-slate-800">İşlem Geçmişi</h2>
+                        </div>
+                        <table class="w-full">
+                            <thead class="bg-slate-50 border-b border-slate-200">
+                                <tr>
+                                    <th class="px-6 py-4 text-left text-xs font-bold text-slate-600 uppercase">Tarih
+                                    </th>
+                                    <th class="px-6 py-4 text-left text-xs font-bold text-slate-600 uppercase">Açıklama
+                                    </th>
+                                    <th class="px-6 py-4 text-left text-xs font-bold text-slate-600 uppercase">Kategori
+                                    </th>
+                                    <th class="px-6 py-4 text-left text-xs font-bold text-slate-600 uppercase">Tutar
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                <tr v-for="t in accounting" :key="t.id" class="hover:bg-slate-50">
+                                    <td class="px-6 py-4 text-sm text-slate-600 font-mono">{{ t.date }}</td>
+                                    <td class="px-6 py-4 text-sm text-slate-800">{{ t.description }}</td>
+                                    <td class="px-6 py-4">
+                                        <span class="px-3 py-1 text-xs font-bold rounded-full"
+                                            :class="t.type === 'Gelir' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'">
+                                            {{ t.category }}
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4 font-bold"
+                                        :class="t.type === 'Gelir' ? 'text-green-600' : 'text-red-600'">
+                                        {{ t.type === 'Gelir' ? '+' : '-' }}{{ t.amount }} ₺
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- REMOTE DEVICES -->
+                <div v-if="currentPage === 'remote'" class="animate-fade-in">
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div v-for="device in remoteDevices" :key="device.device_id"
+                            class="bg-white rounded-2xl border border-slate-200 p-6 hover:shadow-lg transition-all">
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="flex items-center">
+                                    <div
+                                        class="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center mr-3">
+                                        <i data-lucide="monitor" class="w-6 h-6 text-white"></i>
+                                    </div>
+                                    <div>
+                                        <div class="font-bold text-slate-800">{{ device.hostname }}</div>
+                                        <div class="text-xs text-slate-500">{{ device.platform }}</div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center">
+                                    <div class="w-2 h-2 rounded-full mr-2"
+                                        :class="device.is_online ? 'bg-green-500 animate-pulse' : 'bg-red-500'"></div>
+                                    <span class="text-xs font-medium"
+                                        :class="device.is_online ? 'text-green-600' : 'text-red-600'">
+                                        {{ device.is_online ? 'Online' : 'Offline' }}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div class="space-y-2 mb-4">
+                                <div class="flex justify-between text-sm">
+                                    <span class="text-slate-600">CPU</span>
+                                    <span class="font-bold text-slate-800">{{ device.cpu_percent }}%</span>
+                                </div>
+                                <div class="flex justify-between text-sm">
+                                    <span class="text-slate-600">RAM</span>
+                                    <span class="font-bold text-slate-800">{{ device.memory_percent }}%</span>
+                                </div>
+                            </div>
+
+                            <button @click="sendRemoteCommand(device.device_id, 'get_screenshot')"
+                                class="w-full bg-blue-600 text-white py-2 rounded-lg text-sm font-bold hover:bg-blue-700 transition-all">
+                                Ekran Görüntüsü Al
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+
+        <!-- CREATE/EDIT MODAL -->
+        <div v-if="showModal"
+            class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm"
+            @click.self="showModal = false">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl animate-fade-in max-h-[90vh] overflow-y-auto">
+                <div class="p-6 border-b border-slate-100 flex justify-between items-center sticky top-0 bg-white z-10">
+                    <div>
+                        <h2 class="font-bold text-xl text-slate-800">{{ modalTitle }}</h2>
+                        <p v-if="wizardStep > 0" class="text-xs text-slate-500 mt-1">Adım {{ wizardStep }} / 3</p>
+                    </div>
+                    <button @click="showModal = false" class="text-slate-400 hover:text-slate-600">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+
+                <!-- WIZARD PROGRESS (Service Only) -->
+                <div v-if="modalType === 'service' && wizardStep > 0" class="flex border-b border-slate-100">
+                    <div class="flex-1 py-3 text-center border-b-2 text-sm font-bold transition-colors"
+                        :class="wizardStep >= 1 ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-300'">
+                        1. Müşteri</div>
+                    <div class="flex-1 py-3 text-center border-b-2 text-sm font-bold transition-colors"
+                        :class="wizardStep >= 2 ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-300'">
+                        2. Cihaz</div>
+                    <div class="flex-1 py-3 text-center border-b-2 text-sm font-bold transition-colors"
+                        :class="wizardStep >= 3 ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-300'">
+                        3. Onay</div>
+                </div>
+
+                <div class="p-6 space-y-4">
+                    <!-- Service Wizard Step 1: Customer -->
+                    <template v-if="modalType === 'service' && wizardStep === 1">
+                        <div class="text-center mb-4">
+                            <h3 class="font-bold text-slate-700">Müşteri Seçimi</h3>
+                            <p class="text-xs text-slate-400">İşlem yapılacak müşteriyi seçin veya yeni müşteri ekleyin
+                            </p>
+                        </div>
+                        <input v-model="customerSearchQuery" placeholder="Müşteri ara / seç..."
+                            class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
+                        <div class="border border-slate-200 rounded-xl max-h-64 overflow-y-auto bg-slate-50">
+                            <div v-for="c in filteredCustomerSelect" :key="c.id" @click="selectCustomer(c)"
+                                class="p-3 border-b border-slate-100 cursor-pointer hover:bg-blue-50 flex justify-between items-center transition-colors"
+                                :class="form.customer_name === c.name ? 'bg-blue-100 text-blue-700' : 'text-slate-600'">
+                                <span class="font-medium text-sm">{{ c.name }}</span>
+                                <span class="text-xs opacity-75">{{ c.phone }}</span>
+                            </div>
+                        </div>
+                        <input type="date" v-model="form.entry_date"
+                            class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                    </template>
+
+                    <!-- Service Wizard Step 2: Device -->
+                    <template v-if="modalType === 'service' && wizardStep === 2">
+                        <div
+                            class="p-3 bg-blue-50 rounded-lg border border-blue-100 text-blue-700 text-sm font-bold flex justify-between mb-4">
+                            <span>Müşteri:</span>
+                            <span>{{ form.customer_name }}</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <input v-model="form.device_brand" placeholder="Marka"
+                                class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
+                            <input v-model="form.device_model" placeholder="Model"
+                                class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
+                        </div>
+                        <select v-model="form.urgency"
+                            class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                            <option value="Normal">Normal</option>
+                            <option value="Yüksek">Yüksek</option>
+                            <option value="Acil">Acil</option>
+                        </select>
+                        <textarea v-model="form.fault_description" placeholder="Arıza Açıklaması"
+                            class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none h-32"></textarea>
+                        <div class="grid grid-cols-2 gap-4">
+                            <input v-model="form.password" placeholder="Ekran Şifresi"
+                                class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
+                            <input v-model="form.accessories" placeholder="Aksesuarlar"
+                                class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
+                        </div>
+                    </template>
+
+                    <!-- Service Wizard Step 3: Confirm -->
+                    <template v-if="modalType === 'service' && wizardStep === 3">
+                        <div class="bg-emerald-50 p-6 rounded-2xl border border-emerald-100 text-center mb-4">
+                            <div
+                                class="w-16 h-16 bg-white rounded-full flex items-center justify-center text-emerald-600 mx-auto mb-4 shadow-sm">
+                                <i data-lucide="check" class="w-8 h-8"></i>
+                            </div>
+                            <h3 class="text-emerald-800 font-bold text-lg">Kaydı Onayla</h3>
+                            <p class="text-emerald-600 text-xs">Lütfen bilgileri kontrol edip onaylayın</p>
+                        </div>
+                        <div class="space-y-3 text-sm">
+                            <div class="flex justify-between border-b border-slate-100 pb-2">
+                                <span class="text-slate-500">Müşteri</span>
+                                <span class="font-bold text-slate-800">{{ form.customer_name }}</span>
+                            </div>
+                            <div class="flex justify-between border-b border-slate-100 pb-2">
+                                <span class="text-slate-500">Cihaz</span>
+                                <span class="font-bold text-slate-800">{{ form.device_brand }} {{ form.device_model
+                                    }}</span>
+                            </div>
+                            <div class="flex justify-between border-b border-slate-100 pb-2">
+                                <span class="text-slate-500">Aciliyet</span>
+                                <span class="font-bold text-slate-800">{{ form.urgency }}</span>
+                            </div>
+                            <div class="flex flex-col">
+                                <span class="text-slate-500 mb-1">Arıza</span>
+                                <span class="font-medium text-slate-800 bg-slate-50 p-2 rounded">{{
+                                    form.fault_description }}</span>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- Customer Form -->
+                    <template v-if="modalType === 'customer'">
+                        <input v-model="form.name" placeholder="Ad Soyad / Firma"
+                            class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
+                        <input v-model="form.phone" placeholder="Telefon"
+                            class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
+                        <input v-model="form.email" placeholder="E-posta"
+                            class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
+                        <input v-model="form.tax_no" placeholder="Vergi No / TC No"
+                            class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
+                        <textarea v-model="form.address" placeholder="Adres"
+                            class="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none h-24"></textarea>
+                    </template>
+                </div>
+
+                <div class="p-6 border-t border-slate-100 flex justify-between sticky bottom-0 bg-white">
+                    <!-- Wizard Navigation -->
+                    <template v-if="modalType === 'service' && wizardStep > 0">
+                        <button v-if="wizardStep > 1" @click="wizardStep--"
+                            class="px-6 py-2.5 text-slate-600 font-medium hover:bg-slate-100 rounded-xl transition-all">Geri</button>
+                        <div v-else></div>
+                        <button v-if="wizardStep < 3" @click="wizardStep++"
+                            class="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transition-all">İleri</button>
+                        <button v-if="wizardStep === 3" @click="submitForm"
+                            class="px-8 py-2.5 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transition-all">Onayla
+                            ve Kaydet</button>
+                    </template>
+
+                    <!-- Regular Form -->
+                    <template v-else>
+                        <button @click="showModal = false"
+                            class="px-6 py-2.5 text-slate-600 font-medium hover:bg-slate-100 rounded-xl transition-all">İptal</button>
+                        <button @click="submitForm"
+                            class="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transition-all">Kaydet</button>
+                    </template>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const { createApp } = Vue
+
+        createApp({
+            data() {
+                return {
+                    currentPage: 'dashboard',
+                    loading: false,
+                    showModal: false,
+                    modalType: 'service',
+                    wizardStep: 0,
+                    searchQuery: '',
+                    customerSearchQuery: '',
+                    customerFilter: 'all',
+                    serviceFilter: 'all',
+
+                    menu: [
+                        { id: 'dashboard', label: 'Genel Bakış', icon: 'layout-dashboard' },
+                        { id: 'kanban', label: 'Operasyon Panosu', icon: 'trello' },
+                        { id: 'services', label: 'Servis Yönetimi', icon: 'wrench' },
+                        { id: 'customers', label: 'Müşteriler', icon: 'users' },
+                        { id: 'stock', label: 'Stok Yönetimi', icon: 'package' },
+                        { id: 'accounting', label: 'Ön Muhasebe', icon: 'wallet' },
+                        { id: 'remote', label: 'Uzaktan Yönetim', icon: 'monitor', badge: 0 }
+                    ],
+
+                    stats: {},
+                    kanban: {},
+                    services: [],
+                    customers: [],
+                    stock: [],
+                    accounting: [],
+                    remoteDevices: [],
+
+                    form: {
+                        customer_name: '',
+                        device_brand: '',
+                        device_model: '',
+                        fault_description: '',
+                        urgency: 'Normal',
+                        password: '',
+                        accessories: '',
+                        entry_date: new Date().toISOString().split('T')[0],
+                        name: '',
+                        phone: '',
+                        email: '',
+                        address: '',
+                        tax_no: ''
+                    }
+                }
+            },
+            computed: {
+                pageTitle() {
+                    return this.menu.find(m => m.id === this.currentPage)?.label || 'Panel'
+                },
+                modalTitle() {
+                    if (this.modalType === 'service') {
+                        if (this.wizardStep === 0) return 'Yeni Servis İşlemi'
+                        return 'Yeni Servis İşlemi'
+                    }
+                    return 'Yeni Müşteri'
+                },
+                dashboardStats() {
+                    return [
+                        { label: 'Aktif Servis', value: this.stats.active_services || 0, icon: 'activity', bg: 'bg-blue-50', color: 'text-blue-600' },
+                        { label: 'Bugün Gelen', value: this.stats.today_new || 0, icon: 'plus-circle', bg: 'bg-emerald-50', color: 'text-emerald-600' },
+                        { label: 'Toplam Müşteri', value: this.stats.total_customers || 0, icon: 'users', bg: 'bg-purple-50', color: 'text-purple-600' },
+                        { label: 'Kritik Stok', value: this.stats.low_stock || 0, icon: 'alert-triangle', bg: 'bg-amber-50', color: 'text-amber-600' }
+                    ]
+                },
+                filteredServices() {
+                    let filtered = this.services
+
+                    // Filter by status
+                    if (this.serviceFilter !== 'all') {
+                        filtered = filtered.filter(s => s.status === this.serviceFilter)
+                    }
+
+                    // Filter by search
+                    if (this.searchQuery) {
+                        const q = this.searchQuery.toLowerCase()
+                        filtered = filtered.filter(s =>
+                            (s.tracking_no && s.tracking_no.toLowerCase().includes(q)) ||
+                            (s.customer_name && s.customer_name.toLowerCase().includes(q)) ||
+                            (s.device_brand && s.device_brand.toLowerCase().includes(q)) ||
+                            (s.device_model && s.device_model.toLowerCase().includes(q)) ||
+                            (s.fault_description && s.fault_description.toLowerCase().includes(q)) ||
+                            (s.fault_desc && s.fault_desc.toLowerCase().includes(q))
+                        )
+                    }
+
+                    return filtered
+                },
+                filteredCustomers() {
+                    let filtered = this.customers
+
+                    // Filter by debt
+                    if (this.customerFilter === 'debt') {
+                        filtered = filtered.filter(c => (c.balance || 0) < 0)
+                    }
+
+                    // Filter by search
+                    if (this.searchQuery) {
+                        const q = this.searchQuery.toLowerCase()
+                        filtered = filtered.filter(c =>
+                            c.name.toLowerCase().includes(q) ||
+                            c.phone.includes(q) ||
+                            (c.email && c.email.toLowerCase().includes(q))
+                        )
+                    }
+
+                    return filtered
+                },
+                filteredCustomerSelect() {
+                    const q = this.customerSearchQuery.toLowerCase()
+                    if (!q) return this.customers.slice(0, 10)
+                    return this.customers.filter(c =>
+                        c.name.toLowerCase().includes(q) || c.phone.includes(q)
+                    ).slice(0, 10)
+                }
+            },
+            watch: {
+                currentPage() {
+                    this.loadData()
+                }
+            },
+            methods: {
+                async api(endpoint, method = 'GET', body = null) {
+                    this.loading = true
+                    try {
+                        const opts = { method, headers: { 'Content-Type': 'application/json' } }
+                        if (body) opts.body = JSON.stringify(body)
+                        const res = await fetch('/api' + endpoint, opts)
+                        return await res.json()
+                    } catch (e) {
+                        console.error('API Error:', e)
+                        return null
+                    } finally {
+                        this.loading = false
+                    }
+                },
+                async loadData() {
+                    if (this.currentPage === 'dashboard') {
+                        this.stats = await this.api('/dashboard') || {}
+                    } else if (this.currentPage === 'kanban') {
+                        this.kanban = await this.api('/kanban') || {}
+                    } else if (this.currentPage === 'services') {
+                        this.services = await this.api('/services') || []
+                    } else if (this.currentPage === 'customers') {
+                        this.customers = await this.api('/customers') || []
+                    } else if (this.currentPage === 'stock') {
+                        this.stock = await this.api('/parts') || []
+                    } else if (this.currentPage === 'accounting') {
+                        this.accounting = await this.api('/accounting') || []
+                    } else if (this.currentPage === 'remote') {
+                        this.remoteDevices = await this.api('/remote/devices') || []
+                        const onlineCount = this.remoteDevices.filter(d => d.is_online).length
+                        const menuItem = this.menu.find(m => m.id === 'remote')
+                        if (menuItem) menuItem.badge = onlineCount
+                    }
+                },
+                async refreshData() {
+                    await this.loadData()
+                },
+                openCreateModal() {
+                    this.modalType = this.currentPage === 'customers' ? 'customer' : 'service'
+                    this.wizardStep = this.modalType === 'service' ? 1 : 0
+                    this.showModal = true
+                    this.resetForm()
+                },
+                resetForm() {
+                    this.form = {
+                        customer_name: '',
+                        device_brand: '',
+                        device_model: '',
+                        fault_description: '',
+                        urgency: 'Normal',
+                        password: '',
+                        accessories: '',
+                        entry_date: new Date().toISOString().split('T')[0],
+                        name: '',
+                        phone: '',
+                        email: '',
+                        address: '',
+                        tax_no: ''
+                    }
+                    this.customerSearchQuery = ''
+                },
+                selectCustomer(c) {
+                    this.form.customer_name = c.name
+                    this.customerSearchQuery = c.name
+                },
+                async submitForm() {
+                    const endpoint = this.modalType === 'service' ? '/services' : '/customers'
+                    const res = await this.api(endpoint, 'POST', this.form)
+                    if (res && res.success) {
+                        this.showModal = false
+                        this.resetForm()
+                        this.wizardStep = 0
+                        this.loadData()
+                        alert('Kayıt başarıyla oluşturuldu!')
+                    } else {
+                        alert('Hata oluştu!')
+                    }
+                },
+                async sendRemoteCommand(deviceId, commandType) {
+                    await this.api('/remote/send_command', 'POST', {
+                        device_id: deviceId,
+                        command_type: commandType,
+                        parameters: {}
+                    })
+                    alert('Komut gönderildi!')
+                },
+                getStatusColor(status) {
+                    const colors = {
+                        'Bekliyor': 'border-slate-400',
+                        'Tamirde': 'border-blue-500',
+                        'Parça Bekliyor': 'border-orange-500',
+                        'Test Sürecinde': 'border-purple-500',
+                        'Teslim Edildi': 'border-green-500'
+                    }
+                    return colors[status] || 'border-slate-300'
+                },
+                openDetail(item, type) {
+                    console.log('Detail:', item, type)
+                },
+                openCustomerActions(customer) {
+                    // Open service wizard with pre-selected customer
+                    this.modalType = 'service'
+                    this.wizardStep = 2 // Skip to step 2
+                    this.form.customer_name = customer.name
+                    this.showModal = true
+                },
+                async updateServiceStatus(service) {
+                    const res = await this.api(`/services/${service.id}/status`, 'PUT', { status: service.status })
+                    if (res && res.success) {
+                        console.log('Status updated')
+                    }
+                },
+                async deleteService(id) {
+                    if (confirm('Bu servisi silmek istediğinizden emin misiniz?')) {
+                        const res = await this.api(`/services/${id}`, 'DELETE')
+                        if (res && res.success) {
+                            this.loadData()
+                            alert('Servis silindi')
+                        }
+                    }
+                },
+                downloadServicePdf(id) {
+                    window.open(`/api/services/${id}/pdf`, '_blank')
+                },
+                openServiceDetail(service) {
+                    console.log('Service detail:', service)
+                    // TODO: Open detail modal
+                },
+                formatDate(dateStr) {
+                    if (!dateStr) return '-'
+                    try {
+                        const d = new Date(dateStr)
+                        return d.toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                    } catch {
+                        return dateStr
+                    }
+                },
+                getStatusClass(status) {
+                    const classes = {
+                        'Bekliyor': 'bg-slate-100 text-slate-700',
+                        'Tamirde': 'bg-blue-100 text-blue-700',
+                        'Parça Bekliyor': 'bg-orange-100 text-orange-700',
+                        'Test Sürecinde': 'bg-purple-100 text-purple-700',
+                        'Teslim Edildi': 'bg-green-100 text-green-700'
+                    }
+                    return classes[status] || 'bg-slate-100 text-slate-700'
+                }
+            },
+            mounted() {
+                lucide.createIcons()
+                this.loadData()
+
+                // Auto-refresh remote devices
+                setInterval(() => {
+                    if (this.currentPage === 'remote') {
+                        this.loadData()
+                    }
+                }, 10000)
+            },
+            updated() {
+                lucide.createIcons()
+            }
+        }).mount('#app')
+    </script>
+</body>
+
+</html>

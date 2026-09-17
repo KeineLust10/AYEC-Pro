@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Premium Bulut - Çalışan Versiyon</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+
+<body>
+    <div id="app" class="p-8">
+        <h1 class="text-3xl font-bold mb-8">Premium Bulut - Veri Testi</h1>
+
+        <div class="grid grid-cols-3 gap-6 mb-8">
+            <div class="bg-white p-6 rounded-lg shadow">
+                <h3 class="font-bold mb-2">Dashboard</h3>
+                <pre class="text-xs">{{ JSON.stringify(dashboardData, null, 2) }}</pre>
+            </div>
+            <div class="bg-white p-6 rounded-lg shadow">
+                <h3 class="font-bold mb-2">Services ({{ services.length }})</h3>
+                <div v-for="s in services" :key="s.id" class="text-sm border-b py-2">
+                    {{ s.tracking_no }} - {{ s.customer_name }}
+                </div>
+            </div>
+            <div class="bg-white p-6 rounded-lg shadow">
+                <h3 class="font-bold mb-2">Customers ({{ customers.length }})</h3>
+                <div v-for="c in customers" :key="c.id" class="text-sm border-b py-2">
+                    {{ c.name }} - {{ c.phone }}
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-lg shadow">
+            <h3 class="font-bold mb-4">Parts ({{ parts.length }})</h3>
+            <table class="w-full">
+                <thead>
+                    <tr class="border-b">
+                        <th class="text-left p-2">Parça</th>
+                        <th class="text-left p-2">Stok</th>
+                        <th class="text-left p-2">Fiyat</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-for="p in parts" :key="p.id" class="border-b">
+                        <td class="p-2">{{ p.name }}</td>
+                        <td class="p-2">{{ p.stock }}</td>
+                        <td class="p-2">{{ p.price }} ₺</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue
+
+        createApp({
+            data() {
+                return {
+                    dashboardData: {},
+                    services: [],
+                    customers: [],
+                    parts: []
+                }
+            },
+            async mounted() {
+                try {
+                    // Dashboard
+                    const dashRes = await fetch('/api/dashboard')
+                    this.dashboardData = await dashRes.json()
+
+                    // Services
+                    const servRes = await fetch('/api/services')
+                    this.services = await servRes.json()
+
+                    // Customers
+                    const custRes = await fetch('/api/customers')
+                    this.customers = await custRes.json()
+
+                    // Parts
+                    const partsRes = await fetch('/api/parts')
+                    this.parts = await partsRes.json()
+
+                    console.log('✅ Tüm veriler yüklendi!')
+                } catch (e) {
+                    console.error('❌ Hata:', e)
+                }
+            }
+        }).mount('#app')
+    </script>
+</body>
+
+</html>

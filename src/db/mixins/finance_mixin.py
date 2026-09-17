@@ -15,21 +15,52 @@ class FinanceMixin:
             raise ValueError(f"Unsafe SQL identifier: {value!r}")
         return value
 
+    def _finance_soft_delete_column(self, table_name):
+        table_name = self._safe_identifier(table_name)
+        rows = self.conn.execute(
+            f'PRAGMA table_info("{table_name}")'
+        ).fetchall()
+        if not rows:
+            raise sqlite3.OperationalError(
+                f"Finance table is unavailable: {table_name}"
+            )
+        columns = {str(row[1]) for row in rows}
+        if "is_deleted" in columns:
+            return "is_deleted"
+        if "is_archived" in columns:
+            return "is_archived"
+        return None
+
+    def _finance_active_filter(self, table_name, alias=None):
+        deleted_column = self._finance_soft_delete_column(table_name)
+        if not deleted_column:
+            return ""
+        prefix = f"{self._safe_identifier(alias)}." if alias else ""
+        return (
+            f"({prefix}{deleted_column}=0 OR "
+            f"{prefix}{deleted_column} IS NULL)"
+        )
+
     def _finance_schema_key(self):
         db_name = getattr(self, "_db_name", None) or "default"
         try:
             row = self.conn.execute("PRAGMA database_list").fetchone()
             if row and len(row) >= 3 and row[2]:
                 return str(row[2])
-        except Exception:
-            pass
+        except sqlite3.Error as exc:
+            logger.debug("Finance schema path lookup failed: %s", exc)
         return str(db_name)
 
     def create_finance_tables(self):
         """Finans modülü için gerekli tabloları oluşturur."""
         schema_key = self._finance_schema_key()
         if schema_key in type(self)._finance_schema_initialized:
-            return
+            table_row = self.conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='loans'"
+            ).fetchone()
+            if table_row:
+                return
+            type(self)._finance_schema_initialized.discard(schema_key)
 
         previous_busy_timeout = None
         try:
@@ -39,13 +70,14 @@ class FinanceMixin:
                 previous_busy_timeout = (
                     int(row[0]) if row and row[0] is not None else None
                 )
-            except Exception:
+            except sqlite3.Error as exc:
+                logger.debug("Finance busy timeout could not be read: %s", exc)
                 previous_busy_timeout = None
 
             try:
                 self.cursor.execute("PRAGMA busy_timeout = 1200")
-            except Exception:
-                pass
+            except sqlite3.Error as exc:
+                logger.debug("Finance busy timeout could not be set: %s", exc)
 
             # Krediler Tablosu
             self.cursor.execute("""
@@ -64,20 +96,22 @@ class FinanceMixin:
                 )
             """)
 
-            # Krediler tablosuna yeni kolonlar ekle (yoksa)
-            try:
-                self.cursor.execute(
-                    "ALTER TABLE loans ADD COLUMN loan_type TEXT DEFAULT 'Taksitli'"
-                )
-                self.cursor.execute("ALTER TABLE loans ADD COLUMN loan_title TEXT")
-                self.cursor.execute(
-                    "ALTER TABLE loans ADD COLUMN kkdf_rate REAL DEFAULT 0"
-                )
-                self.cursor.execute(
-                    "ALTER TABLE loans ADD COLUMN bsmv_rate REAL DEFAULT 0"
-                )
-            except Exception as e:
-                logger.debug(f"Loans schema extension skipped: {e}")
+            # Apply every migration independently so one existing column does
+            # not prevent the remaining columns from being created.
+            loan_columns = {
+                row[1] for row in self.cursor.execute("PRAGMA table_info(loans)")
+            }
+            loan_extensions = {
+                "loan_type": "TEXT DEFAULT 'Taksitli'",
+                "loan_title": "TEXT",
+                "kkdf_rate": "REAL DEFAULT 0",
+                "bsmv_rate": "REAL DEFAULT 0",
+            }
+            for column_name, column_type in loan_extensions.items():
+                if column_name not in loan_columns:
+                    self.cursor.execute(
+                        f"ALTER TABLE loans ADD COLUMN {column_name} {column_type}"
+                    )
 
             # Kredi Ekler Tablosu
             self.cursor.execute("""
@@ -191,7 +225,15 @@ class FinanceMixin:
                 )
             """)
 
-            self.conn.commit()
+            for index_sql in (
+                "CREATE INDEX IF NOT EXISTS idx_loan_installments_due_status ON loan_installments(due_date, status)",
+                "CREATE INDEX IF NOT EXISTS idx_checks_notes_date_status ON checks_notes(date, status)",
+                "CREATE INDEX IF NOT EXISTS idx_accounting_date_type ON accounting(date, type)",
+            ):
+                try:
+                    self.cursor.execute(index_sql)
+                except sqlite3.OperationalError:
+                    pass
 
             self.conn.commit()
             type(self)._finance_schema_initialized.add(schema_key)
@@ -199,8 +241,11 @@ class FinanceMixin:
         except sqlite3.OperationalError as e:
             try:
                 self.conn.rollback()
-            except Exception:
-                pass
+            except sqlite3.Error as rollback_error:
+                logger.error(
+                    "Finance schema rollback failed: %s",
+                    rollback_error,
+                )
             if "locked" in str(e).lower():
                 logger.warning("Finance table init skipped due to temporary DB lock.")
                 return
@@ -213,8 +258,11 @@ class FinanceMixin:
                     self.cursor.execute(
                         f"PRAGMA busy_timeout = {max(0, int(previous_busy_timeout))}"
                     )
-                except Exception:
-                    pass
+                except sqlite3.Error as restore_error:
+                    logger.warning(
+                        "Finance busy timeout could not be restored: %s",
+                        restore_error,
+                    )
 
     # --- LOAN METHODS ---
     def add_loan(
@@ -336,17 +384,9 @@ class FinanceMixin:
     def get_loans(self, active_only=False):
         query = "SELECT * FROM loans"
         where = []
-        try:
-            cols = self._get_table_columns("loans")
-            deleted_col = (
-                "is_deleted"
-                if "is_deleted" in cols
-                else ("is_archived" if "is_archived" in cols else None)
-            )
-            if deleted_col:
-                where.append(f"({deleted_col}=0 OR {deleted_col} IS NULL)")
-        except Exception as e:
-            logger.debug(f"Loan column inspection skipped: {e}")
+        active_filter = self._finance_active_filter("loans")
+        if active_filter:
+            where.append(active_filter)
         if active_only:
             where.append("status = 'Aktif'")
         if where:
@@ -592,17 +632,9 @@ class FinanceMixin:
 
     def get_bank_cards(self, bank_account_id):
         query = "SELECT * FROM bank_cards WHERE bank_account_id=?"
-        try:
-            cols = self._get_table_columns("bank_cards")
-            deleted_col = (
-                "is_deleted"
-                if "is_deleted" in cols
-                else ("is_archived" if "is_archived" in cols else None)
-            )
-            if deleted_col:
-                query += f" AND ({deleted_col}=0 OR {deleted_col} IS NULL)"
-        except Exception:
-            pass
+        active_filter = self._finance_active_filter("bank_cards")
+        if active_filter:
+            query += f" AND {active_filter}"
         query += " ORDER BY id DESC"
         self.cursor.execute(query, (bank_account_id,))
         return self.cursor.fetchall()
@@ -735,17 +767,9 @@ class FinanceMixin:
 
     def get_loan_installments(self, loan_id):
         query = "SELECT * FROM loan_installments WHERE loan_id=?"
-        try:
-            cols = self._get_table_columns("loan_installments")
-            deleted_col = (
-                "is_deleted"
-                if "is_deleted" in cols
-                else ("is_archived" if "is_archived" in cols else None)
-            )
-            if deleted_col:
-                query += f" AND ({deleted_col}=0 OR {deleted_col} IS NULL)"
-        except Exception:
-            pass
+        active_filter = self._finance_active_filter("loan_installments")
+        if active_filter:
+            query += f" AND {active_filter}"
         query += " ORDER BY due_date ASC"
         self.cursor.execute(query, (loan_id,))
         return self.cursor.fetchall()
@@ -853,17 +877,9 @@ class FinanceMixin:
     def get_checks_notes(self, status_filter=None):
         query = "SELECT * FROM checks_notes"
         params = []
-        try:
-            cols = self._get_table_columns("checks_notes")
-            deleted_col = (
-                "is_deleted"
-                if "is_deleted" in cols
-                else ("is_archived" if "is_archived" in cols else None)
-            )
-            if deleted_col:
-                query += f" WHERE ({deleted_col}=0 OR {deleted_col} IS NULL)"
-        except Exception:
-            pass
+        active_filter = self._finance_active_filter("checks_notes")
+        if active_filter:
+            query += f" WHERE {active_filter}"
         if status_filter:
             query += " AND status = ?" if "WHERE" in query else " WHERE status = ?"
             params.append(status_filter)
@@ -889,33 +905,17 @@ class FinanceMixin:
         try:
             # 1. Kredi Taksitleri (Bekleyen)
             loan_query = "SELECT SUM(total_amount) FROM loan_installments WHERE status = 'Bekliyor'"
-            try:
-                cols = self._get_table_columns("loan_installments")
-                deleted_col = (
-                    "is_deleted"
-                    if "is_deleted" in cols
-                    else ("is_archived" if "is_archived" in cols else None)
-                )
-                if deleted_col:
-                    loan_query += f" AND ({deleted_col}=0 OR {deleted_col} IS NULL)"
-            except Exception:
-                pass
+            loan_active_filter = self._finance_active_filter("loan_installments")
+            if loan_active_filter:
+                loan_query += f" AND {loan_active_filter}"
             self.cursor.execute(loan_query)
             loan_debt = self.cursor.fetchone()[0] or 0.0
 
             # 2. Verilen Çekler/Senetler (Ödenmemiş)
             check_query = "SELECT SUM(amount) FROM checks_notes WHERE direction='Çıkış' AND status NOT IN ('Ödendi', 'İade')"
-            try:
-                cols = self._get_table_columns("checks_notes")
-                deleted_col = (
-                    "is_deleted"
-                    if "is_deleted" in cols
-                    else ("is_archived" if "is_archived" in cols else None)
-                )
-                if deleted_col:
-                    check_query += f" AND ({deleted_col}=0 OR {deleted_col} IS NULL)"
-            except Exception:
-                pass
+            check_active_filter = self._finance_active_filter("checks_notes")
+            if check_active_filter:
+                check_query += f" AND {check_active_filter}"
             self.cursor.execute(check_query)
             check_debt = self.cursor.fetchone()[0] or 0.0
 
@@ -934,29 +934,19 @@ class FinanceMixin:
         results = []
         try:
             # 1. Krediler
-            loan_where = ""
-            try:
-                lcols = self._get_table_columns("loans")
-                ldel = (
-                    "is_deleted"
-                    if "is_deleted" in lcols
-                    else ("is_archived" if "is_archived" in lcols else None)
+            loan_filters = [
+                value
+                for value in (
+                    self._finance_active_filter("loan_installments", "i"),
+                    self._finance_active_filter("loans", "l"),
                 )
-                icols = self._get_table_columns("loan_installments")
-                idel = (
-                    "is_deleted"
-                    if "is_deleted" in icols
-                    else ("is_archived" if "is_archived" in icols else None)
-                )
-                parts = []
-                if idel:
-                    parts.append(f"(i.{idel}=0 OR i.{idel} IS NULL)")
-                if ldel:
-                    parts.append(f"(l.{ldel}=0 OR l.{ldel} IS NULL)")
-                if parts:
-                    loan_where = " AND " + " AND ".join(parts)
-            except Exception:
-                loan_where = ""
+                if value
+            ]
+            loan_where = (
+                " AND " + " AND ".join(loan_filters)
+                if loan_filters
+                else ""
+            )
             self.cursor.execute(
                 """
                 SELECT l.bank_name, i.total_amount, 'Kredi Taksiti' as type 
@@ -970,22 +960,12 @@ class FinanceMixin:
                 results.append({"unvan": row[0], "tutar": row[1], "kategori": row[2]})
 
             # 2. Çek/Senet
-            check_where = ""
-            try:
-                cols = self._get_table_columns("checks_notes")
-                deleted_col = (
-                    "is_deleted"
-                    if "is_deleted" in cols
-                    else ("is_archived" if "is_archived" in cols else None)
-                )
-                if deleted_col:
-                    check_where = (
-                        " AND ({deleted_col}=0 OR {deleted_col} IS NULL)".format(
-                            deleted_col=self._safe_identifier(deleted_col)
-                        )
-                    )
-            except Exception:
-                check_where = ""
+            check_active_filter = self._finance_active_filter("checks_notes")
+            check_where = (
+                f" AND {check_active_filter}"
+                if check_active_filter
+                else ""
+            )
             self.cursor.execute(
                 """
                 SELECT recipient, amount, 'Çek/Senet Ödemesi' as type

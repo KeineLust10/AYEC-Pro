@@ -1,6 +1,8 @@
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QFormLayout, 
-                             QComboBox, QLineEdit, QTableWidget, QTableWidgetItem, QPushButton, 
-                             QLabel, QFrame, QMessageBox, QHeaderView, QSizePolicy)
+# -*- coding: utf-8 -*-
+
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QFormLayout,
+                             QComboBox, QLineEdit, QTableWidget, QTableWidgetItem, QPushButton,
+                             QLabel, QFrame, QHeaderView, QSizePolicy)
 from src.utils.theme_colors import theme_qss
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from src.finance.invoice_mapper import InvoiceMapper
@@ -8,10 +10,17 @@ from src.api.einvoice_client import EInvoiceClient
 from src.utils.logger import logger
 from src.utils.toast_notification import show_success, show_error, show_warning
 from src.utils.currency_helper import CurrencyHelper
+from src.utils.tax_settings import TaxSettings
+from src.utils.secure_setting_store import SecureSettingStore
 from datetime import datetime
 import json
 
+
 class InvoiceSenderThread(QThread):
+
+    def _on_ui_widget_changed(self, *args):
+        from src.ui.utils.ui_signal_helpers import on_ui_widget_changed
+        on_ui_widget_changed(self, *args)
     finished = pyqtSignal(bool, dict)
 
     def __init__(self, client, data):
@@ -30,26 +39,41 @@ class InvoiceCreationPage(QWidget):
         self.mapper = InvoiceMapper()
         self.current_currency_code = CurrencyHelper.get_code(self.db)
         self.current_total_try = 0.0
-        # Initialize Client (Fetch key from DB settings)
-        api_key = self.db.get_setting("einvoice_api_key", "SANDBOX_KEY_123")
-        self.client = EInvoiceClient(api_key=api_key, is_sandbox=True)
+        self.client = self._build_einvoice_client()
         
         self.init_ui()
         self.load_customers()
 
+    def _build_einvoice_client(self):
+        environment = self.db.get_setting("einvoice_environment", "sandbox")
+        return EInvoiceClient(
+            api_key=SecureSettingStore.get(self.db, "einvoice_api_key"),
+            is_sandbox=environment != "live",
+            base_url=self.db.get_setting("einvoice_api_url", ""),
+        )
+
     def init_ui(self):
         self.setWindowTitle("AYEC Pro | E-Fatura Oluştur")
         self.layout = QVBoxLayout(self)
-        self.layout.setContentsMargins(24, 20, 24, 20)
-        self.layout.setSpacing(16)
+        self.layout.setContentsMargins(20, 16, 20, 16)
+        self.layout.setSpacing(10)
 
         page_title = QLabel("E-Fatura Olustur")
-        page_title.setStyleSheet(theme_qss("font-size: 28px; font-weight: 800; color: @text;"))
-        self.layout.addWidget(page_title)
+        self.page_title = page_title
+        page_title.setStyleSheet(theme_qss("font-size: 24px; font-weight: 800; color: @text;"))
+        title_row = QHBoxLayout()
+        title_row.addWidget(page_title)
+        title_row.addStretch(1)
+        self.btn_integration = QPushButton("Entegrasyon Ayarlari")
+        self.btn_integration.clicked.connect(self.open_integration_settings)
+        title_row.addWidget(self.btn_integration)
+        self.layout.addLayout(title_row)
 
         # 1. Müşteri Bilgileri Grubu
         self.client_group = QGroupBox("Müşteri Bilgileri")
         self.client_layout = QFormLayout(self.client_group)
+        self.client_layout.setContentsMargins(12, 10, 12, 10)
+        self.client_layout.setVerticalSpacing(8)
         
         self.cmb_customer = QComboBox()
         self.cmb_customer.setPlaceholderText("Müşteri Seçin...")
@@ -75,8 +99,10 @@ class InvoiceCreationPage(QWidget):
         self.items_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         self.items_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
         self.items_table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
-        self.items_table.setMinimumHeight(420)
-        self.items_table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.items_table.setMinimumHeight(220)
+        self.items_table.setMaximumHeight(290)
+        self.items_table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        self.items_table.verticalHeader().setDefaultSectionSize(34)
         self.items_table.cellChanged.connect(self.calculate_totals)
         
         btn_layout = QHBoxLayout()
@@ -94,6 +120,8 @@ class InvoiceCreationPage(QWidget):
         self.total_panel = QFrame()
         self.total_panel.setStyleSheet(theme_qss("background-color: @surface_alt; border-radius: 8px; padding: 10px;"))
         self.total_layout = QFormLayout(self.total_panel)
+        self.total_layout.setContentsMargins(12, 10, 12, 10)
+        self.total_layout.setVerticalSpacing(8)
         
         self.lbl_subtotal = QLabel(CurrencyHelper.format_try_for_display(0, db=self.db))
         self.lbl_vat = QLabel(CurrencyHelper.format_try_for_display(0, db=self.db))
@@ -117,8 +145,8 @@ class InvoiceCreationPage(QWidget):
             pass
         self.total_layout.addRow("Tahsilat Kasası:", self.cmb_bank)
         
-        self.total_panel.setMinimumWidth(320)
-        self.total_panel.setMaximumWidth(360)
+        self.total_panel.setMinimumWidth(300)
+        self.total_panel.setMaximumWidth(340)
 
         top_row = QHBoxLayout()
         top_row.setSpacing(16)
@@ -126,7 +154,7 @@ class InvoiceCreationPage(QWidget):
         top_row.addWidget(self.total_panel, 0, Qt.AlignmentFlag.AlignTop)
         self.layout.addLayout(top_row)
 
-        self.layout.addWidget(self.items_table, 1)
+        self.layout.addWidget(self.items_table, 0)
 
         # 4. Gönder Butonu
         self.btn_send = QPushButton("🚀 E-Faturayı Resmileştir ve Gönder")
@@ -138,25 +166,71 @@ class InvoiceCreationPage(QWidget):
         """))
         self.btn_send.clicked.connect(self.send_invoice)
         self.layout.addWidget(self.btn_send)
+        self.layout.addStretch(1)
         
         # Init with one row
         self.add_row()
+        self._normalize_ui_texts()
+
+    def _normalize_ui_texts(self):
+        """Repair legacy mojibake strings after widget creation."""
+        self.setWindowTitle("AYEC Pro | E-Fatura Olu\u015ftur")
+        self.page_title.setText("E-Fatura Olu\u015ftur")
+        self.client_group.setTitle("M\u00fc\u015fteri Bilgileri")
+        self.cmb_customer.setPlaceholderText("M\u00fc\u015fteri Se\u00e7in...")
+        customer_label = self.client_layout.labelForField(self.cmb_customer)
+        if customer_label:
+            customer_label.setText("M\u00fc\u015fteri Se\u00e7:")
+        bank_label = self.total_layout.labelForField(self.cmb_bank)
+        if bank_label:
+            bank_label.setText("Tahsilat Kasas\u0131:")
+        if self.cmb_bank.count() and self.cmb_bank.itemData(0) == -1:
+            self.cmb_bank.setItemText(0, "Kasa/Banka Se\u00e7meyin")
+        self.btn_add_item.setText("+ Yeni Sat\u0131r Ekle")
+        self.btn_remove_item.setText("- Sat\u0131r Sil")
+        self.btn_send.setText("\U0001f680 E-Faturay\u0131 Resmile\u015ftir ve G\u00f6nder")
+        self.items_table.setHorizontalHeaderLabels(
+            ["\u00dcr\u00fcn/Hizmet", "Miktar", "Birim", "Birim Fiyat", "KDV %", "Tutar"]
+        )
+
+    def open_integration_settings(self):
+        from src.ui.dialogs.einvoice_integration_dialog import EInvoiceIntegrationDialog
+
+        dialog = EInvoiceIntegrationDialog(self.db, self)
+        if dialog.exec():
+            self.client = self._build_einvoice_client()
+            show_success(self, "Kaydedildi", "E-Fatura entegrasyon ayarlari kaydedildi.")
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.load_customers()
 
     def load_customers(self):
         try:
-            # Assuming DB has customers table
             cursor = self.db.cursor
-            # Select essential columns
-            customers = cursor.execute("SELECT id, name, tax_number, address FROM customers").fetchall()
-            
-            self.customers_data = {} 
+            columns = {
+                str(row[1]).lower()
+                for row in cursor.execute("PRAGMA table_info(customers)").fetchall()
+            }
+            tax_column = next(
+                (name for name in ("tax_number", "tax_no", "tax_id", "tc_no") if name in columns),
+                None,
+            )
+            tax_expr = tax_column if tax_column else "''"
+            address_expr = "address" if "address" in columns else "''"
+            where_clause = " WHERE COALESCE(is_deleted, 0) = 0" if "is_deleted" in columns else ""
+            query = (
+                f"SELECT id, name, {tax_expr}, {address_expr} FROM customers"
+                f"{where_clause} ORDER BY name COLLATE NOCASE"
+            )
+            customers = cursor.execute(query).fetchall()
+
+            self.customers_data = {}
             self.cmb_customer.clear()
 
             for c in customers:
                 c_id, name, tax, addr = c
-                # Store full data object mapped by ID
                 self.customers_data[c_id] = {'name': name, 'tax': tax, 'addr': addr}
-                # Add to combo with ID as UserData
                 self.cmb_customer.addItem(name, c_id)
             self.cmb_customer.setCurrentIndex(-1)
                 
@@ -181,7 +255,12 @@ class InvoiceCreationPage(QWidget):
         self.items_table.setItem(row, 1, QTableWidgetItem("1"))
         self.items_table.setItem(row, 2, QTableWidgetItem("Adet"))
         self.items_table.setItem(row, 3, QTableWidgetItem("0.00"))
-        self.items_table.setItem(row, 4, QTableWidgetItem("20")) # VAT
+        vat_percent = TaxSettings.get_percent(self.db)
+        self.items_table.setItem(
+            row,
+            4,
+            QTableWidgetItem(f"{vat_percent:g}"),
+        )
         self.items_table.setItem(row, 5, QTableWidgetItem("0.00")) # Total
         
     def remove_row(self):
@@ -217,17 +296,36 @@ class InvoiceCreationPage(QWidget):
             
         grand_total = subtotal + vat_total
         self.current_total_try = grand_total
-
-        self.lbl_subtotal.setText(CurrencyHelper.format_try_for_display(subtotal, db=self.db))
-        self.lbl_vat.setText(CurrencyHelper.format_try_for_display(vat_total, db=self.db))
-        self.lbl_total.setText(CurrencyHelper.format_try_for_display(grand_total, db=self.db))
+        self.lbl_subtotal.setText(
+            CurrencyHelper.format_try_for_display(subtotal, db=self.db)
+        )
+        self.lbl_vat.setText(
+            CurrencyHelper.format_try_for_display(vat_total, db=self.db)
+        )
+        self.lbl_total.setText(
+            CurrencyHelper.format_try_for_display(grand_total, db=self.db)
+        )
         self.items_table.blockSignals(False)
+
+    def refresh_financial_defaults(self):
+        vat_percent = TaxSettings.get_percent(self.db)
+        self.items_table.blockSignals(True)
+        try:
+            for row in range(self.items_table.rowCount()):
+                self.items_table.setItem(
+                    row,
+                    4,
+                    QTableWidgetItem(f"{vat_percent:g}"),
+                )
+        finally:
+            self.items_table.blockSignals(False)
+        self.calculate_totals()
 
     def send_invoice(self):
         # 1. Gather Data
         cust_name = self.cmb_customer.currentText()
         if not cust_name:
-            QMessageBox.warning(self, "Hata", "Lütfen müşteri seçin.")
+            show_warning(self, "Hata", "L\u00fctfen m\u00fc\u015fteri se\u00e7in.")
             return
 
         items = []
@@ -265,7 +363,7 @@ class InvoiceCreationPage(QWidget):
             self.worker.start()
             
         except Exception as e:
-            QMessageBox.critical(self, "Veri Hatası", f"Fatura oluşturulamadı:\n{e}")
+            show_error(self, "Veri Hatas\u0131", f"Fatura olu\u015fturulamad\u0131:\n{e}")
 
     def on_send_finished(self, success, resp):
         self.btn_send.setEnabled(True)
@@ -290,6 +388,14 @@ class InvoiceCreationPage(QWidget):
                 self.db.conn.commit()
             except Exception as e:
                 logger.error(f"InvoiceCreationPage e-invoice insert error: {e}")
+
+            if self.client.is_sandbox:
+                show_success(
+                    self,
+                    "Test Basarili",
+                    f"Sandbox e-fatura testi tamamlandi. Gercek belge gonderilmedi.\nETTN: {uuid}\nDurum: {status}",
+                )
+                return
                 
             try:
                 # --- FINANSAL TETİKLEYİCİ (TRIGGER) ---
@@ -321,7 +427,13 @@ class InvoiceCreationPage(QWidget):
             except Exception as e: 
                 logger.error(f"InvoiceCreationPage finance trigger error: {e}")
             
-            QMessageBox.information(self, "Başarılı", f"Fatura GİB'e iletildi!\nETTN: {uuid}\nDurum: {status}")
+            show_success(self, "Ba\u015far\u0131l\u0131", f"Fatura G\u0130B'e iletildi!\nETTN: {uuid}\nDurum: {status}")
         else:
-            QMessageBox.critical(self, "Hata", f"Gönderim Başarısız:\n{resp.get('detail', 'Bilinmeyen Hata')}")
+            show_error(self, "Hata", f"G\u00f6nderim ba\u015far\u0131s\u0131z:\n{resp.get('detail', 'Bilinmeyen Hata')}")
 
+    def _wire_ui_signals(self):
+        self.cmb_bank.currentIndexChanged.connect(self._on_ui_widget_changed)
+
+
+# Geriye d\u00f6n\u00fck uyumluluk alias
+InvoicePage = InvoiceCreationPage

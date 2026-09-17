@@ -1,0 +1,19 @@
+services:
+  ayec-web:
+    build:
+      context: .
+      args:
+        REQUIREMENTS_FILE: ${AYEC_REQUIREMENTS:-requirements-ocr.txt}
+    ports:
+      - "${AYEC_PORT:-8501}:8501"
+    environment:
+      AYEC_HOST: 0.0.0.0
+      AYEC_PORT: 8501
+      AYEC_DB_PATH: /data/ayecpro.db
+      AYEC_TENANT_DIR: /data/Kullanıcılar
+      TESSERACT_CMD: /usr/bin/tesseract
+    volumes:
+      - ./data:/data
+      - ./Kullanıcılar:/data/Kullanıcılar
+      - ./web/uploads:/app/web/uploads
+    restart: unless-stopped

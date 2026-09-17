@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import QMenu, QTreeWidgetItem
 from src.utils.currency_helper import CurrencyHelper
 from src.utils.context_menu_settings import is_context_menu_enabled
 from src.utils.exchange_rate_manager import ExchangeRateManager
+from src.utils.theme_colors import theme_qss
 from src.utils.toast_notification import (
     show_error,
     show_info,
@@ -17,9 +18,30 @@ from src.utils.toast_notification import (
     show_warning,
 )
 from src.utils.logger import logger
+from src.ui.pages.transaction_multi_select_dialog import MultiSelectServiceDialog
 
 
 class TransactionPageBehaviorMixin:
+    @staticmethod
+    def _exchange_rate_style(variant="success"):
+        colors = {
+            "success": ("@success_bg", "@success"),
+            "accent": ("@surface_alt", "@accent"),
+            "danger": ("@danger_bg", "@danger"),
+        }
+        background, foreground = colors.get(variant, colors["success"])
+        return theme_qss(
+            f"""
+            font-size: 12px;
+            color: {foreground};
+            font-weight: 600;
+            padding: 8px;
+            background: {background};
+            border-radius: 6px;
+            border-left: 3px solid {foreground};
+            """
+        )
+
     def _get_selected_currency_code(self):
         if hasattr(self, "cmb_currency"):
             return self._parse_currency_code(self.cmb_currency.currentText())
@@ -417,6 +439,49 @@ class TransactionPageBehaviorMixin:
         else:
             self.cart_content_stack.setCurrentWidget(self.cart_table)
 
+
+
+
+
+
+
+    def add_description_context(self):
+        item = self.cart_table.currentItem()
+        if not item:
+            return
+        item_id = item.data(0, Qt.ItemDataRole.UserRole)
+        cart_item = next((x for x in self.cart_items if x.get("id") == item_id), None)
+        if not cart_item:
+            return
+
+        current_desc = cart_item.get("description", "")
+        from src.ui.dialogs.modern_input_dialog import ModernInputDialog
+
+        desc, ok = ModernInputDialog.get_multiline(
+            self, "A\u00e7\u0131klama Ekle", "Hizmet a\u00e7\u0131klamas\u0131:", current_desc
+        )
+        if ok:
+            cart_item["description"] = desc
+            self.refresh_cart_ui()
+
+    def copy_service_context(self):
+        item = self.cart_table.currentItem()
+        if not item:
+            return
+        item_id = item.data(0, Qt.ItemDataRole.UserRole)
+        original_item = next(
+            (x for x in self.cart_items if x.get("id") == item_id), None
+        )
+        if not original_item:
+            return
+
+        new_item = original_item.copy()
+        new_item["id"] = str(uuid.uuid4())
+        self.cart_items.append(new_item)
+        self.refresh_cart_ui()
+        self.update_totals()
+        show_info(self, "Hizmet kopyaland\u0131.")
+
     def remove_from_cart(self):
         """Sepetten hizmet çıkar"""
         item = self.cart_table.currentItem()
@@ -446,34 +511,22 @@ class TransactionPageBehaviorMixin:
         else:
             self.cart_content_stack.setCurrentWidget(self.cart_table)
 
-    def remove_from_cart(self):
-        """Sepetten hizmet çıkar"""
-        item = self.cart_table.currentItem()
-        if not item:
-            return
-
-        # User role holds ID
-        item_id = item.data(0, Qt.ItemDataRole.UserRole)
-
-        if not item_id:
-            # Parent clicked
-            self.notify(
-                "Lütfen silmek için bir işlem seçin (Tarih başlığını silemezsiniz).",
-                "warning",
-            )
-            return
-
-        # Remove from list
-        self.cart_items = [x for x in self.cart_items if x.get("id") != item_id]
-
+    def clear_cart(self):
+        """Sepeti temizle"""
+        self.cart_items = []
+        if hasattr(self, "cart_table"):
+            self.cart_table.clear()
+            self.cart_table.setRowCount(0)
+        if hasattr(self, "inp_discount"):
+            self.inp_discount.setValue(0)
         self.update_totals()
-        self.refresh_cart_ui()
-
-        # Show empty state if cart is now empty
-        if not self.cart_items:
+        if hasattr(self, "cart_content_stack") and hasattr(self, "cart_empty_state"):
             self.cart_content_stack.setCurrentWidget(self.cart_empty_state)
-        else:
-            self.cart_content_stack.setCurrentWidget(self.cart_table)
+        if hasattr(self, "switch_tab"):
+            try:
+                self.switch_tab(0)
+            except Exception:
+                pass
 
     def update_totals(self):
         """Toplamları hesapla ve güncelle"""
@@ -580,7 +633,12 @@ class TransactionPageBehaviorMixin:
         current_qty = cart_item.get("qty", 1)
         from src.ui.dialogs.modern_input_dialog import ModernInputDialog
 
-        qty, ok = ModernInputDialog.get_double(
+        quantity_dialog = (
+            ModernInputDialog.get_int
+            if cart_item.get("type") == "part"
+            else ModernInputDialog.get_double
+        )
+        qty, ok = quantity_dialog(
             self, "Miktar Değiştir", "Yeni miktar:", current_qty
         )
         if ok:
@@ -611,55 +669,11 @@ class TransactionPageBehaviorMixin:
             self.refresh_cart_ui()
             self.update_totals()
 
-    def add_description_context(self):
-        item = self.cart_table.currentItem()
-        if not item:
-            return
-        item_id = item.data(0, Qt.ItemDataRole.UserRole)
-        cart_item = next((x for x in self.cart_items if x.get("id") == item_id), None)
-        if not cart_item:
-            return
 
-        current_desc = cart_item.get("description", "")
-        from src.ui.dialogs.modern_input_dialog import ModernInputDialog
-
-        desc, ok = ModernInputDialog.get_multiline(
-            self, "Açıklama Ekle", "Hizmet açıklaması:", current_desc
-        )
-        if ok:
-            cart_item["description"] = desc
-            self.refresh_cart_ui()
-
-    def copy_service_context(self):
-        item = self.cart_table.currentItem()
-        if not item:
-            return
-        item_id = item.data(0, Qt.ItemDataRole.UserRole)
-        original_item = next(
-            (x for x in self.cart_items if x.get("id") == item_id), None
-        )
-        if not original_item:
-            return
-
-        new_item = original_item.copy()
-        new_item["id"] = str(uuid.uuid4())
-        self.cart_items.append(new_item)
-
-        self.refresh_cart_ui()
-        self.update_totals()
-        show_info(self, "Hizmet kopyalandı.")
 
     # Legacy _internal_save removed to prevent conflicts
     # All save logic is now handled by the multi-currency enabled save_transaction method below.
 
-    def clear_cart(self):
-        """Sepeti temizle"""
-        self.cart_items = []
-        self.cart_table.clear()
-        self.inp_discount.setValue(0)
-        self.update_totals()
-        self.cart_content_stack.setCurrentWidget(self.cart_empty_state)
-        self.switch_tab(0)  # Go back to start
 
     def create_proforma(self):
         """Proforma PDF oluştur"""
@@ -675,12 +689,15 @@ class TransactionPageBehaviorMixin:
             customer_id = None
         else:
             try:
-                for row in self.db.get_customers() or []:
-                    data = dict(row) if not isinstance(row, dict) else row
-                    if data.get("id") == customer_id:
-                        customer_name = str(data.get("name") or customer_name).strip()
-                        customer_company = str(data.get("company_name") or "").strip()
-                        break
+                self.db.cursor.execute("SELECT name, company_name FROM customers WHERE id=?", (customer_id,))
+                row = self.db.cursor.fetchone()
+                if row:
+                    if hasattr(row, "keys"):
+                        customer_name = str(row["name"] or customer_name).strip()
+                        customer_company = str(row["company_name"] or "").strip()
+                    else:
+                        customer_name = str(row[0] or customer_name).strip()
+                        customer_company = str(row[1] or "").strip() if len(row) > 1 else ""
             except Exception as e:
                 logger.debug(f"Proforma customer detail fallback used: {e}")
 
@@ -706,12 +723,18 @@ class TransactionPageBehaviorMixin:
             currency_mode=currency_mode,
             customer_id=customer_id,
             customer_company=customer_company,
+            initial_project=getattr(self, "_editing_offer_project", ""),
+            preferred_template=getattr(self, "_editing_offer_template", ""),
+            source="sales_hub",
+            existing_offer_id=getattr(self, "_editing_offer_id", None),
+            existing_offer_no=getattr(self, "_editing_offer_no", ""),
+            include_approval=(
+                self.toggle_offer_approval.isChecked()
+                if hasattr(self, "toggle_offer_approval")
+                else True
+            ),
         )
         dialog.exec()
-
-    def refresh_data(self):
-        """Verileri yenile"""
-        self.load_customers()
         self.load_services()
 
     def notify(self, message, level="info"):
@@ -748,7 +771,21 @@ class TransactionPageBehaviorMixin:
 
         except Exception as e:
             self.lbl_exchange_rate.setText(f"Kur güncellenemedi: {e}")
-            self.lbl_exchange_rate.setStyleSheet("color: #dc2626; font-size: 12px;")
+            self.lbl_exchange_rate.setStyleSheet(self._exchange_rate_style("danger"))
+
+    def refresh_financial_defaults(self):
+        from src.utils.tax_settings import TaxSettings
+
+        if hasattr(self, "cmb_vat") and not getattr(
+            self,
+            "_editing_offer_id",
+            None,
+        ):
+            vat_text = TaxSettings.combo_text(self.db)
+            if self.cmb_vat.findText(vat_text) < 0:
+                self.cmb_vat.addItem(vat_text)
+            self.cmb_vat.setCurrentText(vat_text)
+        self.update_exchange_rates()
 
     def on_currency_changed(self, currency_text):
         """Para birimi değiştiğinde kuru güncelle"""
@@ -763,11 +800,7 @@ class TransactionPageBehaviorMixin:
             if currency_code == "TRY":
                 self.current_exchange_rate = 1.0
                 self.lbl_exchange_rate.setText("TRY - Kur: 1.00")
-                self.lbl_exchange_rate.setStyleSheet("""
-                    font-size: 12px; color: #16a34a; font-weight: 600;
-                    padding: 8px; background: #f0fdf4; border-radius: 6px;
-                    border-left: 3px solid #16a34a;
-                """)
+                self.lbl_exchange_rate.setStyleSheet(self._exchange_rate_style("success"))
             else:
                 # TCMB'den kuru al
                 rate = ExchangeRateManager.get_current_rate(
@@ -780,15 +813,11 @@ class TransactionPageBehaviorMixin:
                     self.lbl_exchange_rate.setText(
                         f"{symbol} {currency_code} Satış Kuru: {rate:.4f} {CurrencyHelper.get_symbol(self.db, 'TRY')}"
                     )
-                    self.lbl_exchange_rate.setStyleSheet("""
-                        font-size: 12px; color: #2563eb; font-weight: 600;
-                        padding: 8px; background: #eff6ff; border-radius: 6px;
-                        border-left: 3px solid #2563eb;
-                    """)
+                    self.lbl_exchange_rate.setStyleSheet(self._exchange_rate_style("accent"))
                 else:
                     self.lbl_exchange_rate.setText(f"{currency_code} kuru bulunamadı!")
                     self.lbl_exchange_rate.setStyleSheet(
-                        "color: #dc2626; font-size: 12px;"
+                        self._exchange_rate_style("danger")
                     )
                     self.current_exchange_rate = 1.0
 
@@ -839,6 +868,21 @@ class TransactionPageBehaviorMixin:
             # Para birimi bilgilerini al
             currency_text = self.cmb_currency.currentText()
             currency_code = self._parse_currency_code(currency_text)
+            if currency_code == "TRY":
+                self.current_exchange_rate = 1.0
+            else:
+                current_rate = ExchangeRateManager.get_current_rate(
+                    self.db,
+                    currency_code,
+                    "selling",
+                )
+                if not current_rate:
+                    show_error(
+                        self,
+                        "Guncel doviz kuru bulunamadi. Islem kaydedilmedi.",
+                    )
+                    return
+                self.current_exchange_rate = float(current_rate)
 
             # Toplam tutarı hesapla
             total_try = self.calculate_cart_total()  # TL cinsinden toplam
@@ -852,6 +896,68 @@ class TransactionPageBehaviorMixin:
                     if self.current_exchange_rate > 0
                     else 0
                 )
+
+            payment_amount = 0.0
+            payment_method = None
+            payment_note = ""
+            if pay_now:
+                from src.ui.dialogs.sale_payment_dialog import SalePaymentDialog
+
+                payment_dialog = SalePaymentDialog(
+                    total=amount_in_currency,
+                    currency_code=currency_code,
+                    customer_name=customer_text,
+                    parent=self,
+                )
+                if not payment_dialog.exec():
+                    return
+                payment_amount = payment_dialog.payment_amount
+                payment_method = payment_dialog.payment_method
+                payment_note = payment_dialog.payment_note
+
+            if pay_now and not self.db.create_payment_debt_links_table():
+                show_error(
+                    self,
+                    "Odeme dagitim tablosu hazirlanamadi. Islem kaydedilmedi.",
+                )
+                return
+
+            stock_plan = []
+            for item in self.cart_items:
+                if item.get("type") != "part" or not item.get("item_id"):
+                    continue
+                qty = int(
+                    item.get("qty")
+                    or item.get("quantity")
+                    or item.get("adet")
+                    or 1
+                )
+                if qty <= 0:
+                    show_error(self, "Stok miktari pozitif olmalidir.")
+                    return
+                part_id = int(item.get("item_id"))
+                part_row = self.db.cursor.execute(
+                    """
+                    SELECT name, COALESCE(stock, 0)
+                    FROM parts
+                    WHERE id=? AND COALESCE(is_deleted, 0)=0
+                    """,
+                    (part_id,),
+                ).fetchone()
+                if not part_row:
+                    show_error(self, f"Stok karti bulunamadi: {part_id}")
+                    return
+                available = int(part_row[1] or 0)
+                if available < qty:
+                    show_error(
+                        self,
+                        (
+                            f"Yetersiz stok: {part_row[0]} "
+                            f"(mevcut {available}, istenen {qty})"
+                        ),
+                    )
+                    return
+                stock_plan.append((part_id, qty, str(part_row[0] or "")))
 
             # Tracking number olustur
             tracking_no = f"SRV-{datetime.now().strftime('%Y%m%d%H%M%S')}"
@@ -894,157 +1000,183 @@ class TransactionPageBehaviorMixin:
                 description=description,
                 tracking_no=tracking_no,
                 created_at=txn_date,
+                commit=False,
             )
 
-            if success:
-                try:
-                    self.db.add_transaction(
-                        t_type="Gelir",
-                        category="Satis",
-                        amount=amount_in_currency,
-                        description=description,
-                        customer_name=customer_text,
-                        customer_id=customer_id,
-                        date=self.date_edit_transaction.date().toString("yyyy-MM-dd")
-                        if hasattr(self, "date_edit_transaction")
-                        else None,
-                        payment_method=None,
-                        tracking_no=tracking_no,
-                        ref_no=tracking_no,
-                        selected_services=self.cart_items,
-                        currency=currency_code,
-                        original_amount=amount_in_currency,
+            if not success:
+                raise RuntimeError("Customer debt could not be recorded")
+            debt_txn_id = None
+            if pay_now:
+                debt_txn_id = self.db.get_last_currency_transaction_id()
+                if not debt_txn_id:
+                    raise RuntimeError("Customer debt transaction id is missing")
+
+            accounting_id = self.db.add_transaction(
+                t_type="Gelir",
+                category="Satis",
+                amount=amount_in_currency,
+                description=description,
+                customer_name=customer_text,
+                customer_id=customer_id,
+                date=self.date_edit_transaction.date().toString("yyyy-MM-dd")
+                if hasattr(self, "date_edit_transaction")
+                else None,
+                payment_method=payment_method,
+                tracking_no=tracking_no,
+                ref_no=tracking_no,
+                selected_services=self.cart_items,
+                currency=currency_code,
+                original_amount=amount_in_currency,
+                exchange_rate=self.current_exchange_rate,
+                commit=False,
+            )
+            if not accounting_id:
+                raise RuntimeError("Accounting transaction could not be recorded")
+
+            # 2. Deduct stock after all stock cards have passed preflight.
+            for part_id, qty, part_name in stock_plan:
+                logger.debug(
+                    "Deducting stock - Part ID: %s, Quantity: %s",
+                    part_id,
+                    qty,
+                )
+                if not self.db.use_part(
+                    part_id,
+                    qty,
+                    tracking_no,
+                    commit=False,
+                ):
+                    raise RuntimeError(
+                        f"Stock deduction failed: {part_name}"
                     )
-                except Exception as acc_err:
-                    logger.warning(
-                        f"Accounting mirror save skipped for {tracking_no}: {acc_err}"
-                    )
-
-            # 2. Stoktan Düşme (Stock Deduction) + COGS Gider
-            if success:
-                total_material_cost = 0.0
-                cost_parts_names = []
-                try:
-                    for item in self.cart_items:
-                        # Check item type
-                        is_part = item.get("type") == "part"
-                        has_id = item.get("item_id")
-
-                        if is_part and has_id:
-                            # Try multiple possible quantity keys
-                            qty = (
-                                item.get("qty")
-                                or item.get("quantity")
-                                or item.get("adet")
-                                or 1
-                            )
-                            qty = int(qty)
-                            part_id = item.get("item_id")
-
-                            logger.debug(
-                                f"Deducting stock - Part ID: {part_id}, Quantity: {qty}"
-                            )
-                            self.db.use_part(part_id, qty, tracking_no)
-
-                            # COGS: Alış fiyatını çek
-                            try:
-                                self.db.cursor.execute(
-                                    "SELECT purchase_price FROM parts WHERE id=?",
-                                    (part_id,),
-                                )
-                                pp_row = self.db.cursor.fetchone()
-                                pp = (
-                                    float(pp_row[0] or 0)
-                                    if pp_row and pp_row[0]
-                                    else 0.0
-                                )
-                                if pp > 0:
-                                    total_material_cost += pp * qty
-                                    part_name = (
-                                        item.get("service")
-                                        or item.get("name")
-                                        or "Parça"
-                                    )
-                                    cost_parts_names.append(f"{part_name}x{qty}")
-                            except Exception:
-                                pass
-                except Exception as e:
-                    logger.error(f"Stock deduction error: {e}")
-
-                # COGS Gider kaydı oluştur
-                if total_material_cost > 0:
-                    try:
-                        cost_desc = f"Satılan Malın Maliyeti - Servis İşlemi ({len(cost_parts_names)} kalem)"
-                        if cost_parts_names:
-                            cost_desc += f" [{', '.join(cost_parts_names)}]"
-                        self.db.add_transaction(
-                            t_type="Gider",
-                            category="Satılan Malın Maliyeti",
-                            amount=total_material_cost,
-                            description=cost_desc,
-                            customer_name=customer_text,
-                            customer_id=customer_id,
-                            tracking_no=tracking_no,
-                            ref_no=tracking_no,
-                        )
-                    except Exception as cogs_err:
-                        logger.error(
-                            f"Transaction page COGS recording error: {cogs_err}"
-                        )
 
             # 2. Ödeme Alma (Varsa) - DÖVİZLİ
-            if success and pay_now:
+            if pay_now:
                 # Tahsilat kaydı (ALACAK)
+                payment_description = (
+                    f"Tahsilat ({payment_method}) - {description}"
+                )
+                if payment_note:
+                    payment_description += f"\nOdeme Notu: {payment_note}"
                 credit_ok = self.db.add_currency_transaction(
                     customer_id=customer_id,
-                    amount=amount_in_currency,
+                    amount=payment_amount,
                     currency=currency_code,
                     transaction_type="CREDIT",  # Alacak (Ödeme)
                     exchange_rate=self.current_exchange_rate,
-                    description=f"Tahsilat (Peşin Ödeme) - {description}",
+                    description=payment_description,
                     tracking_no=tracking_no,
+                    commit=False,
                 )
 
+                if not credit_ok:
+                    raise RuntimeError("Payment could not be recorded")
+                payment_txn_id = self.db.get_last_currency_transaction_id()
+                if not payment_txn_id:
+                    raise RuntimeError("Payment transaction id is missing")
+                allocation = self.db.apply_payment_to_debts(
+                    customer_id=customer_id,
+                    payment_amount=payment_amount,
+                    currency=currency_code,
+                    payment_transaction_id=payment_txn_id,
+                    selected_debt_ids=[debt_txn_id],
+                    commit=False,
+                )
+                if not allocation.get("ok", False):
+                    raise RuntimeError(
+                        allocation.get("error")
+                        or "Payment could not be allocated to debt"
+                    )
+
+                self.db.conn.commit()
+                try:
+                    self.db.notify_jarvis(
+                        (
+                            f"{customer_text} tarafindan "
+                            f"{payment_amount:.2f} {currency_code} "
+                            "odeme alindi."
+                        ),
+                        "payment",
+                        True,
+                    )
+                except Exception as voice_error:
+                    logger.warning(
+                        "Post-commit voice notification failed for %s: %s",
+                        tracking_no,
+                        voice_error,
+                    )
                 if credit_ok:
-                    try:
-                        payment_txn_id = self.db.get_last_currency_transaction_id()
-                    except Exception:
-                        payment_txn_id = None
-
-                    if payment_txn_id:
-                        try:
-                            self.db.create_payment_debt_links_table()
-                        except Exception:
-                            pass
-                        try:
-                            self.db.apply_payment_to_debts(
-                                customer_id=customer_id,
-                                payment_amount=amount_in_currency,
-                                currency=currency_code,
-                                payment_transaction_id=payment_txn_id,
-                                selected_debt_ids=None,
-                            )
-                        except Exception as allocation_err:
-                            logger.warning(
-                                f"Debt allocation skipped for peşin ödeme ({tracking_no}): {allocation_err}"
-                            )
-
-                show_success(
-                    self,
-                    f"İşlem ve Ödeme Kaydedildi!\\n{amount_in_currency:.2f} {currency_code} işlem tamamlandı.",
-                )
+                    remaining_debt = max(
+                        0.0,
+                        amount_in_currency - payment_amount,
+                    )
+                    show_success(
+                        self,
+                        (
+                            "Islem ve odeme kaydedildi!\n"
+                            f"Alinan: {payment_amount:.2f} {currency_code}\n"
+                            f"Kalan borc: {remaining_debt:.2f} {currency_code}"
+                        ),
+                    )
+                if hasattr(self, "main_window") and self.main_window and hasattr(self.main_window, "financial_data_changed"):
+                    self.main_window.financial_data_changed.emit()
                 self.clear_cart()
+                if hasattr(self, "main_window") and self.main_window and hasattr(self.main_window, "refresh_loaded_page"):
+                    for pid in (21, 40, 101, 105, 106):
+                        try:
+                            self.main_window.refresh_loaded_page(pid)
+                        except Exception as refresh_error:
+                            logger.warning(
+                                "Page refresh failed after %s (page %s): %s",
+                                tracking_no,
+                                pid,
+                                refresh_error,
+                            )
 
             elif success:
+                self.db.conn.commit()
+                try:
+                    self.db.notify_jarvis(
+                        f"{tracking_no} servis kaydi olusturuldu.",
+                        "payment",
+                        False,
+                    )
+                except Exception as voice_error:
+                    logger.warning(
+                        "Post-commit voice notification failed for %s: %s",
+                        tracking_no,
+                        voice_error,
+                    )
                 show_success(
                     self,
                     f"Servis Kaydedildi!\\n{amount_in_currency:.2f} {currency_code} borç eklendi.",
                 )
+                if hasattr(self, "main_window") and self.main_window and hasattr(self.main_window, "financial_data_changed"):
+                    self.main_window.financial_data_changed.emit()
                 self.clear_cart()
+                if hasattr(self, "main_window") and self.main_window and hasattr(self.main_window, "refresh_loaded_page"):
+                    for pid in (21, 40, 101, 105, 106):
+                        try:
+                            self.main_window.refresh_loaded_page(pid)
+                        except Exception as refresh_error:
+                            logger.warning(
+                                "Page refresh failed after %s (page %s): %s",
+                                tracking_no,
+                                pid,
+                                refresh_error,
+                            )
             else:
                 show_error(self, "İşlem kaydedilemedi!")
 
         except Exception as e:
+            try:
+                self.db.conn.rollback()
+            except Exception as rollback_error:
+                logger.error(
+                    "Service save rollback failed: %s",
+                    rollback_error,
+                )
+            logger.exception("Service transaction save failed")
             show_error(self, f"Hata: {e}")
 
     def calculate_cart_total(self):

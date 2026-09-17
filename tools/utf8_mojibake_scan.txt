@@ -1,0 +1,135 @@
+src\database.py:254:                f"UPDATE {table_name} SET {deleted_col}=1, deleted_at=? WHERE {id_col}=?",
+src\ai\financial_intelligence.py:36:        Trigger: "Finansal durum nedir?", "Krediler"
+src\bot\telegram_tracker.py:60:        # Konum verisi var mı?
+src\services\sms_service.py:138:                VALUES (?, ?, ?, ?, ?)
+src\ui\main_window_backup.py:298:                self.db.cursor.execute("SELECT * FROM devices WHERE tracking_no=? OR id=?", (device_id, device_id))
+src\ui\modern_login_deleted_records.py:683:                    self.db.cursor.execute(f"UPDATE users SET {self._user_deleted_col}=0 WHERE id=?", (record_id,))
+src\ui\modern_login_technical_dialogs.py:533:            self.db.cursor.execute("UPDATE license_info SET hwid=?", (hwid,))
+src\ui\modern_login_window.py:363:        btn_switch = QPushButton("Zaten hesabınız var mı? Giriş Yap")
+src\ui\modern_login_wizard.py:79:                    self.db.cursor.execute("UPDATE users SET role=? WHERE username=?", (role, username))
+src\ui\user_selection_window.py:87:                    self.db.cursor.execute("SELECT photo_path FROM personnel WHERE email=?", (email,))
+src\utils\ai_prediction.py:256:                WHERE part_id = ? AND type = 'OUT'
+src\utils\ai_service.py:181:        Eğer soru veritabanı verisi gerektiriyorsa (örn: 'toplam kaç müşteri var?'),
+src\utils\alert_scheduler.py:80:                # Bugün zaten tetiklendi mi? (Günde 1 kez)
+src\utils\async_manager.py:262:        Görev tamamlandı mı?
+src\utils\audit_logger.py:51:                VALUES (?, ?, ?, ?, ?)
+src\utils\auth_manager.py:29:            self.db.cursor.execute("SELECT id FROM users WHERE username=?", (username,))
+src\utils\cloud_backup.py:37:            cur.execute("SELECT value FROM settings WHERE key=?", (key,))
+src\utils\error_handler.py:64:        required: Zorunlu alan mı?
+src\utils\exchange_rate_manager.py:66:                    VALUES (?, ?, ?, ?, ?, ?)
+src\utils\finance_manager.py:65:            AND created_at BETWEEN ? AND ?
+src\utils\input_validator.py:23:    PHONE_PATTERN = re.compile(r'^(\+90|0)?5\d{9}$')
+src\utils\multi_tenant.py:122:                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+src\utils\server_main.py:198:        cust_id = execute_query("INSERT INTO customers (name, phone, email, address, tax_id) VALUES (?, ?, ?, ?, ?)", 
+src\utils\service_pdf_generator.py:33:        self.db.cursor.execute("SELECT * FROM devices WHERE tracking_no=?", (tracking_no,))
+src\utils\templates.py:26:                    <strong>Nasıl Aktive Edilir?</strong><br>
+src\utils\theme_manager.py:88:        r"#(?:fff(?:fff)?|000(?:000)?|f[0-9a-f]{5}|e[0-9a-f]{5}|d[0-9a-f]{5}|c[0-9a-f]{5}|"
+src\utils\validators.py:12:        pattern = r'^(\+90|0)?5[0-9]{9}$'
+src\workers\telegram_worker.py:103:                SET lat=?, lng=?, last_seen=?, status='Görevde'
+src\utils\cloud_providers\google_drive.py:146:        # Note: file_name argument here is treated as file ID or Name? 
+src\ui\components\message_box.py:144:    def __init__(self, parent=None, title="Onay", message="Devam etmek istiyor musunuz?"):
+src\ui\components\notification_center.py:245:            # Mark as read immediately on display or hover? 
+src\ui\dialogs\add_customer_dialog.py:413:                # Maybe lenient?
+src\ui\dialogs\add_stock_dialog.py:41:            self.db.cursor.execute("SELECT * FROM parts WHERE id=?", (self.item_id,))
+src\ui\dialogs\archive_detail_dialog.py:25:                "FROM devices WHERE tracking_no=?",
+src\ui\dialogs\bank_detail_transactions_mixin.py:16:            conditions.append("(bank_account_id = ? OR related_account_id = ?)")
+src\ui\dialogs\bulk_payment_dialog.py:273:                "SELECT * FROM loans WHERE id=?", (self.loan_id,)
+src\ui\dialogs\customer_360_dialog.py:96:        avatar = QLabel(self.customer_name[0].upper() if self.customer_name else "?")
+src\ui\dialogs\customer_history_dialog.py:84:                self.db.cursor.execute("SELECT SUM(amount) FROM accounting WHERE customer_name=? AND type='Gelir' AND category='Satış'", (self.customer_name,))
+src\ui\dialogs\customer_notes_dialog.py:311:        dlg = SimpleConfirmDialog(self, title="Sil", text="Bu kaydı silmek istiyor musunuz?", ok_text="Sil", cancel_text="İptal", btn_color=tc("danger"))
+src\ui\dialogs\customer_select_dialog.py:186:            confirm = SimpleConfirmDialog("Kayıt Silme Onayı", f"{customer[1]} adlı müşteriyi ve tüm kayıtlarını silmek istediğinize emin misiniz?")
+src\ui\dialogs\device_history_dialog.py:96:            # We need to SELECT * FROM devices WHERE serial_no = ?
+src\ui\dialogs\license_lock_screen.py:204:        webbrowser.open(f"mailto:destek@ayecpro.com?subject={subject}&body={body}")
+src\ui\dialogs\location_picker_dialog.py:173:            url = f"https://nominatim.openstreetmap.org/search?{params}"
+src\ui\dialogs\login_dialog.py:170:                "SELECT * FROM users WHERE username=? AND password=?", 
+src\ui\dialogs\new_service_dialog.py:710:            FROM devices WHERE tracking_no=?
+src\ui\dialogs\new_service_dialog_media_mixin.py:205:            self.db.cursor.execute("DELETE FROM photos WHERE tracking_no=? AND stage=?", (tracking_no, "Giriş"))
+src\ui\dialogs\personnel_edit_dialog.py:151:                    sets.append(f"{k}=?")
+src\ui\dialogs\photo_gallery_dialog.py:34:            self.db.cursor.execute("SELECT photo_path, photo_paths FROM devices WHERE tracking_no=?", (self.tracking_no,))
+src\ui\dialogs\quick_notes_editor.py:191:                "UPDATE fast_notes SET is_active=? WHERE id=?",
+src\ui\dialogs\quick_sale_dialog.py:320:        dlg = SimpleConfirmDialog(self, "Satış Onayı", f"Toplam {self.lbl_total.text()} tutarında satışı onaylıyor musunuz?")
+src\ui\dialogs\registration_dialog.py:291:        lbl_link = QLabel("Zaten hesabınız var mı?")
+src\ui\dialogs\report_dialog.py:233:        self.db.cursor.execute("SELECT labor_cost, repair_details FROM devices WHERE tracking_no=?", (self.tracking_no,))
+src\ui\dialogs\security_confirm_dialog.py:152:        # If stored as plain text or simple hash? 
+src\ui\dialogs\service_invoice_dialog.py:24:            self.db.cursor.execute("SELECT name FROM customers WHERE id=?", (customer_id,))
+src\ui\dialogs\simple_confirm.py:8:    def __init__(self, parent=None, title="Onay", text="Bu işlemi yapmak istediğinize emin misiniz?", 
+src\ui\dialogs\technician_panel.py:56:        self.device_dict = self.db.cursor.execute("SELECT * FROM devices WHERE tracking_no=?", (self.tracking_no,)).fetchone()
+src\ui\dialogs\technician_panel_inventory_mixin.py:19:            row = self.db.cursor.execute("SELECT photo_path, photo_paths FROM devices WHERE tracking_no=?", (self.tracking_no,)).fetchone()
+src\ui\dialogs\template_manager.py:60:        url = QUrl("https://www.google.com/search?q=whatsapp+business+mesaj+şablonları")
+src\ui\dialogs\transaction_dialog.py:172:            # if amt <= 0: return # Allow 0 or negative maybe? No, let's keep it safe.
+src\ui\dialogs\user_switch_dialog.py:91:        message = QLabel("Kullanıcı değiştirmek için programı yeniden başlatmanız gerekiyor.\n\nDevam etmek istiyor musunuz?")
+src\ui\pages\accounting_dialogs.py:205:            m = re.match(r"^(?P<name>.+?)\s*\(x(?P<qty>\d+)\)\s*-\s*(?P<price>.+)$", line)
+src\ui\pages\ai_assistant_page.py:89:        welcome_title = QLabel("👋 Nasıl yardımcı olabilirim?")
+src\ui\pages\announcements_page.py:103:        dialog = SimpleConfirmDialog(self, "Silme Onayı", "Bu duyuruyu silmek istediğinize emin misiniz?")
+src\ui\pages\appointments_page.py:196:                    SET customer_name=?, personnel_name=?, date=?, time=?, description=?, color=? 
+src\ui\pages\authorization_groups_widget.py:95:                        VALUES (?, ?, ?, ?)
+src\ui\pages\backup_page.py:320:            "Devam etmek istediğinize emin misiniz?"
+src\ui\pages\contracts_page.py:8:# Wait, I can target the method call instead of imports if I use fully qualified name?
+src\ui\pages\customers_page.py:247:        # Loading indicator?
+src\ui\pages\customers_page_parts.py:607:                set_clause = ", ".join([f"{k}=?" for k in data.keys()])
+src\ui\pages\dashboard_actions_mixin.py:50:            self.db.cursor.execute("SELECT id FROM customers WHERE name=?", (customer_name,))
+src\ui\pages\dashboard_page.py:124:                self.db.cursor.execute("UPDATE appointments SET status=? WHERE id=?", (new_status, appt_id))
+src\ui\pages\external_tracking_page.py:603:        if SimpleConfirmDialog(self, "Silme Onayı", "Bu kaydı silmek istediğinize emin misiniz?", ok_text="Sil").exec():
+src\ui\pages\field_service_page.py:97:        coords = re.findall(r'([-+]?\d+\.\d+),\s*([-+]?\d+\.\d+)', query)
+src\ui\pages\invoice_page.py:255:                self.db.cursor.execute("INSERT INTO e_invoices (uuid, status, receiver_name, message) VALUES (?, ?, ?, ?)",
+src\ui\pages\job_service_tracking_page.py:260:                  AND ct.tracking_no LIKE ?
+src\ui\pages\knowledge_base_page.py:203:            "Bu makaleyi silmek istediğinize emin misiniz?",
+src\ui\pages\loaner_devices_page.py:252:                        "SELECT device_id FROM loaner_transactions WHERE id = ?",
+src\ui\pages\personnel_page.py:181:            self.db.cursor.execute("SELECT * FROM personnel WHERE id=?", (pid,))
+src\ui\pages\quick_notes_settings_widget.py:276:            self.db.cursor.execute("UPDATE fast_notes SET is_active=? WHERE id=?", (is_active, note_id))
+src\ui\pages\quick_sale_page.py:397:        # But since we remove all items on filter, we can calculate simply? 
+src\ui\pages\reminders_page.py:206:        dialog = SimpleConfirmDialog("Silme Onayı", "Bu hatırlatıcıyı silmek istediğinize emin misiniz?")
+src\ui\pages\reports_page.py:184:            self.db.cursor.execute("SELECT SUM(amount) FROM accounting WHERE type='Gelir' AND date >= ?", (start_of_month,))
+src\ui\pages\security_settings_widget.py:109:            "İlk evcil hayvanınızın adı nedir?",
+src\ui\pages\services_page.py:231:            txt = f"'{item['name']}' hizmeti silinsin mi?"
+src\ui\pages\service_board_page.py:170:        row = self.db.cursor.execute("SELECT * FROM devices WHERE tracking_no=?", (tracking_no,)).fetchone()
+src\ui\pages\settings_sidebar.py:158:            # Headers should stay if any child is visible? Or just show all?
+src\ui\pages\summary_page.py:225:            "Gün sonu kapanışını yapmak istiyor musunuz?\nBu işlem 'Kasa Kapandı' logu oluşturur.",
+src\ui\pages\support_page.py:127:            # PyQt properties allows layout on button? No.
+src\ui\widgets\jarvis_sidebar.py:277:        self.add_message("<b>Sistem Çevrimiçi.</b><br>Size nasıl yardımcı olabilirim?", True)
+src\ui\widgets\kanban_board.py:286:                "SELECT part_name, price FROM used_parts WHERE tracking_no=? ORDER BY created_at DESC LIMIT 2",
+src\ui\widgets\label_editor_widget.py:135:                prefix = re.sub(r'(?<!^)(?=[A-Z])', '_', self.page_context).lower()
+src\ui\widgets\quick_stats_widget.py:138:                        WHERE DATE(created_at) = ?
+src\ui\widgets\side_menu_backup.py:374:        action_search.triggered.connect(lambda: QDesktopServices.openUrl(QUrl(f"https://www.google.com/search?q=Bulut+Teknik+Servis+{text.replace(' ', '+')}")))
+src\ui\wizards\setup_wizard.py:444:                cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (k, str(v)))
+src\ui\wizards\__init__.py:444:                cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (k, str(v)))
+src\ui\pages\finance\bank_accounts_widget.py:501:            "FROM accounting WHERE bank_account_id=? ORDER BY date DESC, id DESC LIMIT 200"
+src\ui\pages\finance\check_note_page.py:199:                    "SELECT type, amount, bank_name, issuer, recipient FROM checks_notes WHERE id = ?",
+src\ui\pages\project_management\projects_page.py:102:        # Let's create a "Detail Mode" in this page or open a modal? 
+src\ui\pages\settings_widgets\backup_settings.py:235:            "Bu işlem geri alınamaz. Devam etmek istiyor musunuz?",
+src\ui\pages\settings_widgets\gemini_settings_widget.py:648:                    res = srv.ask_jarvis("Sistem bağlantı testi. Durum nedir?")
+src\ui\pages\settings_widgets\job_service_number_widget.py:412:            "Silmek istediğinize emin misiniz?",
+src\ui\pages\settings_widgets\sms_settings.py:338:             self.db.cursor.execute("UPDATE whatsapp_templates SET content=? WHERE id=?", (new_content, tid))
+src\ui\pages\settings_widgets\user_management.py:253:                where.append("(u.username LIKE ? OR u.email LIKE ? OR p.name LIKE ?)")
+src\ui\pages\settings_widgets\user_management_dialogs.py:266:            self.db.cursor.execute("SELECT id FROM users WHERE username=? OR email=?", (email, email))
+src\ui\pages\transaction\logic\transaction_processor.py:27:            pay_now: Ödeme hemen alınacak mı?
+src\ui\dialogs\setup_wizard\admin_user_step.py:206:                    "SELECT id FROM personnel WHERE username=?", (username,)
+src\ui\dialogs\setup_wizard\company_info_step.py:200:        phone_pattern = r'^0[0-9]{3}\s?[0-9]{3}\s?[0-9]{2}\s?[0-9]{2}$'
+src\ui\dialogs\setup_wizard\setup_wizard_dialog.py:380:            self.db.cursor.execute("INSERT INTO company_info (company_name, authorized_person, phone, email, address, tax_office, tax_number) VALUES (?,?,?,?,?,?,?)",
+src\ui\dialogs\setup_wizard\wizard_ui.py:80:        self.inp_secret.setText("İlk arabam?")
+src\ui\dialogs\technician_panel_modules\components\parts_manager.py:37:            "SELECT part_name, price, created_at FROM used_parts WHERE tracking_no=?", 
+src\db\mixins\accounting_mixin.py:25:        self.cursor.execute("SELECT * FROM accounting WHERE id=?", (t_id,))
+src\db\mixins\appointments_mixin.py:19:                VALUES (?, ?, ?, ?, ?, 'Bekliyor', ?)
+src\db\mixins\bank_mixin.py:79:            placeholders = ", ".join(["?"] * len(insert_cols))
+src\db\mixins\currency_mixin.py:53:                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+src\db\mixins\customer_mixin.py:17:            values_ph = ", ".join(["?"] * len(data))
+src\db\mixins\database_legacy_part1_mixin.py:74:            self.cursor.executemany("INSERT INTO quick_notes (group_name, label, is_active, category) VALUES (?, ?, ?, ?)", defaults)
+src\db\mixins\database_legacy_part2_mixin.py:68:            placeholders = ", ".join(["?"] * len(insert_cols))
+src\db\mixins\database_legacy_part3_mixin.py:64:                VALUES (?, ?, ?, ?)
+src\db\mixins\database_legacy_part4_mixin.py:19:            query += " AND customer_name LIKE ?"
+src\db\mixins\database_legacy_part5_mixin.py:76:                    "INSERT OR IGNORE INTO services (name, price, description, created_at) VALUES (?, ?, ?, ?)",
+src\db\mixins\database_legacy_part6_mixin.py:111:            VALUES (?, ?, ?, ?, ?, ?, ?)
+src\db\mixins\device_mixin.py:17:            values_ph = ", ".join(["?"] * len(data))
+src\db\mixins\finance_mixin.py:120:                    VALUES (?, ?, ?, ?)
+src\db\mixins\label_mixin.py:51:                        VALUES (?, ?, ?)
+src\db\mixins\logging_mixin.py:19:                VALUES (?, ?, ?, ?, ?)
+src\db\mixins\notification_mixin.py:40:                    WHERE link_id=? AND category=? AND status='unread'
+src\db\mixins\personnel_mixin.py:18:                "INSERT INTO personnel (name, role, phone, salary, commission, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+src\db\mixins\project_mixin.py:132:                VALUES (?, ?, ?, ?, ?, ?)
+src\db\mixins\reminders_mixin.py:19:                VALUES (?, ?, ?, ?, ?, 0)
+src\db\mixins\reports_mixin.py:35:            self.cursor.execute("SELECT COUNT(*) FROM devices WHERE entry_date=?", (today,))
+src\db\mixins\security_mixin.py:38:                "REPLACE INTO users (username, password, email, role, created_at) VALUES (?, ?, ?, ?, ?)",
+src\db\mixins\services_mixin.py:24:            self.cursor.execute("SELECT * FROM services WHERE barcode=?", (barcode,))
+src\db\mixins\settings_mixin.py:16:        self.cursor.execute("SELECT value FROM settings WHERE key=?", (key,))
+src\db\mixins\stock_mixin.py:11:    """Stok y?netimi i?in database metodlar?"""
+src\db\mixins\support_mixin.py:33:            WHERE t.id=?

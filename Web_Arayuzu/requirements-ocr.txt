@@ -1,0 +1,7 @@
+# Tesseract'a ek olarak yerel EasyOCR zinciri.
+-r requirements.txt
+easyocr==1.7.2
+opencv-python-headless==4.11.0.86
+scikit-image==0.26.0
+torch==2.11.0
+torchvision==0.26.0

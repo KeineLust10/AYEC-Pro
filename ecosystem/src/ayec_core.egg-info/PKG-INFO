@@ -1,0 +1,16 @@
+Metadata-Version: 2.4
+Name: ayec-core
+Version: 0.3.0
+Summary: Shared AYEC desktop integration contracts
+Requires-Python: >=3.8
+Requires-Dist: cryptography<47,>=42
+Provides-Extra: smart-import
+Requires-Dist: defusedxml>=0.7; extra == "smart-import"
+Requires-Dist: pandas<4,>=2.2; extra == "smart-import"
+Requires-Dist: openpyxl<4,>=3.1; extra == "smart-import"
+Requires-Dist: xlrd<3,>=2; extra == "smart-import"
+Requires-Dist: Pillow>=10; extra == "smart-import"
+Requires-Dist: pdfplumber>=0.11; extra == "smart-import"
+Requires-Dist: pytesseract>=0.3; extra == "smart-import"
+Provides-Extra: ocr
+Requires-Dist: easyocr<2,>=1.7; extra == "ocr"

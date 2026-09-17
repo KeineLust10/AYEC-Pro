@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 """
 Yeni İşlem Sayfası (PyQt5)
 BulutTech.py'deki İşlemView'ın PyQt5 versiyonu
@@ -12,6 +14,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
 from src.utils.toast_notification import show_success, show_error, show_warning, show_info
 from src.utils.currency_helper import CurrencyHelper
 from src.utils.exchange_rate_manager import ExchangeRateManager
+from src.utils.tax_settings import TaxSettings
 from src.ui.pages.transaction_multi_select_dialog import MultiSelectServiceDialog
 from src.ui.pages.transaction_page_behaviors import TransactionPageBehaviorMixin
 from PyQt6.QtCore import Qt, QDate, pyqtSignal, QTimer
@@ -26,16 +29,18 @@ from reportlab.pdfgen import canvas
 
 # Error handling ve validation
 try:
-    from src.utils.error_handler import handle_exceptions, validate_input, ValidationError
+    from src.utils.error_handler import ValidationError
     ERROR_HANDLER_AVAILABLE = True
 except ImportError:
     ERROR_HANDLER_AVAILABLE = False
-    def handle_exceptions(func):
-        return func
 
 
 class TransactionPage(TransactionPageBehaviorMixin, QWidget):
     """Yeni Satış ve Servis İşlemi Sayfası"""
+
+    def _on_ui_widget_changed(self, *args):
+        from src.ui.utils.ui_signal_helpers import on_ui_widget_changed
+        on_ui_widget_changed(self, *args)
     
     def __init__(self, db, main_window=None):
         super().__init__()
@@ -665,7 +670,10 @@ class TransactionPage(TransactionPageBehaviorMixin, QWidget):
         lbl_vat.setStyleSheet("font-size: 14px; font-weight: 500;")
         self.cmb_vat = QComboBox()
         self.cmb_vat.addItems(["%0", "%1", "%10", "%20"])
-        self.cmb_vat.setCurrentIndex(3)
+        default_vat_text = TaxSettings.combo_text(self.db)
+        if self.cmb_vat.findText(default_vat_text) < 0:
+            self.cmb_vat.addItem(default_vat_text)
+        self.cmb_vat.setCurrentText(default_vat_text)
         self.cmb_vat.currentTextChanged.connect(self.update_totals)
         self.cmb_vat.setFixedHeight(40)
         self.cmb_vat.setStyleSheet(theme_qss(DesignTokens.get_combobox_qss()))
@@ -826,3 +834,6 @@ class TransactionPage(TransactionPageBehaviorMixin, QWidget):
             self.refresh_cart()
             if selected:
                 show_success(self, f"{len(selected)} kalem sepete eklendi.")
+
+    def _wire_ui_signals(self):
+        self.cmb_customer.currentIndexChanged.connect(self._on_ui_widget_changed)

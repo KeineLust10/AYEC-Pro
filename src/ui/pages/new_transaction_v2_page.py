@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import json
 import uuid
 
@@ -7,13 +9,11 @@ from PyQt6.QtWidgets import (
     QComboBox,
     QCompleter,
     QDateEdit,
-    QDoubleSpinBox,
     QFrame,
     QGridLayout,
     QHBoxLayout,
     QLabel,
     QPushButton,
-    QSpinBox,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
@@ -23,14 +23,43 @@ from PyQt6.QtWidgets import (
 from src.ui.dialogs.bulk_stock_select_dialog import BulkStockSelectDialog
 from src.ui.pages.transaction_multi_select_dialog import MultiSelectServiceDialog
 from src.ui.pages.transaction_page_behaviors import TransactionPageBehaviorMixin
+from src.ui.widgets.animated_toggle import AnimatedToggle
 from src.ui.widgets.empty_state import EmptyState
+from src.ui.widgets.modern_inputs import InlineNumberStepper
 from src.utils.currency_helper import CurrencyHelper
 from src.utils.design_system import DesignTokens
+from src.utils.tax_settings import TaxSettings
 from src.utils.theme_colors import tc, theme_qss
 from src.utils.toast_notification import show_error, show_warning
 
 
+
 class NewTransactionV2Page(TransactionPageBehaviorMixin, QWidget):
+    PRODUCT_DOMAIN_KEYWORDS = {
+        "security": [
+            "kamera", "cctv", "nvr", "dvr", "alarm", "guvenlik", "g\u00fcvenlik",
+            "sensor", "sens\u00f6r", "dedektor", "dedekt\u00f6r", "yangin", "yang\u0131n",
+            "siren", "manyetik", "kontak", "rfid", "parmak", "kilit", "poe",
+            "cat6", "bnc", "skyhawk", "purple", "kablo",
+        ],
+        "computer": [
+            "pc", "bilgisayar", "laptop", "notebook", "anakart", "islemci",
+            "i\u015flemci", "ram", "ssd", "nvme", "ekran kart", "gpu", "psu",
+            "kasa", "monitor", "monit\u00f6r", "klavye", "mouse", "termal",
+            "fan", "sogutucu", "so\u011futucu", "adapt\u00f6r", "adapter", "windows",
+            "ddr", "intel", "amd", "ryzen", "rtx",
+        ],
+        "smart_home": [
+            "akilli", "ak\u0131ll\u0131", "smart", "hub", "priz", "role", "r\u00f6le",
+            "termostat", "zigbee", "dimmer", "perde", "interkom",
+            "otomasyon", "wiipro", "wiicom", "wiicap", "wiimmd", "gateway",
+            "ayd\u0131nlatma", "aydinlatma", "kapi zili", "kap\u0131 zili",
+        ],
+    }
+
+    def _on_ui_widget_changed(self, *args):
+        from src.ui.utils.ui_signal_helpers import on_ui_widget_changed
+        on_ui_widget_changed(self, *args)
     def __init__(self, db, main_window=None):
         super().__init__()
         self.db = db
@@ -39,12 +68,28 @@ class NewTransactionV2Page(TransactionPageBehaviorMixin, QWidget):
         self.current_exchange_rate = 1.0
         self.services_data = {}
         self.parts_data = {}
+        self._all_parts_catalog = []
         self._last_item_type = None
+        self._editing_offer_id = None
+        self._editing_offer_no = ""
+        self._editing_offer_project = ""
+        self._editing_offer_template = ""
 
         self._build_ui()
         self._bind_legacy_aliases()
         self._apply_global_currency_setting()
         QTimer.singleShot(0, self._deferred_load_customers)
+
+    @staticmethod
+    def _row_value(row, key, default=None):
+        if row is None:
+            return default
+        if isinstance(row, dict):
+            return row.get(key, default)
+        try:
+            return row[key]
+        except Exception:
+            return default
 
     def _apply_global_currency_setting(self):
         if not hasattr(self, "cmb_currency"):
@@ -77,22 +122,26 @@ class NewTransactionV2Page(TransactionPageBehaviorMixin, QWidget):
             self.cmb_parts.clear()
             self.services_data = {}
             self.parts_data = {}
+            self._all_parts_catalog = []
 
             services = self.db.get_services_list() or []
             for s in services:
-                name = s['name']
+                name = self._row_value(s, 'name', '')
+                if not name:
+                    continue
                 try:
-                    raw_price = str(s['price']).replace(" ₺", "").replace("₺", "").strip() if s['price'] else "0"
+                    service_price = self._row_value(s, 'price', 0)
+                    raw_price = str(service_price).replace(" \u20ba", "").replace("\u20ba", "").strip() if service_price else "0"
                     final_price = float(raw_price)
                 except (TypeError, ValueError):
                     final_price = 0.0
 
                 info = {
-                    'id': s.get('id'),
+                    'id': self._row_value(s, 'id'),
                     'name': name,
                     'type': 'service',
                     'price': final_price,
-                    'description': s.get('description', '')
+                    'description': self._row_value(s, 'description', '')
                 }
                 self.services_data[name] = info
                 display_price = CurrencyHelper.format_try_for_display(final_price, db=self.db, include_try_reference=False)
@@ -132,20 +181,65 @@ class NewTransactionV2Page(TransactionPageBehaviorMixin, QWidget):
                     'currency': currency,
                     'original_price': final_price,
                 }
-                self.parts_data[name] = info
-                display_price = CurrencyHelper.format_amount(final_price, db=self.db, currency_code=currency)
-                display_str = f"{name} (Stok: {stock}) - {display_price}"
-                self.cmb_parts.addItem(display_str, info)
+                self._all_parts_catalog.append(info)
+
+            self._refresh_parts_combo()
 
             # Placeholder olarak gölge metin göster (seçili öğe yok)
             self.cmb_service_types.setCurrentIndex(-1)
-            self.cmb_parts.setCurrentIndex(-1)
 
         except Exception as e:
             show_warning(self, f"Veri y\u00fcklenemedi: {e}")
         finally:
             self.cmb_service_types.blockSignals(False)
             self.cmb_parts.blockSignals(False)
+
+    def _selected_product_domain(self):
+        if hasattr(self, "cmb_product_domain"):
+            return self.cmb_product_domain.currentData() or "security"
+        return "security"
+
+    def _part_matches_domain(self, info, domain):
+        if domain == "all":
+            return True
+        text = " ".join(
+            str(info.get(key) or "")
+            for key in ("name", "category", "description", "code")
+        ).casefold()
+        keywords = self.PRODUCT_DOMAIN_KEYWORDS.get(domain, [])
+        return any(keyword.casefold() in text for keyword in keywords)
+
+    def _refresh_parts_combo(self):
+        if not hasattr(self, "cmb_parts"):
+            return
+        domain = self._selected_product_domain()
+        previous_text = self.cmb_parts.currentText()
+        self.cmb_parts.blockSignals(True)
+        self.cmb_parts.clear()
+        self.parts_data = {}
+        filtered = [
+            info
+            for info in self._all_parts_catalog
+            if self._part_matches_domain(info, domain)
+        ]
+        for info in filtered:
+            name = info.get("name") or ""
+            self.parts_data[name] = info
+            display_price = CurrencyHelper.format_amount(
+                info.get("original_price", info.get("price", 0)),
+                db=self.db,
+                currency_code=info.get("currency", "TRY"),
+            )
+            display_str = f"{name} (Stok: {info.get('stock', 0)}) - {display_price}"
+            self.cmb_parts.addItem(display_str, info)
+        idx = self.cmb_parts.findText(previous_text)
+        self.cmb_parts.setCurrentIndex(idx if idx >= 0 else -1)
+        self.cmb_parts.blockSignals(False)
+
+    def _on_product_domain_changed(self):
+        self.cmb_parts.setCurrentIndex(-1)
+        self._last_item_type = None
+        self._refresh_parts_combo()
 
     def _setup_searchable_combo(self, combo, placeholder):
         combo.setEditable(True)
@@ -156,11 +250,11 @@ class NewTransactionV2Page(TransactionPageBehaviorMixin, QWidget):
             line_edit.setPlaceholderText(placeholder)
             line_edit.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
             line_edit.installEventFilter(self)
-        completer = QCompleter(combo.model(), combo)
-        completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-        completer.setFilterMode(Qt.MatchFlag.MatchContains)
-        completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
-        combo.setCompleter(completer)
+        completer = combo.completer()
+        if completer:
+            completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+            completer.setFilterMode(Qt.MatchFlag.MatchContains)
+            completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
         combo.installEventFilter(self)
 
     def _show_combo_popup(self, combo):
@@ -340,7 +434,7 @@ class NewTransactionV2Page(TransactionPageBehaviorMixin, QWidget):
         self.lbl_cart_state.hide()
 
         body = QHBoxLayout()
-        body.setSpacing(14)
+        body.setSpacing(10)
         body.addLayout(self._build_context_column(), 4)
         body.addLayout(self._build_workbench_column(), 5)
         body.addLayout(self._build_summary_column(), 3)
@@ -356,23 +450,23 @@ class NewTransactionV2Page(TransactionPageBehaviorMixin, QWidget):
         customer_card, customer_layout = self._panel_card('M\u00fc\u015fteri ve \u0130\u015flem Bilgileri')
         customer_grid = QGridLayout()
         customer_grid.setHorizontalSpacing(12)
-        customer_grid.setVerticalSpacing(12)
+        customer_grid.setVerticalSpacing(8)
 
         self.cmb_customer = QComboBox()
         self.cmb_customer.setEditable(True)
         self.cmb_customer.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
-        self.cmb_customer.setMinimumHeight(46)
+        self.cmb_customer.setMinimumHeight(38)
         self.cmb_customer.setStyleSheet(theme_qss(DesignTokens.get_combobox_qss()))
         self.cmb_customer.currentTextChanged.connect(self._refresh_customer_preview)
         self.cmb_customer.lineEdit().setPlaceholderText('M\u00fc\u015fteri se\u00e7in veya ad yaz\u0131n...')
-        self.customer_completer = QCompleter(self.cmb_customer.model(), self.cmb_customer)
-        self.customer_completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-        self.customer_completer.setFilterMode(Qt.MatchFlag.MatchContains)
-        self.customer_completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
-        self.cmb_customer.setCompleter(self.customer_completer)
+        self.customer_completer = self.cmb_customer.completer()
+        if self.customer_completer:
+            self.customer_completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+            self.customer_completer.setFilterMode(Qt.MatchFlag.MatchContains)
+            self.customer_completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
 
         btn_search_customer = QPushButton('Ara')
-        btn_search_customer.setFixedSize(88, 46)
+        btn_search_customer.setFixedSize(80, 38)
         btn_search_customer.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_search_customer.setStyleSheet(theme_qss(DesignTokens.get_button_qss('secondary', size='md')))
         btn_search_customer.clicked.connect(self.open_customer_search)
@@ -385,12 +479,12 @@ class NewTransactionV2Page(TransactionPageBehaviorMixin, QWidget):
         self.date_edit = QDateEdit(QDate.currentDate())
         self.date_edit.setCalendarPopup(True)
         self.date_edit.setDisplayFormat('dd.MM.yyyy')
-        self.date_edit.setFixedHeight(44)
+        self.date_edit.setFixedHeight(36)
         self.date_edit.setStyleSheet(theme_qss(DesignTokens.get_input_qss()))
 
         self.cmb_currency = QComboBox()
         self.cmb_currency.addItems(['TRY - T\u00fcrk Liras\u0131 (TL)', 'USD - Amerikan Dolar\u0131 ($)', 'EUR - Euro (EUR)'])
-        self.cmb_currency.setFixedHeight(44)
+        self.cmb_currency.setFixedHeight(36)
         self.cmb_currency.setStyleSheet(theme_qss(DesignTokens.get_combobox_qss()))
         self.cmb_currency.currentTextChanged.connect(self._handle_currency_change)
 
@@ -409,8 +503,9 @@ class NewTransactionV2Page(TransactionPageBehaviorMixin, QWidget):
             )
         )
 
-        self.customer_preview = QLabel('M\u00fc\u015fteri se\u00e7ildi\u011finde burada \u00f6zet g\u00f6r\u00fcn\u00fcr. Genel m\u00fc\u015fteri ile devam etmek yerine listeden se\u00e7im yap\u0131n.')
+        self.customer_preview = QLabel('')
         self.customer_preview.setWordWrap(True)
+        self.customer_preview.hide()
         self.customer_preview.setStyleSheet(
             theme_qss(
                 """
@@ -432,7 +527,6 @@ class NewTransactionV2Page(TransactionPageBehaviorMixin, QWidget):
         customer_grid.addWidget(self.date_edit, 3, 0)
         customer_grid.addWidget(self.cmb_currency, 3, 1)
         customer_grid.addWidget(self.lbl_exchange_rate, 4, 0, 1, 2)
-        customer_grid.addWidget(self.customer_preview, 5, 0, 1, 2)
         customer_layout.addLayout(customer_grid)
 
         column.addWidget(customer_card)
@@ -441,47 +535,50 @@ class NewTransactionV2Page(TransactionPageBehaviorMixin, QWidget):
         return column
 
     def _build_composer_card(self):
-        composer_card, composer_layout = self._panel_card('Hizmet/Par\u00e7a Giri\u015f')
+        composer_card, composer_layout = self._panel_card('Hizmet&Par\u00e7a Se\u00e7im')
 
         composer_grid = QGridLayout()
         composer_grid.setHorizontalSpacing(12)
-        composer_grid.setVerticalSpacing(12)
+        composer_grid.setVerticalSpacing(6)
 
         self.cmb_service_types = QComboBox()
         self.cmb_service_types.setEditable(True)
         self.cmb_service_types.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
-        self.cmb_service_types.setMinimumHeight(46)
+        self.cmb_service_types.setMinimumHeight(38)
         self.cmb_service_types.setStyleSheet(theme_qss(DesignTokens.get_combobox_qss()))
         self._setup_searchable_combo(self.cmb_service_types, 'Hizmet se\u00e7in veya yaz\u0131n...')
         self.cmb_service_types.currentIndexChanged.connect(lambda: self._on_item_selection_change('service'))
 
+        self.cmb_product_domain = QComboBox()
+        self.cmb_product_domain.addItem("G\u00fcvenlik Sistemleri", "security")
+        self.cmb_product_domain.addItem("Bilgisayar", "computer")
+        self.cmb_product_domain.addItem("Ak\u0131ll\u0131 Ev", "smart_home")
+        self.cmb_product_domain.setFixedHeight(36)
+        self.cmb_product_domain.setStyleSheet(theme_qss(DesignTokens.get_combobox_qss()))
+        self.cmb_product_domain.currentIndexChanged.connect(self._on_product_domain_changed)
+
         self.cmb_parts = QComboBox()
         self.cmb_parts.setEditable(True)
         self.cmb_parts.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
-        self.cmb_parts.setMinimumHeight(46)
+        self.cmb_parts.setMinimumHeight(38)
         self.cmb_parts.setStyleSheet(theme_qss(DesignTokens.get_combobox_qss()))
         self._setup_searchable_combo(self.cmb_parts, 'Par\u00e7a se\u00e7in veya yaz\u0131n...')
         self.cmb_parts.currentIndexChanged.connect(lambda: self._on_item_selection_change('part'))
 
-        self.inp_qty = QSpinBox()
+        self.inp_qty = InlineNumberStepper(value=1, decimals=0)
         self.inp_qty.setRange(1, 9999)
-        self.inp_qty.setValue(1)
-        self.inp_qty.setFixedHeight(44)
-        self.inp_qty.setStyleSheet(theme_qss(DesignTokens.get_input_qss()))
+        self.inp_qty.setFixedHeight(36)
         self.inp_qty.valueChanged.connect(self.update_calc_total)
 
-        self.inp_price = QDoubleSpinBox()
+        self.inp_price = InlineNumberStepper(value=0.0, decimals=2)
         self.inp_price.setRange(0, 999999999)
-        self.inp_price.setDecimals(2)
-        self.inp_price.setValue(0.0)
-        self.inp_price.setFixedHeight(44)
-        self.inp_price.setStyleSheet(theme_qss(DesignTokens.get_input_qss()))
+        self.inp_price.setFixedHeight(36)
         self.inp_price.valueChanged.connect(self.update_calc_total)
 
         self.inp_desc = QComboBox()
         self.inp_desc.setEditable(True)
-        self.inp_desc.setFixedHeight(44)
-        self.inp_desc.setStyleSheet(theme_qss(DesignTokens.get_input_qss()))
+        self.inp_desc.setFixedHeight(36)
+        self.inp_desc.setStyleSheet(theme_qss(DesignTokens.get_combobox_qss()))
         self.inp_desc.lineEdit().setPlaceholderText('Servis notu, cihaz durumu veya stok a\u00e7\u0131klamas\u0131')
 
         self.lbl_line_total = QLabel(
@@ -491,13 +588,27 @@ class NewTransactionV2Page(TransactionPageBehaviorMixin, QWidget):
 
         self.btn_add_to_cart = QPushButton('Sepete Ekle')
         self.btn_add_to_cart.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_add_to_cart.setFixedHeight(48)
-        self.btn_add_to_cart.setStyleSheet(theme_qss(DesignTokens.get_button_qss('success', size='lg')))
+        self.btn_add_to_cart.setFixedHeight(40)
+        self.btn_add_to_cart.setStyleSheet(theme_qss('''
+            QPushButton {
+                background: @success;
+                color: white;
+                border: 1px solid @success;
+                border-radius: 14px;
+                font-size: 15px;
+                font-weight: 700;
+                padding: 0 18px;
+            }
+            QPushButton:hover {
+                background: @success_bg;
+                border-color: @success;
+            }
+        '''))
         self.btn_add_to_cart.clicked.connect(self.add_to_cart)
 
         self.btn_bulk = QPushButton('Toplu Se\u00e7im')
         self.btn_bulk.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_bulk.setFixedHeight(48)
+        self.btn_bulk.setFixedHeight(40)
         self.btn_bulk.setStyleSheet(theme_qss('''
             QPushButton {
                 background: @surface_alt;
@@ -532,15 +643,17 @@ class NewTransactionV2Page(TransactionPageBehaviorMixin, QWidget):
 
         composer_grid.addWidget(self._field_label('Hizmetler'), 0, 0, 1, 2)
         composer_grid.addWidget(self.cmb_service_types, 1, 0, 1, 2)
-        composer_grid.addWidget(self._field_label('Par\u00e7a (\u00dcr\u00fcnler)'), 2, 0, 1, 2)
-        composer_grid.addWidget(self.cmb_parts, 3, 0, 1, 2)
-        composer_grid.addWidget(self._field_label('Adet'), 4, 0)
-        composer_grid.addWidget(self._field_label('Birim Fiyat'), 4, 1)
-        composer_grid.addWidget(self.inp_qty, 5, 0)
-        composer_grid.addWidget(self.inp_price, 5, 1)
-        composer_grid.addWidget(self._field_label('A\u00e7\u0131klama'), 6, 0, 1, 2)
-        composer_grid.addWidget(self.inp_desc, 7, 0, 1, 2)
-        composer_grid.addWidget(self.lbl_line_total, 8, 0, 1, 2)
+        composer_grid.addWidget(self._field_label('\u00dcr\u00fcn Grubu'), 2, 0, 1, 2)
+        composer_grid.addWidget(self.cmb_product_domain, 3, 0, 1, 2)
+        composer_grid.addWidget(self._field_label('Par\u00e7a (\u00dcr\u00fcnler)'), 4, 0, 1, 2)
+        composer_grid.addWidget(self.cmb_parts, 5, 0, 1, 2)
+        composer_grid.addWidget(self._field_label('Adet'), 6, 0)
+        composer_grid.addWidget(self._field_label('Birim Fiyat'), 6, 1)
+        composer_grid.addWidget(self.inp_qty, 7, 0)
+        composer_grid.addWidget(self.inp_price, 7, 1)
+        composer_grid.addWidget(self._field_label('A\u00e7\u0131klama'), 8, 0, 1, 2)
+        composer_grid.addWidget(self.inp_desc, 9, 0, 1, 2)
+        composer_grid.addWidget(self.lbl_line_total, 10, 0, 1, 2)
 
         composer_layout.addLayout(composer_grid)
         composer_layout.addLayout(action_row)
@@ -579,6 +692,7 @@ class NewTransactionV2Page(TransactionPageBehaviorMixin, QWidget):
         self.cart_table.setIndentation(16)
         self.cart_table.setMinimumHeight(540)
         self.cart_table.setStyleSheet(theme_qss(DesignTokens.get_table_qss()))
+        self.cart_table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.cart_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.cart_table.customContextMenuRequested.connect(self.show_cart_context_menu)
         header = self.cart_table.header()
@@ -622,16 +736,17 @@ class NewTransactionV2Page(TransactionPageBehaviorMixin, QWidget):
         form.setHorizontalSpacing(12)
         form.setVerticalSpacing(12)
 
-        self.inp_discount = QDoubleSpinBox()
+        self.inp_discount = InlineNumberStepper(value=0.0, decimals=2)
         self.inp_discount.setRange(0, 999999999)
-        self.inp_discount.setDecimals(2)
         self.inp_discount.setFixedHeight(44)
-        self.inp_discount.setStyleSheet(theme_qss(DesignTokens.get_input_qss()))
         self.inp_discount.valueChanged.connect(self.update_totals)
 
         self.cmb_vat = QComboBox()
         self.cmb_vat.addItems(['%0', '%1', '%10', '%18', '%20'])
-        self.cmb_vat.setCurrentText('%20')
+        default_vat_text = TaxSettings.combo_text(self.db)
+        if self.cmb_vat.findText(default_vat_text) < 0:
+            self.cmb_vat.addItem(default_vat_text)
+        self.cmb_vat.setCurrentText(default_vat_text)
         self.cmb_vat.setFixedHeight(44)
         self.cmb_vat.setStyleSheet(theme_qss(DesignTokens.get_combobox_qss()))
         self.cmb_vat.currentTextChanged.connect(self.update_totals)
@@ -667,6 +782,41 @@ class NewTransactionV2Page(TransactionPageBehaviorMixin, QWidget):
             )
         )
         summary_layout.addWidget(self.lbl_total)
+
+        approval_row = QFrame()
+        approval_row.setObjectName('OfferApprovalRow')
+        approval_row.setStyleSheet(
+            theme_qss(
+                """
+                QFrame#OfferApprovalRow {
+                    background: @surface_alt;
+                    border: 1px solid @border;
+                    border-radius: 12px;
+                }
+                QLabel {
+                    background: transparent;
+                    border: none;
+                    color: @text;
+                    font-size: 12px;
+                    font-weight: 800;
+                }
+                """
+            )
+        )
+        approval_layout = QHBoxLayout(approval_row)
+        approval_layout.setContentsMargins(12, 7, 12, 7)
+        approval_layout.setSpacing(10)
+        approval_label = QLabel('Teklif Onay\u0131')
+        approval_label.setToolTip(
+            'A\u00e7\u0131kken PDF belgesine teklif onay ve imza alan\u0131 eklenir.'
+        )
+        self.toggle_offer_approval = AnimatedToggle(active_color=tc('success'))
+        self.toggle_offer_approval.setChecked(True)
+        self.toggle_offer_approval.setToolTip(approval_label.toolTip())
+        approval_layout.addWidget(approval_label)
+        approval_layout.addStretch()
+        approval_layout.addWidget(self.toggle_offer_approval)
+        summary_layout.addWidget(approval_row)
 
         self.btn_save = QPushButton('Servis Kaydet')
         self.btn_save.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -714,10 +864,10 @@ class NewTransactionV2Page(TransactionPageBehaviorMixin, QWidget):
 
     def _panel_card(self, title):
         frame = QFrame()
-        frame.setStyleSheet(theme_qss('background: @surface; border: 1px solid @border; border-radius: 22px;'))
+        frame.setStyleSheet(theme_qss('background: @surface; border: 1px solid @border; border-radius: 10px;'))
         layout = QVBoxLayout(frame)
-        layout.setContentsMargins(18, 18, 18, 18)
-        layout.setSpacing(14)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(10)
 
         title_label = QLabel(title)
         title_label.setStyleSheet(theme_qss('font-size: 17px; font-weight: 900; color: @text;'))
@@ -770,9 +920,99 @@ class NewTransactionV2Page(TransactionPageBehaviorMixin, QWidget):
 
     def clear_cart(self):
         self.cart_items = []
+        self._editing_offer_id = None
+        self._editing_offer_no = ""
+        self._editing_offer_project = ""
+        self._editing_offer_template = ""
+        if hasattr(self, "toggle_offer_approval"):
+            self.toggle_offer_approval.setChecked(True)
         self._clear_draft()
         self.refresh_cart_ui()
         self.update_totals()
+
+    def load_offer_for_edit(self, offer_id):
+        offer = self.db.get_offer_record(int(offer_id))
+        if not offer:
+            raise RuntimeError("Offer record was not found.")
+        status = str(offer["status"] or "").strip().lower()
+        if status in {"accepted", "processed"}:
+            raise RuntimeError("Accepted offers cannot be edited.")
+
+        rows = self.db.get_offer_items_detailed(int(offer_id)) or []
+        if not rows:
+            raise RuntimeError("Offer has no line items.")
+
+        self.load_customers()
+        customer_index = self.cmb_customer.findData(offer["customer_id"])
+        if customer_index >= 0:
+            self.cmb_customer.setCurrentIndex(customer_index)
+
+        currency_code = str(offer["currency_code"] or "TRY").upper()
+        for index in range(self.cmb_currency.count()):
+            if self._parse_currency_code(self.cmb_currency.itemText(index)) == currency_code:
+                self.cmb_currency.setCurrentIndex(index)
+                break
+
+        exchange_rate = float(offer["exchange_rate"] or 1.0)
+        if currency_code != "TRY":
+            self.current_exchange_rate = exchange_rate
+        offer_date = str(offer["created_at"] or "")[:10]
+        self.cart_items = []
+        for row in rows:
+            unit_price = float(row["unit_price"] or 0)
+            price_try = (
+                unit_price
+                if currency_code == "TRY"
+                else unit_price * exchange_rate
+            )
+            self.cart_items.append(
+                {
+                    "id": str(uuid.uuid4()),
+                    "item_id": row["item_id"],
+                    "type": str(row["item_type"] or ""),
+                    "service": str(row["service"] or ""),
+                    "description": str(row["description"] or ""),
+                    "brand": str(row["brand"] or ""),
+                    "qty": int(float(row["qty"] or 1)),
+                    "price": float(price_try),
+                    "date": offer_date
+                    or QDate.currentDate().toString("yyyy-MM-dd"),
+                }
+            )
+
+        self.inp_discount.setValue(float(offer["discount_try"] or 0))
+        stored_vat_rate = float(offer["vat_rate"] or 0)
+        vat_ratio = (
+            stored_vat_rate / 100
+            if stored_vat_rate > 1
+            else stored_vat_rate
+        )
+        vat_percent = round(vat_ratio * 100)
+        vat_text = f"%{vat_percent}"
+        if self.cmb_vat.findText(vat_text) < 0:
+            self.cmb_vat.addItem(vat_text)
+        self.cmb_vat.setCurrentText(vat_text)
+        self._editing_offer_id = int(offer_id)
+        self._editing_offer_no = str(offer["offer_no"] or "")
+        self._editing_offer_project = str(offer["project_name"] or "")
+        self._editing_offer_template = str(offer["template_type"] or "")
+        approval_enabled = True
+        try:
+            payload = json.loads(str(offer["payload_json"] or "{}"))
+            if isinstance(payload, dict):
+                approval_enabled = bool(payload.get("include_approval", True))
+        except (TypeError, ValueError, json.JSONDecodeError):
+            approval_enabled = True
+        if hasattr(self, "toggle_offer_approval"):
+            self.toggle_offer_approval.setChecked(approval_enabled)
+        self.refresh_cart_ui()
+        self.update_totals()
+        self._refresh_customer_preview()
+        self.notify(
+            "Teklif sat\u0131\u015f sepetine y\u00fcklendi. "
+            "De\u011fi\u015fikliklerden sonra Proforma Olu\u015ftur ile kaydedin.",
+            "success",
+        )
 
     def refresh_cart_ui(self):
         self.cart_table.clear()
@@ -918,6 +1158,14 @@ class NewTransactionV2Page(TransactionPageBehaviorMixin, QWidget):
         self.update_totals()
         self._refresh_header_state()
 
+    def refresh_financial_defaults(self):
+        if not self._editing_offer_id:
+            default_vat_text = TaxSettings.combo_text(self.db)
+            if self.cmb_vat.findText(default_vat_text) < 0:
+                self.cmb_vat.addItem(default_vat_text)
+            self.cmb_vat.setCurrentText(default_vat_text)
+        self.update_exchange_rates()
+
     def _refresh_header_state(self):
         currency_code = self._parse_currency_code(self.cmb_currency.currentText())
         self.lbl_currency_state.setText(currency_code)
@@ -1015,3 +1263,6 @@ class _SimpleStack(QWidget):
     def setCurrentWidget(self, widget):
         self.primary.setVisible(widget is self.primary)
         self.empty.setVisible(widget is self.empty)
+
+    def _wire_ui_signals(self):
+        self.inp_desc.currentIndexChanged.connect(self._on_ui_widget_changed)

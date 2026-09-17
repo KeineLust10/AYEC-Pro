@@ -1,0 +1,10 @@
+.venv/
+.venv-*/
+__pycache__/
+*.py[cod]
+*.log
+.env
+data/
+*.db
+*.db-shm
+*.db-wal

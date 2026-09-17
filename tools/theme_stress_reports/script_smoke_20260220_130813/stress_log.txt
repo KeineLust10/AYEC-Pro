@@ -1,0 +1,4 @@
+started=2026-02-20T13:08:13.593767
+interval_ms=50
+switches=6
+capture_every=2

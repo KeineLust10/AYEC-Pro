@@ -57,6 +57,7 @@ class FiscalYearService:
     def run_startup_check(self):
         try:
             today = self._today_iso()
+            self.ensure_next_cycle_dates()
             self.db.set_internal_setting(self.LAST_CHECK_KEY, today)
 
             rollover_date = self.db.get_internal_setting(self.ROLLOVER_DATE_KEY, "")
@@ -65,6 +66,10 @@ class FiscalYearService:
 
             if rollover_date == today:
                 self._run_rollover(test_mode=test_mode)
+            elif rollover_date and rollover_date < today:
+                status = f"rollover_overdue:{rollover_date}:review_required"
+                self.db.set_internal_setting(self.LAST_STATUS_KEY, status)
+                self._notify("Mali yil devri gecikmis. Manuel inceleme gerekli.", "warning")
             if reset_date == today:
                 self._run_reset(test_mode=test_mode)
         except Exception as e:
@@ -81,6 +86,7 @@ class FiscalYearService:
         """Bir sonraki mali yil icin varsayilan tetik tarihlerini olusturur."""
         try:
             today = date.today()
+            current_year_start = date(today.year, 1, 1).isoformat()
             next_year_start = date(today.year + 1, 1, 1).isoformat()
             rollover_date = self.db.get_internal_setting(self.ROLLOVER_DATE_KEY, "")
             reset_date = self.db.get_internal_setting(self.RESET_DATE_KEY, "")
@@ -88,11 +94,23 @@ class FiscalYearService:
 
             if not fiscal_year_start:
                 self.db.set_internal_setting(
-                    self.YEAR_START_KEY, date(today.year, 1, 1).isoformat()
+                    self.YEAR_START_KEY, current_year_start
                 )
-            if not rollover_date or rollover_date < today.isoformat():
+            else:
+                try:
+                    parsed_start = date.fromisoformat(str(fiscal_year_start))
+                except Exception:
+                    parsed_start = None
+                if parsed_start is None or parsed_start > today:
+                    logger.warning(
+                        "Invalid future fiscal_year_start detected (%s). Resetting to %s.",
+                        fiscal_year_start,
+                        current_year_start,
+                    )
+                    self.db.set_internal_setting(self.YEAR_START_KEY, current_year_start)
+            if not rollover_date:
                 self.db.set_internal_setting(self.ROLLOVER_DATE_KEY, next_year_start)
-            if not reset_date or reset_date < today.isoformat():
+            if not reset_date:
                 self.db.set_internal_setting(self.RESET_DATE_KEY, next_year_start)
         except Exception as e:
             logger.error("Fiscal year cycle initialization error: %s", e)
@@ -112,34 +130,96 @@ class FiscalYearService:
             "last_report": self.get_last_opening_report(),
         }
 
-    def trigger_manual_rollover(self):
+    def _normalize_rollover_selections(self, selections=None):
+        supplied = selections if isinstance(selections, dict) else {}
+        return {
+            "bank": bool(supplied.get("bank", True)),
+            "customer": bool(supplied.get("customer", True)),
+        }
+
+    def get_manual_rollover_plan(self, selections=None):
+        """Return a read-only, auditable summary before a manual rollover."""
+        selected = self._normalize_rollover_selections(selections)
+        opening_date = self._resolve_manual_opening_date()
+        integrity = "unknown"
+        try:
+            row = self.db.cursor.execute("PRAGMA integrity_check").fetchone()
+            integrity = str(row[0]).lower() if row else "failed"
+        except Exception as exc:
+            integrity = f"failed:{exc}"
+
+        entries = []
+        if selected["bank"]:
+            entries.extend(self._collect_bank_openings())
+        if selected["customer"]:
+            entries.extend(self._collect_customer_openings())
+        bank_entries = [item for item in entries if item.get("bank_account_id")]
+        customer_entries = [item for item in entries if item.get("customer_id")]
+        return {
+            "opening_date": opening_date.isoformat(),
+            "can_execute": opening_date <= date.today() and integrity == "ok",
+            "integrity": integrity,
+            "selections": selected,
+            "bank_count": len(bank_entries),
+            "customer_count": len(customer_entries),
+            "entry_count": len(entries),
+            "total_try": round(
+                sum(
+                    self._to_try(item.get("amount"), item.get("currency"), item.get("exchange_rate"))
+                    for item in entries
+                ),
+                2,
+            ),
+        }
+
+    def trigger_manual_rollover(self, selections=None, approved_by=""):
         """
         Manuel mali yil devir akisi.
         Guvenli davranir: arsiv alir, acilis fislerini olusturur, durum kaydini yazar,
         sonraki yil tarihlerini kurar.
         """
         try:
+            selected = self._normalize_rollover_selections(selections)
             today = self._today_iso()
             opening_date = self._resolve_manual_opening_date()
-            archive_year = opening_date.year - 1
-            if self._opening_exists(opening_date):
+            if opening_date > date.today():
                 return {
                     "ok": False,
                     "error": (
-                        f"{opening_date.isoformat()} tarihli acilis fisleri zaten olusturulmus. "
-                        "Ayni mali yil devri ikinci kez yapilmaz."
+                        "Mali yil devri yeni yil baslamadan yapilamaz. "
+                        f"En erken tarih: {opening_date.isoformat()}"
                     ),
                 }
+            plan = self.get_manual_rollover_plan(selected)
+            if plan.get("integrity") != "ok":
+                return {
+                    "ok": False,
+                    "error": "Veritabani tutarlilik kontrolu basarisiz. Devir baslatilmadi.",
+                    "plan": plan,
+                }
+            archive_year = opening_date.year - 1
             archive_name = self.archive_old_data(archive_year)
-            opening_summary = self._create_opening_entries(opening_date)
-            report = self._build_opening_report(
-                opening_date, archive_name, opening_summary
+            if not archive_name:
+                return {
+                    "ok": False,
+                    "error": "Mali yil arsivi olusturulamadi. Acilis fisleri yazilmadi.",
+                }
+
+            recovered = self._opening_exists(opening_date)
+            opening_summary = (
+                {"count": 0, "skipped": True, "entries": [], "recovered": True}
+                if recovered
+                else self._create_opening_entries(opening_date, selected)
             )
+            opening_summary["selections"] = selected
+            opening_summary["approved_by"] = str(approved_by or "").strip()
             opening_error = (opening_summary or {}).get("error")
             status = (
-                f"manual_rollover:{today}:archive={archive_name or '-'}:"
+                f"manual_rollover:{today}:archive={archive_name}:"
                 f"openings={opening_summary.get('count', 0)}"
             )
+            if recovered:
+                status += ":recovered=1"
             if opening_error:
                 status += ":opening_error=1"
                 self.db.set_internal_setting(self.LAST_STATUS_KEY, status)
@@ -147,7 +227,6 @@ class FiscalYearService:
                     "ok": False,
                     "archive_name": archive_name,
                     "opening_summary": opening_summary,
-                    "report": report,
                     "status": status,
                     "snapshot": self.get_status_snapshot(),
                     "error": opening_error,
@@ -157,7 +236,10 @@ class FiscalYearService:
             self.db.set_internal_setting(self.LAST_ROLLOVER_KEY, today)
             self._set_next_cycle_dates(opening_date.year + 1)
             self.db.set_internal_setting(self.LAST_STATUS_KEY, status)
-            notify_message = f"Manuel mali yil devir islemi tamamlandi. Arsiv: {archive_name or 'olusturulamadi'}"
+            report = self._build_opening_report(
+                opening_date, archive_name, opening_summary, selected, approved_by
+            )
+            notify_message = f"Manuel mali yil devir islemi tamamlandi. Arsiv: {archive_name}"
             self._notify(notify_message, "info")
             return {
                 "ok": True,
@@ -191,6 +273,14 @@ class FiscalYearService:
             finally:
                 src.close()
 
+            verify = sqlite3.connect(archive_path)
+            try:
+                result = verify.execute("PRAGMA integrity_check").fetchone()
+                if not result or str(result[0]).lower() != "ok":
+                    raise RuntimeError("Archive integrity check failed")
+            finally:
+                verify.close()
+
             self.db.set_internal_setting(self.LAST_ARCHIVE_KEY, archive_name)
             logger.info("Fiscal archive created: %s", archive_path)
             return archive_name
@@ -215,6 +305,11 @@ class FiscalYearService:
             return
 
         opening_date = self._resolve_rollover_date()
+        if opening_date < date.today():
+            status = f"rollover_overdue:{opening_date.isoformat()}:review_required"
+            self.db.set_internal_setting(self.LAST_STATUS_KEY, status)
+            self._notify("Mali yil devri gecikmis. Manuel inceleme gerekli.", "warning")
+            return
         if opening_date > date.today():
             logger.info(
                 "Fiscal rollover skipped: planned date is in the future (%s)",
@@ -222,9 +317,14 @@ class FiscalYearService:
             )
             return
         archive_name = self.archive_old_data(opening_date.year - 1)
+        if not archive_name:
+            self.db.set_internal_setting(
+                self.LAST_STATUS_KEY, "rollover_archive_error:opening_not_written"
+            )
+            self._notify("Mali yil arsivi olusturulamadi. Devir durduruldu.", "warning")
+            return
         if archive_name:
             opening_summary = self._create_opening_entries(opening_date)
-            self._build_opening_report(opening_date, archive_name, opening_summary)
             opening_error = (opening_summary or {}).get("error")
             if not opening_error:
                 self.db.set_internal_setting(
@@ -232,6 +332,7 @@ class FiscalYearService:
                 )
                 self.db.set_internal_setting(self.LAST_ROLLOVER_KEY, today)
                 self._set_next_cycle_dates(opening_date.year + 1)
+                self._build_opening_report(opening_date, archive_name, opening_summary)
             self.db.set_internal_setting(
                 self.LAST_STATUS_KEY,
                 (
@@ -514,11 +615,16 @@ class FiscalYearService:
         ).fetchone()
         return bool(row and int(row[0] or 0) > 0)
 
-    def _create_opening_entries(self, opening_date):
+    def _create_opening_entries(self, opening_date, selections=None):
         try:
             if self._opening_exists(opening_date):
                 return {"count": 0, "skipped": True, "entries": []}
-            entries = self._collect_bank_openings() + self._collect_customer_openings()
+            selected = self._normalize_rollover_selections(selections)
+            entries = []
+            if selected["bank"]:
+                entries.extend(self._collect_bank_openings())
+            if selected["customer"]:
+                entries.extend(self._collect_customer_openings())
             if not entries:
                 return {"count": 0, "skipped": False, "entries": []}
             has_created_at = self._accounting_has_column("created_at")
@@ -578,7 +684,9 @@ class FiscalYearService:
                 pass
             return {"count": 0, "skipped": False, "error": str(e), "entries": []}
 
-    def _build_opening_report(self, opening_date, archive_name, opening_summary):
+    def _build_opening_report(
+        self, opening_date, archive_name, opening_summary, selections=None, approved_by=""
+    ):
         entries = list((opening_summary or {}).get("entries") or [])
         report = {
             "opening_date": opening_date.isoformat(),
@@ -593,6 +701,9 @@ class FiscalYearService:
                 self.ROLLOVER_DATE_KEY, ""
             ),
             "fiscal_year_start": self.db.get_internal_setting(self.YEAR_START_KEY, ""),
+            "selections": self._normalize_rollover_selections(selections),
+            "approved_by": str(approved_by or "").strip(),
+            "approved_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         }
         for entry in entries:
             amount_try = self._to_try(

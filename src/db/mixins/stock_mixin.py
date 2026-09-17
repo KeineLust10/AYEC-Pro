@@ -19,8 +19,8 @@ class StockMixin:
 
     """Stok yönetimi için veritabanı metotları."""
 
-    def update_parts_schema(self):
-        """Guarantee automotive-friendly stock columns exist."""
+    def update_parts_schema(self, commit=True):
+        """Ensure the parts table contains all stock columns."""
         try:
             self.cursor.execute(
                 """
@@ -28,7 +28,7 @@ class StockMixin:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     name TEXT,
                     brand TEXT,
-                    stock INTEGER,
+                    stock REAL,
                     price REAL,
                     code TEXT,
                     barcode TEXT,
@@ -39,7 +39,7 @@ class StockMixin:
             self.cursor.execute("PRAGMA table_info(parts)")
             columns = {str(col[1]).lower() for col in (self.cursor.fetchall() or [])}
             for col_name, col_type in (
-                ("min_stock", "INTEGER DEFAULT 5"),
+                ("min_stock", "REAL DEFAULT 5"),
                 ("purchase_price", "REAL DEFAULT 0"),
                 ("currency", "TEXT DEFAULT 'TRY'"),
                 ("description", "TEXT"),
@@ -50,6 +50,7 @@ class StockMixin:
                 ("compatible_models", "TEXT"),
                 ("is_deleted", "INTEGER DEFAULT 0"),
                 ("created_at", "TEXT"),
+                ("unit", "TEXT DEFAULT 'Adet'"),
             ):
                 if col_name.lower() not in columns:
                     safe_col = self._safe_identifier(col_name)
@@ -59,7 +60,8 @@ class StockMixin:
                             ddl=col_type,
                         )
                     )
-            self.conn.commit()
+            if commit:
+                self.conn.commit()
             return True
         except Exception as e:
             logger.error(f"update_parts_schema error: {e}")
@@ -107,8 +109,11 @@ class StockMixin:
                         created_at,
                     ),
                 )
-            except Exception:
-                pass
+            except Exception as audit_error:
+                logger.warning(
+                    "Stock price update audit could not be written: %s",
+                    audit_error,
+                )
 
             self.conn.commit()
             return affected > 0
@@ -116,10 +121,10 @@ class StockMixin:
             logger.error(f"apply_stock_price_increase error: {e}")
             return False
 
-    def _ensure_stock_movements_schema(self):
+    def _ensure_stock_movements_schema(self, commit=True):
         """Guarantee required stock movement columns exist on older installations."""
         try:
-            # Ayrı cursor kullan — self.cursor başka thread tarafından kullanılıyor olabilir
+            # Use a separate cursor because another thread may use self.cursor.
             cur = self.conn.cursor()
             cur.execute(
                 """
@@ -163,8 +168,11 @@ class StockMixin:
                         WHERE new_stock IS NULL
                         """
                     )
-                except Exception:
-                    pass
+                except Exception as normalize_error:
+                    logger.warning(
+                        "Stock movement normalization could not be completed: %s",
+                        normalize_error,
+                    )
 
             if "description" not in columns:
                 cur.execute("ALTER TABLE stock_movements ADD COLUMN description TEXT")
@@ -179,7 +187,8 @@ class StockMixin:
                         "ALTER TABLE stock_movements ADD COLUMN created_at TEXT"
                     )
 
-            self.conn.commit()
+            if commit:
+                self.conn.commit()
             cur.close()
             return True
         except Exception as e:
@@ -187,20 +196,30 @@ class StockMixin:
             return False
 
     def get_parts_paginated(
-        self, limit=50, offset=0, search_query="", category="Tümü", critical_only=False
+        self, limit=50, offset=0, search_query="", category="T\u00fcm\u00fc", critical_only=False,
+        metric_filter="all",
     ):
         """Sayfalı parça listesi döndürür: (rows, total_count)."""
         try:
             cur = self.conn.cursor()
-            where = ["COALESCE(is_deleted, 0) = 0"]
-            aliased_where = ["COALESCE(p.is_deleted, 0) = 0"]
+            where = ["is_deleted = 0"]
+            aliased_where = ["p.is_deleted = 0"]
             params = []
 
             if search_query:
-                where.append("(name LIKE ? OR code LIKE ?)")
-                aliased_where.append("(p.name LIKE ? OR p.code LIKE ?)")
-                like = f"%{search_query.strip()}%"
-                params.extend([like, like])
+                search_text = search_query.strip()
+                like = f"%{search_text}%"
+                where.append(
+                    "(barcode = ? OR code = ? OR name LIKE ? OR code LIKE ? "
+                    "OR barcode LIKE ?)"
+                )
+                aliased_where.append(
+                    "(p.barcode = ? OR p.code = ? OR p.name LIKE ? OR "
+                    "p.code LIKE ? OR p.barcode LIKE ?)"
+                )
+                params.extend(
+                    [search_text, search_text, like, like, like]
+                )
 
             if isinstance(category, (list, tuple, set)):
                 category_values = [
@@ -218,10 +237,23 @@ class StockMixin:
 
             if critical_only:
                 where.append(
-                    "CAST(COALESCE(stock,0) AS REAL) <= CAST(COALESCE(min_stock,0) AS REAL)"
+                    "COALESCE(stock, 0) <= COALESCE(min_stock, 0)"
                 )
                 aliased_where.append(
-                    "CAST(COALESCE(p.stock,0) AS REAL) <= CAST(COALESCE(p.min_stock,0) AS REAL)"
+                    "COALESCE(p.stock, 0) <= COALESCE(p.min_stock, 0)"
+                )
+
+            if metric_filter == "value":
+                where.append("COALESCE(stock, 0) * COALESCE(purchase_price, 0) > 0")
+                aliased_where.append(
+                    "COALESCE(p.stock, 0) * COALESCE(p.purchase_price, 0) > 0"
+                )
+            elif metric_filter == "profit":
+                where.append(
+                    "COALESCE(stock, 0) * (COALESCE(price, 0) - COALESCE(purchase_price, 0)) > 0"
+                )
+                aliased_where.append(
+                    "COALESCE(p.stock, 0) * (COALESCE(p.price, 0) - COALESCE(p.purchase_price, 0)) > 0"
                 )
 
             where_sql = (
@@ -258,7 +290,7 @@ class StockMixin:
                 FROM parts p
                 LEFT JOIN stock_automotive_extension sae ON sae.part_id = p.id
                 {aliased_where_sql}
-                ORDER BY COALESCE(p.name, '') COLLATE NOCASE ASC
+                ORDER BY p.name COLLATE NOCASE ASC
                 LIMIT ? OFFSET ?
                 """,
                 tuple(page_params),
@@ -275,13 +307,34 @@ class StockMixin:
             cur.execute(
                 """
                 SELECT
-                    COALESCE(stock,0) AS stock,
-                    COALESCE(price,0) AS price,
-                    COALESCE(purchase_price,0) AS purchase_price,
                     UPPER(COALESCE(currency,'TRY')) AS currency,
-                    COALESCE(min_stock,0) AS min_stock
+                    COUNT(*) AS item_count,
+                    COALESCE(SUM(COALESCE(stock, 0)), 0) AS total_stock,
+                    COALESCE(
+                        SUM(COALESCE(stock, 0) * COALESCE(price, 0)),
+                        0
+                    ) AS sale_value,
+                    COALESCE(
+                        SUM(
+                            COALESCE(stock, 0) *
+                            COALESCE(purchase_price, 0)
+                        ),
+                        0
+                    ) AS purchase_value,
+                    COALESCE(
+                        SUM(
+                            CASE
+                                WHEN COALESCE(min_stock, 0) > 0
+                                 AND COALESCE(stock, 0) <= COALESCE(min_stock, 0)
+                                THEN 1
+                                ELSE 0
+                            END
+                        ),
+                        0
+                    ) AS critical_count
                 FROM parts
-                WHERE (is_deleted=0 OR is_deleted IS NULL)
+                WHERE is_deleted = 0
+                GROUP BY UPPER(COALESCE(currency, 'TRY'))
                 """
             )
             rows = cur.fetchall() or []
@@ -297,6 +350,7 @@ class StockMixin:
                     "critical_count": 0,
                     "display_currency": "TRY",
                     "total_value_try": 0.0,
+                    "potential_profit_try": 0.0,
                 }
 
             from src.utils.currency_helper import CurrencyHelper
@@ -318,28 +372,60 @@ class StockMixin:
             total_purchase_try = 0.0
             critical_items = 0
 
-            for row in rows:
-                stock = float(_val(row, "stock", 0) or 0)
-                sale_price = float(_val(row, "price", 1) or 0)
-                purchase_price = float(_val(row, "purchase_price", 2) or 0)
-                currency = str(_val(row, "currency", 3) or "TRY").upper()
-                min_stock = float(_val(row, "min_stock", 4) or 0)
+            def _to_try(amount, currency):
+                if currency == "TRY":
+                    return float(amount)
+                rate = float(CurrencyHelper._get_rate(self, currency) or 0)
+                if rate <= 0:
+                    try:
+                        result = self.conn.execute(
+                            """
+                            SELECT exchange_rate
+                            FROM accounting
+                            WHERE UPPER(COALESCE(currency, 'TRY')) = ?
+                              AND COALESCE(exchange_rate, 0) > 0
+                            ORDER BY id DESC
+                            LIMIT 1
+                            """,
+                            (currency,),
+                        ).fetchone()
+                        rate = float(result[0] or 0) if result else 0
+                    except Exception:
+                        rate = 0
+                if rate <= 0:
+                    rate = 1.0
+                    logger.warning(
+                        "Stock valuation rate missing for %s; using 1.0",
+                        currency,
+                    )
+                return float(amount) * rate
 
-                total_items += 1
+            for row in rows:
+                currency = str(_val(row, "currency", 0) or "TRY").upper()
+                item_count = int(_val(row, "item_count", 1) or 0)
+                stock = float(_val(row, "total_stock", 2) or 0)
+                sale_value = float(_val(row, "sale_value", 3) or 0)
+                purchase_value = float(_val(row, "purchase_value", 4) or 0)
+                critical_count = int(_val(row, "critical_count", 5) or 0)
+
+                total_items += item_count
                 total_stock += stock
-                total_sale_try += CurrencyHelper.convert_amount(
-                    self, stock * sale_price, currency, "TRY"
-                )
-                total_purchase_try += CurrencyHelper.convert_amount(
-                    self, stock * purchase_price, currency, "TRY"
-                )
-                if min_stock > 0 and stock <= min_stock:
-                    critical_items += 1
+                total_sale_try += _to_try(sale_value, currency)
+                total_purchase_try += _to_try(purchase_value, currency)
+                critical_items += critical_count
 
             display_currency = CurrencyHelper.get_code(self)
-            display_value = CurrencyHelper.convert_amount(
-                self, total_purchase_try, "TRY", display_currency
-            )
+            if display_currency == "TRY":
+                display_value = total_purchase_try
+            else:
+                display_rate = float(
+                    CurrencyHelper._get_rate(self, display_currency) or 0
+                )
+                display_value = (
+                    total_purchase_try / display_rate
+                    if display_rate > 0
+                    else total_purchase_try
+                )
 
             return {
                 "total_items": total_items,
@@ -350,6 +436,9 @@ class StockMixin:
                 "total_types": total_items,
                 "total_value": display_value,
                 "total_value_try": total_purchase_try,
+                "potential_profit_try": max(
+                    0.0, total_sale_try - total_purchase_try
+                ),
                 "display_currency": display_currency,
                 "critical_count": critical_items,
             }
@@ -366,18 +455,28 @@ class StockMixin:
                 "critical_count": 0,
                 "display_currency": "TRY",
                 "total_value_try": 0.0,
+                "potential_profit_try": 0.0,
             }
 
     def record_stock_movement(
-        self, part_id, delta, current_stock=0, type_val=None, desc=""
+        self,
+        part_id,
+        delta,
+        current_stock=0,
+        type_val=None,
+        desc="",
+        commit=True,
+        location_id=None,
     ):
         """Stok hareketi kaydı + parts.stock güncellemesi."""
         try:
-            self._ensure_stock_movements_schema()
-            delta_i = int(delta or 0)
-            old_stock = int(current_stock or 0)
-            new_stock = old_stock + delta_i
-            movement_type = type_val or ("Giriş" if delta_i >= 0 else "Çıkış")
+            self._ensure_stock_movements_schema(commit=commit)
+            delta_f = float(delta or 0)
+            old_stock = float(current_stock or 0)
+            new_stock = old_stock + delta_f
+            movement_type = type_val or (
+                "Giri\u015f" if delta_f >= 0 else "\u00c7\u0131k\u0131\u015f"
+            )
             created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
             self.cursor.execute(
@@ -388,7 +487,7 @@ class StockMixin:
                 (
                     part_id,
                     movement_type,
-                    abs(delta_i),
+                    abs(delta_f),
                     new_stock,
                     desc or "",
                     created_at,
@@ -397,20 +496,45 @@ class StockMixin:
             self.cursor.execute(
                 "UPDATE parts SET stock=? WHERE id=?", (new_stock, part_id)
             )
-            self.conn.commit()
+            if location_id and hasattr(self, "apply_location_delta"):
+                self.apply_location_delta(
+                    part_id,
+                    location_id,
+                    delta_f,
+                    commit=False,
+                )
+            elif hasattr(self, "apply_main_location_delta"):
+                self.apply_main_location_delta(part_id, delta_f, commit=False)
+            if commit:
+                self.conn.commit()
             return True
         except Exception as e:
             logger.error(f"record_stock_movement error: {e}")
+            if commit:
+                try:
+                    self.conn.rollback()
+                except Exception as rollback_error:
+                    logger.error(
+                        "Stock movement rollback failed: %s",
+                        rollback_error,
+                    )
             return False
 
-    def adjust_stock(self, part_id, delta, description="", type_val=None):
+    def adjust_stock(
+        self,
+        part_id,
+        delta,
+        description="",
+        type_val=None,
+        commit=True,
+    ):
         """Stok düzeltme metodu (Database.add_part/update_part çağrıları için)."""
         try:
             self.cursor.execute("SELECT stock FROM parts WHERE id=?", (part_id,))
             row = self.cursor.fetchone()
             if not row:
                 return False
-            current_stock = int(
+            current_stock = float(
                 (
                     row["stock"]
                     if hasattr(row, "keys") and "stock" in row.keys()
@@ -419,7 +543,12 @@ class StockMixin:
                 or 0
             )
             return self.record_stock_movement(
-                part_id, delta, current_stock, type_val, description
+                part_id,
+                delta,
+                current_stock,
+                type_val,
+                description,
+                commit=commit,
             )
         except Exception as e:
             logger.error(f"adjust_stock error: {e}")
@@ -463,26 +592,29 @@ class StockMixin:
         oem_code="",
         equivalent_code="",
         compatible_models="",
+        unit="Adet",
+        commit=True,
     ):
-        """Yeni parça ekle ve ilk stok girişini stock_movements'a kaydet."""
+        """Add a part and its initial stock movement."""
         try:
-            self.update_parts_schema()
-            self._ensure_stock_movements_schema()
+            self._last_part_error = ""
+            self.update_parts_schema(commit=commit)
+            self._ensure_stock_movements_schema(commit=commit)
             created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             self.cursor.execute(
                 """
                 INSERT INTO parts (
                     name, brand, category, stock, price, purchase_price, currency,
                     description, min_stock, code, shelf_number, created_at, photo_path,
-                    oem_code, equivalent_code, compatible_models
+                    oem_code, equivalent_code, compatible_models, unit
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
                 (
                     name,
                     brand,
                     category,
-                    stock,
+                    float(stock or 0),
                     price,
                     purchase_price,
                     currency,
@@ -495,9 +627,16 @@ class StockMixin:
                     oem_code,
                     equivalent_code,
                     compatible_models,
+                    unit or "Adet",
                 ),
             )
             part_id = self.cursor.lastrowid
+            if hasattr(self, "apply_main_location_delta"):
+                self.apply_main_location_delta(
+                    part_id,
+                    float(stock or 0),
+                    commit=False,
+                )
             if float(stock or 0) > 0:
                 movement_desc = desc or f"Yeni stok kartı açılışı: {name}"
                 self.cursor.execute(
@@ -514,21 +653,35 @@ class StockMixin:
                         created_at,
                     ),
                 )
-            if hasattr(self, "upsert_sector_extension"):
-                self.upsert_sector_extension(
+            extension_data = {
+                "oem_code": oem_code,
+                "equivalent_code": equivalent_code,
+                "compatible_models": compatible_models,
+            }
+            if (
+                hasattr(self, "upsert_sector_extension")
+                and any(str(value or "").strip() for value in extension_data.values())
+            ):
+                extension_ok = self.upsert_sector_extension(
                     "stock",
                     part_id,
-                    {
-                        "oem_code": oem_code,
-                        "equivalent_code": equivalent_code,
-                        "compatible_models": compatible_models,
-                    },
+                    extension_data,
                     sector_id="otomotiv",
+                    commit=commit,
                 )
-            self.conn.commit()
+                if not extension_ok:
+                    logger.warning(
+                        "Automotive stock extension was skipped for part %s",
+                        part_id,
+                    )
+            if commit:
+                self.conn.commit()
             return part_id
         except Exception as e:
-            logger.error(f"Part add error: {e}")
+            self._last_part_error = str(e)
+            logger.exception("Part add error")
+            if commit:
+                self.conn.rollback()
             return None
 
     def update_part(
@@ -549,10 +702,14 @@ class StockMixin:
         oem_code="",
         equivalent_code="",
         compatible_models="",
+        unit="Adet",
+        bank_account_id=None,
+        payment_method="Nakit",
+        commit=True,
     ):
-        """Parça bilgilerini güncelle"""
+        """Parca bilgilerini guncelle."""
         try:
-            self.update_parts_schema()
+            self.update_parts_schema(commit=commit)
             self.cursor.execute(
                 "SELECT stock, purchase_price, currency, name, photo_path FROM parts WHERE id=?",
                 (part_id,),
@@ -560,13 +717,13 @@ class StockMixin:
             row = self.cursor.fetchone()
             if row:
                 if hasattr(row, "keys"):
-                    old_stock = int(row["stock"] or 0)
+                    old_stock = float(row["stock"] or 0)
                     old_purchase_price = float(row["purchase_price"] or 0)
                     old_currency = str(row["currency"] or "TRY").upper()
                     old_name = str(row["name"] or "")
                     existing_photo = row["photo_path"]
                 else:
-                    old_stock = int(row[0] or 0)
+                    old_stock = float(row[0] or 0)
                     old_purchase_price = float(row[1] or 0)
                     old_currency = str(row[2] or "TRY").upper()
                     old_name = str(row[3] or "")
@@ -575,12 +732,12 @@ class StockMixin:
                 if photo_path is None:
                     photo_path = existing_photo
             else:
-                old_stock = 0
-                old_purchase_price = 0
+                old_stock = 0.0
+                old_purchase_price = 0.0
                 old_currency = "TRY"
                 old_name = ""
 
-            new_stock = old_stock if stock in (None, "") else int(stock)
+            new_stock = old_stock if stock in (None, "") else float(stock)
             delta = new_stock - old_stock
 
             new_purchase_price = float(purchase_price or 0)
@@ -592,7 +749,9 @@ class StockMixin:
             self.cursor.execute(
                 """
                 UPDATE parts
-                SET name=?, brand=?, category=?, price=?, purchase_price=?, currency=?, description=?, min_stock=?, code=?, shelf_number=?, photo_path=?, oem_code=?, equivalent_code=?, compatible_models=?
+                SET name=?, brand=?, category=?, price=?, purchase_price=?, currency=?,
+                    description=?, min_stock=?, code=?, shelf_number=?, photo_path=?,
+                    oem_code=?, equivalent_code=?, compatible_models=?, unit=?
                 WHERE id=?
             """,
                 (
@@ -610,11 +769,12 @@ class StockMixin:
                     oem_code,
                     equivalent_code,
                     compatible_models,
+                    unit or "Adet",
                     part_id,
                 ),
             )
             if hasattr(self, "upsert_sector_extension"):
-                self.upsert_sector_extension(
+                extension_ok = self.upsert_sector_extension(
                     "stock",
                     part_id,
                     {
@@ -623,26 +783,34 @@ class StockMixin:
                         "compatible_models": compatible_models,
                     },
                     sector_id="otomotiv",
+                    commit=False,
                 )
+                if not extension_ok:
+                    raise RuntimeError(
+                        "Automotive stock extension could not be updated"
+                    )
 
-            # 1. Stok Hareketi Kaydı (Miktar veya Fiyat değiştiyse)
+            # 1. Stok Hareketi Kaydi (Miktar veya Fiyat degistiyse)
             if delta != 0 or price_changed:
                 move_type = (
-                    "Giriş" if delta > 0 else ("Çıkış" if delta < 0 else "Güncelleme")
+                    "Giris" if delta > 0 else ("Cikis" if delta < 0 else "Guncelleme")
                 )
-                move_desc = f"Bilgi Güncelleme - {name}"
+                move_desc = f"Bilgi Guncelleme - {name}"
                 if price_changed and delta == 0:
-                    move_desc = f"Fiyat Güncelleme ({old_purchase_price} -> {new_purchase_price} {new_currency}) - {name}"
+                    move_desc = f"Fiyat Guncelleme ({old_purchase_price} -> {new_purchase_price} {new_currency}) - {name}"
 
-                self.record_stock_movement(
+                movement_ok = self.record_stock_movement(
                     part_id=part_id,
                     delta=delta,
                     current_stock=old_stock,
                     type_val=move_type,
                     desc=move_desc,
+                    commit=False,
                 )
+                if not movement_ok:
+                    raise RuntimeError("Stock movement could not be recorded")
 
-            # 2. Finansal Kayıt / Düzeltme
+            # 2. Finansal Kayit / Duzeltme
             if delta != 0:
                 try:
                     unit_cost = new_purchase_price
@@ -650,10 +818,11 @@ class StockMixin:
                     if delta > 0:
                         self.add_transaction(
                             t_type="Gider",
-                            category="Stok Alımı",
+                            category="Stok Alimi",
                             amount=unit_cost * qty,
-                            description=f"Stok Artışı (Güncelleme): {qty} x {name}",
-                            payment_method="Nakit",
+                            description=f"Stok Artisi (Guncelleme): {qty} {unit} x {name}",
+                            payment_method=payment_method,
+                            bank_account_id=bank_account_id,
                             currency=new_currency,
                             original_amount=unit_cost * qty,
                             selected_services=[
@@ -666,19 +835,24 @@ class StockMixin:
                                     "line_total": unit_cost * qty,
                                 }
                             ],
+                            commit=False,
                         )
                     else:
                         self.add_transaction(
                             t_type="Gider",
-                            category="Stok Düşüm / Fire",
+                            category="Stok Dusum / Fire",
                             amount=unit_cost * qty,
-                            description=f"Stok Azalışı (Güncelleme): {qty} x {name}",
-                            payment_method="Nakit",
+                            description=f"Stok Azalisi (Guncelleme): {qty} {unit} x {name}",
+                            payment_method=payment_method,
+                            bank_account_id=bank_account_id,
                             currency=new_currency,
                             original_amount=unit_cost * qty,
+                            commit=False,
                         )
                 except Exception as e:
-                    logger.error(f"Stock qty update accounting error: {e}")
+                    raise RuntimeError(
+                        f"Stock quantity accounting failed: {e}"
+                    ) from e
 
             elif price_changed and old_stock > 0:
                 try:
@@ -686,33 +860,155 @@ class StockMixin:
                     total_adj = price_difference * old_stock
 
                     if abs(total_adj) > 0.001:
-                        # Her iki durumda da "Gider" olarak kaydet:
-                        # Fiyat artışı = ek maliyet gideri, Fiyat düşüşü = negatif maliyet düzeltmesi
-                        # Asla "Gelir" olarak kaydetme — stok düzeltmesi ciro değildir.
                         t_type = "Gider"
                         if total_adj > 0:
-                            adj_category = "Stok Değer Düzeltme - Artış"
+                            adj_category = "Stok Deger Duzeltme - Artis"
                         else:
-                            adj_category = "Stok Değer Düzeltme - Düşüş"
-                        adj_desc = f"Fiyat Düzeltme ({old_purchase_price} -> {new_purchase_price}): {old_stock} adet {name}"
+                            adj_category = "Stok Deger Duzeltme - Dusus"
+                        adj_desc = f"Fiyat Duzeltme ({old_purchase_price} -> {new_purchase_price}): {old_stock} {unit} {name}"
 
                         self.add_transaction(
                             t_type=t_type,
                             category=adj_category,
                             amount=abs(total_adj),
                             description=adj_desc,
-                            payment_method="Nakit",
+                            payment_method=payment_method,
+                            bank_account_id=bank_account_id,
                             currency=new_currency,
                             original_amount=abs(total_adj),
+                            commit=False,
                         )
                 except Exception as e:
-                    logger.error(f"Stock price adjustment accounting error: {e}")
+                    raise RuntimeError(
+                        f"Stock price accounting failed: {e}"
+                    ) from e
 
-            self.conn.commit()
+            if commit:
+                self.conn.commit()
             return True
         except Exception as e:
             logger.error(f"Part update error: {e}")
+            if commit:
+                self.conn.rollback()
             return False
+
+    def merge_imported_part(
+        self,
+        part_id,
+        quantity,
+        purchase_price,
+        sale_price,
+        currency,
+        name=None,
+        category=None,
+        brand=None,
+        description=None,
+        code=None,
+        shelf=None,
+        oem_code=None,
+        equivalent_code=None,
+        compatible_models=None,
+    ):
+        """Merge an imported stock row into an existing product card."""
+        try:
+            self.update_parts_schema(commit=False)
+            self._ensure_stock_movements_schema(commit=False)
+            self.cursor.execute(
+                """
+                SELECT name, category, brand, stock, price, purchase_price,
+                       currency, description, code, shelf_number, oem_code,
+                       equivalent_code, compatible_models
+                FROM parts
+                WHERE id=? AND COALESCE(is_deleted, 0)=0
+                """,
+                (part_id,),
+            )
+            row = self.cursor.fetchone()
+            if not row:
+                return None
+            columns = [item[0] for item in self.cursor.description]
+            current = dict(zip(columns, row))
+            incoming_quantity = max(0.0, float(quantity or 0))
+            old_stock = float(current.get("stock") or 0)
+            final_purchase = (
+                float(purchase_price)
+                if purchase_price not in (None, "")
+                else float(current.get("purchase_price") or 0)
+            )
+            final_sale = (
+                float(sale_price)
+                if sale_price not in (None, "")
+                else float(current.get("price") or 0)
+            )
+            final_currency = str(
+                currency or current.get("currency") or "TRY"
+            ).upper()
+            values = {
+                "name": name or current.get("name") or "",
+                "category": category or current.get("category") or "Genel",
+                "brand": brand or current.get("brand") or "",
+                "description": (
+                    description
+                    if description not in (None, "")
+                    else current.get("description") or ""
+                ),
+                "code": code or current.get("code") or "",
+                "shelf": shelf or current.get("shelf_number") or "",
+                "oem_code": oem_code or current.get("oem_code") or "",
+                "equivalent_code": (
+                    equivalent_code or current.get("equivalent_code") or ""
+                ),
+                "compatible_models": (
+                    compatible_models or current.get("compatible_models") or ""
+                ),
+            }
+            self.cursor.execute(
+                """
+                UPDATE parts
+                SET name=?, category=?, brand=?, price=?, purchase_price=?,
+                    currency=?, description=?, code=?, shelf_number=?,
+                    oem_code=?, equivalent_code=?, compatible_models=?
+                WHERE id=?
+                """,
+                (
+                    values["name"],
+                    values["category"],
+                    values["brand"],
+                    final_sale,
+                    final_purchase,
+                    final_currency,
+                    values["description"],
+                    values["code"],
+                    values["shelf"],
+                    values["oem_code"],
+                    values["equivalent_code"],
+                    values["compatible_models"],
+                    part_id,
+                ),
+            )
+            if incoming_quantity:
+                movement_ok = self.record_stock_movement(
+                    part_id=part_id,
+                    delta=incoming_quantity,
+                    current_stock=old_stock,
+                    type_val="Giri\u015f",
+                    desc=(
+                        "Ak\u0131ll\u0131 i\u00e7e aktar\u0131m "
+                        f"birle\u015ftirme: {values['name']}"
+                    ),
+                    commit=False,
+                )
+                if not movement_ok:
+                    raise RuntimeError("Imported stock movement could not be saved")
+            self.conn.commit()
+            return part_id
+        except Exception as exc:
+            logger.error("Imported part merge error: %s", exc)
+            try:
+                self.conn.rollback()
+            except Exception:
+                pass
+            return None
 
     def delete_part(self, part_id):
         """Parça soft delete"""
@@ -765,6 +1061,12 @@ class StockMixin:
                 ),
             )
             part_id = self.cursor.lastrowid
+            if hasattr(self, "apply_main_location_delta"):
+                self.apply_main_location_delta(
+                    part_id,
+                    float(quantity or 0),
+                    commit=False,
+                )
             if float(quantity or 0) > 0:
                 self.cursor.execute(
                     """
@@ -786,12 +1088,18 @@ class StockMixin:
             logger.error(f"Stock add error: {e}")
             return None
 
-    def use_part(self, part_id, quantity=1, tracking_no=None, **kwargs):
-        """Parça kullan — stok düşer, used_parts'a kayıt eklenir.
-        Not: Parça maliyeti zaten 'Stok Alımı' Gider kaydı ile muhasebeleştirilmiştir.
-        Gelir kaydı, cihaz teslim edildiğinde oluşturulur."""
+    def use_part(
+        self,
+        part_id,
+        quantity=1,
+        tracking_no=None,
+        commit=True,
+        **kwargs,
+    ):
+        """Parca kullan - stok dusum, used_parts kaydi eklenir."""
         try:
-            # Mevcut stoku kontrol et (currency da çekilir)
+            location_id = kwargs.get("location_id")
+            # Mevcut stoku kontrol et
             self.cursor.execute(
                 "SELECT name, stock, price, purchase_price, COALESCE(currency, 'TRY') FROM parts WHERE id=?",
                 (part_id,),
@@ -800,28 +1108,64 @@ class StockMixin:
             if not result:
                 return False
 
-            part_name = result[0] or f"Parça #{part_id}"
-            current_stock = int(result[1] or 0)
+            part_name = result[0] or f"Parca #{part_id}"
+            current_stock = float(result[1] or 0)
             sell_price = float(result[2] or 0)
             purchase_price = float(result[3] or 0)
             part_currency = str(result[4] or "TRY").upper()
+            from src.utils.currency_helper import CurrencyHelper
+
+            if part_currency == "TRY":
+                exchange_rate = 1.0
+            else:
+                exchange_rate = CurrencyHelper.require_rate(self, part_currency)
+            price_try = round(sell_price * exchange_rate, 4)
 
             if current_stock < quantity:
                 logger.warning(f"Insufficient stock for part {part_id}")
                 return False
 
-            # Stok düş
-            new_stock = current_stock - quantity
-            self.cursor.execute(
-                "UPDATE parts SET stock=? WHERE id=?", (new_stock, part_id)
-            )
+            if location_id and hasattr(self, "get_location_inventory"):
+                location_rows = self.get_location_inventory(location_id)
+                location_stock = next(
+                    (
+                        float(row.get("quantity") or 0)
+                        for row in location_rows
+                        if int(row.get("part_id") or 0) == int(part_id)
+                    ),
+                    0.0,
+                )
+                if location_stock < float(quantity or 0):
+                    logger.warning(
+                        "Insufficient location stock for part %s at %s",
+                        part_id,
+                        location_id,
+                    )
+                    return False
 
-            # Kullanım kaydı — currency da saklanır
+            # Stok dus ve hareketi kaydet
+            movement_recorded = self.record_stock_movement(
+                part_id=part_id,
+                delta=-quantity,
+                current_stock=current_stock,
+                type_val="\u00c7\u0131k\u0131\u015f",
+                desc=f"Servis Kullanimi: {tracking_no or '-'}",
+                commit=False,
+                location_id=location_id,
+            )
+            if not movement_recorded:
+                raise RuntimeError("Stock movement could not be recorded")
+
+            # Store the usage record together with its currency.
             if tracking_no:
                 self.cursor.execute(
                     """
-                    INSERT INTO used_parts (tracking_no, part_id, part_name, price, quantity, purchase_price_snapshot, currency, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))
+                    INSERT INTO used_parts (
+                        tracking_no, part_id, part_name, price, quantity,
+                        purchase_price_snapshot, currency, exchange_rate,
+                        price_try, stock_location_id, created_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', 'localtime'))
                 """,
                     (
                         tracking_no,
@@ -831,11 +1175,19 @@ class StockMixin:
                         quantity,
                         purchase_price,
                         part_currency,
+                        exchange_rate,
+                        price_try,
+                        location_id,
                     ),
                 )
 
-            self.conn.commit()
-            if tracking_no and hasattr(self, "_sync_service_debt_from_tracking"):
+            if commit:
+                self.conn.commit()
+            if (
+                commit
+                and tracking_no
+                and hasattr(self, "_sync_service_debt_from_tracking")
+            ):
                 try:
                     self._sync_service_debt_from_tracking(
                         tracking_no,
@@ -851,6 +1203,11 @@ class StockMixin:
             return True
         except Exception as e:
             logger.error(f"Use part error: {e}")
+            if commit:
+                try:
+                    self.conn.rollback()
+                except Exception as rollback_error:
+                    logger.error("Use part rollback failed: %s", rollback_error)
             return False
 
     def add_used_part(self, tracking_no, part_name, price, **kwargs):
@@ -908,7 +1265,14 @@ class StockMixin:
                 else ("is_archived" if "is_archived" in columns else None)
             )
 
-            query = "SELECT id, tracking_no, part_id, part_name, COALESCE(quantity, 1) FROM used_parts WHERE id=?"
+            location_select = (
+                "stock_location_id" if "stock_location_id" in columns else "NULL"
+            )
+            query = (
+                "SELECT id, tracking_no, part_id, part_name, "
+                f"COALESCE(quantity, 1), {location_select} "
+                "FROM used_parts WHERE id=?"
+            )
             if deleted_col:
                 query += f" AND ({deleted_col}=0 OR {deleted_col} IS NULL)"
             self.cursor.execute(query, (used_part_id,))
@@ -919,7 +1283,8 @@ class StockMixin:
             tracking_no = row[1]
             stock_part_id = row[2]
             part_name = row[3] or "-"
-            quantity = int(row[4] or 1)
+            quantity = float(row[4] or 1)
+            location_id = row[5]
 
             if hasattr(self, "soft_delete_record"):
                 if not self.soft_delete_record("used_parts", "id", used_part_id):
@@ -936,10 +1301,11 @@ class StockMixin:
                 )
                 stock_row = self.cursor.fetchone()
                 current_stock = float(stock_row[0] or 0) if stock_row else 0
-                self.add_stock_movement(
+                self.record_stock_movement(
                     part_id=stock_part_id,
-                    amount=quantity,
+                    delta=quantity,
                     current_stock=current_stock,
+                    location_id=location_id,
                     type_val="Giriş",
                     desc=f"Servis parça iadesi / silme: {tracking_no} - {part_name}",
                 )
@@ -1043,11 +1409,14 @@ class StockMixin:
         self.conn.commit()
 
     def add_stock_movement(self, part_id, amount, current_stock, type_val, desc):
-        """Stok hareketi kaydet"""
+        """Record a stock movement and keep the main warehouse in sync."""
         try:
             self._ensure_stock_movements_schema()
             created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            new_stock = current_stock + (amount if type_val == "Giriş" else -amount)
+            movement_key = str(type_val or "").strip().lower()
+            is_inbound = movement_key in {"giris", "giri\u015f", "iade", "return"}
+            signed_amount = float(amount or 0) if is_inbound else -float(amount or 0)
+            new_stock = float(current_stock or 0) + signed_amount
 
             self.cursor.execute(
                 """
@@ -1061,6 +1430,13 @@ class StockMixin:
             self.cursor.execute(
                 "UPDATE parts SET stock=? WHERE id=?", (new_stock, part_id)
             )
+
+            if hasattr(self, "apply_main_location_delta"):
+                self.apply_main_location_delta(
+                    part_id,
+                    signed_amount,
+                    commit=False,
+                )
 
             self.conn.commit()
             return True
@@ -1109,11 +1485,28 @@ class StockMixin:
         except Exception as e:
             logger.error(f"ensure_stock_history_seeded error: {e}")
 
-    def get_stock_history(self, part_id=None):
+    def get_stock_history(
+        self,
+        part_id=None,
+        limit=100,
+        offset=0,
+        with_total=False,
+    ):
         """Stok geçmişini getir"""
         try:
             self._ensure_stock_movements_schema()
-            self.ensure_stock_history_seeded()
+            limit = max(1, min(int(limit or 100), 500))
+            offset = max(0, int(offset or 0))
+            seed_row = self.cursor.execute(
+                """
+                SELECT 1
+                FROM stock_movements
+                WHERE is_deleted=0
+                LIMIT 1
+                """
+            ).fetchone()
+            if not seed_row:
+                self.ensure_stock_history_seeded()
 
             # Use row_factory for dict-like access
             old_factory = self.conn.row_factory
@@ -1122,6 +1515,24 @@ class StockMixin:
 
                 self.conn.row_factory = _sqlite3.Row
                 cur = self.conn.cursor()
+                if part_id:
+                    total_row = cur.execute(
+                        """
+                        SELECT COUNT(*)
+                        FROM stock_movements
+                        WHERE part_id=? AND is_deleted=0
+                        """,
+                        (part_id,),
+                    ).fetchone()
+                else:
+                    total_row = cur.execute(
+                        """
+                        SELECT COUNT(*)
+                        FROM stock_movements
+                        WHERE is_deleted=0
+                        """
+                    ).fetchone()
+                total = int(total_row[0] or 0) if total_row else 0
 
                 if part_id:
                     cur.execute(
@@ -1133,13 +1544,15 @@ class StockMixin:
                                COALESCE(p.purchase_price, 0) AS unit_cost
                         FROM stock_movements sm
                         LEFT JOIN parts p ON sm.part_id = p.id
-                        WHERE sm.part_id=? AND COALESCE(sm.is_deleted, 0) = 0
+                        WHERE sm.part_id=? AND sm.is_deleted=0
                         ORDER BY sm.created_at DESC
-                    """,
-                        (part_id,),
+                        LIMIT ? OFFSET ?
+                        """,
+                        (part_id, limit, offset),
                     )
                 else:
-                    cur.execute("""
+                    cur.execute(
+                        """
                         SELECT sm.id, sm.part_id, sm.movement_type, sm.amount, sm.new_stock,
                                sm.description, sm.created_at,
                                COALESCE(p.name, p.part_name, 'Bilinmeyen Parça') AS part_name,
@@ -1147,9 +1560,12 @@ class StockMixin:
                                COALESCE(p.purchase_price, 0) AS unit_cost
                         FROM stock_movements sm
                         LEFT JOIN parts p ON sm.part_id = p.id
-                        WHERE COALESCE(sm.is_deleted, 0) = 0
-                        ORDER BY sm.created_at DESC LIMIT 200
-                    """)
+                        WHERE sm.is_deleted=0
+                        ORDER BY sm.created_at DESC
+                        LIMIT ? OFFSET ?
+                        """,
+                        (limit, offset),
+                    )
 
                 rows = cur.fetchall()
 
@@ -1230,7 +1646,9 @@ class StockMixin:
                 finally:
                     self.conn.row_factory = old_factory
 
-            return result
+            if not total:
+                total = len(result)
+            return (result, total) if with_total else result
         except Exception as e:
             logger.error(f"get_stock_history error: {e}")
-            return []
+            return ([], 0) if with_total else []

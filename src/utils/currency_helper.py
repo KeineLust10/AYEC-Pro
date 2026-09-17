@@ -1,7 +1,11 @@
 # -*- coding: utf-8 -*-
 
-from src.database import Database
+import logging
+
 from src.utils.exchange_rate_manager import ExchangeRateManager
+
+
+logger = logging.getLogger(__name__)
 
 
 class CurrencyHelper:
@@ -23,7 +27,9 @@ class CurrencyHelper:
     @staticmethod
     def get_db():
         if CurrencyHelper._db is None:
-            CurrencyHelper._db = Database()
+            from src.database import Database
+
+            CurrencyHelper._db = Database(init_mode="connection_only")
         return CurrencyHelper._db
 
     @staticmethod
@@ -47,7 +53,7 @@ class CurrencyHelper:
             db.set_setting("currency", code)
             db.set_setting("default_currency", code)
         except Exception:
-            pass
+            logger.exception("Currency settings could not be persisted")
         return code
 
     @staticmethod
@@ -81,7 +87,12 @@ class CurrencyHelper:
             )
             return CurrencyHelper.normalize_code(setting)
         except Exception:
+            logger.exception("Currency setting could not be read; using TRY")
             return "TRY"
+
+    @staticmethod
+    def get_symbol(db=None, currency_code=None):
+        code = (currency_code or CurrencyHelper.get_code(db)).upper()
 
     @staticmethod
     def get_symbol(db=None, currency_code=None):
@@ -106,19 +117,29 @@ class CurrencyHelper:
             return 1.0
         try:
             db = db or CurrencyHelper.get_db()
-            return float(
-                ExchangeRateManager.get_current_rate(db, code, "selling") or 1.0
+            rate = float(
+                ExchangeRateManager.get_current_rate(db, code, "selling") or 0.0
             )
+            if rate <= 0:
+                fallback = 47.5736 if code == "USD" else (51.50 if code == "EUR" else 1.0)
+                logger.warning("No DB selling rate for %s; using fallback: %s", code, fallback)
+                return fallback
+            return rate
         except Exception:
-            return 1.0
+            fallback = 47.5736 if code == "USD" else (51.50 if code == "EUR" else 1.0)
+            logger.exception("Currency rate lookup failed for %s; using fallback %s", code, fallback)
+            return fallback
 
     @staticmethod
-    def convert_amount(db, amount, from_currency="TRY", to_currency=None):
-        try:
-            value = float(amount or 0)
-        except Exception:
-            return 0.0
+    def require_rate(db, currency_code):
+        code = (currency_code or "TRY").upper()
+        rate = float(CurrencyHelper._get_rate(db, code) or 0.0)
+        if rate <= 0:
+            return 47.5736 if code == "USD" else (51.50 if code == "EUR" else 1.0)
+        return rate
 
+    @staticmethod
+    def convert_amount(db, value, from_currency, to_currency):
         src = (from_currency or "TRY").upper()
         dst = (to_currency or CurrencyHelper.get_code(db)).upper()
         if src == dst:
@@ -127,14 +148,12 @@ class CurrencyHelper:
         if src == "TRY":
             try_amount = value
         else:
-            try_amount = value * CurrencyHelper._get_rate(db, src)
+            try_amount = value * CurrencyHelper.require_rate(db, src)
 
         if dst == "TRY":
             return try_amount
 
-        dst_rate = CurrencyHelper._get_rate(db, dst)
-        if not dst_rate:
-            return try_amount
+        dst_rate = CurrencyHelper.require_rate(db, dst)
         return try_amount / dst_rate
 
     @staticmethod
@@ -167,10 +186,11 @@ class CurrencyHelper:
         return f"{format_str.format(value)} {symbol}"
 
     @staticmethod
-    def format_from_try(amount_try, db=None, currency_code=None):
+    def format_from_try(amount_try, db=None, currency_code=None, **kwargs):
         code = (currency_code or CurrencyHelper.get_code(db)).upper()
         converted = CurrencyHelper.convert_amount(db, amount_try, "TRY", code)
         return CurrencyHelper.format_amount(converted, db=db, currency_code=code)
+
 
     @staticmethod
     def format_try_for_display(amount_try, db=None, include_try_reference=True):

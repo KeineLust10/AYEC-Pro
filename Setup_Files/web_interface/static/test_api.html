@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Test - Premium Bulut</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold mb-8">API Test Sayfası</h1>
+
+        <div class="grid grid-cols-2 gap-4 mb-8">
+            <button onclick="testDashboard()" class="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700">
+                Test Dashboard API
+            </button>
+            <button onclick="testServices()" class="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700">
+                Test Services API
+            </button>
+            <button onclick="testCustomers()" class="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700">
+                Test Customers API
+            </button>
+            <button onclick="testParts()" class="bg-orange-600 text-white px-6 py-3 rounded-lg hover:bg-orange-700">
+                Test Parts API
+            </button>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-xl font-bold mb-4">Sonuçlar:</h2>
+            <pre id="results" class="bg-gray-50 p-4 rounded overflow-auto max-h-96"></pre>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8001/api';
+
+        async function testDashboard() {
+            try {
+                const res = await fetch(`${API_BASE}/dashboard`);
+                const data = await res.json();
+                document.getElementById('results').textContent = JSON.stringify(data, null, 2);
+            } catch (e) {
+                document.getElementById('results').textContent = 'ERROR: ' + e.message;
+            }
+        }
+
+        async function testServices() {
+            try {
+                const res = await fetch(`${API_BASE}/services`);
+                const data = await res.json();
+                document.getElementById('results').textContent = JSON.stringify(data, null, 2);
+            } catch (e) {
+                document.getElementById('results').textContent = 'ERROR: ' + e.message;
+            }
+        }
+
+        async function testCustomers() {
+            try {
+                const res = await fetch(`${API_BASE}/customers`);
+                const data = await res.json();
+                document.getElementById('results').textContent = JSON.stringify(data, null, 2);
+            } catch (e) {
+                document.getElementById('results').textContent = 'ERROR: ' + e.message;
+            }
+        }
+
+        async function testParts() {
+            try {
+                const res = await fetch(`${API_BASE}/parts`);
+                const data = await res.json();
+                document.getElementById('results').textContent = JSON.stringify(data, null, 2);
+            } catch (e) {
+                document.getElementById('results').textContent = 'ERROR: ' + e.message;
+            }
+        }
+
+        // Auto-test on load
+        window.onload = () => testDashboard();
+    </script>
+</body>
+
+</html>

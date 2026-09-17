@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 
 from datetime import datetime
+import os
 import re
 
-from PyQt6.QtCore import QDate, Qt
-from PyQt6.QtGui import QColor, QFont
+from PyQt6.QtCore import QDate, Qt, QTimer
+from PyQt6.QtGui import QColor, QFont, QTextListFormat
 from PyQt6.QtWidgets import (
     QFrame,
     QGraphicsDropShadowEffect,
@@ -17,6 +18,11 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
     QHeaderView,
+    QComboBox,
+    QColorDialog,
+    QFontComboBox,
+    QFileDialog,
+    QTextEdit,
 )
 
 from src.ui.dialogs.base_modern_dialog import BaseModernDialog
@@ -27,13 +33,16 @@ from src.utils.currency_helper import CurrencyHelper
 from src.utils.logger import logger
 from src.utils.date_formatter import format_date
 from src.utils.system_config import SystemConfig
+from src.utils.path_helper import PathHelper
+from src.utils.offer_pdf_data import load_offer_pdf_data
+from src.utils.service_work_details import clean_offer_line_description
 from src.utils.toast_notification import show_error, show_success
 
 
 class StatBox(QFrame):
     def __init__(self, title, value, icon_char, color, parent=None):
         super().__init__(parent)
-        self.setFixedSize(170, 85)
+        self.setFixedSize(250, 85)
         self.setStyleSheet(
             theme_qss(
                 """
@@ -76,6 +85,7 @@ class StatBox(QFrame):
         )
 
         lbl_val = QLabel(str(value))
+        lbl_val.setToolTip(str(value))
         lbl_val.setStyleSheet(
             theme_qss(
                 "color: @text; font-size: 16px; font-weight: 800; background: transparent;"
@@ -93,6 +103,193 @@ class StatBox(QFrame):
         shadow.setColor(QColor(0, 0, 0, 20))
         shadow.setOffset(0, 2)
         self.setGraphicsEffect(shadow)
+
+
+class CustomerNoteDialog(BaseModernDialog):
+    def __init__(self, db, customer_id, customer_name, parent=None):
+        super().__init__(parent, title=f"M\u00fc\u015fteri Notu - {customer_name}", width=850, height=650)
+        self.db = db
+        self.customer_id = customer_id
+        self.note_id = None
+        self.setup_editor_ui()
+        self.load_note()
+
+    def setup_editor_ui(self):
+        toolbar = QHBoxLayout()
+        toolbar.setSpacing(6)
+        toolbar.setContentsMargins(0, 0, 0, 6)
+
+        self.btn_bold = QPushButton("B")
+        self.btn_bold.setCheckable(True)
+        self.btn_bold.setFixedSize(30, 30)
+        self.btn_bold.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+        self.btn_bold.clicked.connect(self.set_bold)
+        toolbar.addWidget(self.btn_bold)
+
+        self.btn_italic = QPushButton("I")
+        self.btn_italic.setCheckable(True)
+        self.btn_italic.setFixedSize(30, 30)
+        font_i = QFont("Segoe UI", 10)
+        font_i.setItalic(True)
+        self.btn_italic.setFont(font_i)
+        self.btn_italic.clicked.connect(self.set_italic)
+        toolbar.addWidget(self.btn_italic)
+
+        self.btn_underline = QPushButton("U")
+        self.btn_underline.setCheckable(True)
+        self.btn_underline.setFixedSize(30, 30)
+        font_u = QFont("Segoe UI", 10)
+        font_u.setUnderline(True)
+        self.btn_underline.setFont(font_u)
+        self.btn_underline.clicked.connect(self.set_underline)
+        toolbar.addWidget(self.btn_underline)
+
+        self.combo_font = QFontComboBox()
+        self.combo_font.setFixedWidth(140)
+        self.combo_font.currentFontChanged.connect(self.set_font_family)
+        toolbar.addWidget(self.combo_font)
+
+        self.combo_size = QComboBox()
+        self.combo_size.setFixedWidth(60)
+        for s in [8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 24, 28, 36, 48, 72]:
+            self.combo_size.addItem(str(s))
+        self.combo_size.setCurrentText("12")
+        self.combo_size.currentTextChanged.connect(self.set_font_size)
+        toolbar.addWidget(self.combo_size)
+
+        self.btn_color = QPushButton("Renk")
+        self.btn_color.setFixedSize(60, 30)
+        self.btn_color.clicked.connect(self.set_text_color)
+        toolbar.addWidget(self.btn_color)
+
+        self.btn_list = QPushButton("\u2022 Liste")
+        self.btn_list.setFixedSize(60, 30)
+        self.btn_list.clicked.connect(self.insert_list)
+        toolbar.addWidget(self.btn_list)
+
+        self.btn_align_left = QPushButton("Sola")
+        self.btn_align_left.setFixedSize(50, 30)
+        self.btn_align_left.clicked.connect(lambda: self.editor.setAlignment(Qt.AlignmentFlag.AlignLeft))
+        toolbar.addWidget(self.btn_align_left)
+
+        self.btn_align_center = QPushButton("Orta")
+        self.btn_align_center.setFixedSize(60, 30)
+        self.btn_align_center.clicked.connect(lambda: self.editor.setAlignment(Qt.AlignmentFlag.AlignCenter))
+        toolbar.addWidget(self.btn_align_center)
+
+        self.btn_align_right = QPushButton("Sa\u011fa")
+        self.btn_align_right.setFixedSize(50, 30)
+        self.btn_align_right.clicked.connect(lambda: self.editor.setAlignment(Qt.AlignmentFlag.AlignRight))
+        toolbar.addWidget(self.btn_align_right)
+
+        toolbar.addStretch()
+        self.content_layout.addLayout(toolbar)
+
+        self.editor = QTextEdit()
+        self.editor.setFont(QFont("Segoe UI", 12))
+        self.editor.setStyleSheet(theme_qss("""
+            QTextEdit {
+                background-color: @surface;
+                color: @text;
+                border: 1px solid @border;
+                border-radius: 8px;
+                padding: 10px;
+            }
+        """))
+        self.content_layout.addWidget(self.editor, 1)
+
+        for btn in [self.btn_bold, self.btn_italic, self.btn_underline, self.btn_color, self.btn_list, self.btn_align_left, self.btn_align_center, self.btn_align_right]:
+            btn.setStyleSheet(theme_qss("""
+                QPushButton {
+                    background-color: @surface_alt;
+                    color: @text;
+                    border: 1px solid @border;
+                    border-radius: 4px;
+                }
+                QPushButton:hover {
+                    background-color: @hover_bg;
+                }
+                QPushButton:checked {
+                    background-color: @accent;
+                    color: @selection_text;
+                }
+            """))
+
+        self.combo_font.setStyleSheet(theme_qss("""
+            QFontComboBox {
+                background-color: @surface_alt;
+                color: @text;
+                border: 1px solid @border;
+                border-radius: 4px;
+            }
+        """))
+        self.combo_size.setStyleSheet(theme_qss("""
+            QComboBox {
+                background-color: @surface_alt;
+                color: @text;
+                border: 1px solid @border;
+                border-radius: 4px;
+            }
+        """))
+
+        self.add_cancel_button("\u0130ptal")
+        self.btn_save = self.add_button("Kaydet", "primary", self.save_note)
+
+    def set_bold(self):
+        weight = QFont.Weight.Bold if self.btn_bold.isChecked() else QFont.Weight.Normal
+        self.editor.setFontWeight(weight)
+
+    def set_italic(self):
+        self.editor.setFontItalic(self.btn_italic.isChecked())
+
+    def set_underline(self):
+        self.editor.setFontUnderline(self.btn_underline.isChecked())
+
+    def set_font_family(self, font):
+        self.editor.setCurrentFont(font)
+
+    def set_font_size(self, size_str):
+        try:
+            self.editor.setFontPointSize(float(size_str))
+        except:
+            pass
+
+    def set_text_color(self):
+        color = QColorDialog.getColor(self.editor.textColor(), self, "Renk Se\u00e7")
+        if color.isValid():
+            self.editor.setTextColor(color)
+
+    def insert_list(self):
+        cursor = self.editor.textCursor()
+        cursor.insertList(QTextListFormat.Style.ListDisc)
+
+    def load_note(self):
+        try:
+            notes = self.db.get_customer_notes(self.customer_id)
+            for nid, ntype, content, created_at in notes:
+                if ntype == 'Note':
+                    self.note_id = nid
+                    self.editor.setHtml(content)
+                    break
+        except Exception as e:
+            logger.error(f"Load note error: {e}")
+
+    def save_note(self):
+        content = self.editor.toHtml()
+        try:
+            if self.note_id:
+                self.db.cursor.execute(
+                    "UPDATE customer_notes SET content=?, created_at=datetime('now','localtime') WHERE id=?",
+                    (content, self.note_id)
+                )
+                self.db.conn.commit()
+            else:
+                self.db.add_customer_note(self.customer_id, 'Note', content)
+            show_success(self, "Not ba\u015far\u0131yla kaydedildi.")
+            self.accept()
+        except Exception as e:
+            logger.error(f"Save note error: {e}")
+            show_error(self, f"Not kaydedilemedi: {e}")
 
 
 class Customer360Dialog(BaseModernDialog):
@@ -115,6 +312,20 @@ class Customer360Dialog(BaseModernDialog):
         except Exception:
             self.is_automotive = False
 
+        self._history_page_size = 50
+        self._history_pages = {
+            "service": 0,
+            "cari": 0,
+            "ledger": 0,
+            "sales": 0,
+        }
+        self._history_totals = {
+            "service": 0,
+            "cari": 0,
+            "ledger": 0,
+            "sales": 0,
+        }
+
         super().__init__(
             parent, title=f"Müşteri 360° - {customer_name}", width=1500, height=920
         )
@@ -126,8 +337,51 @@ class Customer360Dialog(BaseModernDialog):
         self.load_service_table()
         self.load_currency_ledger()
         self.load_sales_table()
+        self.load_offer_table()
         if self.is_automotive:
             self.load_vehicle_table()
+        signal_owner = self._financial_signal_owner()
+        if signal_owner:
+            try:
+                signal_owner.financial_data_changed.connect(self.refresh_financial_views)
+            except Exception:
+                pass
+
+    def _financial_signal_owner(self):
+        for owner in (getattr(self, "main_window", None), self.parent(), self.window()):
+            if owner and hasattr(owner, "financial_data_changed"):
+                return owner
+            nested = getattr(owner, "main_window", None) if owner else None
+            if nested and hasattr(nested, "financial_data_changed"):
+                return nested
+        return None
+
+    def _emit_financial_data_changed(self):
+        owner = self._financial_signal_owner()
+        if owner:
+            try:
+                owner.financial_data_changed.emit()
+            except Exception:
+                pass
+
+    def _announce_payment_received(self):
+        show_success(self, "\u00d6deme al\u0131nd\u0131.")
+        try:
+            from src.utils.asistan_motoru import sesli_cevap_ver_async
+            sesli_cevap_ver_async("\u00d6deme al\u0131nd\u0131.")
+        except Exception:
+            pass
+
+    def refresh_financial_views(self):
+        self.load_stats()
+        self.load_service_table()
+        self.load_cari_table()
+        self.load_currency_ledger()
+        self.load_sales_table()
+
+    def open_customer_note_dialog(self):
+        dlg = CustomerNoteDialog(self.db, self.customer_id, self.customer_name, parent=self)
+        dlg.exec()
 
     def setup_modern_content(self):
         header = QHBoxLayout()
@@ -158,16 +412,16 @@ class Customer360Dialog(BaseModernDialog):
         phone = "Bilinmiyor"
         try:
             cur = self.db.cursor
+            device_filter, device_params = self._customer_device_filter()
             cur.execute(
-                """
+                f"""
                 SELECT phone_number
                 FROM devices
-                WHERE (customer_id=? OR TRIM(UPPER(customer_name))=TRIM(UPPER(?)))
-                  AND COALESCE(is_deleted, 0) = 0
+                WHERE {device_filter}
                 ORDER BY entry_date DESC
                 LIMIT 1
                 """,
-                (self.customer_id, self.customer_name),
+                device_params,
             )
             row = cur.fetchone()
             if row and row[0]:
@@ -182,6 +436,17 @@ class Customer360Dialog(BaseModernDialog):
         info_layout.addWidget(sub_lbl)
         header.addLayout(info_layout)
         header.addStretch()
+
+        self.btn_customer_note = QPushButton("\U0001f4dd M\u00fc\u015fteri Notlar\u0131")
+        self.btn_customer_note.setFixedSize(160, 36)
+        self.btn_customer_note.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_customer_note.setStyleSheet(
+            theme_qss(
+                "background-color: @accent; color: @selection_text; border-radius: 6px; font-weight: bold;"
+            )
+        )
+        self.btn_customer_note.clicked.connect(self.open_customer_note_dialog)
+        header.addWidget(self.btn_customer_note)
 
         self.content_layout.addLayout(header)
 
@@ -239,6 +504,10 @@ class Customer360Dialog(BaseModernDialog):
         self.setup_sales_tab()
         self.tabs.addTab(self.tab_sales, "Ürün Satışları")
 
+        self.tab_offers = QWidget()
+        self.setup_offer_tab()
+        self.tabs.addTab(self.tab_offers, "Verilen Teklifler")
+
         if self.is_automotive:
             self.tab_vehicles = QWidget()
             self.setup_vehicle_tab()
@@ -247,12 +516,19 @@ class Customer360Dialog(BaseModernDialog):
         self.content_layout.addWidget(self.tabs)
 
         footer = QHBoxLayout()
+        self.btn_offer = QPushButton("Teklif Olu\u015ftur")
         self.btn_xlsx = QPushButton("Excel'e Aktar")
         self.btn_pdf = QPushButton("PDF'e Aktar")
-        for b in (self.btn_xlsx, self.btn_pdf):
+        for b in (self.btn_offer, self.btn_xlsx, self.btn_pdf):
             b.setFixedSize(140, 36)
             b.setCursor(Qt.CursorShape.PointingHandCursor)
 
+        self.btn_offer.setStyleSheet(
+            theme_qss(
+                "background-color: @accent; color: @selection_text; border-radius: 6px; font-weight: bold;"
+            )
+        )
+        self.btn_offer.clicked.connect(self.create_offer_from_selected_history)
         self.btn_xlsx.setStyleSheet(
             theme_qss(
                 "background-color: @success; color: @selection_text; border-radius: 6px; font-weight: bold;"
@@ -267,6 +543,7 @@ class Customer360Dialog(BaseModernDialog):
         self.btn_pdf.clicked.connect(self.export_pdf)
 
         footer.addStretch()
+        footer.addWidget(self.btn_offer)
         footer.addWidget(self.btn_xlsx)
         footer.addWidget(self.btn_pdf)
 
@@ -302,6 +579,73 @@ class Customer360Dialog(BaseModernDialog):
             """
         )
 
+    def _add_history_pager(self, layout, key):
+        pager = QHBoxLayout()
+        pager.addStretch()
+        previous_button = QPushButton("< \u00d6nceki")
+        next_button = QPushButton("Sonraki >")
+        page_label = QLabel("Sayfa 1 / 1")
+        previous_button.clicked.connect(
+            lambda _checked=False, page_key=key: self._change_history_page(
+                page_key, -1
+            )
+        )
+        next_button.clicked.connect(
+            lambda _checked=False, page_key=key: self._change_history_page(
+                page_key, 1
+            )
+        )
+        setattr(self, f"_{key}_previous_button", previous_button)
+        setattr(self, f"_{key}_next_button", next_button)
+        setattr(self, f"_{key}_page_label", page_label)
+        pager.addWidget(previous_button)
+        pager.addWidget(page_label)
+        pager.addWidget(next_button)
+        layout.addLayout(pager)
+        self._update_history_pager(key, 0)
+
+    def _update_history_pager(self, key, total):
+        total = max(0, int(total or 0))
+        self._history_totals[key] = total
+        page_count = max(
+            1,
+            (total + self._history_page_size - 1) // self._history_page_size,
+        )
+        current_page = min(self._history_pages.get(key, 0), page_count - 1)
+        self._history_pages[key] = current_page
+        previous_button = getattr(self, f"_{key}_previous_button", None)
+        next_button = getattr(self, f"_{key}_next_button", None)
+        page_label = getattr(self, f"_{key}_page_label", None)
+        if previous_button:
+            previous_button.setEnabled(current_page > 0)
+        if next_button:
+            next_button.setEnabled(current_page + 1 < page_count)
+        if page_label:
+            page_label.setText(f"Sayfa {current_page + 1} / {page_count}")
+
+    def _change_history_page(self, key, delta):
+        total = self._history_totals.get(key, 0)
+        page_count = max(
+            1,
+            (total + self._history_page_size - 1) // self._history_page_size,
+        )
+        target = max(
+            0,
+            min(self._history_pages.get(key, 0) + int(delta), page_count - 1),
+        )
+        if target == self._history_pages.get(key, 0):
+            return
+        self._history_pages[key] = target
+        loaders = {
+            "service": self.load_service_table,
+            "cari": self.load_cari_table,
+            "ledger": self.load_currency_ledger,
+            "sales": self.load_sales_table,
+        }
+        loader = loaders.get(key)
+        if loader:
+            loader()
+
     def setup_service_tab(self):
         l = QVBoxLayout(self.tab_service)
         self.table_service = QTreeWidget()
@@ -317,6 +661,7 @@ class Customer360Dialog(BaseModernDialog):
         )
         self.table_service.setStyleSheet(self._table_qss())
         l.addWidget(self.table_service)
+        self._add_history_pager(l, "service")
 
     def setup_cari_tab(self):
         l = QVBoxLayout(self.tab_cari)
@@ -356,6 +701,7 @@ class Customer360Dialog(BaseModernDialog):
         )
         self.table_cari.setStyleSheet(self._table_qss())
         l.addWidget(self.table_cari)
+        self._add_history_pager(l, "cari")
 
     def setup_ledger_tab(self):
         l = QVBoxLayout(self.tab_ledger)
@@ -366,6 +712,7 @@ class Customer360Dialog(BaseModernDialog):
         )
         self.table_ledger.setStyleSheet(self._table_qss())
         l.addWidget(self.table_ledger)
+        self._add_history_pager(l, "ledger")
 
     def setup_sales_tab(self):
         l = QVBoxLayout(self.tab_sales)
@@ -388,6 +735,54 @@ class Customer360Dialog(BaseModernDialog):
         )
         self.table_sales.setStyleSheet(self._table_qss())
         l.addWidget(self.table_sales)
+        self._add_history_pager(l, "sales")
+
+    def setup_offer_tab(self):
+        l = QVBoxLayout(self.tab_offers)
+        self.table_offers = QTreeWidget()
+        self.table_offers.setColumnCount(7)
+        self.table_offers.setHeaderLabels(
+            [
+                "Tarih",
+                "Teklif No",
+                "Firma / Proje",
+                "Yetkili",
+                "Toplam",
+                "Durum",
+                "PDF",
+            ]
+        )
+        self.table_offers.header().setSectionResizeMode(
+            2, QHeaderView.ResizeMode.Stretch
+        )
+        for idx in (0, 1, 3, 4, 5, 6):
+            self.table_offers.header().setSectionResizeMode(
+                idx, QHeaderView.ResizeMode.ResizeToContents
+            )
+        self.table_offers.setStyleSheet(self._table_qss())
+        self.table_offers.itemDoubleClicked.connect(self.open_selected_offer_pdf)
+        l.addWidget(self.table_offers)
+
+        actions = QHBoxLayout()
+        actions.addStretch()
+        self.btn_open_offer = QPushButton("Teklifi A\u00e7")
+        self.btn_edit_offer = QPushButton("Teklifi D\u00fczenle")
+        self.btn_process_offer = QPushButton(
+            "Teklifi M\u00fc\u015fteri Hesab\u0131na \u0130\u015fle"
+        )
+        for button in (
+            self.btn_open_offer,
+            self.btn_edit_offer,
+            self.btn_process_offer,
+        ):
+            button.setMinimumHeight(36)
+        self.btn_open_offer.clicked.connect(self.open_selected_offer_from_button)
+        self.btn_edit_offer.clicked.connect(self.edit_selected_offer)
+        self.btn_process_offer.clicked.connect(self.process_selected_offer)
+        actions.addWidget(self.btn_open_offer)
+        actions.addWidget(self.btn_edit_offer)
+        actions.addWidget(self.btn_process_offer)
+        l.addLayout(actions)
 
     def setup_vehicle_tab(self):
         l = QVBoxLayout(self.tab_vehicles)
@@ -420,6 +815,7 @@ class Customer360Dialog(BaseModernDialog):
         )
         self.table_vehicles.setStyleSheet(self._table_qss())
         self.table_vehicles.itemSelectionChanged.connect(self.load_vehicle_history)
+        self.table_vehicles.itemDoubleClicked.connect(lambda item, col: self.open_edit_vehicle())
         l.addWidget(self.table_vehicles)
 
         self.table_vehicle_history = QTreeWidget()
@@ -451,31 +847,34 @@ class Customer360Dialog(BaseModernDialog):
             except Exception:
                 return default
 
+        device_filter, device_params = self._customer_device_filter()
         cur.execute(
-            """
+            f"""
             SELECT COUNT(*)
             FROM devices
-            WHERE (customer_id=? OR TRIM(UPPER(customer_name))=TRIM(UPPER(?)))
-              AND COALESCE(is_deleted, 0) = 0
+            WHERE {device_filter}
             """,
-            (self.customer_id, self.customer_name),
+            device_params,
         )
         total_serv = _scalar(0)
 
         cur.execute(
-            """
+            f"""
             SELECT COUNT(*)
             FROM devices
-            WHERE (customer_id=? OR TRIM(UPPER(customer_name))=TRIM(UPPER(?)))
-              AND COALESCE(is_deleted, 0) = 0
+            WHERE {device_filter}
               AND status NOT IN ('Teslim Edildi', 'İptal', 'Bitti')
             """,
-            (self.customer_id, self.customer_name),
+            device_params,
         )
         active_serv = _scalar(0)
 
         cur.execute(
-            "SELECT SUM(try_equivalent) FROM currency_transactions WHERE customer_id=?",
+            """
+            SELECT SUM(try_equivalent)
+            FROM currency_transactions
+            WHERE customer_id=? AND transaction_type='DEBIT'
+            """,
             (self.customer_id,),
         )
         total_ciro = _scalar(0.0)
@@ -502,7 +901,7 @@ class Customer360Dialog(BaseModernDialog):
 
         def create_cur_box(label, val, currency_code, color):
             box = QFrame()
-            box.setFixedSize(140, 80)
+            box.setFixedSize(220, 80)
             box.setStyleSheet(
                 theme_qss(
                     "background-color: @surface; border: 1px solid @border; border-radius: 12px;"
@@ -519,27 +918,47 @@ class Customer360Dialog(BaseModernDialog):
             l.addWidget(v)
             return box
 
+        try:
+            cur.execute(
+                """
+                SELECT currency, balance
+                FROM customer_currency_balances
+                WHERE customer_id=?
+                """,
+                (self.customer_id,),
+            )
+            balances_by_currency = {
+                str(row[0] or "TRY").upper(): float(row[1] or 0.0)
+                for row in (cur.fetchall() or [])
+            }
+        except Exception as e:
+            logger.debug(f"Customer360 balance lookup failed: {e}")
+            balances_by_currency = {}
+
         def _bal(cur_code):
-            try:
-                cur.execute(
-                    "SELECT balance FROM customer_currency_balances WHERE customer_id=? AND currency=?",
-                    (self.customer_id, cur_code),
-                )
-                row = cur.fetchone()
-                return row[0] if row else 0.0
-            except Exception as e:
-                logger.debug(f"Customer360 balance lookup failed for {cur_code}: {e}")
-                return 0.0
+            return balances_by_currency.get(cur_code, 0.0)
 
         display_currency = CurrencyHelper.get_code(self.db)
         display_balance = 0.0
+        missing_rate_codes = []
         for code in ("TRY", "USD", "EUR"):
-            display_balance += CurrencyHelper.convert_amount(
-                self.db,
-                _bal(code),
-                from_currency=code,
-                to_currency=display_currency,
-            )
+            balance = float(_bal(code) or 0.0)
+            if abs(balance) < 0.0001:
+                continue
+            try:
+                display_balance += CurrencyHelper.convert_amount(
+                    self.db,
+                    balance,
+                    from_currency=code,
+                    to_currency=display_currency,
+                )
+            except ValueError as exc:
+                missing_rate_codes.append(code)
+                logger.warning(
+                    "Customer360 balance conversion skipped for %s: %s",
+                    code,
+                    exc,
+                )
         balance_color = (
             tc("success", default="#10B981")
             if display_balance >= 0
@@ -550,6 +969,9 @@ class Customer360Dialog(BaseModernDialog):
             balance_label = f"BEKLEYEN ALACAK ({display_currency})"
         elif display_balance > 0:
             balance_label = f"MUSTERI ALACAGI ({display_currency})"
+        if missing_rate_codes:
+            balance_label = "KUR EKSIK (" + ", ".join(missing_rate_codes) + ")"
+            balance_color = tc("danger", default="#EF4444")
         self.currency_layout.addWidget(
             create_cur_box(
                 balance_label,
@@ -560,70 +982,162 @@ class Customer360Dialog(BaseModernDialog):
         )
         self.currency_layout.addStretch()
 
+    def _customer_device_filter(self):
+        if self.customer_id:
+            return "customer_id=? AND is_deleted=0", (self.customer_id,)
+        return (
+            "TRIM(UPPER(customer_name))=TRIM(UPPER(?)) AND is_deleted=0",
+            (self.customer_name,),
+        )
+
+    def _used_part_try_value(self, price, currency, exchange_rate, price_try):
+        price = float(price or 0.0)
+        currency = str(currency or "TRY").upper()
+        stored_try = float(price_try or 0.0)
+        if stored_try > 0:
+            return stored_try
+        if currency == "TRY":
+            return price
+        rate = float(exchange_rate or 0.0)
+        if rate > 1.0:
+            return price * rate
+        return CurrencyHelper.convert_amount(self.db, price, currency, "TRY")
+
     def load_service_table(self):
         self.table_service.clear()
         cur = self.db.conn.cursor()
         display_currency = CurrencyHelper.get_code(self.db)
+        device_filter, device_params = self._customer_device_filter()
         cur.execute(
-            """
+            f"""
+            SELECT COUNT(*)
+            FROM devices
+            WHERE {device_filter}
+            """,
+            device_params,
+        )
+        total_rows = int((cur.fetchone() or [0])[0] or 0)
+        self._update_history_pager("service", total_rows)
+        offset = self._history_pages["service"] * self._history_page_size
+        cur.execute(
+            f"""
             SELECT tracking_no, device_brand, device_model, status, entry_date, labor_cost, cargo_fee
             FROM devices
-            WHERE (customer_id=? OR TRIM(UPPER(customer_name))=TRIM(UPPER(?)))
-              AND COALESCE(is_deleted, 0) = 0
+            WHERE {device_filter}
             ORDER BY entry_date DESC
+            LIMIT ? OFFSET ?
             """,
-            (self.customer_id, self.customer_name),
+            (
+                *device_params,
+                self._history_page_size,
+                offset,
+            ),
         )
         rows = cur.fetchall()
-        for tno, brand, model, status, date, labor, cargo_fee in rows:
-            used_parts_sum_query = "SELECT SUM(price * COALESCE(quantity, 1)) FROM used_parts WHERE tracking_no=?"
-            used_parts_list_query = "SELECT part_name, price, COALESCE(quantity, 1) FROM used_parts WHERE tracking_no=?"
+        tracking_numbers = [str(row[0]) for row in rows if row[0]]
+        parts_by_tracking = {}
+        transactions_by_tracking = {}
+
+        if tracking_numbers:
+            placeholders = ", ".join("?" for _ in tracking_numbers)
             try:
                 cur.execute("PRAGMA table_info(used_parts)")
-                cols = [row[1] for row in cur.fetchall() or []]
+                cols = {str(row[1]) for row in (cur.fetchall() or [])}
                 deleted_col = (
                     "is_deleted"
                     if "is_deleted" in cols
                     else ("is_archived" if "is_archived" in cols else None)
                 )
+                used_parts_query = (
+                    "SELECT tracking_no, part_name, price, {quantity}, "
+                    "{currency}, {rate}, {price_try} FROM used_parts "
+                    "WHERE tracking_no IN ({placeholders})"
+                ).format(
+                    quantity=(
+                        "COALESCE(quantity, 1)" if "quantity" in cols else "1"
+                    ),
+                    currency=(
+                        "COALESCE(currency, 'TRY')"
+                        if "currency" in cols
+                        else "'TRY'"
+                    ),
+                    rate=(
+                        "COALESCE(exchange_rate, 1)"
+                        if "exchange_rate" in cols
+                        else "1"
+                    ),
+                    price_try=(
+                        "COALESCE(price_try, 0)" if "price_try" in cols else "0"
+                    ),
+                    placeholders=placeholders,
+                )
                 if deleted_col:
-                    used_parts_sum_query += (
-                        f" AND ({deleted_col}=0 OR {deleted_col} IS NULL)"
+                    used_parts_query += f" AND COALESCE({deleted_col}, 0) = 0"
+                cur.execute(used_parts_query, tuple(tracking_numbers))
+                for part_row in cur.fetchall() or []:
+                    parts_by_tracking.setdefault(str(part_row[0]), []).append(
+                        part_row[1:]
                     )
-                    used_parts_list_query += (
-                        f" AND ({deleted_col}=0 OR {deleted_col} IS NULL)"
-                    )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Customer360 bulk part lookup failed: {e}")
 
-            cur.execute(used_parts_sum_query, (tno,))
-            part_sum = cur.fetchone()[0] or 0.0
+            try:
+                cur.execute(
+                    f"""
+                    SELECT
+                        tracking_no,
+                        currency,
+                        COALESCE(
+                            SUM(
+                                CASE
+                                    WHEN transaction_type='DEBIT'
+                                    THEN amount
+                                    ELSE 0
+                                END
+                            ),
+                            0
+                        ) AS debit_amount,
+                        COALESCE(
+                            SUM(
+                                CASE
+                                    WHEN transaction_type='DEBIT'
+                                     AND COALESCE(current_balance, 0) < 0
+                                    THEN ABS(COALESCE(current_balance, 0))
+                                    ELSE 0
+                                END
+                            ),
+                            0
+                        ) AS remaining_amount
+                    FROM currency_transactions
+                    WHERE customer_id=?
+                      AND tracking_no IN ({placeholders})
+                    GROUP BY tracking_no, currency
+                    """,
+                    (self.customer_id, *tracking_numbers),
+                )
+                for tx_row in cur.fetchall() or []:
+                    transactions_by_tracking.setdefault(
+                        str(tx_row[0]), []
+                    ).append(tx_row[1:])
+            except Exception as e:
+                logger.debug(f"Customer360 bulk transaction lookup failed: {e}")
+
+        for tno, brand, model, status, date, labor, cargo_fee in rows:
+            part_rows = parts_by_tracking.get(str(tno), [])
+            part_sum = sum(
+                self._used_part_try_value(row[1], row[3], row[4], row[5])
+                * float(row[2] or 1)
+                for row in part_rows
+            )
             raw_total = float(labor or 0) + float(cargo_fee or 0) + float(part_sum)
 
-            tx_cur = self.db.conn.cursor()
-            tx_cur.execute(
-                """
-                SELECT
-                    currency,
-                    COALESCE(SUM(CASE WHEN transaction_type='DEBIT' THEN amount ELSE 0 END), 0) AS debit_amount,
-                    COALESCE(
-                        SUM(
-                            CASE
-                                WHEN transaction_type='DEBIT' AND COALESCE(current_balance, 0) < 0
-                                THEN ABS(COALESCE(current_balance, 0))
-                                ELSE 0
-                            END
-                        ),
-                        0
-                    ) AS remaining_amount
-                FROM currency_transactions
-                WHERE customer_id=? AND tracking_no=?
-                GROUP BY currency
-                ORDER BY CASE WHEN currency=? THEN 0 ELSE 1 END, currency
-                """,
-                (self.customer_id, tno, display_currency),
+            tx_rows = transactions_by_tracking.get(str(tno), [])
+            tx_rows.sort(
+                key=lambda row: (
+                    str(row[0] or "TRY").upper() != display_currency,
+                    str(row[0] or "TRY"),
+                )
             )
-            tx_rows = tx_cur.fetchall()
 
             if tx_rows:
                 primary_currency = tx_rows[0][0] or display_currency
@@ -635,6 +1149,19 @@ class Customer360Dialog(BaseModernDialog):
                 remaining = raw_total
 
             item = QTreeWidgetItem(self.table_service)
+            item.setData(
+                0,
+                Qt.ItemDataRole.UserRole,
+                {
+                    "source": "service",
+                    "tracking_no": tno,
+                    "currency": primary_currency,
+                    "amount": total,
+                    "try_amount": raw_total,
+                    "remaining": remaining,
+                    "title": f"{brand} {model}",
+                },
+            )
             item.setText(0, format_date(date, self.db) if date else "")
             item.setText(1, f"{brand} {model} (#{tno})")
             item.setText(2, status)
@@ -708,18 +1235,28 @@ class Customer360Dialog(BaseModernDialog):
                 )
                 child.setForeground(1, QColor(tc("text_muted", default="#64748B")))
 
-            cur.execute(used_parts_list_query, (tno,))
-            for p_name, p_price, p_qty in cur.fetchall():
+            for p_name, p_price, p_qty, p_currency, p_rate, p_price_try in part_rows:
                 child = QTreeWidgetItem(item)
                 qty_text = f" x{int(p_qty or 1)}" if int(p_qty or 1) > 1 else ""
-                child.setText(1, f"↳ {p_name}{qty_text}")
+                child.setText(1, f"\u21b3 {p_name}{qty_text}")
+                original_total = float(p_price or 0) * float(p_qty or 1)
+                part_try_total = self._used_part_try_value(
+                    p_price, p_currency, p_rate, p_price_try
+                ) * float(p_qty or 1)
+                original_text = CurrencyHelper.format_amount(
+                    original_total,
+                    db=self.db,
+                    currency_code=str(p_currency or "TRY").upper(),
+                )
+                if str(p_currency or "TRY").upper() != "TRY":
+                    original_text += " ({})".format(
+                        CurrencyHelper.format_amount(
+                            part_try_total, db=self.db, currency_code="TRY"
+                        )
+                    )
                 child.setText(
                     3,
-                    CurrencyHelper.format_amount(
-                        float(p_price or 0) * int(p_qty or 1),
-                        db=self.db,
-                        currency_code=primary_currency,
-                    ),
+                    original_text,
                 )
                 child.setForeground(1, QColor(tc("text_muted", default="#64748B")))
 
@@ -729,14 +1266,41 @@ class Customer360Dialog(BaseModernDialog):
         self.table_cari.clear()
         cur = self.db.conn.cursor()
         cur.execute(
+            "SELECT COUNT(*) FROM currency_transactions WHERE customer_id=?",
+            (self.customer_id,),
+        )
+        total_rows = int((cur.fetchone() or [0])[0] or 0)
+        self._update_history_pager("cari", total_rows)
+        offset = self._history_pages["cari"] * self._history_page_size
+        cur.execute(
             """
             SELECT created_at, description, amount, currency, exchange_rate, try_equivalent, transaction_type, id, tracking_no, current_balance
             FROM currency_transactions
             WHERE customer_id = ?
             ORDER BY created_at DESC
+            LIMIT ? OFFSET ?
             """,
-            (self.customer_id,),
+            (self.customer_id, self._history_page_size, offset),
         )
+
+        transaction_rows = list(cur.fetchall() or [])
+        tracking_by_transaction = {}
+        tracking_numbers = set()
+        for transaction_row in transaction_rows:
+            transaction_id = transaction_row[7]
+            tracking_value = str(transaction_row[8] or "").strip()
+            if not tracking_value:
+                tracking_match = re.search(
+                    r"#([A-Z]+-\d+|\d+)",
+                    str(transaction_row[1] or ""),
+                    re.IGNORECASE,
+                )
+                if tracking_match:
+                    tracking_value = tracking_match.group(1)
+            if tracking_value:
+                tracking_by_transaction[transaction_id] = tracking_value
+                tracking_numbers.add(tracking_value)
+        parts_by_tracking = self._load_tracking_parts_map(tracking_numbers)
 
         for (
             date,
@@ -749,8 +1313,23 @@ class Customer360Dialog(BaseModernDialog):
             tid,
             tracking_no,
             current_balance,
-        ) in cur.fetchall():
+        ) in transaction_rows:
             parent = QTreeWidgetItem(self.table_cari)
+            parent.setData(
+                0,
+                Qt.ItemDataRole.UserRole,
+                {
+                    "source": "cari",
+                    "transaction_id": tid,
+                    "tracking_no": tracking_no,
+                    "currency": curr or "TRY",
+                    "exchange_rate": float(rate or 1.0),
+                    "amount": float(amt or 0),
+                    "try_amount": float(try_val or 0),
+                    "transaction_type": t_type,
+                    "description": desc or "",
+                },
+            )
             parent.setText(0, format_date(date, self.db))
             description_lines = self._split_description_lines(desc)
             type_label = (
@@ -856,12 +1435,13 @@ class Customer360Dialog(BaseModernDialog):
                 child.setText(1, f"-> {line}")
                 child.setForeground(1, QColor(tc("text_muted", default="#64748B")))
 
-            if tracking_no:
-                self._append_tracking_parts(parent, tracking_no)
-            else:
-                t_match = re.search(r"#([A-Z]+-\d+|\d+)", desc or "", re.IGNORECASE)
-                if t_match:
-                    self._append_tracking_parts(parent, t_match.group(1))
+            detail_tracking = tracking_by_transaction.get(tid)
+            if detail_tracking:
+                self._append_tracking_parts(
+                    parent,
+                    detail_tracking,
+                    parts_by_tracking=parts_by_tracking,
+                )
 
             parent.setExpanded(True)
 
@@ -870,32 +1450,98 @@ class Customer360Dialog(BaseModernDialog):
             line.strip() for line in str(description or "").splitlines() if line.strip()
         ]
 
-    def _append_tracking_parts(self, parent, tracking_no):
+    def _load_tracking_parts_map(self, tracking_numbers):
+        normalized = sorted(
+            {
+                str(tracking_no or "").strip()
+                for tracking_no in (tracking_numbers or [])
+                if str(tracking_no or "").strip()
+            }
+        )
+        if not normalized:
+            return {}
         try:
             cur = self.db.conn.cursor()
             cur.execute("PRAGMA table_info(used_parts)")
-            cols = [row[1] for row in cur.fetchall() or []]
+            cols = {str(row[1]) for row in cur.fetchall() or []}
             deleted_col = (
                 "is_deleted"
                 if "is_deleted" in cols
                 else ("is_archived" if "is_archived" in cols else None)
             )
-            has_qty = "quantity" in cols
-            query = "SELECT part_name, price, COALESCE(quantity, 1) FROM used_parts WHERE tracking_no=?"
-            if not has_qty:
-                query = "SELECT part_name, price, 1 FROM used_parts WHERE tracking_no=?"
+            placeholders = ", ".join("?" for _ in normalized)
+            query = (
+                "SELECT tracking_no, part_name, price, {quantity}, "
+                "{currency}, {rate}, {price_try} "
+                "FROM used_parts WHERE tracking_no IN ({placeholders})"
+            ).format(
+                quantity=(
+                    "COALESCE(quantity, 1)" if "quantity" in cols else "1"
+                ),
+                currency=(
+                    "COALESCE(currency, 'TRY')"
+                    if "currency" in cols
+                    else "'TRY'"
+                ),
+                rate=(
+                    "COALESCE(exchange_rate, 1)"
+                    if "exchange_rate" in cols
+                    else "1"
+                ),
+                price_try=(
+                    "COALESCE(price_try, 0)" if "price_try" in cols else "0"
+                ),
+                placeholders=placeholders,
+            )
             if deleted_col:
-                query += f" AND ({deleted_col}=0 OR {deleted_col} IS NULL)"
-            cur.execute(query, (tracking_no,))
-            for p_name, p_price, p_qty in cur.fetchall():
-                qty = int(p_qty or 1)
-                qty_text = f" x{qty}" if qty > 1 else ""
+                query += f" AND COALESCE({deleted_col}, 0)=0"
+            cur.execute(query, tuple(normalized))
+            result = {}
+            for row in cur.fetchall() or []:
+                result.setdefault(str(row[0]), []).append(row[1:])
+            return result
+        except Exception as exc:
+            logger.debug(
+                f"Customer360 bulk tracking part lookup skipped: {exc}"
+            )
+            return {}
+
+    def _append_tracking_parts(
+        self,
+        parent,
+        tracking_no,
+        parts_by_tracking=None,
+    ):
+        try:
+            if parts_by_tracking is None:
+                parts_by_tracking = self._load_tracking_parts_map([tracking_no])
+            for (
+                part_name,
+                price,
+                quantity,
+                currency,
+                exchange_rate,
+                price_try,
+            ) in parts_by_tracking.get(str(tracking_no), []):
+                quantity = float(quantity or 1)
+                quantity_text = (
+                    f" x{quantity:g}" if abs(quantity - 1.0) > 0.0001 else ""
+                )
+                part_total_try = (
+                    self._used_part_try_value(
+                        price,
+                        currency,
+                        exchange_rate,
+                        price_try,
+                    )
+                    * quantity
+                )
                 child = QTreeWidgetItem(parent)
-                child.setText(1, f"-> {p_name}{qty_text}")
+                child.setText(1, f"-> {part_name}{quantity_text}")
                 child.setText(
                     4,
                     CurrencyHelper.format_from_try(
-                        float(p_price or 0) * qty,
+                        part_total_try,
                         db=self.db,
                         currency_code=CurrencyHelper.get_code(self.db),
                     ),
@@ -1002,10 +1648,9 @@ class Customer360Dialog(BaseModernDialog):
         if dlg.exec():
             data = dlg.get_data() or {}
             if self._save_payment(data):
-                self.load_stats()
-                self.load_service_table()
-                self.load_cari_table()
-                self.load_currency_ledger()
+                self.refresh_financial_views()
+                self._emit_financial_data_changed()
+                self._announce_payment_received()
                 parent = self.parent()
                 if parent and hasattr(parent, "request_reload"):
                     try:
@@ -1044,6 +1689,14 @@ class Customer360Dialog(BaseModernDialog):
                         f"{accounting_date} {datetime.now().strftime('%H:%M:%S')}"
                     )
 
+            if not self.db.create_payment_debt_links_table():
+                show_error(
+                    self,
+                    "\u00d6deme da\u011f\u0131t\u0131m tablosu "
+                    "haz\u0131rlanamad\u0131.",
+                )
+                return False
+
             saved = self.db.add_currency_transaction(
                 customer_id=self.customer_id,
                 amount=amount,
@@ -1058,28 +1711,36 @@ class Customer360Dialog(BaseModernDialog):
                 show_error(self, "Ödeme kaydedilemedi.")
                 return False
 
-            payment_txn_id = None
-            try:
-                payment_txn_id = self.db.get_last_currency_transaction_id()
-            except Exception:
-                payment_txn_id = None
+            payment_txn_id = self.db.get_last_currency_transaction_id()
+            if not payment_txn_id:
+                logger.error(
+                    "Customer360 payment was saved without a transaction id"
+                )
+                show_error(
+                    self,
+                    "\u00d6deme kaydedildi ancak i\u015flem kimli\u011fi "
+                    "al\u0131namad\u0131.",
+                )
+                return True
 
             if payment_txn_id:
-                try:
-                    self.db.create_payment_debt_links_table()
-                except Exception:
-                    pass
-                try:
-                    self.db.apply_payment_to_debts(
-                        customer_id=self.customer_id,
-                        payment_amount=amount,
-                        currency=currency,
-                        payment_transaction_id=payment_txn_id,
-                        selected_debt_ids=data.get("selected_debt_ids") or None,
+                allocation = self.db.apply_payment_to_debts(
+                    customer_id=self.customer_id,
+                    payment_amount=amount,
+                    currency=currency,
+                    payment_transaction_id=payment_txn_id,
+                    selected_debt_ids=data.get("selected_debt_ids") or None,
+                )
+                if not allocation.get("ok", False):
+                    logger.error(
+                        "Customer360 debt allocation failed: %s",
+                        allocation.get("error") or "unknown error",
                     )
-                except Exception as allocation_exc:
-                    logger.warning(
-                        f"Customer360 debt allocation skipped: {allocation_exc}"
+                    show_error(
+                        self,
+                        "\u00d6deme kaydedildi ancak bor\u00e7lara "
+                        "da\u011f\u0131t\u0131lamad\u0131. Uzla\u015ft\u0131rma "
+                        "yeniden denenecek.",
                     )
 
             tl_amount = amount * (exchange_rate if currency != "TRY" else 1.0)
@@ -1105,7 +1766,6 @@ class Customer360Dialog(BaseModernDialog):
                     f"Customer360 accounting mirror save skipped: {accounting_exc}"
                 )
 
-            show_success(self, "Tahsilat kaydedildi.")
             return True
         except Exception as exc:
             logger.exception("Customer360 payment save failed")
@@ -1117,12 +1777,24 @@ class Customer360Dialog(BaseModernDialog):
         cur = self.db.conn.cursor()
         cur.execute(
             """
+            SELECT COUNT(*)
+            FROM currency_transactions
+            WHERE customer_id=? AND currency!='TRY'
+            """,
+            (self.customer_id,),
+        )
+        total_rows = int((cur.fetchone() or [0])[0] or 0)
+        self._update_history_pager("ledger", total_rows)
+        offset = self._history_pages["ledger"] * self._history_page_size
+        cur.execute(
+            """
             SELECT created_at, currency, transaction_type, amount, current_balance
             FROM currency_transactions
             WHERE customer_id = ? AND currency != 'TRY'
             ORDER BY created_at DESC
+            LIMIT ? OFFSET ?
             """,
-            (self.customer_id,),
+            (self.customer_id, self._history_page_size, offset),
         )
         for created_at, currency, tx_type, amount, balance in cur.fetchall():
             item = QTreeWidgetItem(self.table_ledger)
@@ -1137,7 +1809,26 @@ class Customer360Dialog(BaseModernDialog):
         cur = self.db.conn.cursor()
         cur.execute(
             """
-            SELECT date, description, amount, COALESCE(payment_method, ''), COALESCE(category, ''), COALESCE(currency, 'TRY')
+            SELECT COUNT(*)
+            FROM accounting
+            WHERE customer_id=?
+              AND type='Gelir'
+              AND (
+                    category='Sat\u0131\u015f'
+                    OR description LIKE 'POS%'
+                    OR description LIKE '%Sat\u0131\u015f%'
+                  )
+            """,
+            (self.customer_id,),
+        )
+        total_rows = int((cur.fetchone() or [0])[0] or 0)
+        self._update_history_pager("sales", total_rows)
+        offset = self._history_pages["sales"] * self._history_page_size
+        cur.execute(
+            """
+            SELECT id, date, description, amount, COALESCE(payment_method, ''), COALESCE(category, ''),
+                   COALESCE(currency, 'TRY'), COALESCE(exchange_rate, 1),
+                   COALESCE(try_equivalent, amount), COALESCE(tracking_no, '')
             FROM accounting
             WHERE customer_id = ?
               AND type = 'Gelir'
@@ -1147,18 +1838,37 @@ class Customer360Dialog(BaseModernDialog):
                     OR description LIKE '%Satış%'
                   )
             ORDER BY date DESC, id DESC
+            LIMIT ? OFFSET ?
             """,
-            (self.customer_id,),
+            (self.customer_id, self._history_page_size, offset),
         )
         for (
+            txn_id,
             date,
             description,
             amount,
             payment_method,
             category,
             currency,
+            exchange_rate,
+            try_equivalent,
+            tracking_no,
         ) in cur.fetchall():
             parent = QTreeWidgetItem(self.table_sales)
+            parent.setData(
+                0,
+                Qt.ItemDataRole.UserRole,
+                {
+                    "source": "sale",
+                    "transaction_id": txn_id,
+                    "tracking_no": tracking_no,
+                    "currency": currency or "TRY",
+                    "exchange_rate": float(exchange_rate or 1.0),
+                    "amount": float(amount or 0),
+                    "try_amount": float(try_equivalent or amount or 0),
+                    "description": description or "",
+                },
+            )
             parent.setText(0, format_date(date, self.db))
             lines = [
                 line.strip()
@@ -1179,6 +1889,303 @@ class Customer360Dialog(BaseModernDialog):
                 child.setText(1, f"↳ {line}")
                 child.setForeground(1, QColor(tc("text_muted", default="#64748B")))
             parent.setExpanded(True)
+
+    def load_offer_table(self):
+        if not hasattr(self, "table_offers"):
+            return
+        self.table_offers.clear()
+        if not hasattr(self.db, "get_customer_offers"):
+            return
+        try:
+            rows = self.db.get_customer_offers(self.customer_id) or []
+            for (
+                offer_id,
+                offer_no,
+                created_at,
+                company_name,
+                contact_name,
+                project_name,
+                currency_symbol,
+                total,
+                status,
+                pdf_path,
+            ) in rows:
+                parent = QTreeWidgetItem(self.table_offers)
+                parent.setData(
+                    0,
+                    Qt.ItemDataRole.UserRole,
+                    {
+                        "offer_id": offer_id,
+                        "offer_no": offer_no or "",
+                        "pdf_path": pdf_path or "",
+                        "status": status or "",
+                    },
+                )
+                parent.setText(0, format_date(created_at, self.db))
+                parent.setText(1, str(offer_no or ""))
+                parent.setText(
+                    2,
+                    " / ".join(
+                        part
+                        for part in [str(company_name or ""), str(project_name or "")]
+                        if part
+                    ),
+                )
+                parent.setText(3, str(contact_name or ""))
+                parent.setText(4, f"{float(total or 0):,.2f} {currency_symbol or ''}")
+                status_labels = {
+                    "accepted": "Kabul Edildi",
+                    "processed": "\u0130\u015flendi",
+                    "processing": "\u0130\u015fleniyor",
+                    "processing_error": "\u0130\u015flem Hatas\u0131",
+                    "created": "Teklif",
+                    "draft": "Taslak",
+                }
+                parent.setText(
+                    5,
+                    status_labels.get(
+                        str(status or "").strip().lower(),
+                        str(status or ""),
+                    ),
+                )
+                parent.setText(
+                    6,
+                    "Hazir" if pdf_path and os.path.exists(str(pdf_path)) else "Olusturulur",
+                )
+                for service, description, qty, unit_price, line_total in (
+                    self.db.get_offer_items(offer_id) or []
+                ):
+                    child = QTreeWidgetItem(parent)
+                    child.setText(1, str(service or ""))
+                    child.setText(
+                        2,
+                        clean_offer_line_description(
+                            description,
+                            service=service,
+                        ),
+                    )
+                    child.setText(3, f"Adet: {float(qty or 0):g}")
+                    child.setText(4, f"{float(line_total or 0):,.2f} {currency_symbol or ''}")
+                    child.setForeground(1, QColor(tc("text_muted", default="#64748B")))
+                parent.setExpanded(True)
+        except Exception as exc:
+            logger.error(f"Customer360 offer table load failed: {exc}")
+
+    def open_selected_offer_pdf(self, item, _column):
+        while item and not item.data(0, Qt.ItemDataRole.UserRole):
+            item = item.parent()
+        data = item.data(0, Qt.ItemDataRole.UserRole) if item else {}
+        pdf_path = str((data or {}).get("pdf_path") or "").strip()
+        offer_id = (data or {}).get("offer_id")
+        if not offer_id:
+            if pdf_path and os.path.exists(pdf_path):
+                os.startfile(pdf_path)
+                return
+            show_error(self, "Teklif kaydi secilemedi.")
+            return
+        try:
+            self._generate_offer_pdf(
+                offer_id,
+                save_path=pdf_path if pdf_path else None,
+                open_after=True,
+            )
+            self.load_offer_table()
+        except Exception as exc:
+            logger.exception("Customer360 synchronized offer PDF generation failed")
+            if pdf_path and os.path.exists(pdf_path):
+                os.startfile(pdf_path)
+                return
+            show_error(self, f"Teklif PDF dosyasi olusturulamadi: {exc}")
+
+    def _selected_offer_item(self):
+        item = self.table_offers.currentItem() if hasattr(self, "table_offers") else None
+        while item and not item.data(0, Qt.ItemDataRole.UserRole):
+            item = item.parent()
+        if item:
+            return item
+        if hasattr(self, "table_offers") and self.table_offers.topLevelItemCount():
+            return self.table_offers.topLevelItem(0)
+        return None
+
+    def _selected_offer_data(self):
+        item = self._selected_offer_item()
+        data = item.data(0, Qt.ItemDataRole.UserRole) if item else {}
+        return dict(data or {})
+
+    def open_selected_offer_from_button(self):
+        item = self._selected_offer_item()
+        if not item:
+            show_error(self, "L\u00fctfen bir teklif se\u00e7in.")
+            return
+        self.open_selected_offer_pdf(item, 0)
+
+    def _main_window_for_offer_action(self):
+        candidate = self.parent()
+        visited = set()
+        while candidate and id(candidate) not in visited:
+            visited.add(id(candidate))
+            if hasattr(candidate, "on_menu_click") and hasattr(candidate, "get_page"):
+                return candidate
+            nested = getattr(candidate, "main_window", None)
+            if nested and hasattr(nested, "on_menu_click"):
+                return nested
+            candidate = candidate.parent() if hasattr(candidate, "parent") else None
+        return getattr(self, "main_window", None)
+
+    def edit_selected_offer(self):
+        data = self._selected_offer_data()
+        offer_id = data.get("offer_id")
+        if not offer_id:
+            show_error(self, "L\u00fctfen d\u00fczenlenecek teklifi se\u00e7in.")
+            return
+        status = str(data.get("status") or "").strip().lower()
+        if status in {"accepted", "processed"}:
+            show_error(
+                self,
+                "Kabul edilmi\u015f teklif de\u011fi\u015ftirilemez. Yeni teklif olu\u015fturun.",
+            )
+            return
+
+        main_window = self._main_window_for_offer_action()
+        if not main_window:
+            show_error(self, "Sat\u0131\u015f sayfas\u0131na ula\u015f\u0131lamad\u0131.")
+            return
+        try:
+            main_window.on_menu_click(150)
+            hub = main_window.get_page(150)
+            sales_page = getattr(hub, "sales_page", None)
+            if sales_page is None and hasattr(hub, "_ensure_tab_loaded"):
+                hub._ensure_tab_loaded(0)
+                sales_page = getattr(hub, "sales_page", None)
+            if not sales_page or not hasattr(sales_page, "load_offer_for_edit"):
+                raise RuntimeError("Sales Hub offer editor is unavailable.")
+            sales_page.load_offer_for_edit(int(offer_id))
+            self.accept()
+        except Exception as exc:
+            logger.exception("Customer360 offer edit navigation failed")
+            show_error(self, f"Teklif d\u00fczenlemeye a\u00e7\u0131lamad\u0131: {exc}")
+
+    def process_selected_offer(self):
+        data = self._selected_offer_data()
+        offer_id = data.get("offer_id")
+        if not offer_id:
+            show_error(self, "L\u00fctfen i\u015flenecek teklifi se\u00e7in.")
+            return
+        try:
+            offer = self.db.get_offer_record(int(offer_id))
+            if not offer:
+                raise RuntimeError("Offer record was not found.")
+            status = str(offer["status"] or "").strip().lower()
+            if status in {"accepted", "processed"}:
+                show_error(self, "Bu teklif daha \u00f6nce m\u00fc\u015fteri hesab\u0131na i\u015flendi.")
+                return
+
+            from src.ui.dialogs.offer_acceptance_dialog import OfferAcceptanceDialog
+
+            dialog = OfferAcceptanceDialog(
+                total=float(offer["total"] or 0),
+                currency_code=str(offer["currency_code"] or "TRY"),
+                offer_no=str(offer["offer_no"] or ""),
+                parent=self,
+            )
+            if not dialog.exec():
+                return
+
+            main_window = self._main_window_for_offer_action()
+            current_user = getattr(main_window, "current_user", {}) if main_window else {}
+            accepted_by = ""
+            if isinstance(current_user, dict):
+                accepted_by = str(
+                    current_user.get("username")
+                    or current_user.get("full_name")
+                    or ""
+                )
+
+            from src.services.offer_acceptance_service import (
+                OfferAcceptanceService,
+            )
+
+            result = OfferAcceptanceService(self.db).accept(
+                int(offer_id),
+                payment_amount=dialog.payment_amount,
+                payment_method=dialog.payment_method,
+                accepted_by=accepted_by,
+            )
+            self.load_offer_table()
+            self.refresh_financial_views()
+            self._emit_financial_data_changed()
+            if main_window:
+                try:
+                    main_window.stock_updated.emit()
+                except Exception:
+                    pass
+                for page_id in (21, 40, 50, 60, 101, 150):
+                    try:
+                        main_window.refresh_loaded_page(page_id)
+                    except Exception:
+                        pass
+            show_success(
+                self,
+                "Teklif kabul edildi. "
+                f"Pe\u015finat: {result['payment']:,.2f} {result['currency']} | "
+                f"Cari bakiye: {result['remaining']:,.2f} {result['currency']}",
+            )
+        except Exception as exc:
+            logger.exception("Customer360 offer processing failed")
+            show_error(self, f"Teklif m\u00fc\u015fteri hesab\u0131na i\u015flenemedi: {exc}")
+
+    def _generate_offer_pdf(self, offer_id, save_path=None, open_after=False):
+        data = load_offer_pdf_data(self.db, offer_id)
+        offer = data["offer"]
+        offer_no = str(offer.get("offer_no") or f"PRF-{offer_id}").strip()
+        safe_offer_no = re.sub(r"[^A-Za-z0-9_-]+", "-", offer_no).strip("-")
+        if not safe_offer_no:
+            safe_offer_no = f"PRF-{offer_id}"
+
+        if not save_path:
+            offer_dir = os.path.join(PathHelper.get_app_data_dir(), "offers")
+            os.makedirs(offer_dir, exist_ok=True)
+            save_path = os.path.join(offer_dir, f"Teklif_{safe_offer_no}.pdf")
+        save_path = os.path.abspath(str(save_path))
+        if not save_path.lower().endswith(".pdf"):
+            save_path += ".pdf"
+
+        template = str(offer.get("template_type") or "modern").strip().lower()
+        if template not in {"modern", "corporate", "minimal"}:
+            template = "modern"
+        configured_company = str(self.db.get_setting("company_name", "") or "").strip()
+        company_name = configured_company or str(offer.get("company_name") or "AYEC Pro")
+
+        from src.utils.pdf_manager import PDFManagerQt
+
+        manager = PDFManagerQt(self.db)
+        manager._open_file = lambda _filename: None
+        success, result = manager.create_proforma(
+            template_type=template,
+            cart_items=data["items"],
+            totals=data["totals"],
+            company_name=company_name,
+            customer_name=str(offer.get("customer_name") or self.customer_name),
+            project_name=str(offer.get("project_name") or ""),
+            contact_name=str(offer.get("contact_name") or offer.get("customer_name") or ""),
+            reference_no=offer_no,
+            offer_date=offer.get("created_at"),
+            customer_company=data.get("customer_company") or "",
+            currency_code=data.get("currency_code") or "TRY",
+            save_path=save_path,
+            currency=data["currency_symbol"],
+        )
+        if not success or not os.path.exists(save_path):
+            raise RuntimeError(str(result or "PDF uretimi basarisiz."))
+
+        self.db.cursor.execute(
+            "UPDATE offers SET pdf_path=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+            (save_path, int(offer_id)),
+        )
+        self.db.conn.commit()
+        if open_after:
+            os.startfile(save_path)
+        return save_path
 
     def load_vehicle_table(self):
         if not self.is_automotive:
@@ -1247,6 +2254,271 @@ class Customer360Dialog(BaseModernDialog):
         show_info(self, "Veriler Excel'e aktarılıyor...")
 
     def export_pdf(self):
-        from src.utils.toast_notification import show_info
+        if self.tabs.currentWidget() is not self.tab_offers:
+            show_error(
+                self,
+                "PDF'e aktarmak icin Verilen Teklifler sekmesinden bir teklif secin.",
+            )
+            return
+        item = self._selected_offer_item()
+        data = item.data(0, Qt.ItemDataRole.UserRole) if item else {}
+        offer_id = (data or {}).get("offer_id")
+        if not offer_id:
+            show_error(self, "PDF'e aktarmak icin bir teklif secin.")
+            return
+        offer_no = item.text(1).strip() or f"PRF-{offer_id}"
+        safe_offer_no = re.sub(r"[^A-Za-z0-9_-]+", "-", offer_no).strip("-")
+        default_name = f"Teklif_{safe_offer_no or offer_id}.pdf"
+        save_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Teklif PDF Kaydet",
+            default_name,
+            "PDF Dosyalari (*.pdf)",
+        )
+        if not save_path:
+            return
 
-        show_info(self, "PDF raporu hazırlanıyor...")
+        from src.ui.utils.background_task import run_cancellable_task
+
+        def produce_pdf(is_cancelled):
+            if is_cancelled():
+                return ""
+            return self._generate_offer_pdf(
+                offer_id,
+                save_path=save_path,
+                open_after=False,
+            )
+
+        def pdf_ready(generated_path):
+            self.load_offer_table()
+            show_success(
+                self,
+                f"PDF dosyasi olusturuldu: {generated_path}",
+            )
+            try:
+                os.startfile(generated_path)
+            except OSError:
+                pass
+
+        run_cancellable_task(
+            owner=self,
+            title="PDF olusturuluyor...",
+            target=produce_pdf,
+            on_success=pdf_ready,
+            on_error=lambda message: show_error(
+                self,
+                f"PDF aktarim hatasi: {message}",
+            ),
+            output_path=save_path,
+        )
+
+    def _selected_history_item(self):
+        current_tab = self.tabs.currentWidget()
+        if current_tab is self.tab_service:
+            item = self.table_service.currentItem()
+        elif current_tab is self.tab_cari:
+            item = self.table_cari.currentItem()
+        elif current_tab is self.tab_sales:
+            item = self.table_sales.currentItem()
+        else:
+            item = None
+        while item and not item.data(0, Qt.ItemDataRole.UserRole):
+            item = item.parent()
+        return item
+
+    def _customer_company_name(self):
+        try:
+            cur = self.db.conn.cursor()
+            cur.execute(
+                "SELECT COALESCE(company_name, '') FROM customers WHERE id=?",
+                (self.customer_id,),
+            )
+            row = cur.fetchone()
+            return str(row[0] or "").strip() if row else ""
+        except Exception as exc:
+            logger.debug(f"Customer360 company lookup skipped: {exc}")
+            return ""
+
+    def _tracking_cart_items(self, tracking_no):
+        items = []
+        try:
+            from src.utils.service_work_details import (
+                format_numbered_work_lines,
+                load_service_work_lines,
+            )
+
+            cur = self.db.conn.cursor()
+            cur.execute(
+                """
+                SELECT COALESCE(device_brand, ''), COALESCE(device_model, ''),
+                       COALESCE(labor_cost, 0), COALESCE(cargo_fee, 0),
+                       COALESCE(fault_description, ''), COALESCE(repair_details, '')
+                FROM devices
+                WHERE tracking_no=?
+                LIMIT 1
+                """,
+                (tracking_no,),
+            )
+            row = cur.fetchone()
+            if row:
+                brand, model, labor, cargo, fault, repair = row
+                label = " ".join(part for part in [brand, model] if part).strip()
+                work_lines = load_service_work_lines(
+                    self.db,
+                    tracking_no,
+                    repair_details=repair,
+                    fault_description=fault,
+                )
+                if float(labor or 0) > 0:
+                    items.append(
+                        {
+                            "service": f"Servis Iscilik - {label or tracking_no}",
+                            "description": format_numbered_work_lines(work_lines)
+                            or repair
+                            or fault
+                            or f"Ref: {tracking_no}",
+                            "qty": 1,
+                            "price": float(labor or 0),
+                            "tracking_no": tracking_no,
+                        }
+                    )
+                if float(cargo or 0) > 0:
+                    items.append(
+                        {
+                            "service": "Kargo Ucreti",
+                            "description": f"Ref: {tracking_no}",
+                            "qty": 1,
+                            "price": float(cargo or 0),
+                        }
+                    )
+
+            cur.execute("PRAGMA table_info(used_parts)")
+            cols = [col[1] for col in cur.fetchall() or []]
+            has_qty = "quantity" in cols
+            deleted_col = (
+                "is_deleted"
+                if "is_deleted" in cols
+                else ("is_archived" if "is_archived" in cols else None)
+            )
+            query = "SELECT part_name, price, COALESCE(quantity, 1) FROM used_parts WHERE tracking_no=?"
+            if not has_qty:
+                query = "SELECT part_name, price, 1 FROM used_parts WHERE tracking_no=?"
+            if deleted_col:
+                query += f" AND ({deleted_col}=0 OR {deleted_col} IS NULL)"
+            cur.execute(query, (tracking_no,))
+            for name, price, qty in cur.fetchall() or []:
+                items.append(
+                    {
+                        "service": str(name or "Parca"),
+                        "description": f"Ref: {tracking_no}",
+                        "qty": int(qty or 1),
+                        "price": float(price or 0),
+                    }
+                )
+        except Exception as exc:
+            logger.warning(f"Customer360 offer tracking items skipped: {exc}")
+        return items
+
+    def _description_cart_items(self, description, fallback_amount):
+        lines = self._split_description_lines(description)
+        item_lines = []
+        for line in lines:
+            clean = line.lstrip("-").lstrip(">").strip()
+            if not clean or clean.lower().startswith("ref:"):
+                continue
+            item_lines.append(clean)
+        if not item_lines:
+            item_lines = ["Musteri islem kaydi"]
+        amount = float(fallback_amount or 0)
+        if len(item_lines) == 1:
+            return [
+                {
+                    "service": item_lines[0],
+                    "description": "Musteri 360 kaydindan olusturuldu",
+                    "qty": 1,
+                    "price": amount,
+                }
+            ]
+        per_line = amount / len(item_lines) if amount else 0.0
+        return [
+            {
+                "service": line,
+                "description": "Musteri 360 kaydindan olusturuldu",
+                "qty": 1,
+                "price": per_line,
+            }
+            for line in item_lines
+        ]
+
+    def create_offer_from_selected_history(self):
+        item = self._selected_history_item()
+        if not item:
+            show_error(self, "Teklif olusturmak icin once bir islem satiri secin.")
+            return
+        data = item.data(0, Qt.ItemDataRole.UserRole) or {}
+        if data.get("transaction_type") == "CREDIT":
+            show_error(
+                self,
+                "Odeme/tahsilat satirindan teklif olusturulamaz. Lutfen satis veya borc satirini secin.",
+            )
+            return
+
+        tracking_no = str(data.get("tracking_no") or "").strip()
+        cart_items = self._tracking_cart_items(tracking_no) if tracking_no else []
+
+        amount_try = float(data.get("try_amount") or 0)
+        if amount_try <= 0:
+            amount = float(data.get("amount") or 0)
+            currency = str(data.get("currency") or "TRY").upper()
+            rate = float(data.get("exchange_rate") or 1.0)
+            amount_try = amount if currency == "TRY" else amount * rate
+
+        if not cart_items:
+            cart_items = self._description_cart_items(
+                data.get("description") or item.text(1),
+                amount_try,
+            )
+
+        subtotal = sum(
+            float(row.get("price") or 0) * int(row.get("qty") or 1)
+            for row in cart_items
+        )
+        if subtotal <= 0 and amount_try > 0:
+            subtotal = amount_try
+        from src.utils.tax_settings import TaxSettings
+
+        vat_ratio = TaxSettings.get_ratio(self.db)
+        vat_amount = subtotal * vat_ratio
+        totals = (
+            subtotal,
+            0.0,
+            vat_ratio,
+            vat_amount,
+            subtotal + vat_amount,
+        )
+
+        try:
+            from src.ui.pages.transaction.dialogs.proforma_dialog import ProformaDialog
+
+            company = self._customer_company_name()
+            dlg = ProformaDialog(
+                self,
+                self.db,
+                cart_items,
+                totals,
+                self.customer_name,
+                currency_mode=CurrencyHelper.get_code(self.db),
+                totals_try=totals,
+                parent_currency="TRY",
+                customer_id=self.customer_id,
+                customer_company=company,
+                initial_company=company,
+                initial_project=tracking_no or "Musteri 360 Islem Teklifi",
+                preferred_template="modern",
+                source="customer_360",
+            )
+            dlg.exec()
+            self.load_offer_table()
+        except Exception as exc:
+            logger.exception("Customer360 offer creation failed")
+            show_error(self, f"Teklif olusturulamadi: {exc}")

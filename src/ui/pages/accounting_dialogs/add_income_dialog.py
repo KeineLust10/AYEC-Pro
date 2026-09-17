@@ -1,6 +1,8 @@
+# -*- coding: utf-8 -*-
+
 from PyQt6.QtWidgets import (QFormLayout, QComboBox, QLineEdit, QDateEdit,
-                             QDoubleSpinBox, QPushButton, QHBoxLayout, QRadioButton, QButtonGroup)
-from PyQt6.QtCore import Qt, QDate, QEvent
+                             QDoubleSpinBox, QPushButton, QHBoxLayout, QRadioButton, QButtonGroup, QLabel)
+from PyQt6.QtCore import Qt, QDate, QEvent, QTimer
 from PyQt6.QtGui import QCursor
 from src.utils.theme_colors import theme_qss
 from src.utils.currency_helper import CurrencyHelper
@@ -9,13 +11,30 @@ from src.utils.toast_notification import show_warning, show_error, show_success
 from src.utils.logger import logger
 
 
+
 class AddIncomeDialog(PremiumDialog):
+
+    def _on_ui_widget_changed(self, *args):
+        from src.ui.utils.ui_signal_helpers import on_ui_widget_changed
+        on_ui_widget_changed(self, *args)
     def __init__(self, db, parent=None):
         super().__init__("Gelir Ekle", parent)
         self.db = db
         self.resize(450, 620)
         self._selected_product_data = None
         self.setup_ui()
+
+        self._wire_ui_signals()
+    def _display_currency(self):
+        return CurrencyHelper.get_code(self.db)
+
+    def _format_display_money(self, amount_try):
+        return CurrencyHelper.format_from_try(
+            amount_try,
+            db=self.db,
+            currency_code=self._display_currency(),
+            include_try_reference=False,
+        )
 
     def setup_ui(self):
         form = QFormLayout()
@@ -47,7 +66,11 @@ class AddIncomeDialog(PremiumDialog):
             self.cmb_bank.lineEdit().installEventFilter(self)
         self.cmb_bank.addItem("Banka hesabı seçin", None)
         for acc in self.bank_accounts:
-            acc_id, bank, branch, acc_name, acc_no, iban, balance_val, is_active_val, created_at = acc
+            acc_id = self._bank_field(acc, "id", 0)
+            bank = self._bank_field(acc, "bank_name", 1, "")
+            acc_name = self._bank_field(acc, "account_holder", 2, "")
+            acc_no = self._bank_field(acc, "account_number", 4, "")
+            is_active_val = self._bank_field(acc, "is_active", 7, 0)
             if int(is_active_val or 0) != 1:
                 continue
             label_parts = [str(bank or "").strip(), str(acc_name or "").strip()]
@@ -73,7 +96,7 @@ class AddIncomeDialog(PremiumDialog):
             }
             QRadioButton::indicator { width: 0; height: 0; }
             QRadioButton:checked { background: @accent; color: @selection_text; border: 1px solid @accent; }
-            QRadioButton:hover:!checked { background: @surface; color: @text; }
+            QRadioButton:!checked:hover { background: @surface; color: @text; }
         """)
         self.inc_btn_try = QRadioButton("TRY")
         self.inc_btn_usd = QRadioButton("$ USD")
@@ -117,7 +140,7 @@ class AddIncomeDialog(PremiumDialog):
         kdv_row = QHBoxLayout()
         self.lbl_kdv_rate = QLabel("KDV: %0")
         self.lbl_kdv_rate.setStyleSheet(theme_qss("color: @text_muted; font-weight: 600; font-size: 12px;"))
-        self.lbl_kdv_amount = QLabel(CurrencyHelper.format_try_for_display(0, db=self.db, include_try_reference=False))
+        self.lbl_kdv_amount = QLabel(self._format_display_money(0))
         self.lbl_kdv_amount.setStyleSheet(theme_qss("color: @text_muted; font-weight: 600; font-size: 12px;"))
         kdv_row.addWidget(self.lbl_kdv_rate)
         kdv_row.addStretch()
@@ -141,6 +164,10 @@ class AddIncomeDialog(PremiumDialog):
         btn_save.clicked.connect(self.save)
         self.body_layout.addWidget(btn_save)
 
+    def _wire_ui_signals(self):
+        self.cmb_cat.currentIndexChanged.connect(self._on_ui_widget_changed)
+        self.cmb_bank.currentIndexChanged.connect(self._on_ui_widget_changed)
+
     def _populate_product_combo(self):
         """Stok ve hizmetleri gruplandırılmış olarak combo'ya ekle."""
         # Stoklar
@@ -151,13 +178,20 @@ class AddIncomeDialog(PremiumDialog):
         if parts:
             self.cmb_product.addItem("── Stoklar ──", "header")
             for p in parts:
-                if isinstance(p, dict):
-                    pid, pname, pprice = p.get("id"), p.get("name", ""), p.get("price", 0)
+                if hasattr(p, "keys") or isinstance(p, dict):
+                    pid = p["id"]
+                    pname = p["name"]
+                    pprice = p["price"]
                 else:
-                    pid, pname, pprice = p[0], p[1], p[3] if len(p) > 3 else 0
-                pprice = float(pprice or 0)
+                    pid = p[0]
+                    pname = p[1]
+                    pprice = p[5] if len(p) > 5 else (p[3] if len(p) > 3 else 0)
+                try:
+                    pprice = float(pprice or 0)
+                except Exception:
+                    pprice = 0.0
                 self.cmb_product.addItem(
-                    f"{pname} ({CurrencyHelper.format_try_for_display(pprice, db=self.db, include_try_reference=False)})",
+                    f"{pname} ({self._format_display_money(pprice)})",
                     {"type": "product", "id": pid, "name": pname, "price": pprice}
                 )
 
@@ -175,7 +209,7 @@ class AddIncomeDialog(PremiumDialog):
                     sid, sname, sprice = s[0], s[1], s[2] if len(s) > 2 else 0
                 sprice = float(sprice or 0)
                 self.cmb_product.addItem(
-                    f"{sname} ({CurrencyHelper.format_try_for_display(sprice, db=self.db, include_try_reference=False)})",
+                    f"{sname} ({self._format_display_money(sprice)})",
                     {"type": "service", "id": sid, "name": sname, "price": sprice}
                 )
 
@@ -185,7 +219,7 @@ class AddIncomeDialog(PremiumDialog):
         if data is None or isinstance(data, str):
             self._selected_product_data = None
             self.lbl_kdv_rate.setText("KDV: %0")
-            self.lbl_kdv_amount.setText(CurrencyHelper.format_try_for_display(0, db=self.db, include_try_reference=False))
+            self.lbl_kdv_amount.setText(self._format_display_money(0))
             return
 
         self._selected_product_data = data
@@ -231,13 +265,13 @@ class AddIncomeDialog(PremiumDialog):
             else:
                 self.cmb_cat.setCurrentText("Satış")
             self.lbl_kdv_rate.setText("KDV: %0")
-            self.lbl_kdv_amount.setText(CurrencyHelper.format_try_for_display(0, db=self.db, include_try_reference=False))
+            self.lbl_kdv_amount.setText(self._format_display_money(0))
 
     def _update_kdv_display(self, base_price, kdv_rate):
         """KDV bilgi etiketlerini güncelle."""
         kdv_amount = float(base_price or 0) * float(kdv_rate or 0) / 100
         self.lbl_kdv_rate.setText(f"KDV: %{int(kdv_rate)}")
-        self.lbl_kdv_amount.setText(CurrencyHelper.format_try_for_display(kdv_amount, db=self.db, include_try_reference=False))
+        self.lbl_kdv_amount.setText(self._format_display_money(kdv_amount))
 
     def _load_bank_accounts(self):
         try:
@@ -245,10 +279,33 @@ class AddIncomeDialog(PremiumDialog):
         except Exception:
             return []
 
+    @staticmethod
+    def _bank_field(account, key, index, default=None):
+        if account is None:
+            return default
+        if hasattr(account, "keys"):
+            try:
+                if key in account.keys():
+                    return account[key]
+            except Exception:
+                pass
+        if isinstance(account, dict):
+            if key in account:
+                return account.get(key, default)
+            if key == "account_holder":
+                return account.get("account_name", default)
+            if key == "account_number":
+                return account.get("account_no", default)
+        try:
+            return account[index]
+        except Exception:
+            return default
+
     def eventFilter(self, obj, event):
-        if obj == self.cmb_bank.lineEdit() and event.type() == QEvent.Type.MouseButtonPress:
-            self.cmb_bank.showPopup()
-            return True
+        if obj == self.cmb_bank.lineEdit() and event.type() == QEvent.Type.MouseButtonRelease:
+            if not self.cmb_bank.view().isVisible():
+                QTimer.singleShot(0, self.cmb_bank.showPopup)
+            return False
         return super().eventFilter(obj, event)
 
     def save(self):
@@ -291,7 +348,12 @@ class AddIncomeDialog(PremiumDialog):
             account = self.db.get_bank_account_by_id(bank_account_id)
             acc_label = ""
             if account:
-                acc_label = f" ({account[1]} - {account[3]})"
+                bank = self._bank_field(account, "bank_name", 1, "")
+                acc_name = self._bank_field(account, "account_holder", 2, "")
+                label_parts = [str(bank or "").strip(), str(acc_name or "").strip()]
+                label_parts = [p for p in label_parts if p]
+                if label_parts:
+                    acc_label = f" ({' - '.join(label_parts)})"
             show_success(self, f"Gelir kaydedildi. {CurrencyHelper.format_amount(amt, db=self.db, currency_code='USD' if self.inc_btn_usd.isChecked() else 'EUR' if self.inc_btn_eur.isChecked() else 'TRY')}{acc_label} bakiyesine eklendi.")
             self.accept()
         except Exception as e:

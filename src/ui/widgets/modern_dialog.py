@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import os
 from PyQt6.QtWidgets import (
     QDialog as QtDialog,
@@ -9,19 +11,30 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QHBoxLayout,
     QGraphicsDropShadowEffect,
-    QSizeGrip,
     QScrollArea,
+    QAbstractScrollArea,
 )
 from PyQt6.QtCore import Qt, QPoint, QPropertyAnimation, QEasingCurve, QEvent
 from PyQt6.QtGui import QColor, QFont, QPixmap, QPainter, QPainterPath
 from src.utils.theme_colors import theme_qss
 from src.utils.design_system import DesignTokens
+from src.utils.appearance_mode import AppearanceModeManager
+
+if not os.environ.get("QT_QPA_FONTDIR"):
+    windows_font_dir = os.path.join(os.environ.get("WINDIR", "C:\\Windows"), "Fonts")
+    if os.path.isdir(windows_font_dir):
+        os.environ["QT_QPA_FONTDIR"] = windows_font_dir
 
 
 class NoWheelScrollArea(QScrollArea):
     """Scroll area that only scrolls via scrollbar/keyboard, not mouse wheel."""
 
     def wheelEvent(self, event):
+        parent = self.parent()
+        while parent is not None:
+            if getattr(parent, "_allow_wheel_scroll", False):
+                return super().wheelEvent(event)
+            parent = parent.parent()
         event.ignore()
 
 
@@ -33,6 +46,13 @@ class ModernDialog(QtDialog):
     - Integrated DesignTokens
     """
 
+    def setStyleSheet(self, qss):
+        safe_ui = getattr(self, "_safe_ui", False)
+        bg_rule = "QDialog { background-color: @surface_alt; }" if safe_ui else "QDialog { background: transparent; }"
+        if bg_rule not in qss:
+            qss = bg_rule + "\n" + qss
+        super().setStyleSheet(qss)
+
     def __init__(self, title="Dialog", parent=None, width=600, height=500, blur_background=False, **kwargs):
         # Backward compatibility:
         # - ModernDialog("Title", parent, ...)
@@ -42,10 +62,12 @@ class ModernDialog(QtDialog):
             title = kwargs.pop("title", "Dialog")
 
         super().__init__(parent)
+        self.setProperty("skipThemeTransform", True)
         self._dialog_width = width
         self._dialog_height = height
         self._blur_background = blur_background
-        self._allow_wheel_scroll = False
+        self._allow_wheel_scroll = True
+        self._drag_start_pos = None
 
         safe_ui_env = os.environ.get("AYECPRO_SAFE_UI", "").strip()
         if not safe_ui_env:
@@ -63,10 +85,152 @@ class ModernDialog(QtDialog):
         self.resize(width, height)
         ModernDialog.setup_ui(self, width, height)
 
+    def _is_classic_appearance(self):
+        app = QApplication.instance()
+        return bool(app and app.property("appearanceMode") == AppearanceModeManager.CLASSIC)
+
+    def _set_raw_stylesheet(self, widget, qss):
+        if widget is None:
+            return
+        widget.setProperty("skipThemeTransform", False)
+        widget.setStyleSheet(theme_qss(qss))
+
+    def _apply_classic_chrome(self):
+        if not self._is_classic_appearance():
+            return
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
+        self._set_raw_stylesheet(self, "QDialog { background: transparent; color: #111827; }")
+        if hasattr(self, "card"):
+            self._set_raw_stylesheet(self.card, """
+                QFrame#ModernDialogCard {
+                    background-color: #FFFFFF;
+                    color: #111827;
+                    border: 1px solid #AEB4BD;
+                    border-radius: 2px;
+                }
+                QFrame#ModernDialogCard QLabel {
+                    color: #111827;
+                    background: transparent;
+                    border: none;
+                }
+                QFrame#ModernDialogCard QLineEdit,
+                QFrame#ModernDialogCard QTextEdit,
+                QFrame#ModernDialogCard QPlainTextEdit,
+                QFrame#ModernDialogCard QComboBox,
+                QFrame#ModernDialogCard QDateEdit,
+                QFrame#ModernDialogCard QSpinBox,
+                QFrame#ModernDialogCard QDoubleSpinBox,
+                QFrame#ModernDialogCard QTimeEdit {
+                    background-color: #FFFFFF;
+                    color: #111827;
+                    border: 1px solid #AEB4BD;
+                    border-radius: 2px;
+                    padding: 5px 34px 5px 7px;
+                    selection-background-color: #DCEBFF;
+                    selection-color: #111827;
+                }
+                QFrame#ModernDialogCard QDateEdit::up-button,
+                QFrame#ModernDialogCard QDateEdit::down-button,
+                QFrame#ModernDialogCard QSpinBox::up-button,
+                QFrame#ModernDialogCard QSpinBox::down-button,
+                QFrame#ModernDialogCard QDoubleSpinBox::up-button,
+                QFrame#ModernDialogCard QDoubleSpinBox::down-button,
+                QFrame#ModernDialogCard QTimeEdit::up-button,
+                QFrame#ModernDialogCard QTimeEdit::down-button {
+                    width: 26px;
+                    subcontrol-origin: border;
+                    background-color: #DCEBFF;
+                    border-left: 1px solid #AEB4BD;
+                }
+                QFrame#ModernDialogCard QDateEdit::up-button,
+                QFrame#ModernDialogCard QSpinBox::up-button,
+                QFrame#ModernDialogCard QDoubleSpinBox::up-button,
+                QFrame#ModernDialogCard QTimeEdit::up-button {
+                    subcontrol-position: top right;
+                    border-bottom: 1px solid #AEB4BD;
+                }
+                QFrame#ModernDialogCard QDateEdit::down-button,
+                QFrame#ModernDialogCard QSpinBox::down-button,
+                QFrame#ModernDialogCard QDoubleSpinBox::down-button,
+                QFrame#ModernDialogCard QTimeEdit::down-button {
+                    subcontrol-position: bottom right;
+                    border-top: 1px solid #AEB4BD;
+                }
+                QFrame#ModernDialogCard QDateEdit::up-arrow,
+                QFrame#ModernDialogCard QSpinBox::up-arrow,
+                QFrame#ModernDialogCard QDoubleSpinBox::up-arrow,
+                QFrame#ModernDialogCard QTimeEdit::up-arrow {
+                    image: none;
+                    width: 0px;
+                    height: 0px;
+                    border-left: 4px solid transparent;
+                    border-right: 4px solid transparent;
+                    border-bottom: 6px solid #111827;
+                }
+                QFrame#ModernDialogCard QDateEdit::down-arrow,
+                QFrame#ModernDialogCard QSpinBox::down-arrow,
+                QFrame#ModernDialogCard QDoubleSpinBox::down-arrow,
+                QFrame#ModernDialogCard QTimeEdit::down-arrow {
+                    image: none;
+                    width: 0px;
+                    height: 0px;
+                    border-left: 4px solid transparent;
+                    border-right: 4px solid transparent;
+                    border-top: 6px solid #111827;
+                }
+                QFrame#ModernDialogCard QComboBox::drop-down {
+                    width: 24px;
+                    border-left: 1px solid #B8C0CC;
+                    background: #E5E7EB;
+                }
+            """)
+            effect = self.card.graphicsEffect()
+            if effect is not None:
+                effect.setEnabled(False)
+        if hasattr(self, "header"):
+            self.header.setFixedHeight(48)
+            self._set_raw_stylesheet(self.header, """
+                QFrame {
+                    background-color: #FFFFFF;
+                    border-bottom: 1px solid #B8C0CC;
+                    border-top-left-radius: 2px;
+                    border-top-right-radius: 2px;
+                }
+            """)
+        if hasattr(self, "lbl_title"):
+            self._set_raw_stylesheet(self.lbl_title, "color: #111827; background: transparent; border: none; font-weight: 700;")
+        if hasattr(self, "btn_close"):
+            self._set_raw_stylesheet(self.btn_close, """
+                QPushButton {
+                    background: #FFFFFF;
+                    color: #111827;
+                    border: 1px solid #AEB4BD;
+                    border-radius: 2px;
+                    font-size: 13px;
+                    font-weight: 800;
+                }
+                QPushButton:hover {
+                    background: #FEE2E2;
+                    border-color: #DC2626;
+                    color: #991B1B;
+                }
+            """)
+        if hasattr(self, "scroll_area"):
+            self._set_raw_stylesheet(self.scroll_area, """
+                QScrollArea { background: #F3F4F6; border: none; }
+                QScrollArea::viewport { background: #F3F4F6; border: none; }
+                QScrollArea > QWidget > QWidget { background: #F3F4F6; }
+                QScrollBar:vertical { background: #EEF2F7; width: 10px; border: none; }
+                QScrollBar::handle:vertical { background: #AEB4BD; min-height: 24px; border-radius: 0px; }
+            """)
+        if hasattr(self, "content_container"):
+            self._set_raw_stylesheet(self.content_container, "QFrame#ModernDialogContent { background: #F3F4F6; color: #111827; border: none; }")
+        if hasattr(self, "footer"):
+            self._set_raw_stylesheet(self.footer, "background: #E5E7EB; border-top: 1px solid #B8C0CC; border-radius: 0px;")
+
     def setup_ui(self, width, height):
         self.main_layout = QVBoxLayout(self)
         self.main_layout.setContentsMargins(0, 0, 0, 0)
-        self.main_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         if getattr(self, "_safe_ui", False):
             self.setStyleSheet(theme_qss("QDialog { background-color: @surface_alt; }"))
@@ -100,7 +264,7 @@ class ModernDialog(QtDialog):
                 color: @text;
                 border: 1px solid @border;
                 border-radius: 8px;
-                padding: 8px 10px;
+                padding: 8px 38px 8px 10px;
             }
             #ModernDialogCard QLineEdit:focus,
             #ModernDialogCard QTextEdit:focus,
@@ -119,10 +283,59 @@ class ModernDialog(QtDialog):
                 border-top-right-radius: 8px;
                 border-bottom-right-radius: 8px;
             }
+            #ModernDialogCard QDateEdit::up-button,
+            #ModernDialogCard QDateEdit::down-button,
+            #ModernDialogCard QSpinBox::up-button,
+            #ModernDialogCard QSpinBox::down-button,
+            #ModernDialogCard QDoubleSpinBox::up-button,
+            #ModernDialogCard QDoubleSpinBox::down-button,
+            #ModernDialogCard QTimeEdit::up-button,
+            #ModernDialogCard QTimeEdit::down-button {
+                width: 30px;
+                subcontrol-origin: border;
+                background-color: @accent;
+                border-left: 1px solid @border;
+            }
+            #ModernDialogCard QDateEdit::up-button,
+            #ModernDialogCard QSpinBox::up-button,
+            #ModernDialogCard QDoubleSpinBox::up-button,
+            #ModernDialogCard QTimeEdit::up-button {
+                subcontrol-position: top right;
+                border-bottom: 1px solid @border;
+                border-top-right-radius: 8px;
+            }
+            #ModernDialogCard QDateEdit::down-button,
+            #ModernDialogCard QSpinBox::down-button,
+            #ModernDialogCard QDoubleSpinBox::down-button,
+            #ModernDialogCard QTimeEdit::down-button {
+                subcontrol-position: bottom right;
+                border-top: 1px solid @border;
+                border-bottom-right-radius: 8px;
+            }
+            #ModernDialogCard QDateEdit::up-arrow,
+            #ModernDialogCard QSpinBox::up-arrow,
+            #ModernDialogCard QDoubleSpinBox::up-arrow,
+            #ModernDialogCard QTimeEdit::up-arrow {
+                image: none;
+                width: 0px;
+                height: 0px;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-bottom: 7px solid @selection_text;
+            }
+            #ModernDialogCard QDateEdit::down-arrow,
+            #ModernDialogCard QSpinBox::down-arrow,
+            #ModernDialogCard QDoubleSpinBox::down-arrow,
+            #ModernDialogCard QTimeEdit::down-arrow {
+                image: none;
+                width: 0px;
+                height: 0px;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 7px solid @selection_text;
+            }
             #ModernDialogCard QComboBox::down-arrow {
                 image: none;
-                width: 12px;
-                height: 12px;
             }
             QComboBox QAbstractItemView {
                 background-color: @surface;
@@ -131,11 +344,6 @@ class ModernDialog(QtDialog):
                 selection-background-color: @selection_bg;
                 selection-color: @selection_text;
                 outline: none;
-            }
-            #ModernDialogCard QLineEdit::placeholder,
-            #ModernDialogCard QTextEdit::placeholder,
-            #ModernDialogCard QPlainTextEdit::placeholder {
-                color: @text_muted;
             }
             QComboBox QAbstractItemView::item:hover {
                 background-color: @surface_alt;
@@ -346,14 +554,18 @@ class ModernDialog(QtDialog):
 
         self.card_layout.addWidget(self.footer)
         self.main_layout.addWidget(self.card)
+        self._apply_classic_chrome()
 
     def add_widget(self, widget):
         self.content_layout.addWidget(widget)
+        self._apply_wheel_bridge_recursive(widget)
 
     def add_layout(self, layout):
         self.content_layout.addLayout(layout)
 
     def add_button(self, text, variant="primary", callback=None):
+        if not self.footer.isVisible():
+            self.set_footer_visible(True)
         btn = QPushButton(text)
         btn.setFixedHeight(45)
         btn.setStyleSheet(theme_qss(DesignTokens.get_button_qss(variant)))
@@ -394,13 +606,49 @@ class ModernDialog(QtDialog):
         if hbar is not None:
             hbar.installEventFilter(self)
 
+    def _apply_wheel_bridge_recursive(self, widget):
+        if widget is None:
+            return
+        try:
+            widget.installEventFilter(self)
+            for child in widget.findChildren(QWidget):
+                child.installEventFilter(self)
+        except RuntimeError:
+            return
+
     def eventFilter(self, obj, event):
-        if (
-            not self._allow_wheel_scroll
-            and event.type() == QEvent.Type.Wheel
-        ):
-            event.ignore()
-            return True
+        if event.type() == QEvent.Type.Wheel:
+            if not self._allow_wheel_scroll:
+                event.ignore()
+                return True
+
+            try:
+                # Let nested scrollable widgets consume wheel events themselves.
+                if isinstance(obj, QWidget):
+                    parent = obj
+                    while parent is not None:
+                        if isinstance(parent, QAbstractScrollArea) and parent is not self.scroll_area:
+                            bar = parent.verticalScrollBar()
+                            if bar is not None and bar.isVisible() and bar.maximum() > 0:
+                                return super().eventFilter(obj, event)
+                        parent = parent.parentWidget()
+
+                if (
+                    isinstance(obj, QWidget)
+                    and self.content_container is not None
+                    and obj is not self.scroll_area.verticalScrollBar()
+                    and obj is not self.scroll_area.horizontalScrollBar()
+                    and (obj is self.content_container or self.content_container.isAncestorOf(obj))
+                ):
+                    delta = event.angleDelta().y()
+                    if delta:
+                        bar = self.scroll_area.verticalScrollBar()
+                        if bar is not None and bar.isVisible():
+                            bar.setValue(bar.value() - delta)
+                            event.accept()
+                            return True
+            except RuntimeError:
+                pass
         return super().eventFilter(obj, event)
 
     def _get_available_geometry(self):
@@ -418,7 +666,6 @@ class ModernDialog(QtDialog):
     def _fit_to_screen(self):
         geometry = self._get_available_geometry()
         if geometry is None:
-            self.card.resize(self._dialog_width, self._dialog_height)
             self.resize(self._dialog_width, self._dialog_height)
             return
 
@@ -433,18 +680,45 @@ class ModernDialog(QtDialog):
         target_width = min(max(self._dialog_width, content_hint.width() + 60), max_width)
         target_height = min(max(self._dialog_height, content_hint.height() + 150), max_height)
 
-        self.card.setFixedSize(target_width, target_height)
+        self.setMinimumSize(420, 240)
+        self.setMaximumSize(max_width, max_height)
         self.resize(target_width, target_height)
 
+    def _is_header_drag_area(self, local_pos):
+        try:
+            if self.header is None or not self.header.isVisible():
+                return False
+            header_rect = self.header.geometry()
+            if not header_rect.contains(local_pos):
+                return False
+            close_rect = self.btn_close.geometry().translated(header_rect.topLeft())
+            return not close_rect.contains(local_pos)
+        except RuntimeError:
+            return False
+
     def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            self.old_pos = event.globalPosition().toPoint()
+        if (
+            event.button() == Qt.MouseButton.LeftButton
+            and self._is_header_drag_area(event.position().toPoint())
+        ):
+            self._drag_start_pos = event.globalPosition().toPoint()
+            event.accept()
+            return
+        self._drag_start_pos = None
+        super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
-        if hasattr(self, "old_pos"):
-            delta = event.globalPosition().toPoint() - self.old_pos
+        if self._drag_start_pos is not None and event.buttons() & Qt.MouseButton.LeftButton:
+            delta = event.globalPosition().toPoint() - self._drag_start_pos
             self.move(self.x() + delta.x(), self.y() + delta.y())
-            self.old_pos = event.globalPosition().toPoint()
+            self._drag_start_pos = event.globalPosition().toPoint()
+            event.accept()
+            return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        self._drag_start_pos = None
+        super().mouseReleaseEvent(event)
 
     def paintEvent(self, event):
         return super().paintEvent(event)
@@ -459,9 +733,12 @@ class ModernDialog(QtDialog):
             super().showEvent(event)
             return
         self._fit_to_screen()
+        if self.footer_layout.count() == 0:
+            self.set_footer_visible(False)
         try:
             for scroll_area in self.findChildren(QScrollArea):
                 self._apply_no_wheel_policy(scroll_area)
+            self._apply_wheel_bridge_recursive(self.content_container)
         except RuntimeError:
             pass
 
@@ -479,3 +756,66 @@ class ModernDialog(QtDialog):
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
+
+    def apply_theme_styles(self):
+        """Re-applies background transparency after a theme change.
+
+        Called by _main_window_base_mixin._refresh_visible_top_level_themes
+        when the user switches themes while this dialog is open.  Without
+        this, QSS-driven re-theming can strip WA_TranslucentBackground from
+        the dialog, making the window chrome appear as a solid colour block
+        instead of being transparent.
+        """
+        try:
+            if getattr(self, "_safe_ui", False):
+                # Safe-UI mode always uses an opaque window.
+                self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
+                self.setStyleSheet(
+                    theme_qss("QDialog { background-color: @surface_alt; }")
+                )
+            else:
+                # Normal mode \u2013 frameless + translucent, classic chrome on top.
+                self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+                self.setStyleSheet("QDialog { background: transparent; }")
+            # Re-apply classic chrome overrides if needed.
+            self._apply_classic_chrome()
+            # Re-apply card / header stylesheets so tokens are refreshed.
+            if hasattr(self, "card"):
+                self.card.setStyleSheet(
+                    theme_qss(
+                        """
+                        #ModernDialogCard {
+                            background-color: @surface;
+                            border: 1px solid @border;
+                            border-radius: 12px;
+                        }
+                        """
+                    )
+                )
+            if hasattr(self, "header"):
+                self.header.setStyleSheet(
+                    theme_qss(
+                        """
+                        QFrame {
+                            background-color: @surface_alt;
+                            border-top-left-radius: 12px;
+                            border-top-right-radius: 12px;
+                            border-bottom: 1px solid @border;
+                        }
+                        """
+                    )
+                )
+            if hasattr(self, "footer"):
+                self.footer.setStyleSheet(
+                    theme_qss(
+                        """
+                        border-top: 1px solid @border;
+                        background: @surface_alt;
+                        border-bottom-left-radius: 12px;
+                        border-bottom-right-radius: 12px;
+                        """
+                    )
+                )
+            self.update()
+        except Exception:
+            pass

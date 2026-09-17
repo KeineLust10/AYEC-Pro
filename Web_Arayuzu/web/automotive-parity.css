@@ -1,0 +1,147 @@
+.stock-search-scan {
+  display: flex;
+  flex: 1 1 320px;
+  min-width: 220px;
+  gap: 8px;
+}
+
+.stock-search-scan .search {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.stock-search-camera {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  font-size: 19px;
+}
+
+.automotive-fields {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.automotive-fields > h3,
+.automotive-fields > .full {
+  grid-column: 1 / -1;
+}
+
+.vehicle-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.automotive-check-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.automotive-check-grid .setting {
+  min-height: 44px;
+}
+
+@media (max-width: 720px) {
+  .stock-search-scan {
+    flex-basis: 100%;
+  }
+
+  .automotive-fields,
+  .automotive-check-grid {
+    grid-template-columns: 1fr;
+  }
+
+  dialog.dialog-wide {
+    width: calc(100vw - 20px);
+    height: calc(100vh - 20px);
+  }
+
+  dialog.dialog-wide .dialog-body {
+    max-width: 100%;
+    padding: 14px;
+    overflow-x: hidden;
+  }
+
+  dialog.dialog-wide footer {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 10px 14px;
+  }
+
+  dialog.dialog-wide footer button {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .c360-header {
+    display: grid;
+    grid-template-columns: 48px minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .c360-avatar {
+    width: 48px;
+    height: 48px;
+    font-size: 20px;
+  }
+
+  .c360-header h2 {
+    font-size: 18px;
+  }
+
+  .c360-header .primary {
+    grid-column: 1 / -1;
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .c360-stats,
+  .c360-currencies {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .c360-stat,
+  .c360-currencies > div {
+    width: auto;
+    min-width: 0;
+  }
+
+  .c360-stat {
+    min-height: 76px;
+    padding: 8px;
+    grid-template-columns: 28px minmax(0, 1fr);
+  }
+
+  .c360-stat > span {
+    width: 26px;
+    height: 26px;
+  }
+
+  .c360-stat small,
+  .c360-currencies small {
+    overflow-wrap: anywhere;
+  }
+
+  .c360-panel {
+    min-width: 0;
+    padding: 10px;
+    overflow: hidden;
+  }
+
+  .vehicle-list-head {
+    align-items: flex-start;
+  }
+}

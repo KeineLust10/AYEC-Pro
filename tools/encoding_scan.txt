@@ -1,0 +1,213 @@
+backend\main.py:5: TÃ¼m Desktop fonksiyonlarÄ±nÄ± REST API'ye dÃ¶nÃ¼ÅŸtÃ¼rÃ¼r
+backend\main.py:38: description="AYEC Pro Teknik Servis YÃ¶netimi - REST API",
+backend\main.py:94: # Customers (MÃ¼ÅŸteri YÃ¶netimi)
+backend\main.py:101: # Devices/Services (Yeni Ä°ÅŸlem, Servis Takibi)
+backend\main.py:108: # Services (Hizmet TanÄ±mlarÄ±)
+backend\main.py:115: # Stock (Stok YÃ¶netimi)
+tools\turkish_quality_scan.py:14: MOJIBAKE_RE = re.compile(r"(Ã|Ä|Å|ğŸ|�)")
+backups\pre_worktree_swap_20260221_044347\src\ui\dialogs\template_manager.py:13: self.setWindowTitle("Mesaj ÅablonlarÄ± YÃ¶neticisi")
+backups\pre_worktree_swap_20260221_044347\src\ui\dialogs\template_manager.py:38: left_layout.addWidget(QLabel("Åablonlar:"))
+backups\pre_worktree_swap_20260221_044347\src\ui\dialogs\template_manager.py:41: btn_add = QPushButton("Yeni Åablon")
+backups\pre_worktree_swap_20260221_044347\src\ui\dialogs\template_manager.py:60: url = QUrl("https://www.google.com/search?q=whatsapp+business+mesaj+ÅŸablonlarÄ±")
+backups\pre_worktree_swap_20260221_044347\src\ui\dialogs\template_manager.py:63: # SaÄŸ EditÃ¶r
+backups\pre_worktree_swap_20260221_044347\src\ui\dialogs\template_manager.py:65: right_layout.addWidget(QLabel("Åablon Ä°Ã§eriÄŸi:"))
+backups\pre_worktree_swap_20260221_044347\src\ui\dialogs\template_manager.py:98: name, ok = ModernInputDialog.get_text(self, "Yeni Åablon", "Åablon AdÄ±:")
+backups\pre_worktree_swap_20260221_044347\src\ui\dialogs\template_manager.py:117: show_info(self, "Åablon kaydedildi.")
+backups\pre_worktree_swap_20260221_044347\src\ui\dialogs\template_manager.py:126: # TODO: Manuel olarak SimpleConfirmDialog veya ModernConfirmDialog ile deÄŸiÅŸtirin
+backups\pre_worktree_swap_20260221_044347\src\ui\dialogs\template_manager.py:128: if SimpleConfirmDialog(self, "Onay", "Silmek istediÄŸinize emin misiniz?").exec() == QDialog.DialogCode.Accepted:
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\service_status_page.py:54: self.setToolTip("YazÄ±yÄ± deÄŸiÅŸtirmek iÃ§in Ã§ift tÄ±klayÄ±n")
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\service_status_page.py:82: dlg = ModernInputDialog("Duyuru AyarÄ±", "KayÄ±cÄ± Alt YazÄ± Metni", self.original_text, self)
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\service_status_page.py:211: lbl_sub = QLabel("AnlÄ±k iÅŸ akÄ±ÅŸÄ± ve istatistikler")
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\service_status_page.py:219: self.btn_share = QPushButton("ğŸ“¡ EkranÄ± YayÄ±nla")
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\service_status_page.py:231: self.btn_manual = QPushButton("â“ YardÄ±m")
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\service_status_page.py:279: cols = ["MÃœÅTERÄ°", "CÄ°HAZ", "DURUM", "GÄ°RÄ°Å", "TESLÄ°M", "Ã–NCELÄ°K"]
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\service_status_page.py:303: initial_text = self.db.get_setting("marquee_text", "ğŸ“¢ AYEC Pro Servis YÃ¶netim Sistemi - HoÅŸgeldiniz...")
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\service_status_page.py:360: if "TAMÄ°R" in status or "SERVÄ°S" in status: color = tc("accent")
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\service_status_page.py:362: elif "BEKLÄ°YOR" in status: color = tc("warning")
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\service_status_page.py:363: elif "PARÃ‡A" in status: color = tc("warning")
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\service_status_page.py:364: elif "Ä°PTAL" in status: color = tc("danger")
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\service_status_page.py:373: if "ACÄ°L" in urgency: item_urgency.setForeground(qc("danger"))
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\service_status_page.py:384: self.btn_share.setText("ğŸ“¡ EkranÄ± YayÄ±nla")
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\service_status_page.py:387: if hasattr(self.main_window, "toast"): self.main_window.toast.show_toast("YayÄ±n durduruldu.", "info")
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\service_status_page.py:397: self.btn_share.setText(f"ğŸ“¡ YayÄ±nda: {ip}:{port}")
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\service_status_page.py:402: if hasattr(self.main_window, "toast"): self.main_window.toast.show_toast(f"YayÄ±n baÅŸladÄ±: http://{ip}:{port}", "success")
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\service_status_page.py:427: <html><head><meta charset='utf-8'><title>Servis EkranÄ±</title>
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\service_status_page.py:431: <h1 style='text-align:center'>ğŸ› ï¸ Servis Durum EkranÄ±</h1>
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\service_status_page.py:432: <table><thead><tr><th>MÃ¼ÅŸteri</th><th>Cihaz</th><th>Durum</th><th>Tarih</th></tr></thead>
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\service_status_page.py:450: "Bu ekranÄ± maÄŸazanÄ±zdaki bir TV'ye yansÄ±tabilirsiniz.\n\n'EkranÄ± YayÄ±nla' butonuna basÄ±n ve verilen adresi Smart TV tarayÄ±cÄ±sÄ±na girin.",
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\settings_widgets\voice_training_widget.py:16: Sesli Komut EÄŸitimi SayfasÄ±
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\settings_widgets\voice_training_widget.py:19: - JSON YÃ¶netimi (GUI tabanlÄ±)
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\settings_widgets\voice_training_widget.py:49: title = QLabel("AYEC Pro Sesli Komut AyarlarÄ±")
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\settings_widgets\voice_training_widget.py:52: subtitle = QLabel("Senaryolar, tetikleyiciler ve baÄŸlÄ± aksiyonlarÄ± net ÅŸekilde yÃ¶netin.")
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\settings_widgets\voice_training_widget.py:213: lbl_action = QLabel("BaÄŸlÄ± Ä°ÅŸlem")
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\settings_widgets\voice_training_widget.py:277: lbl_schedule = QLabel("ZamanlanmÄ±ÅŸ UyarÄ±lar")
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\settings_widgets\voice_training_widget.py:281: schedule_info = QLabel("AÅŸaÄŸÄ±daki uyarÄ± saatlerini ve aktiflik durumlarÄ±nÄ± yÃ¶netin.")
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\settings_widgets\voice_training_widget.py:286: # Kredi UyarÄ±sÄ±
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\settings_widgets\voice_training_widget.py:308: # Ã‡ek UyarÄ±sÄ±
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\settings_widgets\voice_training_widget.py:311: lbl_check = QLabel("Ã‡ek / Senet")
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\settings_widgets\voice_training_widget.py:329: # Kritik Stok UyarÄ±sÄ±
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\settings_widgets\voice_training_widget.py:368: dnd_info = QLabel("Bildirimlerin susturulacaÄŸÄ± saat aralÄ±ÄŸÄ±nÄ± belirleyin.")
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\settings_widgets\voice_training_widget.py:375: lbl_start = QLabel("BaÅŸlangÄ±Ã§")
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\settings_widgets\voice_training_widget.py:389: lbl_end = QLabel("BitiÅŸ")
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\settings_widgets\voice_training_widget.py:406: self.chk_critical_override = QCheckBox("Kritik uyarÄ±larda sessiz modu yoksay")
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\settings_widgets\voice_training_widget.py:435: self.btn_save = QPushButton("ğŸ’¾ TÃœM EÄÄ°TÄ°MÄ° KAYDET")
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\settings_widgets\voice_training_widget.py:497: options = [("BaÄŸlantÄ± Yok (Sadece Komut)", None)]
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\settings_widgets\voice_training_widget.py:499: options.append(("ğŸ› ï¸ AÃ§: Teknisyen Paneli", {"type": "builtin", "name": "panel_ac"}))
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\settings_widgets\voice_training_widget.py:500: options.append(("ğŸ“Š Ã–zel Fonksiyon: Finansal Ã–zet", {"type": "builtin", "name": "accounting_summary"}))
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\settings_widgets\voice_training_widget.py:501: options.append(("ğŸ’¸ Ã–zel Fonksiyon: Stoklara %10 Zam", {"type": "builtin", "name": "apply_zam"}))
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\settings_widgets\voice_training_widget.py:502: options.append(("âœ”ï¸ Ã–zel Fonksiyon: Sesli Onay (Evet)", {"type": "builtin", "name": "confirm_yes"}))
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\settings_widgets\voice_training_widget.py:503: options.append(("ğŸ“… Ã–zel Fonksiyon: BugÃ¼nkÃ¼ Randevular", {"type": "builtin", "name": "check_appointments"}))
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\settings_widgets\voice_training_widget.py:504: options.append(("ğŸ”Š Ã–zel Fonksiyon: Kritik StoklarÄ± Listele", {"type": "builtin", "name": "list_critical_stock"}))
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\settings_widgets\voice_training_widget.py:505: options.append(("â° Ã–zel Fonksiyon: Sesli HatÄ±rlatÄ±cÄ± Ekle", {"type": "builtin", "name": "add_reminder_voice"}))
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\settings_widgets\voice_training_widget.py:506: options.append(("ğŸ“ Ã–zel Fonksiyon: Sesli Not Al", {"type": "builtin", "name": "add_quick_note_voice"}))
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\settings_widgets\voice_training_widget.py:507: options.append(("ğŸ§­ Ã–zel Fonksiyon: YÃ¶netici Ã–zeti", {"type": "builtin", "name": "managerial_summary"}))
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\settings_widgets\voice_training_widget.py:508: options.append(("ğŸ”§ Ã–zel Fonksiyon: Cihaz Durumu Sorgula", {"type": "builtin", "name": "device_status_query"}))
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\settings_widgets\voice_training_widget.py:509: options.append(("ğŸŒ… Ã–zel Fonksiyon: GÃ¼naydÄ±n Rutini", {"type": "builtin", "name": "greeting_routine"}))
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\settings_widgets\voice_training_widget.py:510: options.append(("ğŸŒ™ Ã–zel Fonksiyon: KapanÄ±ÅŸ Rutini", {"type": "builtin", "name": "closing_routine"}))
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\settings_widgets\voice_training_widget.py:511: options.append(("ğŸ·ï¸ Ã–zel Fonksiyon: Stok KarÅŸÄ±laÅŸtÄ±rma", {"type": "builtin", "name": "stock_comparison"}))
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\settings_widgets\voice_training_widget.py:512: options.append(("ğŸ‘¤ Ã–zel Fonksiyon: MÃ¼ÅŸteri 360", {"type": "builtin", "name": "customer_360"}))
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\settings_widgets\voice_training_widget.py:513: options.append(("ğŸ’¬ Ã–zel Fonksiyon: Ä°ndirim Tavsiyesi", {"type": "builtin", "name": "discount_advice"}))
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\settings_widgets\voice_training_widget.py:527: options.append((f"ğŸ“„ Sayfa AÃ§: {lbl}", {"type": "page", "index": idx}))
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\settings_widgets\voice_training_widget.py:532: (40, "Genel BakÄ±ÅŸ"),
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\settings_widgets\voice_training_widget.py:534: (42, "Servis Durum EkranÄ±"),
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\settings_widgets\voice_training_widget.py:536: (150, "Yeni Servis Ä°ÅŸlemi"),
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\settings_widgets\voice_training_widget.py:537: (21, "MÃ¼ÅŸteri Listesi"),
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\settings_widgets\voice_training_widget.py:540: (102, "MÃ¼ÅŸteri Cari Hesaplar"),
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\settings_widgets\voice_training_widget.py:542: (130, "Sistem AyarlarÄ±"),
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\settings_widgets\voice_training_widget.py:547: options.append((f"ğŸ“„ Sayfa AÃ§: {lbl}", {"type": "page", "index": idx}))
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\settings_widgets\voice_training_widget.py:649: text, ok = ModernInputDialog.get_text(self.main_window or self, "Yeni Senaryo", "Senaryo kodu (Ã–rn: stok_sorgu):")
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\settings_widgets\voice_training_widget.py:668: show_warning(self.main_window or self, "Ã–nce soldan bir senaryo seÃ§iniz.")
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\settings_widgets\voice_training_widget.py:709: """ZamanlanmÄ±ÅŸ uyarÄ±larÄ± ve DND ayarlarÄ±nÄ± yÃ¼kle"""
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\settings_widgets\voice_training_widget.py:752: """ZamanlanmÄ±ÅŸ uyarÄ±larÄ± ve DND ayarlarÄ±nÄ± kaydet"""
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\settings_widgets\voice_training_widget.py:792: show_success(self.main_window or self, "EÄŸitim verileri ve zamanlanmÄ±ÅŸ uyarÄ±lar kaydedildi.")
+backups\pre_worktree_swap_20260221_044347\src\ui\pages\settings_widgets\voice_training_widget.py:794: show_error(self.main_window or self, f"Kaydetme hatasÄ±: {e}")
+.venv_old\Lib\site-packages\pip\_vendor\pkg_resources\__init__.py:2179: replacement_char = '�'
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:30: mode_title = "Servis KaydÄ± DÃ¼zenle" if device_data else "Yeni Servis KaydÄ± OluÅŸtur"
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:70: elif "MÃ¼ÅŸteri" in title: icon_char = "ğŸ‘¤"
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:71: elif "ArÄ±za" in title: icon_char = "ğŸ› ï¸"
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:114: self.steps = ["1. Genel Bilgiler", "2. Servis DetaylarÄ±", "3. Aksesuarlar"]
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:172: p1_left.addWidget(self.create_card_group("MÃ¼ÅŸteri Bilgileri", "", cust_layout))
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:176: device_items = ["Telefon", "Laptop", "Tablet", "MasaÃ¼stÃ¼", "AkÄ±llÄ± Saat", "DiÄŸer"]
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:187: dev_grid.addLayout(self.create_field_box("Cihaz TÃ¼rÃ¼", self.cmb_device), 0, 0)
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:196: self.inp_model = ValidatedLineEdit("Ã–rn: iPhone 13 Pro"); self.inp_model.setMinimumHeight(45)
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:216: self.btn_photo = QPushButton("ğŸ“· FotoÄŸraf YÃ¼kle")
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:230: self.lbl_photo_list = QLabel("SeÃ§ilen FotoÄŸraflar")
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:235: self.table_photos.setHorizontalHeaderLabels(["GÃ¶rseller"])
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:272: p1_right.addWidget(self.create_card_group("Kilit Deseni & FotoÄŸraf", "", pat_container))
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:284: self.inp_password = ValidatedLineEdit("Yok"); self.inp_password.setPlaceholderText("Ekran Åifresi")
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:286: sec_layout.addLayout(self.create_field_box("Ekran Åifresi", self.inp_password), 1)
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:287: self.cmb_urgency = ModernComboBox(items=["DÃ¼ÅŸÃ¼k", "Normal", "YÃ¼ksek", "ğŸ”¥ ACÄ°L"]); self.cmb_urgency.setCurrentText("Normal")
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:292: self.p2_left.addWidget(self.create_card_group("Servis DetaylarÄ±", "", sec_layout))
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:304: self.txt_fault.setPlaceholderText("MÃ¼ÅŸteri ÅŸikayeti ve detaylÄ± arÄ±za aÃ§Ä±klamasÄ±...")
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:312: lbl_sc = QLabel("HÄ±zlÄ± ArÄ±za SeÃ§imi:")
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:315: btn_edit_sc = QPushButton("âš™ï¸ DÃ¼zenle")
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:343: self.p2_left.addWidget(self.create_card_group("ArÄ±za TanÄ±mÄ± ve MÃ¼ÅŸteri BeyanÄ±", "", fault_layout))
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:352: editor = QuickNotesEditor(self.db, self, initial_category="ArÄ±za Notu")
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:370: active_notes = [n for n in self.db.get_fast_notes('ArÄ±za Notu') if n[3] == 1]
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:404: self.txt_public_note = QTextEdit(); self.txt_public_note.setPlaceholderText("MÃ¼ÅŸteri fiÅŸ notu..."); self.txt_public_note.setFixedHeight(70)
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:405: notes_lay.addLayout(self.create_field_box("Genel Not (MÃ¼ÅŸteri)", self.txt_public_note))
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:427: status_layout.addLayout(self.create_field_box("ğŸ’° Ä°ÅŸÃ§ilik / Tahmini Tutar", self.inp_est_price))
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:428: p2_right.addWidget(self.create_card_group("Servis Durumu & Ãœcret", "", status_layout))
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:475: p3_lay.addWidget(self.create_card_group("Teslim AlÄ±nan Aksesuarlar", "", acc_grid))
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:490: self.btn_action = QPushButton("Ä°leri â¡")
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:541: self.btn_action.setText("âœ… KaydÄ± Tamamla")
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:544: self.btn_action.setText("Ä°leri â¡")
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:557: show_warning(self, "LÃ¼tfen mÃ¼ÅŸteri seÃ§iniz.")
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:560: show_warning(self, "LÃ¼tfen cihaz markasÄ± giriniz.")
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:591: self.cmb_personnel.addItem("AtanmadÄ±", None)
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:688: self.lbl_fault_selected.setText("KÄ±sayol seÃ§imi yok")
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:826: ToastManager.error(self, "MÃ¼ÅŸteri seÃ§ilmelidir.")
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:832: ToastManager.error(self, "ArÄ±za aÃ§Ä±klamasÄ± boÅŸ bÄ±rakÄ±lamaz.")
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:968: inp_label.setPlaceholderText("Etiket (Ã¶rn: Ekran KÄ±rÄ±ÄŸÄ±)")
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:975: btn_cancel = QPushButton("Ä°ptal")
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:992: ToastManager.warning(self, "GÃ¶rsel bulunamadÄ±.")
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:995: dlg.setWindowTitle("FotoÄŸraf Ã–nizleme")
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:1020: self.btn_photo.setText(f"ğŸ“¸ {count} {label} SeÃ§ildi (GÃ¶rmek iÃ§in TÄ±kla)")
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:1028: self.btn_photo.setText("ğŸ“· FotoÄŸraf YÃ¼kle")
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:1062: ToastManager.info(self, "DeÄŸiÅŸiklikler geri alÄ±ndÄ±.")
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:1067: ToastManager.success(self, "DeÄŸiÅŸiklikler kaydedildi.")
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:1075: self.db.cursor.execute("DELETE FROM photos WHERE tracking_no=? AND stage=?", (tracking_no, "GiriÅŸ"))
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:1078: self.db.add_photo(tracking_no, path, label, "GiriÅŸ")
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:1083: file_paths, _ = QFileDialog.getOpenFileNames(self, 'FotoÄŸraf SeÃ§', '', "Resim DosyalarÄ± (*.jpg *.png *.jpeg)")
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:1092: ToastManager.success(self, f"{len(self.photo_paths)} gÃ¶rsel baÅŸarÄ±yla eklendi. ğŸ“¸")
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:1167: full_desc += f"\n[TEKNÄ°K]: {data['internal_notes']}"
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:1196: ToastManager.success(self, "KayÄ±t baÅŸarÄ±yla gÃ¼ncellendi! âœ…")
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\new_service_dialog.py:1215: ToastManager.error(self, "KayÄ±t eklenemedi.")
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\template_manager.py:13: self.setWindowTitle("Mesaj ÅablonlarÄ± YÃ¶neticisi")
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\template_manager.py:38: left_layout.addWidget(QLabel("Åablonlar:"))
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\template_manager.py:41: btn_add = QPushButton("Yeni Åablon")
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\template_manager.py:60: url = QUrl("https://www.google.com/search?q=whatsapp+business+mesaj+ÅŸablonlarÄ±")
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\template_manager.py:63: # SaÄŸ EditÃ¶r
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\template_manager.py:65: right_layout.addWidget(QLabel("Åablon Ä°Ã§eriÄŸi:"))
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\template_manager.py:98: name, ok = ModernInputDialog.get_text(self, "Yeni Åablon", "Åablon AdÄ±:")
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\template_manager.py:117: show_info(self, "Åablon kaydedildi.")
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\template_manager.py:126: # TODO: Manuel olarak SimpleConfirmDialog veya ModernConfirmDialog ile deÄŸiÅŸtirin
+.claude\worktrees\mystifying-driscoll\src\ui\dialogs\template_manager.py:128: if SimpleConfirmDialog(self, "Onay", "Silmek istediÄŸinize emin misiniz?").exec() == QDialog.DialogCode.Accepted:
+.claude\worktrees\mystifying-driscoll\src\ui\pages\customers_page.py:493: menu.addAction("� Bakiye Hatırlat (WA)", lambda: self.send_debt_reminder(customer))
+.claude\worktrees\mystifying-driscoll\src\ui\pages\customers_page.py:494: menu.addAction("�🗑️ Müşteriyi Sil", lambda: self.delete_customer(customer))
+.claude\worktrees\mystifying-driscoll\src\ui\pages\service_status_page.py:54: self.setToolTip("YazÄ±yÄ± deÄŸiÅŸtirmek iÃ§in Ã§ift tÄ±klayÄ±n")
+.claude\worktrees\mystifying-driscoll\src\ui\pages\service_status_page.py:82: dlg = ModernInputDialog("Duyuru AyarÄ±", "KayÄ±cÄ± Alt YazÄ± Metni", self.original_text, self)
+.claude\worktrees\mystifying-driscoll\src\ui\pages\service_status_page.py:211: lbl_sub = QLabel("AnlÄ±k iÅŸ akÄ±ÅŸÄ± ve istatistikler")
+.claude\worktrees\mystifying-driscoll\src\ui\pages\service_status_page.py:219: self.btn_share = QPushButton("ğŸ“¡ EkranÄ± YayÄ±nla")
+.claude\worktrees\mystifying-driscoll\src\ui\pages\service_status_page.py:231: self.btn_manual = QPushButton("â“ YardÄ±m")
+.claude\worktrees\mystifying-driscoll\src\ui\pages\service_status_page.py:279: cols = ["MÃœÅTERÄ°", "CÄ°HAZ", "DURUM", "GÄ°RÄ°Å", "TESLÄ°M", "Ã–NCELÄ°K"]
+.claude\worktrees\mystifying-driscoll\src\ui\pages\service_status_page.py:303: initial_text = self.db.get_setting("marquee_text", "ğŸ“¢ AYEC Pro Servis YÃ¶netim Sistemi - HoÅŸgeldiniz...")
+.claude\worktrees\mystifying-driscoll\src\ui\pages\service_status_page.py:360: if "TAMÄ°R" in status or "SERVÄ°S" in status: color = tc("accent")
+.claude\worktrees\mystifying-driscoll\src\ui\pages\service_status_page.py:362: elif "BEKLÄ°YOR" in status: color = tc("warning")
+.claude\worktrees\mystifying-driscoll\src\ui\pages\service_status_page.py:363: elif "PARÃ‡A" in status: color = tc("warning")
+.claude\worktrees\mystifying-driscoll\src\ui\pages\service_status_page.py:364: elif "Ä°PTAL" in status: color = tc("danger")
+.claude\worktrees\mystifying-driscoll\src\ui\pages\service_status_page.py:373: if "ACÄ°L" in urgency: item_urgency.setForeground(qc("danger"))
+.claude\worktrees\mystifying-driscoll\src\ui\pages\service_status_page.py:384: self.btn_share.setText("ğŸ“¡ EkranÄ± YayÄ±nla")
+.claude\worktrees\mystifying-driscoll\src\ui\pages\service_status_page.py:387: if hasattr(self.main_window, "toast"): self.main_window.toast.show_toast("YayÄ±n durduruldu.", "info")
+.claude\worktrees\mystifying-driscoll\src\ui\pages\service_status_page.py:397: self.btn_share.setText(f"ğŸ“¡ YayÄ±nda: {ip}:{port}")
+.claude\worktrees\mystifying-driscoll\src\ui\pages\service_status_page.py:402: if hasattr(self.main_window, "toast"): self.main_window.toast.show_toast(f"YayÄ±n baÅŸladÄ±: http://{ip}:{port}", "success")
+.claude\worktrees\mystifying-driscoll\src\ui\pages\service_status_page.py:427: <html><head><meta charset='utf-8'><title>Servis EkranÄ±</title>
+.claude\worktrees\mystifying-driscoll\src\ui\pages\service_status_page.py:431: <h1 style='text-align:center'>ğŸ› ï¸ Servis Durum EkranÄ±</h1>
+.claude\worktrees\mystifying-driscoll\src\ui\pages\service_status_page.py:432: <table><thead><tr><th>MÃ¼ÅŸteri</th><th>Cihaz</th><th>Durum</th><th>Tarih</th></tr></thead>
+.claude\worktrees\mystifying-driscoll\src\ui\pages\service_status_page.py:450: "Bu ekranÄ± maÄŸazanÄ±zdaki bir TV'ye yansÄ±tabilirsiniz.\n\n'EkranÄ± YayÄ±nla' butonuna basÄ±n ve verilen adresi Smart TV tarayÄ±cÄ±sÄ±na girin.",
+.claude\worktrees\mystifying-driscoll\src\ui\pages\settings_widgets\voice_training_widget.py:16: Sesli Komut EÄŸitimi SayfasÄ±
+.claude\worktrees\mystifying-driscoll\src\ui\pages\settings_widgets\voice_training_widget.py:19: - JSON YÃ¶netimi (GUI tabanlÄ±)
+.claude\worktrees\mystifying-driscoll\src\ui\pages\settings_widgets\voice_training_widget.py:49: title = QLabel("AYEC Pro Sesli Komut AyarlarÄ±")
+.claude\worktrees\mystifying-driscoll\src\ui\pages\settings_widgets\voice_training_widget.py:52: subtitle = QLabel("Senaryolar, tetikleyiciler ve baÄŸlÄ± aksiyonlarÄ± net ÅŸekilde yÃ¶netin.")
+.claude\worktrees\mystifying-driscoll\src\ui\pages\settings_widgets\voice_training_widget.py:213: lbl_action = QLabel("BaÄŸlÄ± Ä°ÅŸlem")
+.claude\worktrees\mystifying-driscoll\src\ui\pages\settings_widgets\voice_training_widget.py:277: lbl_schedule = QLabel("ZamanlanmÄ±ÅŸ UyarÄ±lar")
+.claude\worktrees\mystifying-driscoll\src\ui\pages\settings_widgets\voice_training_widget.py:281: schedule_info = QLabel("AÅŸaÄŸÄ±daki uyarÄ± saatlerini ve aktiflik durumlarÄ±nÄ± yÃ¶netin.")
+.claude\worktrees\mystifying-driscoll\src\ui\pages\settings_widgets\voice_training_widget.py:286: # Kredi UyarÄ±sÄ±
+.claude\worktrees\mystifying-driscoll\src\ui\pages\settings_widgets\voice_training_widget.py:308: # Ã‡ek UyarÄ±sÄ±
+.claude\worktrees\mystifying-driscoll\src\ui\pages\settings_widgets\voice_training_widget.py:311: lbl_check = QLabel("Ã‡ek / Senet")
+.claude\worktrees\mystifying-driscoll\src\ui\pages\settings_widgets\voice_training_widget.py:329: # Kritik Stok UyarÄ±sÄ±
+.claude\worktrees\mystifying-driscoll\src\ui\pages\settings_widgets\voice_training_widget.py:368: dnd_info = QLabel("Bildirimlerin susturulacaÄŸÄ± saat aralÄ±ÄŸÄ±nÄ± belirleyin.")
+.claude\worktrees\mystifying-driscoll\src\ui\pages\settings_widgets\voice_training_widget.py:375: lbl_start = QLabel("BaÅŸlangÄ±Ã§")
+.claude\worktrees\mystifying-driscoll\src\ui\pages\settings_widgets\voice_training_widget.py:389: lbl_end = QLabel("BitiÅŸ")
+.claude\worktrees\mystifying-driscoll\src\ui\pages\settings_widgets\voice_training_widget.py:406: self.chk_critical_override = QCheckBox("Kritik uyarÄ±larda sessiz modu yoksay")
+.claude\worktrees\mystifying-driscoll\src\ui\pages\settings_widgets\voice_training_widget.py:435: self.btn_save = QPushButton("ğŸ’¾ TÃœM EÄÄ°TÄ°MÄ° KAYDET")
+.claude\worktrees\mystifying-driscoll\src\ui\pages\settings_widgets\voice_training_widget.py:497: options = [("BaÄŸlantÄ± Yok (Sadece Komut)", None)]
+.claude\worktrees\mystifying-driscoll\src\ui\pages\settings_widgets\voice_training_widget.py:499: options.append(("ğŸ› ï¸ AÃ§: Teknisyen Paneli", {"type": "builtin", "name": "panel_ac"}))
+.claude\worktrees\mystifying-driscoll\src\ui\pages\settings_widgets\voice_training_widget.py:500: options.append(("ğŸ“Š Ã–zel Fonksiyon: Finansal Ã–zet", {"type": "builtin", "name": "accounting_summary"}))
+.claude\worktrees\mystifying-driscoll\src\ui\pages\settings_widgets\voice_training_widget.py:501: options.append(("ğŸ’¸ Ã–zel Fonksiyon: Stoklara %10 Zam", {"type": "builtin", "name": "apply_zam"}))
+.claude\worktrees\mystifying-driscoll\src\ui\pages\settings_widgets\voice_training_widget.py:502: options.append(("âœ”ï¸ Ã–zel Fonksiyon: Sesli Onay (Evet)", {"type": "builtin", "name": "confirm_yes"}))
+.claude\worktrees\mystifying-driscoll\src\ui\pages\settings_widgets\voice_training_widget.py:503: options.append(("ğŸ“… Ã–zel Fonksiyon: BugÃ¼nkÃ¼ Randevular", {"type": "builtin", "name": "check_appointments"}))
+.claude\worktrees\mystifying-driscoll\src\ui\pages\settings_widgets\voice_training_widget.py:504: options.append(("ğŸ”Š Ã–zel Fonksiyon: Kritik StoklarÄ± Listele", {"type": "builtin", "name": "list_critical_stock"}))
+.claude\worktrees\mystifying-driscoll\src\ui\pages\settings_widgets\voice_training_widget.py:505: options.append(("â° Ã–zel Fonksiyon: Sesli HatÄ±rlatÄ±cÄ± Ekle", {"type": "builtin", "name": "add_reminder_voice"}))
+.claude\worktrees\mystifying-driscoll\src\ui\pages\settings_widgets\voice_training_widget.py:506: options.append(("ğŸ“ Ã–zel Fonksiyon: Sesli Not Al", {"type": "builtin", "name": "add_quick_note_voice"}))
+.claude\worktrees\mystifying-driscoll\src\ui\pages\settings_widgets\voice_training_widget.py:507: options.append(("ğŸ§­ Ã–zel Fonksiyon: YÃ¶netici Ã–zeti", {"type": "builtin", "name": "managerial_summary"}))
+.claude\worktrees\mystifying-driscoll\src\ui\pages\settings_widgets\voice_training_widget.py:508: options.append(("ğŸ”§ Ã–zel Fonksiyon: Cihaz Durumu Sorgula", {"type": "builtin", "name": "device_status_query"}))
+.claude\worktrees\mystifying-driscoll\src\ui\pages\settings_widgets\voice_training_widget.py:509: options.append(("ğŸŒ… Ã–zel Fonksiyon: GÃ¼naydÄ±n Rutini", {"type": "builtin", "name": "greeting_routine"}))
+.claude\worktrees\mystifying-driscoll\src\ui\pages\settings_widgets\voice_training_widget.py:510: options.append(("ğŸŒ™ Ã–zel Fonksiyon: KapanÄ±ÅŸ Rutini", {"type": "builtin", "name": "closing_routine"}))
+.claude\worktrees\mystifying-driscoll\src\ui\pages\settings_widgets\voice_training_widget.py:511: options.append(("ğŸ·ï¸ Ã–zel Fonksiyon: Stok KarÅŸÄ±laÅŸtÄ±rma", {"type": "builtin", "name": "stock_comparison"}))
+.claude\worktrees\mystifying-driscoll\src\ui\pages\settings_widgets\voice_training_widget.py:512: options.append(("ğŸ‘¤ Ã–zel Fonksiyon: MÃ¼ÅŸteri 360", {"type": "builtin", "name": "customer_360"}))
+.claude\worktrees\mystifying-driscoll\src\ui\pages\settings_widgets\voice_training_widget.py:513: options.append(("ğŸ’¬ Ã–zel Fonksiyon: Ä°ndirim Tavsiyesi", {"type": "builtin", "name": "discount_advice"}))
+.claude\worktrees\mystifying-driscoll\src\ui\pages\settings_widgets\voice_training_widget.py:527: options.append((f"ğŸ“„ Sayfa AÃ§: {lbl}", {"type": "page", "index": idx}))
+.claude\worktrees\mystifying-driscoll\src\ui\pages\settings_widgets\voice_training_widget.py:532: (40, "Genel BakÄ±ÅŸ"),
+.claude\worktrees\mystifying-driscoll\src\ui\pages\settings_widgets\voice_training_widget.py:534: (42, "Servis Durum EkranÄ±"),
+.claude\worktrees\mystifying-driscoll\src\ui\pages\settings_widgets\voice_training_widget.py:536: (150, "Yeni Servis Ä°ÅŸlemi"),
+.claude\worktrees\mystifying-driscoll\src\ui\pages\settings_widgets\voice_training_widget.py:537: (21, "MÃ¼ÅŸteri Listesi"),
+.claude\worktrees\mystifying-driscoll\src\ui\pages\settings_widgets\voice_training_widget.py:540: (102, "MÃ¼ÅŸteri Cari Hesaplar"),
+.claude\worktrees\mystifying-driscoll\src\ui\pages\settings_widgets\voice_training_widget.py:542: (130, "Sistem AyarlarÄ±"),
+.claude\worktrees\mystifying-driscoll\src\ui\pages\settings_widgets\voice_training_widget.py:547: options.append((f"ğŸ“„ Sayfa AÃ§: {lbl}", {"type": "page", "index": idx}))
+.claude\worktrees\mystifying-driscoll\src\ui\pages\settings_widgets\voice_training_widget.py:649: text, ok = ModernInputDialog.get_text(self.main_window or self, "Yeni Senaryo", "Senaryo kodu (Ã–rn: stok_sorgu):")
+.claude\worktrees\mystifying-driscoll\src\ui\pages\settings_widgets\voice_training_widget.py:668: show_warning(self.main_window or self, "Ã–nce soldan bir senaryo seÃ§iniz.")
+.claude\worktrees\mystifying-driscoll\src\ui\pages\settings_widgets\voice_training_widget.py:709: """ZamanlanmÄ±ÅŸ uyarÄ±larÄ± ve DND ayarlarÄ±nÄ± yÃ¼kle"""
+.claude\worktrees\mystifying-driscoll\src\ui\pages\settings_widgets\voice_training_widget.py:752: """ZamanlanmÄ±ÅŸ uyarÄ±larÄ± ve DND ayarlarÄ±nÄ± kaydet"""
+.claude\worktrees\mystifying-driscoll\src\ui\pages\settings_widgets\voice_training_widget.py:792: show_success(self.main_window or self, "EÄŸitim verileri ve zamanlanmÄ±ÅŸ uyarÄ±lar kaydedildi.")
+.claude\worktrees\mystifying-driscoll\src\ui\pages\settings_widgets\voice_training_widget.py:794: show_error(self.main_window or self, f"Kaydetme hatasÄ±: {e}")

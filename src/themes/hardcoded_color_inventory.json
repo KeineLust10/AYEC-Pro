@@ -1,0 +1,746 @@
+{
+  "total_color_hits": 61015,
+  "total_theme_api_hits": 12269,
+  "files": {
+    "src/themes/dark_theme.json": {
+      "color_hits": 95,
+      "theme_api_hits": 0
+    },
+    "src/themes/dark_theme.qss": {
+      "color_hits": 51,
+      "theme_api_hits": 0
+    },
+    "src/themes/hardcoded_color_inventory.json": {
+      "color_hits": 57112,
+      "theme_api_hits": 10036
+    },
+    "src/themes/light_theme.json": {
+      "color_hits": 95,
+      "theme_api_hits": 0
+    },
+    "src/themes/light_theme.qss": {
+      "color_hits": 57,
+      "theme_api_hits": 0
+    },
+    "src/ui/login_window.py": {
+      "color_hits": 34,
+      "theme_api_hits": 16
+    },
+    "src/ui/main_window_backup.py": {
+      "color_hits": 12,
+      "theme_api_hits": 6
+    },
+    "src/ui/modern_login_window.py": {
+      "color_hits": 147,
+      "theme_api_hits": 67
+    },
+    "src/ui/user_selection_window.py": {
+      "color_hits": 13,
+      "theme_api_hits": 19
+    },
+    "src/utils/design_system.py": {
+      "color_hits": 49,
+      "theme_api_hits": 0
+    },
+    "src/utils/email_manager.py": {
+      "color_hits": 5,
+      "theme_api_hits": 0
+    },
+    "src/utils/message_helper.py": {
+      "color_hits": 11,
+      "theme_api_hits": 1
+    },
+    "src/utils/pdf_generator.py": {
+      "color_hits": 4,
+      "theme_api_hits": 0
+    },
+    "src/utils/pdf_helper.py": {
+      "color_hits": 7,
+      "theme_api_hits": 0
+    },
+    "src/utils/pdf_manager.py": {
+      "color_hits": 11,
+      "theme_api_hits": 0
+    },
+    "src/utils/service_pdf_generator.py": {
+      "color_hits": 5,
+      "theme_api_hits": 0
+    },
+    "src/utils/startup_updater.py": {
+      "color_hits": 6,
+      "theme_api_hits": 4
+    },
+    "src/utils/system_config.py": {
+      "color_hits": 16,
+      "theme_api_hits": 0
+    },
+    "src/utils/templates.py": {
+      "color_hits": 17,
+      "theme_api_hits": 0
+    },
+    "src/utils/theme_colors.py": {
+      "color_hits": 0,
+      "theme_api_hits": 5
+    },
+    "src/utils/theme_engine.py": {
+      "color_hits": 0,
+      "theme_api_hits": 5
+    },
+    "src/utils/theme_manager.py": {
+      "color_hits": 25,
+      "theme_api_hits": 5
+    },
+    "src/utils/toast_notification.py": {
+      "color_hits": 8,
+      "theme_api_hits": 3
+    },
+    "src/ui/components/message_box.py": {
+      "color_hits": 19,
+      "theme_api_hits": 7
+    },
+    "src/ui/components/modern_dialog.py": {
+      "color_hits": 14,
+      "theme_api_hits": 6
+    },
+    "src/ui/components/modern_toast.py": {
+      "color_hits": 8,
+      "theme_api_hits": 3
+    },
+    "src/ui/components/notification_center.py": {
+      "color_hits": 23,
+      "theme_api_hits": 17
+    },
+    "src/ui/dialogs/add_customer_dialog.py": {
+      "color_hits": 24,
+      "theme_api_hits": 15
+    },
+    "src/ui/dialogs/add_device_dialog.py": {
+      "color_hits": 8,
+      "theme_api_hits": 20
+    },
+    "src/ui/dialogs/add_kb_article_dialog.py": {
+      "color_hits": 1,
+      "theme_api_hits": 2
+    },
+    "src/ui/dialogs/add_service_definition_dialog.py": {
+      "color_hits": 22,
+      "theme_api_hits": 9
+    },
+    "src/ui/dialogs/add_stock_dialog.py": {
+      "color_hits": 20,
+      "theme_api_hits": 18
+    },
+    "src/ui/dialogs/admin_approval_dialog.py": {
+      "color_hits": 13,
+      "theme_api_hits": 8
+    },
+    "src/ui/dialogs/advanced_filter.py": {
+      "color_hits": 1,
+      "theme_api_hits": 1
+    },
+    "src/ui/dialogs/app_lock_dialog.py": {
+      "color_hits": 8,
+      "theme_api_hits": 5
+    },
+    "src/ui/dialogs/archive_detail_dialog.py": {
+      "color_hits": 4,
+      "theme_api_hits": 7
+    },
+    "src/ui/dialogs/bank_detail_dialog.py": {
+      "color_hits": 47,
+      "theme_api_hits": 70
+    },
+    "src/ui/dialogs/base_modern_dialog.py": {
+      "color_hits": 14,
+      "theme_api_hits": 6
+    },
+    "src/ui/dialogs/brand_edit_dialog.py": {
+      "color_hits": 0,
+      "theme_api_hits": 9
+    },
+    "src/ui/dialogs/bulk_payment_dialog.py": {
+      "color_hits": 18,
+      "theme_api_hits": 11
+    },
+    "src/ui/dialogs/critical_alert_dialog.py": {
+      "color_hits": 8,
+      "theme_api_hits": 6
+    },
+    "src/ui/dialogs/customer_360_dialog.py": {
+      "color_hits": 49,
+      "theme_api_hits": 26
+    },
+    "src/ui/dialogs/customer_history_dialog.py": {
+      "color_hits": 42,
+      "theme_api_hits": 16
+    },
+    "src/ui/dialogs/customer_notes_dialog.py": {
+      "color_hits": 30,
+      "theme_api_hits": 13
+    },
+    "src/ui/dialogs/customer_select_dialog.py": {
+      "color_hits": 18,
+      "theme_api_hits": 7
+    },
+    "src/ui/dialogs/device_history_dialog.py": {
+      "color_hits": 3,
+      "theme_api_hits": 3
+    },
+    "src/ui/dialogs/device_selection_dialog.py": {
+      "color_hits": 25,
+      "theme_api_hits": 8
+    },
+    "src/ui/dialogs/early_closure_dialog.py": {
+      "color_hits": 26,
+      "theme_api_hits": 10
+    },
+    "src/ui/dialogs/global_search_dialog.py": {
+      "color_hits": 8,
+      "theme_api_hits": 6
+    },
+    "src/ui/dialogs/label_editor_dialog.py": {
+      "color_hits": 0,
+      "theme_api_hits": 1
+    },
+    "src/ui/dialogs/license_keygen_dialog.py": {
+      "color_hits": 11,
+      "theme_api_hits": 10
+    },
+    "src/ui/dialogs/license_lock_screen.py": {
+      "color_hits": 26,
+      "theme_api_hits": 20
+    },
+    "src/ui/dialogs/loan_detail_dialog.py": {
+      "color_hits": 21,
+      "theme_api_hits": 14
+    },
+    "src/ui/dialogs/loan_wizard_advanced.py": {
+      "color_hits": 11,
+      "theme_api_hits": 11
+    },
+    "src/ui/dialogs/loan_wizard_dialog.py": {
+      "color_hits": 15,
+      "theme_api_hits": 6
+    },
+    "src/ui/dialogs/location_picker_dialog.py": {
+      "color_hits": 6,
+      "theme_api_hits": 8
+    },
+    "src/ui/dialogs/login_dialog.py": {
+      "color_hits": 24,
+      "theme_api_hits": 18
+    },
+    "src/ui/dialogs/modern_confirm.py": {
+      "color_hits": 16,
+      "theme_api_hits": 7
+    },
+    "src/ui/dialogs/modern_input_dialog.py": {
+      "color_hits": 14,
+      "theme_api_hits": 7
+    },
+    "src/ui/dialogs/modern_select_dialog.py": {
+      "color_hits": 14,
+      "theme_api_hits": 6
+    },
+    "src/ui/dialogs/new_service_dialog.py": {
+      "color_hits": 78,
+      "theme_api_hits": 49
+    },
+    "src/ui/dialogs/password_prompt_dialog.py": {
+      "color_hits": 14,
+      "theme_api_hits": 5
+    },
+    "src/ui/dialogs/password_reset_dialog.py": {
+      "color_hits": 13,
+      "theme_api_hits": 7
+    },
+    "src/ui/dialogs/payment_dialog.py": {
+      "color_hits": 71,
+      "theme_api_hits": 37
+    },
+    "src/ui/dialogs/personnel_edit_dialog.py": {
+      "color_hits": 4,
+      "theme_api_hits": 3
+    },
+    "src/ui/dialogs/photo_gallery_dialog.py": {
+      "color_hits": 13,
+      "theme_api_hits": 10
+    },
+    "src/ui/dialogs/premium_dialogs.py": {
+      "color_hits": 13,
+      "theme_api_hits": 7
+    },
+    "src/ui/dialogs/project_transaction_dialog.py": {
+      "color_hits": 0,
+      "theme_api_hits": 12
+    },
+    "src/ui/dialogs/project_unit_sale_dialog.py": {
+      "color_hits": 6,
+      "theme_api_hits": 36
+    },
+    "src/ui/dialogs/quick_notes_editor.py": {
+      "color_hits": 3,
+      "theme_api_hits": 8
+    },
+    "src/ui/dialogs/registration_dialog.py": {
+      "color_hits": 41,
+      "theme_api_hits": 27
+    },
+    "src/ui/dialogs/report_dialog.py": {
+      "color_hits": 5,
+      "theme_api_hits": 5
+    },
+    "src/ui/dialogs/security_confirm_dialog.py": {
+      "color_hits": 13,
+      "theme_api_hits": 6
+    },
+    "src/ui/dialogs/send_sms_dialog.py": {
+      "color_hits": 17,
+      "theme_api_hits": 8
+    },
+    "src/ui/dialogs/service_invoice_dialog.py": {
+      "color_hits": 49,
+      "theme_api_hits": 18
+    },
+    "src/ui/dialogs/simple_confirm.py": {
+      "color_hits": 9,
+      "theme_api_hits": 5
+    },
+    "src/ui/dialogs/sms_settings_dialog.py": {
+      "color_hits": 6,
+      "theme_api_hits": 6
+    },
+    "src/ui/dialogs/technician_login_dialog.py": {
+      "color_hits": 15,
+      "theme_api_hits": 7
+    },
+    "src/ui/dialogs/technician_panel.py": {
+      "color_hits": 57,
+      "theme_api_hits": 37
+    },
+    "src/ui/dialogs/technician_wizard_page1.py": {
+      "color_hits": 0,
+      "theme_api_hits": 6
+    },
+    "src/ui/dialogs/technician_wizard_page2.py": {
+      "color_hits": 22,
+      "theme_api_hits": 20
+    },
+    "src/ui/dialogs/technician_wizard_page3.py": {
+      "color_hits": 6,
+      "theme_api_hits": 20
+    },
+    "src/ui/dialogs/template_manager.py": {
+      "color_hits": 4,
+      "theme_api_hits": 2
+    },
+    "src/ui/dialogs/transaction_detail_dialog.py": {
+      "color_hits": 7,
+      "theme_api_hits": 5
+    },
+    "src/ui/dialogs/transaction_dialog.py": {
+      "color_hits": 17,
+      "theme_api_hits": 9
+    },
+    "src/ui/dialogs/user_switch_dialog.py": {
+      "color_hits": 12,
+      "theme_api_hits": 8
+    },
+    "src/ui/pages/accounting_page.py": {
+      "color_hits": 96,
+      "theme_api_hits": 47
+    },
+    "src/ui/pages/ai_assistant_page.py": {
+      "color_hits": 18,
+      "theme_api_hits": 13
+    },
+    "src/ui/pages/announcements_page.py": {
+      "color_hits": 35,
+      "theme_api_hits": 9
+    },
+    "src/ui/pages/appointments_page.py": {
+      "color_hits": 67,
+      "theme_api_hits": 30
+    },
+    "src/ui/pages/audit_log_page.py": {
+      "color_hits": 28,
+      "theme_api_hits": 8
+    },
+    "src/ui/pages/authorization_groups_widget.py": {
+      "color_hits": 20,
+      "theme_api_hits": 10
+    },
+    "src/ui/pages/backup_page.py": {
+      "color_hits": 13,
+      "theme_api_hits": 9
+    },
+    "src/ui/pages/brands_page.py": {
+      "color_hits": 8,
+      "theme_api_hits": 5
+    },
+    "src/ui/pages/contracts_page.py": {
+      "color_hits": 8,
+      "theme_api_hits": 13
+    },
+    "src/ui/pages/customers_page.py": {
+      "color_hits": 54,
+      "theme_api_hits": 24
+    },
+    "src/ui/pages/dashboard_page.py": {
+      "color_hits": 126,
+      "theme_api_hits": 46
+    },
+    "src/ui/pages/external_tracking_page.py": {
+      "color_hits": 26,
+      "theme_api_hits": 30
+    },
+    "src/ui/pages/field_service_page.py": {
+      "color_hits": 72,
+      "theme_api_hits": 29
+    },
+    "src/ui/pages/invoice_page.py": {
+      "color_hits": 4,
+      "theme_api_hits": 3
+    },
+    "src/ui/pages/job_service_tracking_page.py": {
+      "color_hits": 56,
+      "theme_api_hits": 24
+    },
+    "src/ui/pages/knowledge_base_page.py": {
+      "color_hits": 9,
+      "theme_api_hits": 8
+    },
+    "src/ui/pages/mobile_guide_page.py": {
+      "color_hits": 10,
+      "theme_api_hits": 9
+    },
+    "src/ui/pages/personnel_page.py": {
+      "color_hits": 10,
+      "theme_api_hits": 9
+    },
+    "src/ui/pages/quick_notes_settings_widget.py": {
+      "color_hits": 56,
+      "theme_api_hits": 22
+    },
+    "src/ui/pages/reminders_page.py": {
+      "color_hits": 8,
+      "theme_api_hits": 6
+    },
+    "src/ui/pages/reports_page.py": {
+      "color_hits": 27,
+      "theme_api_hits": 13
+    },
+    "src/ui/pages/security_settings_widget.py": {
+      "color_hits": 29,
+      "theme_api_hits": 22
+    },
+    "src/ui/pages/services_page.py": {
+      "color_hits": 5,
+      "theme_api_hits": 9
+    },
+    "src/ui/pages/service_board_page.py": {
+      "color_hits": 31,
+      "theme_api_hits": 10
+    },
+    "src/ui/pages/settings_page.py": {
+      "color_hits": 118,
+      "theme_api_hits": 133
+    },
+    "src/ui/pages/stock_page.py": {
+      "color_hits": 23,
+      "theme_api_hits": 13
+    },
+    "src/ui/pages/summary_page.py": {
+      "color_hits": 8,
+      "theme_api_hits": 6
+    },
+    "src/ui/pages/support_page.py": {
+      "color_hits": 38,
+      "theme_api_hits": 11
+    },
+    "src/ui/pages/transaction_page.py": {
+      "color_hits": 113,
+      "theme_api_hits": 59
+    },
+    "src/ui/pages/user_manual_page.py": {
+      "color_hits": 15,
+      "theme_api_hits": 3
+    },
+    "src/ui/styles/tab_styles.py": {
+      "color_hits": 10,
+      "theme_api_hits": 0
+    },
+    "src/ui/widgets/advanced_toast_manager.py": {
+      "color_hits": 16,
+      "theme_api_hits": 4
+    },
+    "src/ui/widgets/animated_toggle.py": {
+      "color_hits": 3,
+      "theme_api_hits": 0
+    },
+    "src/ui/widgets/assistant_sidebar.py": {
+      "color_hits": 18,
+      "theme_api_hits": 11
+    },
+    "src/ui/widgets/ayec_notification.py": {
+      "color_hits": 11,
+      "theme_api_hits": 6
+    },
+    "src/ui/widgets/breadcrumb.py": {
+      "color_hits": 12,
+      "theme_api_hits": 6
+    },
+    "src/ui/widgets/dashboard_widgets.py": {
+      "color_hits": 24,
+      "theme_api_hits": 20
+    },
+    "src/ui/widgets/empty_state.py": {
+      "color_hits": 0,
+      "theme_api_hits": 3
+    },
+    "src/ui/widgets/jarvis_toast.py": {
+      "color_hits": 4,
+      "theme_api_hits": 5
+    },
+    "src/ui/widgets/kanban_board.py": {
+      "color_hits": 50,
+      "theme_api_hits": 32
+    },
+    "src/ui/widgets/label_editor_widget.py": {
+      "color_hits": 4,
+      "theme_api_hits": 2
+    },
+    "src/ui/widgets/modern_confirm_dialog.py": {
+      "color_hits": 0,
+      "theme_api_hits": 3
+    },
+    "src/ui/widgets/modern_dialog.py": {
+      "color_hits": 3,
+      "theme_api_hits": 10
+    },
+    "src/ui/widgets/modern_inputs.py": {
+      "color_hits": 0,
+      "theme_api_hits": 6
+    },
+    "src/ui/widgets/modern_sidebar.py": {
+      "color_hits": 14,
+      "theme_api_hits": 13
+    },
+    "src/ui/widgets/page_layout_editor.py": {
+      "color_hits": 23,
+      "theme_api_hits": 9
+    },
+    "src/ui/widgets/pattern_lock.py": {
+      "color_hits": 4,
+      "theme_api_hits": 0
+    },
+    "src/ui/widgets/premium_dialog.py": {
+      "color_hits": 6,
+      "theme_api_hits": 4
+    },
+    "src/ui/widgets/quick_stats_widget.py": {
+      "color_hits": 2,
+      "theme_api_hits": 6
+    },
+    "src/ui/widgets/service_flow.py": {
+      "color_hits": 8,
+      "theme_api_hits": 4
+    },
+    "src/ui/widgets/side_drawer.py": {
+      "color_hits": 7,
+      "theme_api_hits": 5
+    },
+    "src/ui/widgets/side_menu.py": {
+      "color_hits": 17,
+      "theme_api_hits": 26
+    },
+    "src/ui/widgets/side_menu_backup.py": {
+      "color_hits": 14,
+      "theme_api_hits": 10
+    },
+    "src/ui/widgets/signature_widget.py": {
+      "color_hits": 2,
+      "theme_api_hits": 1
+    },
+    "src/ui/widgets/snoozeable_toast.py": {
+      "color_hits": 9,
+      "theme_api_hits": 5
+    },
+    "src/ui/widgets/status_card.py": {
+      "color_hits": 0,
+      "theme_api_hits": 3
+    },
+    "src/ui/widgets/ticker_widget.py": {
+      "color_hits": 4,
+      "theme_api_hits": 2
+    },
+    "src/ui/widgets/toast_notification.py": {
+      "color_hits": 6,
+      "theme_api_hits": 6
+    },
+    "src/ui/widgets/workshop_map.py": {
+      "color_hits": 4,
+      "theme_api_hits": 6
+    },
+    "src/ui/wizards/setup_wizard.py": {
+      "color_hits": 24,
+      "theme_api_hits": 14
+    },
+    "src/ui/pages/dashboard_widgets/action_button.py": {
+      "color_hits": 0,
+      "theme_api_hits": 1
+    },
+    "src/ui/pages/dashboard_widgets/action_widget.py": {
+      "color_hits": 16,
+      "theme_api_hits": 0
+    },
+    "src/ui/pages/dashboard_widgets/status_badge.py": {
+      "color_hits": 0,
+      "theme_api_hits": 1
+    },
+    "src/ui/pages/dashboard_widgets/stat_card.py": {
+      "color_hits": 4,
+      "theme_api_hits": 4
+    },
+    "src/ui/pages/dashboard_widgets/svg_icon_button.py": {
+      "color_hits": 0,
+      "theme_api_hits": 1
+    },
+    "src/ui/pages/finance/bank_page.py": {
+      "color_hits": 21,
+      "theme_api_hits": 11
+    },
+    "src/ui/pages/finance/check_note_page.py": {
+      "color_hits": 14,
+      "theme_api_hits": 6
+    },
+    "src/ui/pages/finance/finance_report_page.py": {
+      "color_hits": 12,
+      "theme_api_hits": 6
+    },
+    "src/ui/pages/project_management/projects_page.py": {
+      "color_hits": 16,
+      "theme_api_hits": 11
+    },
+    "src/ui/pages/project_management/project_detail_page.py": {
+      "color_hits": 16,
+      "theme_api_hits": 30
+    },
+    "src/ui/pages/settings_widgets/background_settings.py": {
+      "color_hits": 23,
+      "theme_api_hits": 19
+    },
+    "src/ui/pages/settings_widgets/backup_settings.py": {
+      "color_hits": 30,
+      "theme_api_hits": 20
+    },
+    "src/ui/pages/settings_widgets/bank_settings.py": {
+      "color_hits": 37,
+      "theme_api_hits": 44
+    },
+    "src/ui/pages/settings_widgets/cargo_settings.py": {
+      "color_hits": 7,
+      "theme_api_hits": 3
+    },
+    "src/ui/pages/settings_widgets/company_settings.py": {
+      "color_hits": 16,
+      "theme_api_hits": 7
+    },
+    "src/ui/pages/settings_widgets/integration_hub.py": {
+      "color_hits": 18,
+      "theme_api_hits": 4
+    },
+    "src/ui/pages/settings_widgets/language_settings.py": {
+      "color_hits": 3,
+      "theme_api_hits": 2
+    },
+    "src/ui/pages/settings_widgets/license_settings.py": {
+      "color_hits": 11,
+      "theme_api_hits": 7
+    },
+    "src/ui/pages/settings_widgets/location_settings.py": {
+      "color_hits": 12,
+      "theme_api_hits": 8
+    },
+    "src/ui/pages/settings_widgets/remote_settings.py": {
+      "color_hits": 10,
+      "theme_api_hits": 6
+    },
+    "src/ui/pages/settings_widgets/sms_settings.py": {
+      "color_hits": 9,
+      "theme_api_hits": 14
+    },
+    "src/ui/pages/settings_widgets/stock_settings.py": {
+      "color_hits": 5,
+      "theme_api_hits": 7
+    },
+    "src/ui/pages/settings_widgets/system_identity_settings.py": {
+      "color_hits": 8,
+      "theme_api_hits": 19
+    },
+    "src/ui/pages/settings_widgets/telegram_settings.py": {
+      "color_hits": 6,
+      "theme_api_hits": 3
+    },
+    "src/ui/pages/settings_widgets/user_management.py": {
+      "color_hits": 74,
+      "theme_api_hits": 25
+    },
+    "src/ui/pages/settings_widgets/user_management_rbac.py": {
+      "color_hits": 25,
+      "theme_api_hits": 4
+    },
+    "src/ui/pages/settings_widgets/voice_assistant_settings.py": {
+      "color_hits": 27,
+      "theme_api_hits": 17
+    },
+    "src/ui/pages/settings_widgets/voice_assistant_shortcuts.py": {
+      "color_hits": 20,
+      "theme_api_hits": 16
+    },
+    "src/ui/pages/settings_widgets/voice_training_widget.py": {
+      "color_hits": 49,
+      "theme_api_hits": 37
+    },
+    "src/ui/pages/settings_widgets/whatsapp_settings.py": {
+      "color_hits": 7,
+      "theme_api_hits": 4
+    },
+    "src/ui/pages/transaction/dialogs/proforma_dialog.py": {
+      "color_hits": 17,
+      "theme_api_hits": 6
+    },
+    "src/ui/pages/customers/logic/customer_manager.py": {
+      "color_hits": 3,
+      "theme_api_hits": 0
+    },
+    "src/ui/dialogs/loan_wizard_steps/step1_bank_info.py": {
+      "color_hits": 14,
+      "theme_api_hits": 8
+    },
+    "src/ui/dialogs/loan_wizard_steps/step2_financial_details.py": {
+      "color_hits": 8,
+      "theme_api_hits": 14
+    },
+    "src/ui/dialogs/loan_wizard_steps/step3_document_upload.py": {
+      "color_hits": 31,
+      "theme_api_hits": 17
+    },
+    "src/ui/dialogs/loan_wizard_steps/step4_summary.py": {
+      "color_hits": 13,
+      "theme_api_hits": 9
+    },
+    "src/ui/dialogs/setup_wizard/wizard_ui.py": {
+      "color_hits": 20,
+      "theme_api_hits": 17
+    },
+    "src/ui/dialogs/technician_panel_modules/components/parts_manager.py": {
+      "color_hits": 1,
+      "theme_api_hits": 1
+    },
+    "src/ui/dialogs/technician_panel_modules/dialogs/image_gallery_dialog.py": {
+      "color_hits": 0,
+      "theme_api_hits": 1
+    }
+  }
+}

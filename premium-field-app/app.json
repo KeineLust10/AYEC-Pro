@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "AYEC Pro Saha Takip",
+    "slug": "ayec-pro-saha-takip",
+    "version": "2.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#0F172A"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.ayecpro.sahatakip"
+    },
+    "android": {
+      "package": "com.ayecpro.sahatakip",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "CAMERA"
+      ]
+    }
+  }
+}

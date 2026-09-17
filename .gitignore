@@ -1,0 +1,57 @@
+# Local secrets and environment files
+.env
+.env.*
+!.env.example
+
+# Python caches and local environments
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+.venv_*/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local databases, backups, logs, and runtime state
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+backups/
+logs/
+*.log
+crash_*.log
+agent_orchestrator/state/
+
+# Build and generated output
+build/
+dist/
+Setup_Output/
+nuitka_build/
+admin_nuitka_build/
+*.spec
+*.iss
+*.pyc
+*.pyo
+*.bak
+
+# Local reports and generated artifacts
+artifacts/
+reports/
+DIAGNOSTIC_REPORT.json
+integration_test_report_*.txt
+tests/*_report.json
+
+# Editor and operating-system files
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini
+
+# Local media captures and maintenance uploads
+maintenance_photos/
+Web_Arayuzu/web/assets/live-captures/

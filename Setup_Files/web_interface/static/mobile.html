@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Premium Bulut Mobil Pro</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        [v-cloak] {
+            display: none;
+        }
+
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            height: 65px;
+            display: flex;
+            box-shadow: 0 -2px 15px rgba(0, 0, 0, 0.08);
+            background: white;
+            z-index: 50;
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+
+        .nav-item {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            color: #94a3b8;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .nav-item.active {
+            color: #2563eb;
+        }
+
+        .nav-item i {
+            font-size: 20px;
+            margin-bottom: 4px;
+        }
+
+        .page-content {
+            padding-bottom: 90px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            border: 1px solid #f1f5f9;
+        }
+
+        .btn {
+            padding: 12px 16px;
+            border-radius: 12px;
+            font-weight: 600;
+            text-align: center;
+            display: flex;
+            items-center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+
+        .btn:active {
+            transform: scale(0.98);
+        }
+
+        .btn-primary {
+            background: #2563eb;
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #f1f5f9;
+            color: #475569;
+        }
+
+        .btn-danger {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+
+        .btn-success {
+            background: #dcfce7;
+            color: #16a34a;
+        }
+
+        input,
+        select,
+        textarea {
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 12px;
+            font-size: 16px;
+            outline: none;
+            background: #f8fafc;
+        }
+
+        input:focus {
+            border-color: #3b82f6;
+            background: white;
+        }
+
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(4px);
+            z-index: 100;
+            display: flex;
+            align-items: flex-end;
+        }
+
+        .modal-content {
+            background: white;
+            width: 100%;
+            border-radius: 24px 24px 0 0;
+            padding: 24px;
+            padding-bottom: calc(24px + env(safe-area-inset-bottom));
+            transform: translateY(0);
+            transition: transform 0.3s ease;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .fab {
+            position: fixed;
+            right: 20px;
+            bottom: 85px;
+            width: 56px;
+            height: 56px;
+            border-radius: 28px;
+            background: #2563eb;
+            color: white;
+            display: flex;
+            items-center;
+            justify-content: center;
+            box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.4);
+            z-index: 40;
+        }
+
+        .history-item {
+            border-left: 2px solid #e2e8f0;
+            padding-left: 16px;
+            position: relative;
+            padding-bottom: 16px;
+        }
+
+        .history-item::before {
+            content: '';
+            position: absolute;
+            left: -5px;
+            top: 0;
+            width: 8px;
+            height: 8px;
+            border-radius: 4px;
+            background: #cbd5e1;
+        }
+
+        .history-item.service::before {
+            background: #3b82f6;
+        }
+
+        .history-item.payment::before {
+            background: #10b981;
+        }
+    </style>
+</head>
+
+<body class="bg-slate-50 text-slate-900">
+    <div id="app" v-cloak>
+        <!-- Header -->
+        <header
+            class="bg-white/80 backdrop-blur-md px-5 py-4 sticky top-0 z-40 flex justify-between items-center border-b border-slate-100">
+            <div>
+                <span class="text-[10px] font-bold text-blue-600 tracking-widest uppercase">Premium Bulut</span>
+                <h1 class="font-extrabold text-xl text-slate-800 leading-tight">{{ currentPageTitle }}</h1>
+            </div>
+            <button @click="reloadData"
+                class="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-500 active:bg-slate-100 transition-colors">
+                <i class="fas fa-sync-alt" :class="{'fa-spin': loading}"></i>
+            </button>
+        </header>
+
+        <main class="page-content px-5 py-4">
+
+            <!-- 1. SIHIRBAZ (WIZARD) -->
+            <div v-if="activeTab === 'wizard'" class="space-y-4">
+                <div v-if="wizardStep === 1">
+                    <div class="card mb-4">
+                        <h3 class="font-bold text-lg mb-3">Müşteri Seçin</h3>
+                        <div class="relative">
+                            <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                            <input type="text" v-model="customerSearch" placeholder="İsim veya telefon..."
+                                class="w-full pl-11" @input="searchCustomers">
+                        </div>
+                    </div>
+
+                    <div class="space-y-3">
+                        <div v-for="c in filteredCustomers" :key="c.id" @click="selectForWizard(c)"
+                            class="card flex justify-between items-center active:bg-blue-50 transition-colors">
+                            <div>
+                                <div class="font-bold text-slate-800">{{ c.name }}</div>
+                                <div class="text-sm text-slate-500">{{ c.phone }}</div>
+                            </div>
+                            <i class="fas fa-chevron-right text-slate-300"></i>
+                        </div>
+                        <div v-if="customerSearch && filteredCustomers.length === 0" class="text-center py-8">
+                            <p class="text-slate-500 mb-4">Müşteri bulunamadı.</p>
+                            <button @click="openModal('addCustomer')" class="btn btn-secondary w-full">Yeni Müşteri
+                                Ekle</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div v-if="wizardStep === 2" class="animate-in fade-in slide-in-from-right-4 duration-300">
+                    <div class="flex items-center gap-3 mb-4">
+                        <button @click="wizardStep = 1"
+                            class="w-8 h-8 rounded-full bg-white flex items-center justify-center text-slate-600"><i
+                                class="fas fa-arrow-left"></i></button>
+                        <div class="font-bold text-lg">{{ selectedCustomer.name }}</div>
+                    </div>
+
+                    <div
+                        class="card bg-gradient-to-br from-blue-600 to-indigo-700 text-white border-0 shadow-lg shadow-blue-200 mb-4">
+                        <h4 class="font-bold mb-3 opacity-90">Hizmet veya Ürün Ekle</h4>
+                        <select v-model="selectedServiceId" class="w-full text-slate-900 border-0"
+                            @change="addServiceToWizard">
+                            <option value="">Hizmet seçiniz...</option>
+                            <option v-for="s in services" :value="s.id">{{ s.service_name }} ({{ s.price }} TL)</option>
+                        </select>
+                    </div>
+
+                    <div class="space-y-3">
+                        <div v-for="(item, idx) in wizardItems" :key="idx"
+                            class="card flex justify-between items-center py-3">
+                            <div class="flex-1">
+                                <div class="font-bold text-slate-800">{{ item.name }}</div>
+                                <div class="flex items-center gap-2 mt-1">
+                                    <button @click="item.qty > 1 ? item.qty-- : null"
+                                        class="w-6 h-6 rounded bg-slate-100 flex items-center justify-center text-xs">-</button>
+                                    <span class="font-bold w-6 text-center">{{ item.qty }}</span>
+                                    <button @click="item.qty++"
+                                        class="w-6 h-6 rounded bg-slate-100 flex items-center justify-center text-xs">+</button>
+                                    <span class="text-sm text-slate-400 ml-2">{{ item.price }} TL</span>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <div class="font-extrabold text-blue-600">{{ item.price * item.qty }} TL</div>
+                                <button @click="wizardItems.splice(idx, 1)"
+                                    class="text-red-400 text-xs mt-1">Sil</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div v-if="wizardItems.length > 0" class="mt-8 space-y-3">
+                        <div
+                            class="flex justify-between items-center px-4 py-3 bg-white rounded-xl border border-slate-100">
+                            <span class="font-medium text-slate-500">Genel Toplam</span>
+                            <span class="text-2xl font-black text-slate-900">{{ totalAmount }} TL</span>
+                        </div>
+                        <button @click="saveWizard"
+                            class="btn btn-primary w-full py-5 rounded-2xl shadow-xl shadow-blue-200 text-lg">
+                            <i class="fas fa-check-circle"></i> İŞLEMİ KAYDET
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. RANDEVULAR -->
+            <div v-if="activeTab === 'appointments'" class="space-y-4">
+                <div v-if="appointments.length === 0"
+                    class="flex flex-col items-center justify-center py-20 text-slate-300">
+                    <i class="far fa-calendar-times text-6xl mb-4"></i>
+                    <p class="font-medium">Henüz randevu yok.</p>
+                </div>
+
+                <div v-for="a in appointments" :key="a.id" class="card relative overflow-hidden">
+                    <div class="absolute top-0 right-0 w-1 h-full"
+                        :class="a.status === 'Bekliyor' ? 'bg-amber-400' : 'bg-emerald-500'"></div>
+                    <div class="flex justify-between items-start mb-2">
+                        <div>
+                            <div class="font-bold text-lg text-slate-800">{{ a.customer_name }}</div>
+                            <div class="flex items-center gap-2 text-blue-600 font-semibold text-xs mt-1">
+                                <i class="far fa-clock"></i> {{ a.date }} • {{ a.time }}
+                            </div>
+                        </div>
+                        <span class="text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider"
+                            :class="a.status === 'Bekliyor' ? 'bg-amber-50 text-amber-600 border border-amber-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'">
+                            {{ a.status }}
+                        </span>
+                    </div>
+                    <p class="text-sm text-slate-600 leading-relaxed mb-4">{{ a.description }}</p>
+                    <div class="grid grid-cols-2 gap-2">
+                        <a :href="'tel:' + a.phone" class="btn btn-secondary text-sm">
+                            <i class="fas fa-phone text-emerald-500"></i> Ara
+                        </a>
+                        <button v-if="a.status === 'Bekliyor'" @click="updateAppointment(a.id, 'Tamamlandı')"
+                            class="btn btn-primary text-sm">
+                            <i class="fas fa-check"></i> Tamamla
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. MÜŞTERİLER -->
+            <div v-if="activeTab === 'customers'">
+                <div class="card p-3 mb-4 sticky top-16 z-30 bg-white shadow-sm border-slate-100">
+                    <div class="relative">
+                        <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                        <input type="text" v-model="customerListSearch" placeholder="Müşteri ara..."
+                            class="w-full pl-11 bg-slate-50">
+                    </div>
+                </div>
+
+                <div class="space-y-3 pb-20">
+                    <div v-for="c in filteredCustomerList" :key="c.id" class="card p-0 overflow-hidden"
+                        @click="openCustomerDetail(c)">
+                        <div class="p-4 flex justify-between items-center">
+                            <div>
+                                <div class="font-bold text-slate-800">{{ c.name }}</div>
+                                <div class="text-sm text-slate-500 mt-1">{{ c.phone }}</div>
+                            </div>
+                            <div class="flex gap-2">
+                                <a :href="'tel:' + c.phone" @click.stop
+                                    class="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center active:scale-90 transition-transform">
+                                    <i class="fas fa-phone"></i>
+                                </a>
+                                <button @click.stop="deleteCustomer(c.id)"
+                                    class="w-10 h-10 rounded-full bg-red-50 text-red-600 flex items-center justify-center active:scale-90 transition-transform">
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <button @click="openModal('addCustomer')" class="fab">
+                    <i class="fas fa-plus text-xl"></i>
+                </button>
+            </div>
+
+            <!-- 4. HİZMETLER -->
+            <div v-if="activeTab === 'services'">
+                <div class="space-y-3 pb-20">
+                    <div v-for="s in services" :key="s.id"
+                        class="card flex justify-between items-center active:bg-slate-50">
+                        <div>
+                            <div class="font-bold text-slate-800">{{ s.service_name }}</div>
+                            <div class="text-xs text-slate-500 uppercase font-semibold mt-1 tracking-wider">{{
+                                s.category }}</div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-lg font-black text-blue-600">{{ s.price }} TL</div>
+                            <div class="text-[10px] text-slate-400 mt-1" v-if="s.duration">{{ s.duration }} Dakika</div>
+                        </div>
+                    </div>
+                </div>
+
+                <button @click="openModal('addService')" class="fab">
+                    <i class="fas fa-plus text-xl"></i>
+                </button>
+            </div>
+
+            <div v-if="activeTab === 'menu'" class="space-y-4 pb-20">
+                <div v-for="group in navigationGroups" :key="group.id" class="card">
+                    <h3 class="font-black text-slate-800 mb-3">{{ group.title }}</h3>
+                    <div class="grid grid-cols-1 gap-2">
+                        <a v-for="item in group.items" :key="item.id"
+                            :href="'/?page=' + encodeURIComponent(item.id)"
+                            class="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-700">
+                            <span>{{ item.label }}</span>
+                            <i class="fas fa-chevron-right text-slate-400"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+
+        <!-- Modals -->
+        <div v-if="activeModal" class="modal-overlay" @click.self="closeModal">
+            <div class="modal-content">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-xl font-black text-slate-800">{{ modalTitle }}</h2>
+                    <button @click="closeModal"
+                        class="w-10 h-10 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+
+                <!-- Add Customer Form -->
+                <div v-if="activeModal === 'addCustomer'" class="space-y-4">
+                    <div class="flex flex-col gap-1">
+                        <label class="text-xs font-bold text-slate-500 ml-1">MÜŞTERİ ADI SOYADI</label>
+                        <input type="text" v-model="forms.customer.name" placeholder="Örn: Ahmet Yılmaz">
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <label class="text-xs font-bold text-slate-500 ml-1">TELEFON NUMARASI</label>
+                        <input type="tel" v-model="forms.customer.phone" placeholder="05XX XXX XX XX">
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <label class="text-xs font-bold text-slate-500 ml-1">E-POSTA (İSTEĞE BAĞLI)</label>
+                        <input type="email" v-model="forms.customer.email" placeholder="ornek@mail.com">
+                    </div>
+                    <button @click="saveCustomer" class="btn btn-primary w-full py-4 rounded-xl mt-4">KAYDET</button>
+                </div>
+
+                <!-- Add Service Form -->
+                <div v-if="activeModal === 'addService'" class="space-y-4">
+                    <div class="flex flex-col gap-1">
+                        <label class="text-xs font-bold text-slate-500 ml-1">HİZMET ADI</label>
+                        <input type="text" v-model="forms.service.service_name" placeholder="Örn: Yağ Değişimi">
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <label class="text-xs font-bold text-slate-500 ml-1">KATEGORİ</label>
+                        <select v-model="forms.service.category">
+                            <option value="Bakım">Bakım</option>
+                            <option value="Onarım">Onarım</option>
+                            <option value="Yazılım">Yazılım</option>
+                            <option value="Diğer">Diğer</option>
+                        </select>
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <label class="text-xs font-bold text-slate-500 ml-1">BİRİM FİYAT (TL)</label>
+                        <input type="number" v-model="forms.service.price" placeholder="0.00">
+                    </div>
+                    <button @click="saveService" class="btn btn-primary w-full py-4 rounded-xl mt-4">KAYDET</button>
+                </div>
+
+                <!-- Customer Detail / History Modal -->
+                <div v-if="activeModal === 'customerDetail'" class="space-y-6">
+                    <div class="bg-blue-50 p-4 rounded-2xl flex justify-between items-center">
+                        <div>
+                            <div class="text-xs text-blue-600 font-bold uppercase tracking-wider">Güncel Bakiye</div>
+                            <div class="text-2xl font-black text-blue-900">{{ currentBalance }} TL</div>
+                        </div>
+                        <a :href="'tel:' + selectedCustomer.phone" class="btn btn-primary w-12 h-12 !p-0"><i
+                                class="fas fa-phone"></i></a>
+                    </div>
+
+                    <div>
+                        <h3 class="font-bold text-lg mb-4 flex items-center gap-2">
+                            <i class="fas fa-history text-slate-400"></i> İşlem Geçmişi
+                        </h3>
+                        <div v-if="customerHistory.length === 0" class="text-center py-10 text-slate-400 italic">Kayıt
+                            bulunamadı.</div>
+                        <div class="space-y-0">
+                            <div v-for="h in customerHistory" :key="h.id" class="history-item"
+                                :class="h.type === 'Tahsilat' ? 'payment' : 'service'">
+                                <div class="flex justify-between items-start">
+                                    <div class="text-[10px] font-bold text-slate-400">{{ h.date }}</div>
+                                    <div class="font-bold"
+                                        :class="h.type === 'Tahsilat' ? 'text-emerald-600' : 'text-slate-800'">
+                                        {{ h.type === 'Tahsilat' ? '-' : '+' }}{{ h.amount }} TL
+                                    </div>
+                                </div>
+                                <div class="font-semibold text-sm">{{ h.description }}</div>
+                                <div class="text-xs text-slate-500 mt-1">{{ h.status || 'Tamamlandı' }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Navigation -->
+        <nav class="bottom-nav">
+            <div @click="activeTab = 'wizard'; wizardStep = 1" class="nav-item"
+                :class="{active: activeTab === 'wizard'}">
+                <i class="fas fa-bolt"></i>
+                <span>Hızlı</span>
+            </div>
+            <div @click="activeTab = 'appointments'" class="nav-item" :class="{active: activeTab === 'appointments'}">
+                <i class="fas fa-calendar-check"></i>
+                <span>İşler</span>
+            </div>
+            <div @click="activeTab = 'customers'" class="nav-item" :class="{active: activeTab === 'customers'}">
+                <i class="fas fa-address-book"></i>
+                <span>Rehber</span>
+            </div>
+            <div @click="activeTab = 'services'" class="nav-item" :class="{active: activeTab === 'services'}">
+                <i class="fas fa-tags"></i>
+                <span>Fiyatlar</span>
+            </div>
+            <div @click="activeTab = 'menu'" class="nav-item" :class="{active: activeTab === 'menu'}">
+                <i class="fas fa-bars"></i>
+                <span>Men&uuml;</span>
+            </div>
+        </nav>
+
+        <!-- Loading Overlay -->
+        <div v-if="loading" class="fixed inset-0 bg-white/60 backdrop-blur-md z-[200] flex items-center justify-center">
+            <div class="bg-white p-6 rounded-3xl shadow-2xl flex flex-col items-center gap-4">
+                <i class="fas fa-spinner fa-spin text-3xl text-blue-600"></i>
+                <span class="font-bold text-slate-600">İşlem yapılıyor...</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, computed, onMounted, reactive } = Vue;
+
+        createApp({
+            setup() {
+                const activeTab = ref('wizard');
+                const loading = ref(false);
+                const activeModal = ref(null);
+
+                // Data
+                const customers = ref([]);
+                const services = ref([]);
+                const appointments = ref([]);
+                const navigationGroups = ref([]);
+                const customerHistory = ref([]);
+                const currentBalance = ref(0);
+
+                // Wizard State
+                const wizardStep = ref(1);
+                const customerSearch = ref('');
+                const selectedCustomer = ref(null);
+                const selectedServiceId = ref('');
+                const wizardItems = ref([]);
+
+                // List Searches
+                const customerListSearch = ref('');
+
+                // Forms
+                const forms = reactive({
+                    customer: { name: '', phone: '', email: '' },
+                    service: { service_name: '', category: 'Bakım', price: 0 }
+                });
+
+                const modalTitle = computed(() => {
+                    const titles = {
+                        addCustomer: 'Yeni Müşteri Ekle',
+                        addService: 'Yeni Hizmet Tanımla',
+                        customerDetail: selectedCustomer.value ? selectedCustomer.value.name : 'Müşteri Detayı'
+                    };
+                    return titles[activeModal.value] || '';
+                });
+
+                const currentPageTitle = computed(() => {
+                    const titles = { wizard: 'Sihirbaz', appointments: '\u0130\u015f Listesi', customers: 'M\u00fc\u015fteriler', services: 'Hizmetler', menu: 'Men\u00fc' };
+                    return titles[activeTab.value];
+                });
+
+                const filteredCustomers = computed(() => {
+                    if (!customerSearch.value) return [];
+                    return customers.value.filter(c =>
+                        c.name.toLowerCase().includes(customerSearch.value.toLowerCase()) ||
+                        (c.phone && c.phone.includes(customerSearch.value))
+                    ).slice(0, 5);
+                });
+
+                const filteredCustomerList = computed(() => {
+                    if (!customerListSearch.value) return customers.value;
+                    const search = customerListSearch.value.toLowerCase();
+                    return customers.value.filter(c =>
+                        c.name.toLowerCase().includes(search) ||
+                        (c.phone && c.phone.includes(search))
+                    );
+                });
+
+                const totalAmount = computed(() => wizardItems.value.reduce((sum, item) => sum + (item.price * item.qty), 0));
+
+                const reloadData = async () => {
+                    loading.value = true;
+                    try {
+                        const [cRes, sRes, aRes, nRes] = await Promise.all([
+                            fetch('/api/customers').then(r => r.json()),
+                            fetch('/api/service-definitions').then(r => r.json()),
+                            fetch('/api/appointments').then(r => r.json()),
+                            fetch('/api/navigation').then(r => r.json()).catch(() => ({ groups: [] }))
+                        ]);
+                        customers.value = cRes;
+                        services.value = sRes;
+                        appointments.value = aRes;
+                        navigationGroups.value = nRes.groups || [];
+                    } catch (e) {
+                        alert("Hata: " + e.message);
+                    } finally {
+                        loading.value = false;
+                    }
+                };
+
+                const openModal = (type) => activeModal.value = type;
+                const closeModal = () => activeModal.value = null;
+
+                const openCustomerDetail = async (c) => {
+                    selectedCustomer.value = c;
+                    loading.value = true;
+                    try {
+                        // Fetch History and Balance
+                        const [hRes, bRes] = await Promise.all([
+                            fetch(`/api/customers/${c.id}/history`).then(r => r.json()),
+                            fetch(`/api/customers/${c.id}/balance`).then(r => r.json())
+                        ]);
+                        customerHistory.value = hRes;
+                        currentBalance.value = bRes.balance || 0;
+                        activeModal.value = 'customerDetail';
+                    } catch (e) { alert("Detaylar yüklenemedi: " + e.message); }
+                    finally { loading.value = false; }
+                };
+
+                const saveCustomer = async () => {
+                    if (!forms.customer.name || !forms.customer.phone) return alert("İsim ve telefon zorunludur.");
+                    loading.value = true;
+                    try {
+                        const res = await fetch('/api/customers', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(forms.customer)
+                        });
+                        if (res.ok) {
+                            await reloadData();
+                            closeModal();
+                            forms.customer = { name: '', phone: '', email: '' };
+                        }
+                    } catch (e) { alert(e.message); } finally { loading.value = false; }
+                };
+
+                const deleteCustomer = async (id) => {
+                    if (!confirm("Bu müşteriyi silmek istediğinize emin misiniz?")) return;
+                    loading.value = true;
+                    try {
+                        await fetch(`/api/customers/${id}`, { method: 'DELETE' });
+                        await reloadData();
+                    } catch (e) { alert(e.message); } finally { loading.value = false; }
+                };
+
+                const saveService = async () => {
+                    if (!forms.service.service_name || forms.service.price < 0) return alert("Lütfen geçerli bilgiler girin.");
+                    loading.value = true;
+                    try {
+                        const res = await fetch('/api/service-definitions', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(forms.service)
+                        });
+                        if (res.ok) {
+                            await reloadData();
+                            closeModal();
+                            forms.service = { service_name: '', category: 'Bakım', price: 0 };
+                        }
+                    } catch (e) { alert(e.message); } finally { loading.value = false; }
+                };
+
+                const selectForWizard = (c) => {
+                    selectedCustomer.value = c;
+                    wizardStep.value = 2;
+                };
+
+                const addServiceToWizard = () => {
+                    if (!selectedServiceId.value) return;
+                    const service = services.value.find(s => s.id == selectedServiceId.value);
+                    if (service) {
+                        const existing = wizardItems.value.find(it => it.id === service.id);
+                        if (existing) { existing.qty++; }
+                        else {
+                            wizardItems.value.push({ id: service.id, name: service.service_name, price: service.price, qty: 1 });
+                        }
+                    }
+                    selectedServiceId.value = '';
+                };
+
+                const saveWizard = async () => {
+                    loading.value = true;
+                    try {
+                        const payload = {
+                            customer_id: selectedCustomer.value.id,
+                            customer_name: selectedCustomer.value.name,
+                            process_date: new Date().toISOString().split('T')[0],
+                            items: wizardItems.value
+                        };
+                        const res = await fetch('/api/process-wizard/save', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+                        if (res.ok) {
+                            alert("İşlem başarıyla kaydedildi.");
+                            wizardStep.value = 1;
+                            wizardItems.value = [];
+                            selectedCustomer.value = null;
+                            customerSearch.value = '';
+                            await reloadData(); // Refresh to show new counts/status
+                        }
+                    } catch (e) { alert(e.message); } finally { loading.value = false; }
+                };
+
+                const updateAppointment = async (id, status) => {
+                    loading.value = true;
+                    try {
+                        await fetch(`/api/appointments/${id}/status`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ status })
+                        });
+                        await reloadData();
+                    } catch (e) { alert(e.message); } finally { loading.value = false; }
+                };
+
+                onMounted(reloadData);
+
+                return {
+                    activeTab, loading, activeModal, customers, services, appointments, navigationGroups,
+                    wizardStep, customerSearch, selectedCustomer, selectedServiceId, wizardItems,
+                    customerListSearch, forms, modalTitle, currentPageTitle, filteredCustomers,
+                    filteredCustomerList, totalAmount, customerHistory, currentBalance,
+                    reloadData, openModal, closeModal, openCustomerDetail,
+                    saveCustomer, deleteCustomer, saveService, selectForWizard, addServiceToWizard,
+                    saveWizard, updateAppointment
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+
+</html>

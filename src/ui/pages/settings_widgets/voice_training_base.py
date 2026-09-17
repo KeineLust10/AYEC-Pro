@@ -1,9 +1,11 @@
+# -*- coding: utf-8 -*-
+
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-                             QListWidget, QPushButton, QLineEdit, QComboBox, QCheckBox,
-                             QFrame, QListWidgetItem, QDialog, QTextEdit, QApplication, QFileDialog,
+                             QListWidget, QPushButton, QCheckBox,
+                             QFrame, QListWidgetItem, QApplication,
                              QTimeEdit)
 from PyQt6.QtCore import Qt, QTime
-from PyQt6.QtGui import QFont, QIcon
+from PyQt6.QtGui import QFont
 import json
 import os
 import subprocess
@@ -15,6 +17,8 @@ from src.utils.design_system import DesignTokens
 from src.ui.dialogs.modern_input_dialog import ModernInputDialog
 from src.utils.logger import logger
 from src.ui.widgets.animated_toggle import AnimatedToggle
+from src.utils.page_config import PAGE_MAPPING, PAGE_NAMES
+
 
 
 class VoiceTrainingWidget(QWidget):
@@ -33,10 +37,11 @@ class VoiceTrainingWidget(QWidget):
         self.current_scenario_name = ""
         self.last_healthcheck_result = None
         self.setup_ui()
+        self._wire_ui_signals()
         self.load_data()
 
     def _default_scenarios(self):
-        return {
+        scenarios = {
             "Finansal Özet": {
                 "triggers": ["finans özet", "mali durum özeti", "kasa özeti"],
                 "action": {"type": "builtin", "name": "accounting_summary"},
@@ -109,6 +114,38 @@ class VoiceTrainingWidget(QWidget):
                 "triggers": ["gün kapanış özeti", "günü kapat", "akşam özetini ver"],
                 "action": {"type": "builtin", "name": "closing_routine"},
             },
+            "Musteri Borc Durumu": {
+                "triggers": [
+                    "borclu musterileri soyle",
+                    "musteri borc durumunu soyle",
+                    "kimlerin borcu var",
+                ],
+                "action": {"type": "builtin", "name": "customer_debt_summary"},
+            },
+            "Servis Is Yuku": {
+                "triggers": [
+                    "servis is yukunu soyle",
+                    "kac cihaz bekliyor",
+                    "servis durum ozeti",
+                ],
+                "action": {"type": "builtin", "name": "service_workload_summary"},
+            },
+            "Simdi Senkronize Et": {
+                "triggers": [
+                    "simdi senkronize et",
+                    "senkronizasyon yap",
+                    "verileri sunucuyla esitle",
+                ],
+                "action": {"type": "builtin", "name": "sync_now"},
+            },
+            "Asistan Yetenekleri": {
+                "triggers": [
+                    "neler yapabilirsin",
+                    "hangi komutlari biliyorsun",
+                    "bana nasil yardim edebilirsin",
+                ],
+                "action": {"type": "builtin", "name": "assistant_help"},
+            },
             "Genel Bakış": {
                 "triggers": ["genel bakış aç", "dashboard aç", "ana ekranı aç"],
                 "action": {"type": "page", "index": 40},
@@ -126,6 +163,28 @@ class VoiceTrainingWidget(QWidget):
                 "action": {"type": "page", "index": 150},
             },
         }
+        linked_pages = {
+            int(config["action"]["index"])
+            for config in scenarios.values()
+            if config.get("action", {}).get("type") == "page"
+        }
+        for page_id, page_name in sorted(PAGE_NAMES.items()):
+            if int(page_id) not in PAGE_MAPPING or int(page_id) in linked_pages:
+                continue
+            label = str(page_name or "").strip()
+            if not label:
+                continue
+            scenario_name = f"{label} Sayfas\u0131"
+            voice_label = label.casefold()
+            scenarios[scenario_name] = {
+                "triggers": [
+                    f"{voice_label} a\u00e7",
+                    f"{voice_label} sayfas\u0131n\u0131 a\u00e7",
+                    f"{voice_label} ekran\u0131na git",
+                ],
+                "action": {"type": "page", "index": int(page_id)},
+            }
+        return scenarios
 
     def _build_stat_card(self, title, value, accent):
         card = QFrame()
@@ -503,6 +562,12 @@ class VoiceTrainingWidget(QWidget):
         layout.addLayout(cards_row)
         layout.addWidget(self.btn_save)
 
+    def _wire_ui_signals(self):
+        self.chk_loan_enabled.toggled.connect(self.save_data)
+        self.chk_check_enabled.toggled.connect(self.save_data)
+        self.chk_stock_enabled.toggled.connect(self.save_data)
+        self.chk_critical_override.stateChanged.connect(self.save_data)
+
     def load_data(self):
         path = self.config_path
         if not os.path.exists(path):
@@ -573,10 +638,11 @@ class VoiceTrainingWidget(QWidget):
             haystack = " ".join([name.lower()] + [str(t).lower() for t in item["triggers"]])
             if action:
                 item["action"] = action
-            for keyword, fixed_action in keyword_map.items():
-                if keyword in haystack:
-                    item["action"] = fixed_action.copy()
-                    break
+            if not action:
+                for keyword, fixed_action in keyword_map.items():
+                    if keyword in haystack:
+                        item["action"] = fixed_action.copy()
+                        break
             if name in defaults and not item.get("action"):
                 item["action"] = defaults[name]["action"].copy()
             sanitized[name] = item
@@ -590,23 +656,33 @@ class VoiceTrainingWidget(QWidget):
 
     def _init_action_options(self, combo):
         combo.clear()
-        options = [("Bağlantı Yok (Sadece Komut)", None)]
+        options = [("Ba\u011flant\u0131 Yok (Sadece Komut)", None)]
 
-        options.append(("🛠️ Aç: Teknisyen Paneli", {"type": "builtin", "name": "panel_ac"}))
-        options.append(("📊 Özel Fonksiyon: Finansal Özet", {"type": "builtin", "name": "accounting_summary"}))
-        options.append(("💸 Özel Fonksiyon: Stoklara %10 Zam", {"type": "builtin", "name": "apply_zam"}))
-        options.append(("✔️ Özel Fonksiyon: Sesli Onay (Evet)", {"type": "builtin", "name": "confirm_yes"}))
-        options.append(("📅 Özel Fonksiyon: Bugünkü Randevular", {"type": "builtin", "name": "check_appointments"}))
-        options.append(("🔊 Özel Fonksiyon: Kritik Stokları Listele", {"type": "builtin", "name": "list_critical_stock"}))
-        options.append(("⏰ Özel Fonksiyon: Sesli Hatırlatıcı Ekle", {"type": "builtin", "name": "add_reminder_voice"}))
-        options.append(("📝 Özel Fonksiyon: Sesli Not Al", {"type": "builtin", "name": "add_quick_note_voice"}))
-        options.append(("🧭 Özel Fonksiyon: Yönetici Özeti", {"type": "builtin", "name": "managerial_summary"}))
-        options.append(("🔧 Özel Fonksiyon: Cihaz Durumu Sorgula", {"type": "builtin", "name": "device_status_query"}))
-        options.append(("🌅 Özel Fonksiyon: Günaydın Rutini", {"type": "builtin", "name": "greeting_routine"}))
-        options.append(("🌙 Özel Fonksiyon: Kapanış Rutini", {"type": "builtin", "name": "closing_routine"}))
-        options.append(("🏷️ Özel Fonksiyon: Stok Karşılaştırma", {"type": "builtin", "name": "stock_comparison"}))
-        options.append(("👤 Özel Fonksiyon: Müşteri 360", {"type": "builtin", "name": "customer_360"}))
-        options.append(("💬 Özel Fonksiyon: İndirim Tavsiyesi", {"type": "builtin", "name": "discount_advice"}))
+        options.append(("\U0001f6e0\ufe0f A\u00e7: Teknisyen Paneli", {"type": "builtin", "name": "panel_ac"}))
+        options.append(("\U0001f4cb A\u00e7: Yeni Servis", {"type": "builtin", "name": "servis_ac"}))
+        options.append(("\U0001f4ca \u00d6zel Fonksiyon: Finansal \u00d6zet", {"type": "builtin", "name": "accounting_summary"}))
+        options.append(("\U0001f4c8 \u00d6zel Fonksiyon: Geli\u015fmi\u015f Finansal \u00d6zet", {"type": "builtin", "name": "financial_summary"}))
+        options.append(("\U0001f4b8 \u00d6zel Fonksiyon: Stoklara %10 Zam", {"type": "builtin", "name": "apply_zam"}))
+        options.append(("\u2714\ufe0f \u00d6zel Fonksiyon: Sesli Onay (Evet)", {"type": "builtin", "name": "confirm_yes"}))
+        options.append(("\u274c \u00d6zel Fonksiyon: Sesli Onay (Hay\u0131r)", {"type": "builtin", "name": "confirm_no"}))
+        options.append(("\U0001f4c5 \u00d6zel Fonksiyon: Bug\u00fcnk\u00fc Randevular", {"type": "builtin", "name": "check_appointments"}))
+        options.append(("\U0001f50a \u00d6zel Fonksiyon: Kritik Stoklar\u0131 Listele", {"type": "builtin", "name": "list_critical_stock"}))
+        options.append(("\U0001f4e6 \u00d6zel Fonksiyon: Stok \u00d6zeti", {"type": "builtin", "name": "stock_summary"}))
+        options.append(("\u23f0 \u00d6zel Fonksiyon: Sesli Hat\u0131rlat\u0131c\u0131 Ekle", {"type": "builtin", "name": "add_reminder_voice"}))
+        options.append(("\U0001f4dd \u00d6zel Fonksiyon: Sesli Not Al", {"type": "builtin", "name": "add_quick_note_voice"}))
+        options.append(("\U0001f9ed \u00d6zel Fonksiyon: Y\u00f6netici \u00d6zeti", {"type": "builtin", "name": "managerial_summary"}))
+        options.append(("\U0001f527 \u00d6zel Fonksiyon: Cihaz Durumu Sorgula", {"type": "builtin", "name": "device_status_query"}))
+        options.append(("\U0001f305 \u00d6zel Fonksiyon: G\u00fcnayd\u0131n Rutini", {"type": "builtin", "name": "greeting_routine"}))
+        options.append(("\U0001f319 \u00d6zel Fonksiyon: Kapan\u0131\u015f Rutini", {"type": "builtin", "name": "closing_routine"}))
+        options.append(("\U0001f3f7\ufe0f \u00d6zel Fonksiyon: Stok Kar\u015f\u0131la\u015ft\u0131rma", {"type": "builtin", "name": "stock_comparison"}))
+        options.append(("\U0001f464 \u00d6zel Fonksiyon: M\u00fc\u015fteri 360", {"type": "builtin", "name": "customer_360"}))
+        options.append(("\U0001f4ac \u00d6zel Fonksiyon: \u0130ndirim Tavsiyesi", {"type": "builtin", "name": "discount_advice"}))
+        options.append(("\U0001f4b3 \u00d6zel Fonksiyon: Bor\u00e7 \u00d6zeti", {"type": "builtin", "name": "loan_summary"}))
+        options.append(("\U0001f9fe \u00d6zel Fonksiyon: \u00c7ek Senet \u00d6zeti", {"type": "builtin", "name": "check_summary"}))
+        options.append(("Musteri Borc Durumu", {"type": "builtin", "name": "customer_debt_summary"}))
+        options.append(("Servis Is Yuku", {"type": "builtin", "name": "service_workload_summary"}))
+        options.append(("Simdi Senkronize Et", {"type": "builtin", "name": "sync_now"}))
+        options.append(("Asistan Yetenekleri", {"type": "builtin", "name": "assistant_help"}))
 
         nav_items = None
         try:
@@ -624,21 +700,7 @@ class VoiceTrainingWidget(QWidget):
                 except Exception:
                     continue
         else:
-            fallback = [
-                (40, "Genel Bakış"),
-                (41, "Servis Operasyon Panosu"),
-                (42, "Servis Durum Ekranı"),
-                (30, "Randevu Takvimi"),
-                (150, "Yeni Servis İşlemi"),
-                (21, "Müşteri Listesi"),
-                (50, "Stok & Envanter"),
-                (101, "Gelir / Gider Takibi"),
-                (102, "Müşteri Cari Hesaplar"),
-                (111, "Raporlar & Analizler"),
-                (130, "Sistem Ayarları"),
-                (170, "AI Asistan"),
-                (180, "Yedekleme Merkezi"),
-            ]
+            fallback = sorted(PAGE_NAMES.items())
             for idx, lbl in fallback:
                 options.append((f"📄 Sayfa Aç: {lbl}", {"type": "page", "index": idx}))
 

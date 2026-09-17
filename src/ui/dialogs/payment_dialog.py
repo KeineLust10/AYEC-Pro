@@ -3,6 +3,7 @@
 from PyQt6.QtCore import QDate, Qt
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
+    QApplication,
     QCheckBox,
     QComboBox,
     QDateEdit,
@@ -25,9 +26,15 @@ from src.ui.widgets.modern_dialog import ModernDialog
 from src.utils.theme_colors import theme_qss
 from src.utils.currency_helper import CurrencyHelper
 from src.utils.design_system import DesignTokens
+from src.utils.tax_settings import TaxSettings
+
 
 
 class ModernPaymentDialog(ModernDialog):
+
+    def _on_ui_widget_changed(self, *args):
+        from src.ui.utils.ui_signal_helpers import on_ui_widget_changed
+        on_ui_widget_changed(self, *args)
     def __init__(self, parent, db, customer):
         super().__init__(title="Tahsilat Al", parent=parent, width=1280, height=860)
         self.set_wheel_scroll_enabled(True)
@@ -96,7 +103,8 @@ class ModernPaymentDialog(ModernDialog):
 
     def _build_ui(self):
         root = self.content_layout
-        root.setContentsMargins(18, 18, 18, 18)
+        root.setContentsMargins(10, 8, 10, 10)
+        root.setSpacing(0)
 
         card = QFrame()
         card.setObjectName("PaymentCard")
@@ -106,7 +114,7 @@ class ModernPaymentDialog(ModernDialog):
                 QFrame#PaymentCard {
                     background: @surface;
                     border: 1px solid @border;
-                    border-radius: 28px;
+                    border-radius: 18px;
                 }
                 """
             )
@@ -119,15 +127,17 @@ class ModernPaymentDialog(ModernDialog):
         root.addWidget(card)
 
         layout = QVBoxLayout(card)
-        layout.setContentsMargins(28, 28, 28, 28)
-        layout.setSpacing(18)
+        layout.setContentsMargins(18, 14, 18, 18)
+        layout.setSpacing(12)
 
         # Header
         header = QHBoxLayout()
         head_left = QVBoxLayout()
+        head_left.setContentsMargins(0, 0, 0, 0)
+        head_left.setSpacing(4)
         title = QLabel("Tahsilat Al")
         title.setStyleSheet(
-            theme_qss("font-size: 28px; font-weight: 900; color: @text;")
+            theme_qss("font-size: 24px; font-weight: 900; color: @text;")
         )
         customer_name = self.customer.get("name", "")
         customer_phone = self.customer.get("phone", "") or "-"
@@ -164,7 +174,7 @@ class ModernPaymentDialog(ModernDialog):
         layout.addLayout(header)
 
         content_row = QHBoxLayout()
-        content_row.setSpacing(18)
+        content_row.setSpacing(14)
 
         left_panel = QWidget()
         left_col = QVBoxLayout(left_panel)
@@ -373,7 +383,10 @@ class ModernPaymentDialog(ModernDialog):
 
         self.combo_vat_rate = QComboBox()
         self.combo_vat_rate.addItems(["%20", "%18", "%10", "%8", "%1", "KDV Hariç"])
-        self.combo_vat_rate.setCurrentIndex(0)
+        default_vat_text = TaxSettings.combo_text(self.db)
+        if self.combo_vat_rate.findText(default_vat_text) < 0:
+            self.combo_vat_rate.insertItem(0, default_vat_text)
+        self.combo_vat_rate.setCurrentText(default_vat_text)
         self.combo_vat_rate.setStyleSheet(theme_qss(self._combo_qss()))
         self.combo_vat_rate.currentTextChanged.connect(self._calculate_vat)
         self.combo_vat_rate.setFixedWidth(120)
@@ -556,8 +569,7 @@ class ModernPaymentDialog(ModernDialog):
         """Varsayılan dövizi her zaman, diğerlerini sadece bakiye varsa göster."""
         while self.currency_cards_layout.count():
             item = self.currency_cards_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
+            self._dispose_layout_item(item)
 
         default_currency = CurrencyHelper.get_code(self.db)
         visible_codes = []
@@ -725,7 +737,16 @@ class ModernPaymentDialog(ModernDialog):
                 (customer_id,),
             )
 
-            self.debt_items = cursor.fetchall()
+            raw_items = cursor.fetchall() or []
+            unique_items = []
+            seen_ids = set()
+            for debt in raw_items:
+                debt_id = debt[0] if len(debt) > 0 else None
+                if debt_id in seen_ids:
+                    continue
+                seen_ids.add(debt_id)
+                unique_items.append(debt)
+            self.debt_items = unique_items
             self._refresh_debt_list()
         except Exception as e:
             print(f"Borç kalemleri yüklenirken hata: {e}")
@@ -733,18 +754,21 @@ class ModernPaymentDialog(ModernDialog):
 
     def _refresh_debt_list(self):
         """Borç listesini güncelle - seçili para birimine göre filtrele"""
-        # Önceki öğeleri temizle
-        while self.debt_layout.count() > 1:  # Stretch hariç
+        while self.debt_layout.count():
             item = self.debt_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
+            self._dispose_layout_item(item)
 
-        filtered_debts = [
-            debt
-            for debt in self.debt_items
-            if str((debt[2] if len(debt) > 2 else "TRY") or "TRY").upper()
-            == self.selected_currency
-        ]
+        filtered_debts = []
+        seen_ids = set()
+        for debt in self.debt_items:
+            debt_id = debt[0] if len(debt) > 0 else None
+            debt_currency = str((debt[2] if len(debt) > 2 else "TRY") or "TRY").upper()
+            if debt_currency != self.selected_currency:
+                continue
+            if debt_id in seen_ids:
+                continue
+            seen_ids.add(debt_id)
+            filtered_debts.append(debt)
 
         visible_debt_ids = {debt[0] for debt in filtered_debts}
         self.selected_debts = {
@@ -757,11 +781,34 @@ class ModernPaymentDialog(ModernDialog):
                 theme_qss("font-size: 13px; color: @text_muted; padding: 20px;")
             )
             no_debt_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            self.debt_layout.insertWidget(0, no_debt_lbl)
+            self.debt_layout.addWidget(no_debt_lbl)
         else:
             for debt in filtered_debts:
                 debt_widget = self._create_debt_item_widget(debt)
-                self.debt_layout.insertWidget(self.debt_layout.count() - 1, debt_widget)
+                self.debt_layout.addWidget(debt_widget)
+
+        self.debt_layout.addStretch()
+        self.debt_container.adjustSize()
+        self.debt_container.updateGeometry()
+        self.debt_scroll.viewport().update()
+        QApplication.processEvents()
+
+    def _clear_layout(self, layout):
+        while layout.count():
+            item = layout.takeAt(0)
+            self._dispose_layout_item(item)
+
+    def _dispose_layout_item(self, item):
+        if item is None:
+            return
+        widget = item.widget()
+        if widget is not None:
+            widget.setParent(None)
+            widget.deleteLater()
+            return
+        child_layout = item.layout()
+        if child_layout is not None:
+            self._clear_layout(child_layout)
 
     def _create_debt_item_widget(self, debt):
         """Tek borç kalemi widget'ı oluştur (açılır/kapanır)"""
@@ -778,6 +825,9 @@ class ModernPaymentDialog(ModernDialog):
         # Ana frame
         frame = QFrame()
         frame.setObjectName(f"DebtItem_{debt_id}")
+        frame.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum
+        )
         frame.setStyleSheet(
             theme_qss("""
             QFrame {
@@ -869,6 +919,10 @@ class ModernPaymentDialog(ModernDialog):
         # Detay bölümü (başlangıçta gizli)
         details_widget = QWidget()
         details_widget.setVisible(False)
+        details_widget.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
+        details_widget.setMaximumHeight(0)
         details_widget.setStyleSheet(
             theme_qss("background: transparent; border: none;")
         )
@@ -947,8 +1001,22 @@ class ModernPaymentDialog(ModernDialog):
         # Toggle fonksiyonu
         def toggle_details():
             is_visible = details_widget.isVisible()
-            details_widget.setVisible(not is_visible)
-            btn_toggle.setText("▲" if not is_visible else "▼")
+            show_details = not is_visible
+            details_widget.setVisible(show_details)
+            details_widget.setMaximumHeight(
+                details_widget.sizeHint().height() if show_details else 0
+            )
+            btn_toggle.setText("\u25b2" if show_details else "\u25bc")
+
+            details_widget.updateGeometry()
+            frame.adjustSize()
+            frame.updateGeometry()
+            self.debt_container.adjustSize()
+            self.debt_container.updateGeometry()
+            self.debt_scroll.viewport().update()
+            if show_details:
+                self.debt_scroll.ensureWidgetVisible(frame, 0, 24)
+            QApplication.processEvents()
 
         btn_toggle.clicked.connect(toggle_details)
 
@@ -1163,18 +1231,9 @@ class ModernPaymentDialog(ModernDialog):
             return
 
         # KDV Hesaplaması
-        vat_rate_text = self.combo_vat_rate.currentText()
-        vat_rate = 0.0
-        if vat_rate_text == "%20":
-            vat_rate = 0.20
-        elif vat_rate_text == "%18":
-            vat_rate = 0.18
-        elif vat_rate_text == "%10":
-            vat_rate = 0.10
-        elif vat_rate_text == "%8":
-            vat_rate = 0.08
-        elif vat_rate_text == "%1":
-            vat_rate = 0.01
+        vat_rate = TaxSettings.ratio_from_text(
+            self.combo_vat_rate.currentText()
+        )
 
         net_amount = amount / (1 + vat_rate) if vat_rate > 0 else amount
         vat_amount = amount - net_amount if vat_rate > 0 else 0.0
@@ -1285,18 +1344,9 @@ class ModernPaymentDialog(ModernDialog):
         except ValueError:
             total = 0.0
 
-        vat_rate_text = self.combo_vat_rate.currentText()
-        vat_rate = 0.0
-        if vat_rate_text == "%20":
-            vat_rate = 0.20
-        elif vat_rate_text == "%18":
-            vat_rate = 0.18
-        elif vat_rate_text == "%10":
-            vat_rate = 0.10
-        elif vat_rate_text == "%8":
-            vat_rate = 0.08
-        elif vat_rate_text == "%1":
-            vat_rate = 0.01
+        vat_rate = TaxSettings.ratio_from_text(
+            self.combo_vat_rate.currentText()
+        )
 
         if vat_rate > 0 and (1 + vat_rate) != 0:
             try:
@@ -1425,3 +1475,10 @@ class ModernPaymentDialog(ModernDialog):
 
     def get_data(self):
         return getattr(self, "result_data", None)
+
+    def _wire_ui_signals(self):
+        self.chk_print_receipt.stateChanged.connect(self._on_ui_widget_changed)
+
+
+# Geriye d\u00f6n\u00fck uyumluluk alias
+PaymentDialog = ModernPaymentDialog

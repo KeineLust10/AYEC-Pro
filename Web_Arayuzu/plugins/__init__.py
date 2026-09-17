@@ -1,0 +1,1 @@
+Maalesef verdiğiniz açıklamada, `# -*- coding: utf-8 -*-` satırı ve açıklama içeren yorumlar dahil olmak üzere herhangi bir kaynak kodu sağlanmamıştır. Lütfen dönüştürülecek olan PyQt6 kaynak kodunu paylaşın. Bu şekilde size daha akıcı ve kullanışlı bir Streamlit uygulaması oluşturabilirim.

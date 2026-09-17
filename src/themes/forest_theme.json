@@ -1,0 +1,40 @@
+{
+  "name": "Forest",
+  "palette": {
+    "window": "#0A1410",
+    "surface": "#122019",
+    "surface_alt": "#1B2D24",
+    "text": "#ECFDF5",
+    "text_muted": "#A4D6BF",
+    "border": "#355847",
+    "accent": "#10B981",
+    "accent_hover": "#059669",
+    "accent_pressed": "#047857",
+    "selection_bg": "#065F46",
+    "selection_text": "#F0FDF4",
+    "disabled_bg": "#15241D",
+    "disabled_text": "#638A77",
+    "danger": "#F43F5E",
+    "success": "#10B981",
+    "warning": "#F59E0B",
+    "warning_bg": "#3B2F08",
+    "danger_bg": "#4C1D1D",
+    "shadow": "rgba(0, 0, 0, 0.25)"
+  },
+  "widgets": {
+    "QDialog":      {"background": "#0C1410", "text": "#ECFDF5", "border": "#2D4A3E", "hover": "#121C17", "pressed": "#1A2922", "disabled": "#15221C"},
+    "QComboBox":    {"background": "#121C17", "text": "#ECFDF5", "border": "#2D4A3E", "hover": "#1A2922", "pressed": "#2D4A3E", "disabled": "#15221C"},
+    "QTableWidget": {"background": "#121C17", "text": "#ECFDF5", "border": "#2D4A3E", "hover": "#1A2922", "pressed": "#2D4A3E", "disabled": "#15221C"},
+    "QFormLayout":  {"background": "#0C1410", "text": "#ECFDF5", "border": "#2D4A3E", "hover": "#121C17", "pressed": "#1A2922", "disabled": "#15221C"},
+    "QLabel":       {"background": "transparent", "text": "#ECFDF5", "border": "transparent", "hover": "transparent", "pressed": "transparent", "disabled": "#4D7C68"},
+    "QPushButton":  {"background": "#10B981", "text": "#ECFDF5", "border": "#059669", "hover": "#059669", "pressed": "#047857", "disabled": "#1A2922"},
+    "QLineEdit":    {"background": "#121C17", "text": "#ECFDF5", "border": "#2D4A3E", "hover": "#1A2922", "pressed": "#2D4A3E", "disabled": "#15221C"},
+    "QTextEdit":    {"background": "#121C17", "text": "#ECFDF5", "border": "#2D4A3E", "hover": "#1A2922", "pressed": "#2D4A3E", "disabled": "#15221C"},
+    "QGroupBox":    {"background": "#0C1410", "text": "#ECFDF5", "border": "#2D4A3E", "hover": "#121C17", "pressed": "#1A2922", "disabled": "#15221C"},
+    "QTabWidget":   {"background": "#0C1410", "text": "#ECFDF5", "border": "#2D4A3E", "hover": "#121C17", "pressed": "#1A2922", "disabled": "#15221C"},
+    "QMenuBar":     {"background": "#121C17", "text": "#ECFDF5", "border": "#2D4A3E", "hover": "#1A2922", "pressed": "#2D4A3E", "disabled": "#15221C"},
+    "QStatusBar":   {"background": "#121C17", "text": "#ECFDF5", "border": "#2D4A3E", "hover": "#1A2922", "pressed": "#2D4A3E", "disabled": "#15221C"},
+    "QHeaderView":  {"background": "#1A2922", "text": "#A7F3D0", "border": "#2D4A3E", "hover": "#2D4A3E", "pressed": "#2D4A3E", "disabled": "#15221C"},
+    "QScrollBar":   {"background": "#121C17", "text": "#ECFDF5", "border": "#2D4A3E", "hover": "#1A2922", "pressed": "#2D4A3E", "disabled": "#15221C"}
+  }
+}

@@ -1,0 +1,242 @@
+[
+    {
+        "id": 1,
+        "name": "T.C. Ziraat Bankası",
+        "shortName": "Ziraat",
+        "eftCode": "0010",
+        "swift": "TCZITR2A",
+        "type": "Kamu Mevduat"
+    },
+    {
+        "id": 2,
+        "name": "Türkiye İş Bankası",
+        "shortName": "İş Bankası",
+        "eftCode": "0064",
+        "swift": "ISBKTRIS",
+        "type": "Özel Mevduat"
+    },
+    {
+        "id": 3,
+        "name": "Akbank",
+        "shortName": "Akbank",
+        "eftCode": "0046",
+        "swift": "AKBKTRIS",
+        "type": "Özel Mevduat"
+    },
+    {
+        "id": 4,
+        "name": "Garanti BBVA",
+        "shortName": "Garanti",
+        "eftCode": "0062",
+        "swift": "TGBATRIS",
+        "type": "Özel Mevduat"
+    },
+    {
+        "id": 5,
+        "name": "Yapı ve Kredi Bankası",
+        "shortName": "Yapı Kredi",
+        "eftCode": "0067",
+        "swift": "YKTRTRIS",
+        "type": "Özel Mevduat"
+    },
+    {
+        "id": 6,
+        "name": "Türkiye Halk Bankası",
+        "shortName": "Halkbank",
+        "eftCode": "0012",
+        "swift": "THALTR2A",
+        "type": "Kamu Mevduat"
+    },
+    {
+        "id": 7,
+        "name": "Türkiye Vakıflar Bankası",
+        "shortName": "VakıfBank",
+        "eftCode": "0015",
+        "swift": "TVBATR2A",
+        "type": "Kamu Mevduat"
+    },
+    {
+        "id": 8,
+        "name": "QNB Finansbank",
+        "shortName": "QNB",
+        "eftCode": "0111",
+        "swift": "FINBTRIS",
+        "type": "Özel Mevduat"
+    },
+    {
+        "id": 9,
+        "name": "DenizBank",
+        "shortName": "DenizBank",
+        "eftCode": "0134",
+        "swift": "DZBKTRIS",
+        "type": "Özel Mevduat"
+    },
+    {
+        "id": 10,
+        "name": "Türk Ekonomi Bankası",
+        "shortName": "TEB",
+        "eftCode": "0032",
+        "swift": "TEBBUIS",
+        "type": "Özel Mevduat"
+    },
+    {
+        "id": 11,
+        "name": "ING Bank",
+        "shortName": "ING",
+        "eftCode": "0099",
+        "swift": "INGBTRIS",
+        "type": "Özel Mevduat"
+    },
+    {
+        "id": 12,
+        "name": "HSBC Bank",
+        "shortName": "HSBC",
+        "eftCode": "0123",
+        "swift": "HSBCTRIS",
+        "type": "Özel Mevduat"
+    },
+    {
+        "id": 13,
+        "name": "Odeabank",
+        "shortName": "Odeabank",
+        "eftCode": "0146",
+        "swift": "ODEATRIS",
+        "type": "Özel Mevduat"
+    },
+    {
+        "id": 14,
+        "name": "Anadolubank",
+        "shortName": "Anadolubank",
+        "eftCode": "0135",
+        "swift": "ANASTR IS",
+        "type": "Özel Mevduat"
+    },
+    {
+        "id": 15,
+        "name": "Şekerbank",
+        "shortName": "Şekerbank",
+        "eftCode": "0059",
+        "swift": "SEKBTRIS",
+        "type": "Özel Mevduat"
+    },
+    {
+        "id": 16,
+        "name": "Fibabanka",
+        "shortName": "Fibabanka",
+        "eftCode": "0103",
+        "swift": "FBHLTRIS",
+        "type": "Özel Mevduat"
+    },
+    {
+        "id": 17,
+        "name": "Burgan Bank",
+        "shortName": "Burgan",
+        "eftCode": "0143",
+        "swift": "TVBATRIS",
+        "type": "Özel Mevduat"
+    },
+    {
+        "id": 18,
+        "name": "Alternatif Bank",
+        "shortName": "Alternatifbank",
+        "eftCode": "0124",
+        "swift": "ALRTTRIS",
+        "type": "Özel Mevduat"
+    },
+    {
+        "id": 19,
+        "name": "Kuveyt Türk Katılım Bankası",
+        "shortName": "Kuveyt Türk",
+        "eftCode": "0205",
+        "swift": "KUVTTRIS",
+        "type": "Katılım"
+    },
+    {
+        "id": 20,
+        "name": "Albaraka Türk Katılım Bankası",
+        "shortName": "Albaraka",
+        "eftCode": "0203",
+        "swift": "BTFHTRIS",
+        "type": "Katılım"
+    },
+    {
+        "id": 21,
+        "name": "Türkiye Finans Katılım Bankası",
+        "shortName": "Türkiye Finans",
+        "eftCode": "0206",
+        "swift": "TFKBTRIS",
+        "type": "Katılım"
+    },
+    {
+        "id": 22,
+        "name": "Ziraat Katılım Bankası",
+        "shortName": "Ziraat Katılım",
+        "eftCode": "0209",
+        "swift": "TCZBTR2A",
+        "type": "Katılım"
+    },
+    {
+        "id": 23,
+        "name": "Vakıf Katılım Bankası",
+        "shortName": "Vakıf Katılım",
+        "eftCode": "0210",
+        "swift": "TVKBTR2A",
+        "type": "Katılım"
+    },
+    {
+        "id": 24,
+        "name": "Emlak Katılım Bankası",
+        "shortName": "Emlak Katılım",
+        "eftCode": "0215",
+        "swift": "EMLKTR2A",
+        "type": "Katılım"
+    },
+    {
+        "id": 25,
+        "name": "Enpara.com",
+        "shortName": "Enpara",
+        "eftCode": "0064",
+        "swift": "ISBKTRIS",
+        "type": "Dijital"
+    },
+    {
+        "id": 26,
+        "name": "Aktif Yatırım Bankası",
+        "shortName": "Aktif Bank",
+        "eftCode": "0143",
+        "swift": "AKBKTRIS",
+        "type": "Yatırım"
+    },
+    {
+        "id": 27,
+        "name": "Nurol Yatırım Bankası",
+        "shortName": "Nurol Bank",
+        "eftCode": "0092",
+        "swift": "NUYTTRIS",
+        "type": "Yatırım"
+    },
+    {
+        "id": 28,
+        "name": "Turkish Bank",
+        "shortName": "Turkish Bank",
+        "eftCode": "0096",
+        "swift": "TRBATRIS",
+        "type": "Özel Mevduat"
+    },
+    {
+        "id": 29,
+        "name": "Citibank",
+        "shortName": "Citibank",
+        "eftCode": "0092",
+        "swift": "CITIUS33",
+        "type": "Yabancı"
+    },
+    {
+        "id": 30,
+        "name": "Standard Chartered Bank",
+        "shortName": "Standard Chartered",
+        "eftCode": "0142",
+        "swift": "SCBLTRIS",
+        "type": "Yabancı"
+    }
+]

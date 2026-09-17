@@ -1,6 +1,7 @@
 from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
                              QFormLayout, QTableWidget, QHeaderView, QFrame,
-                             QAbstractItemView, QTableWidgetItem)
+                             QAbstractItemView, QTableWidgetItem, QTextBrowser,
+                             QApplication)
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 from src.utils.theme_colors import theme_qss, tc
@@ -8,15 +9,41 @@ from src.utils.currency_helper import CurrencyHelper
 from src.ui.widgets.premium_dialog import PremiumDialog
 from src.utils.toast_notification import show_warning, show_error
 from src.utils.logger import logger
+from src.utils.service_work_details import (
+    format_numbered_work_lines,
+    load_service_work_lines,
+)
 import json
+import re
+
+
+def _format_service_item_total(db, entry, item, qty):
+    currency = str(
+        item.get("currency")
+        or entry.get("currency")
+        or "TRY"
+    ).upper()
+    line_total = item.get("line_total")
+    if line_total in (None, ""):
+        unit_price = item.get("unit_price", item.get("price", 0))
+        line_total = float(unit_price or 0) * qty
+    return CurrencyHelper.format_amount(
+        float(line_total or 0),
+        db=db,
+        currency_code=currency,
+    )
 
 
 class TransactionDetailsDialog(PremiumDialog):
     def __init__(self, db, entry, parent=None):
         super().__init__("İşlem Detayı", parent)
         self.db = db
-        self.entry = entry or {}
-        self.resize(960, 620)
+        self.entry = dict(entry or {})
+        resolved_tracking = self._resolve_tracking_no()
+        if resolved_tracking:
+            self.entry["tracking_no"] = resolved_tracking
+            self.entry["ref_no"] = self.entry.get("ref_no") or resolved_tracking
+        self.resize(1100, 700)
 
         layout = self.body_layout
         layout.setSpacing(14)
@@ -37,6 +64,7 @@ class TransactionDetailsDialog(PremiumDialog):
             v = QLabel(display_value)
             v.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
             v.setStyleSheet(theme_qss("color: @selection_text; font-weight: 800;"))
+            v.setWordWrap(True)
             form.addRow(l, v)
 
         left_card = QFrame()
@@ -100,6 +128,10 @@ class TransactionDetailsDialog(PremiumDialog):
         cname = self.entry.get("customer_name")
         if cname:
             add_row("Müşteri:", cname)
+
+        desc = self.entry.get("description")
+        if desc:
+            add_row("A\u00e7\u0131klama:", desc)
 
         # Ürün/Hizmet bilgisi
         ps_id = self.entry.get("product_service_id")
@@ -177,6 +209,32 @@ class TransactionDetailsDialog(PremiumDialog):
         self.items_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         right_layout.addWidget(self.items_table, 1)
 
+        self.desc_group = QFrame()
+        self.desc_group.setStyleSheet(theme_qss("border: none; background: transparent;"))
+        desc_lay = QVBoxLayout(self.desc_group)
+        desc_lay.setContentsMargins(0, 10, 0, 0)
+        desc_lay.setSpacing(6)
+
+        lbl_desc_title = QLabel("\u0130\u015flem A\u00e7\u0131klamas\u0131 / Notlar")
+        lbl_desc_title.setStyleSheet(theme_qss("color: @text_muted; font-weight: 800; font-size: 12px;"))
+
+        self.txt_desc = QTextBrowser()
+        self.txt_desc.setStyleSheet(theme_qss("""
+            QTextBrowser {
+                background: @surface_alt;
+                border: 1px solid @border;
+                border-radius: 10px;
+                color: @text;
+                font-size: 13px;
+                padding: 10px;
+            }
+        """))
+        self.txt_desc.setMinimumHeight(180)
+
+        desc_lay.addWidget(lbl_desc_title)
+        desc_lay.addWidget(self.txt_desc)
+        right_layout.addWidget(self.desc_group, 0)
+
         body.addWidget(right_card, 60)
 
         layout.addLayout(body)
@@ -234,12 +292,111 @@ class TransactionDetailsDialog(PremiumDialog):
                 except Exception:
                     qty_val = 1
                 try:
-                    price_val = float(item.get("price", 0) or 0) * qty_val
-                    price = CurrencyHelper.format_try_for_display(price_val, db=self.db, include_try_reference=False)
+                    price = _format_service_item_total(
+                        self.db,
+                        self.entry,
+                        item,
+                        qty_val,
+                    )
                 except Exception:
                     price = ""
                 rows.append((str(name).strip(), str(qty_val), price))
         return rows
+
+    def _resolve_tracking_no(self):
+        for value in (self.entry.get("tracking_no"), self.entry.get("ref_no")):
+            candidate = str(value or "").strip()
+            if candidate:
+                return candidate
+        description = str(self.entry.get("description") or "")
+        match = re.search(
+            r"(?:^|[|\s])Ref\s*[:#]?\s*([A-Za-z0-9._-]+)",
+            description,
+            flags=re.IGNORECASE,
+        )
+        return match.group(1) if match else ""
+
+    def _load_device_service_rows(self):
+        tracking_no = self._resolve_tracking_no()
+        if not tracking_no:
+            return []
+        try:
+            device = self.db.cursor.execute(
+                "SELECT repair_details, fault_description, labor_cost, cargo_fee "
+                "FROM devices WHERE tracking_no=? ORDER BY id DESC LIMIT 1",
+                (tracking_no,),
+            ).fetchone()
+            if not device:
+                return []
+
+            result = []
+            repair_details = str(device[0] or "").strip()
+            fault_description = str(device[1] or "").strip()
+            work_lines = load_service_work_lines(
+                self.db,
+                tracking_no,
+                repair_details=repair_details,
+                fault_description=fault_description,
+            )
+            self._service_work_lines = work_lines
+            for line in work_lines:
+                result.append((f"Yap\u0131lan \u0130\u015flem: {line}", "1", ""))
+
+            labor_cost = float(device[2] or 0)
+            if labor_cost:
+                result.append(
+                    (
+                        "\u0130\u015f\u00e7ilik",
+                        "1",
+                        CurrencyHelper.format_try_for_display(
+                            labor_cost,
+                            db=self.db,
+                            include_try_reference=False,
+                        ),
+                    )
+                )
+
+            part_rows = self.db.cursor.execute(
+                "SELECT part_name, quantity, price, currency, price_try, exchange_rate "
+                "FROM used_parts WHERE tracking_no=? AND COALESCE(is_deleted,0)=0 "
+                "ORDER BY id ASC",
+                (tracking_no,),
+            ).fetchall()
+            for part in part_rows:
+                quantity = float(part[1] or 1)
+                quantity_text = str(int(quantity)) if quantity.is_integer() else f"{quantity:g}"
+                price_try = float(part[4] or 0)
+                if price_try:
+                    total_text = CurrencyHelper.format_try_for_display(
+                        price_try * quantity,
+                        db=self.db,
+                        include_try_reference=False,
+                    )
+                else:
+                    total_text = CurrencyHelper.format_amount(
+                        float(part[2] or 0) * quantity,
+                        db=self.db,
+                        currency_code=str(part[3] or "TRY").upper(),
+                    )
+                result.append((str(part[0] or "Par\u00e7a"), quantity_text, total_text))
+
+            cargo_fee = float(device[3] or 0)
+            if cargo_fee:
+                result.append(
+                    (
+                        "Kargo",
+                        "1",
+                        CurrencyHelper.format_try_for_display(
+                            cargo_fee,
+                            db=self.db,
+                            include_try_reference=False,
+                        ),
+                    )
+                )
+            return result
+        except Exception as exc:
+            logger.warning("Related service detail load failed: %s", exc)
+            return []
 
     def _parse_description_rows(self, desc):
         import re
@@ -300,14 +457,39 @@ class TransactionDetailsDialog(PremiumDialog):
 
     def populate_items_table(self):
         desc = str(self.entry.get("description") or "")
-        parsed = self._parse_service_rows(self.entry.get("selected_services"))
+        service_rows = self._load_device_service_rows()
+        parsed = service_rows or self._parse_service_rows(self.entry.get("selected_services"))
         if not parsed:
             parsed = self._load_related_service_rows()
         if not parsed:
             parsed = self._parse_description_rows(desc)
-        if not parsed and desc.strip():
-            parsed.append((desc.strip(), "", ""))
 
+        # Populate dedicated description box
+        work_lines = list(getattr(self, "_service_work_lines", []) or [])
+        description_blocks = []
+        if work_lines:
+            description_blocks.append(
+                "Yap\u0131lan \u0130\u015flemler:\n" + format_numbered_work_lines(work_lines)
+            )
+        if desc.strip():
+            description_blocks.append("Tahsilat / \u0130\u015flem Notu:\n" + desc.strip())
+        description_text = "\n\n".join(description_blocks)
+        if description_text:
+            self.txt_desc.setPlainText(description_text)
+            self.desc_group.setVisible(True)
+            line_count = max(1, len(description_text.splitlines()))
+            self.txt_desc.setFixedHeight(min(320, max(150, 70 + line_count * 19)))
+        else:
+            self.txt_desc.clear()
+            self.desc_group.setVisible(False)
+
+        # If no items are parsed, hide the empty items table
+        if not parsed:
+            self.items_table.setRowCount(0)
+            self.items_table.setVisible(False)
+            return
+
+        self.items_table.setVisible(True)
         amount_try = self.entry.get("amount_try", None)
         try:
             amount_try = float(amount_try) if amount_try is not None else None
@@ -333,10 +515,24 @@ class TransactionDetailsDialog(PremiumDialog):
         header_h = self.items_table.horizontalHeader().height()
         rows_h = sum(self.items_table.rowHeight(r) for r in range(self.items_table.rowCount()))
         extra = 16
-        self.items_table.setFixedHeight(header_h + rows_h + extra)
+        desired_table_height = header_h + rows_h + extra
+        table_height = min(420, desired_table_height)
+        self.items_table.setFixedHeight(table_height)
+        self.items_table.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
+            if desired_table_height > table_height
+            else Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+
+        screen = QApplication.screenAt(self.frameGeometry().center())
+        if screen is None:
+            screen = QApplication.primaryScreen()
+        max_height = int(screen.availableGeometry().height() * 0.92) if screen else 900
+        content_growth = max(0, table_height - 180) + max(0, self.txt_desc.height() - 180)
+        self.resize(max(1100, self.width()), min(max_height, 700 + content_growth))
 
     def open_service_form(self):
-        tracking_no = self.entry.get("tracking_no")
+        tracking_no = self._resolve_tracking_no()
         if not tracking_no:
             show_warning(self, "Takip numarası bulunamadı.")
             return

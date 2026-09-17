@@ -1,0 +1,23 @@
+AYEC PRO - LİSANS SÖZLEŞMESİ
+
+Bu yazılım, AYEC Pro tarafından lisanslanmıştır.
+
+1) Kullanım Hakkı
+Bu yazılımı, satın alınan/aktivasyonu yapılmış lisans kapsamında, yalnızca iş süreçlerinizde kullanabilirsiniz.
+
+2) Kopyalama ve Dağıtım
+Bu yazılımın izinsiz kopyalanması, çoğaltılması, dağıtılması veya üçüncü kişilerle paylaşılması yasaktır.
+
+3) Sorumluluk Reddi
+Yazılım "olduğu gibi" sunulur. Doğrudan/dolaylı zararlardan AYEC Pro sorumlu tutulamaz.
+
+4) Veri ve Yedekleme
+Veri güvenliği ve düzenli yedekleme sorumluluğu kullanıcıya aittir. Uygulama kapanışında otomatik yedekleme yapılabilir.
+
+5) Güncellemeler
+Güncellemeler, mevcut lisans koşullarıyla sağlanabilir.
+
+6) İletişim
+E-posta: destek@ayecpro.com
+Telefon: 0534 878 10 47
+Web: www.ayecpro.com

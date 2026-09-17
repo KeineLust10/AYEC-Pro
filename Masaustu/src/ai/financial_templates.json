@@ -1,0 +1,83 @@
+{
+  "financial_reminders": {
+    "loan_t_minus_1": [
+      "Sayın {user_name}, hatırlatmak isterim ki; yarın {bank_name} hesabınızdan {amount} tutarında kredi ödemeniz gerçekleşecektir. Kontrol etmek ister misiniz?",
+      "{user_name} Bey/Hanım, yarın {bank_name} kredinizin {amount} tutarındaki taksiti vadesi dolacak. Bakiyenizi kontrol ettiniz mi?",
+      "Dikkat {user_name}, yarın ödenecek {bank_name} kredi taksitiniz var. Tutar: {amount}. Finansal durumunuzu gözden geçirmek ister misiniz?"
+    ],
+    "loan_t_0": [
+      "Gününüz aydın olsun {user_name}. Bugün {bank_name} kredinizin son ödeme günü. Bakiyeniz uygun görünüyorsa işlemi onaylamamı ister misiniz?",
+      "{user_name} Bey/Hanım, bugün {bank_name} taksit ödeme günü. Tutar: {amount}. Detayları görüntülemek için Finans panelini açayım mı?",
+      "Önemli Hatırlatma: Bugün {bank_name} kredinizin {amount} tutarındaki ödemesi yapılmalı. Finans detaylarını hazırladım."
+    ],
+    "loan_overdue": [
+      "Önemli Uyarı: {bank_name} kredinizin {amount} tutarındaki ödemesi geçmiş görünüyor. Gecikme faizi oluşmaması için lütfen Finans panelini kontrol edin.",
+      "{user_name}, {bank_name} kredi ödemesi {days_overdue} gün gecikmiş. Tutar: {amount}. Acil kontrol gerekiyor!",
+      "Kritik: {bank_name} taksit ödemesi vadesi geçti! {amount} + olası gecikme faizi. Lütfen önlem alın."
+    ],
+    "check_t_minus_1": [
+      "{user_name} Bey/Hanım, yarın vadesi dolacak olan {customer_name} adına kayıtlı {amount} değerinde bir {check_type} bulunmaktadır.",
+      "Hatırlatma: Yarın {check_no} numaralı {check_type} vade günü. Tutar: {amount}, İlgili: {customer_name}.",
+      "{user_name}, yarın {customer_name} firmasının {amount} tutarındaki {check_type} vadesi doluyor. Portföyünüzü günceller misiniz?"
+    ],
+    "check_t_0": [
+      "Dikkat: Bugün {check_no} numaralı {check_type} tahsilat/ödeme günüdür. Finansal özetinizi güncelledim, göz atmak ister misiniz?",
+      "{user_name}, bugün {customer_name} adına {amount} tutarında {check_type} vadesi var. İşlem yapmak ister misiniz?",
+      "Bugünün Vadesi: {check_no} no'lu {check_type} - {amount}. İlgili firma: {customer_name}. Detaylar için tıklayın."
+    ],
+    "check_overdue": [
+      "Uyarı: {customer_name} firmasının {amount} tutarındaki {check_type} vadesi {days_overdue} gün önce dolmuş. Lütfen takip edin.",
+      "{user_name}, {check_no} numaralı {check_type} vadesi geçti! Tutar: {amount}. Acil işlem gerekebilir.",
+      "Gecikmiş {check_type}: {customer_name} - {amount}. Vade: {due_date}. İletişime geçmenizi öneririm."
+    ]
+  },
+  "project_reminders": {
+    "hakedis_due": [
+      "{project_name} şantiyemiz için taşeron ödeme günü yaklaşıyor. Kasadaki nakit akışını bu ödemeye göre optimize ettim.",
+      "{user_name}, {project_name} projesinde {amount} tutarında hakediş ödemesi var. Kaynak planlamanızı kontrol edin.",
+      "Proje Hatırlatma: {project_name} - {contractor_name} taşeron ödemesi yaklaşıyor. Tutar: {amount}."
+    ],
+    "sale_completed": [
+      "Tebrikler {user_name}! {block_no} - {flat_no} satış kaydı başarıyla tamamlandı. Gelir tablonuzu ve istatistik kartlarınızı anlık olarak güncelledim.",
+      "Harika haber! {project_name} projesinde {flat_no} numaralı daire satıldı. Gelir: {amount}. Dashboard'unuz güncellendi.",
+      "Satış Başarılı: {block_no}/{flat_no} - {amount}. Finansal özetinizi yeniledim, görmek ister misiniz?"
+    ]
+  },
+  "financial_summary": {
+    "general": [
+      "{user_name} Bey, şu an banka hesaplarınızda toplam {total_balance} bulunmaktadır. Gelecek 7 gün içinde ödenmesi gereken toplam kredi ve çek tutarınız ise {upcoming_debt}.",
+      "Finansal Durum Özeti: Toplam nakit {total_balance}, Yaklaşan ödemeler (7 gün): {upcoming_debt}, Vadesi geçenler: {overdue_count} adet.",
+      "{user_name}, mevcut bakiyeniz {total_balance}. Önümüzdeki hafta {upcoming_count} adet ödeme var, toplam {upcoming_debt}. Detaylar hazır."
+    ],
+    "critical_cash_warning": [
+      "Uyarı: Mevcut bakiyeniz yaklaşan ödemeleri karşılamıyor olabilir. Kredi limitlerinizi kontrol etmek ister misiniz?",
+      "{user_name}, kritik nakit uyarısı! Bakiye: {total_balance}, Yaklaşan borç: {upcoming_debt}. Lütfen cash flow'u gözden geçirin.",
+      "Önemli: Önümüzdeki 3 gün içindeki ödemeler ({upcoming_3days}) mevcut nakit tutarını ({total_balance}) aşıyor. Aksiyon gerekiyor!"
+    ]
+  },
+  "morning_greeting": {
+    "with_finance": [
+      "Günaydın {user_name} Bey, bugün {date} {day_name}. Hava durumu: {weather}. Ayrıca bugün vadesi dolan bir adet çekiniz ve yarın ödenecek olan {bank_name} kredi taksitiniz bulunmaktadır. Detayları Finansal Genel Bakış sayfasında hazırladım.",
+      "Harika bir {day_name} diliyorum {user_name}! Bugün {today_payments} adet ödeme, yarın {tomorrow_payments} adet vade var. Finans detaylarınız güncel.",
+      "Günaydın! {date} {day_name}. Günlük finansal özet: Bugün {today_amount} ödeme, yaklaşan 7 gün {upcoming_count} taksit. Detayları görmek ister misiniz?"
+    ],
+    "no_finance": [
+      "Günaydın {user_name} Bey, bugün {date} {day_name}. Harika bir gün geçirmeniz dileğiyle!",
+      "Günaydın! Bugün finansal bir vade bulunmuyor. Odaklanmanız gereken projeler var mı?"
+    ]
+  },
+  "shortcuts": {
+    "finansal_ozet": {
+      "triggers": ["finansal durum", "kredi durumu", "borçlar", "finansal özet", "finans"],
+      "response_template": "general"
+    },
+    "krediler": {
+      "triggers": ["krediler", "taksitler", "banka borçları"],
+      "response_template": "loan_summary"
+    },
+    "cekler": {
+      "triggers": ["çekler", "senetler", "portföy"],
+      "response_template": "check_summary"
+    }
+  }
+}

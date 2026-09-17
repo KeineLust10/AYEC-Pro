@@ -1,0 +1,45 @@
+AYEC PRO SOFTWARE LICENSE AGREEMENT
+
+This End-User License Agreement ("EULA") is a legal agreement between you and AYEC Solutions.
+
+By installing, copying, or otherwise using the AYEC Pro software, you agree to be bound by the terms of this EULA.
+
+LICENSE:
+AYEC Solutions grants you a non-exclusive, non-transferable license to use the AYEC Pro software on a single computer for business purposes.
+
+RESTRICTIONS:
+- You may not reverse engineer, decompile, or disassemble the software
+- You may not rent, lease, or sublicense the software
+- You may not modify or create derivative works based on the software
+
+OWNERSHIP:
+The software is licensed, not sold. AYEC Solutions retains all rights, title, and interest in and to the software.
+
+SUPPORT:
+Technical support is provided as described in the documentation and on our website.
+
+LIMITATION OF LIABILITY:
+AYEC Solutions shall not be liable for any damages arising out of the use or inability to use the software.
+
+AYEC PRO YAZILIM LİSANS SÖZLEŞMESİ
+
+Bu Son Kullanıcı Lisans Sözleşmesi ("EULA"), siz ile AYEC Solutions arasında yasal bir anlaşmadır.
+
+AYEC Pro yazılımını yükleyerek, kopyalayarak veya başka şekilde kullanarak, bu EULA'nın şartlarına bağlı kalmayı kabul edersiniz.
+
+LİSANS:
+AYEC Solutions, AYEC Pro yazılımını tek bir bilgisayarda ticari amaçlarla kullanmak üzere size münhasır olmayan, devredilemez bir lisans verir.
+
+KISITLAMALAR:
+- Yazılımı tersine mühendislik yapamaz, decompile edemez veya disassemble edemezsiniz
+- Yazılımı kiralayamaz, lease edemez veya sublicense veremezsiniz
+- Yazılımı değiştiremez veya türev çalışmalar oluşturamazsınız
+
+MÜLKİYET:
+Yazılım lisanslanmıştır, satılmamıştır. AYEC Solutions, yazılım ile ilgili tüm hakları, unvanı ve ilgiyi saklı tutar.
+
+DESTEK:
+Teknik destek, belgelerde ve web sitemizde açıklandığı şekilde sağlanır.
+
+SORUMLULUK SINIRLAMASI:
+AYEC Solutions, yazılımın kullanımından veya kullanılamamasından kaynaklanan herhangi bir zarardan sorumlu olmayacaktır.

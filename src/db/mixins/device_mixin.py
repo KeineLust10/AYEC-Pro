@@ -32,12 +32,50 @@ class DeviceMixin:
             raise ValueError(f"Unsafe SQL identifier: {value!r}")
         return value
 
+    def _get_device_columns(self):
+        try:
+            cached = getattr(self, "_device_columns_cache", None)
+            if cached:
+                return cached
+            self.cursor.execute("PRAGMA table_info(devices)")
+            columns = {row[1] for row in (self.cursor.fetchall() or [])}
+            self._device_columns_cache = columns
+            return columns
+        except Exception:
+            return set()
+
+    def _device_select_clause(self, columns=None):
+        if not columns:
+            return "*"
+        available = self._get_device_columns()
+        selected = []
+        for column in columns:
+            safe_column = self._safe_identifier(column)
+            if not available or safe_column in available:
+                selected.append(safe_column)
+        return ", ".join(selected) if selected else "*"
+
+    def _normalize_query_limit(self, limit, default=None, maximum=1000):
+        if limit is None:
+            return default
+        try:
+            value = int(limit)
+        except (TypeError, ValueError):
+            return default
+        if value <= 0:
+            return default
+        return min(value, maximum)
+
     def _normalize_status_key(self, status):
         text = str(status or "").strip().casefold()
         return text.replace("ı", "i")
 
     def _is_in_repair_status(self, status):
         return self._normalize_status_key(status) == "tamirde"
+
+    def _should_create_service_debt(self, status):
+        normalized = self._normalize_status_key(status)
+        return normalized in {"tamirde", "teslim edildi"}
 
     def _resolve_customer_id_by_name(self, customer_name):
         try:
@@ -67,6 +105,12 @@ class DeviceMixin:
         if base_labor <= 0 and base_price > 0:
             base_labor = base_price
 
+        parts_total = self._get_used_parts_total_try(tracking_no)
+
+        total_amount = round(max(0.0, base_labor + base_cargo + parts_total), 2)
+        return total_amount
+
+    def _get_used_parts_total_try(self, tracking_no):
         parts_total = 0.0
         try:
             self.cursor.execute("PRAGMA table_info(used_parts)")
@@ -77,16 +121,54 @@ class DeviceMixin:
                 else ("is_archived" if "is_archived" in cols else None)
             )
             qty_expr = "COALESCE(quantity, 1)" if "quantity" in cols else "1"
-            parts_query = f"SELECT COALESCE(SUM(COALESCE(price, 0) * {qty_expr}), 0) FROM used_parts WHERE tracking_no=?"
+            currency_expr = (
+                "COALESCE(currency, 'TRY')" if "currency" in cols else "'TRY'"
+            )
+            rate_expr = (
+                "COALESCE(exchange_rate, 1)" if "exchange_rate" in cols else "1"
+            )
+            price_try_expr = (
+                "COALESCE(price_try, 0)" if "price_try" in cols else "0"
+            )
+            parts_query = (
+                "SELECT COALESCE(price, 0), {qty}, {currency}, {rate}, "
+                "{price_try} FROM used_parts WHERE tracking_no=?"
+            ).format(
+                qty=qty_expr,
+                currency=currency_expr,
+                rate=rate_expr,
+                price_try=price_try_expr,
+            )
             if deleted_col:
                 parts_query += f" AND ({deleted_col}=0 OR {deleted_col} IS NULL)"
             self.cursor.execute(parts_query, (tracking_no,))
-            parts_total = float((self.cursor.fetchone() or [0])[0] or 0.0)
-        except Exception:
-            parts_total = 0.0
+            from src.utils.currency_helper import CurrencyHelper
 
-        total_amount = round(max(0.0, base_labor + base_cargo + parts_total), 2)
-        return total_amount
+            for price, quantity, currency, stored_rate, stored_price_try in (
+                self.cursor.fetchall() or []
+            ):
+                price = float(price or 0.0)
+                quantity = float(quantity or 1.0)
+                currency = str(currency or "TRY").upper()
+                stored_rate = float(stored_rate or 0.0)
+                unit_try = float(stored_price_try or 0.0)
+                if unit_try <= 0:
+                    if currency == "TRY":
+                        unit_try = price
+                    elif stored_rate > 0:
+                        unit_try = price * stored_rate
+                    else:
+                        current_rate = CurrencyHelper.require_rate(self, currency)
+                        unit_try = price * current_rate
+                parts_total += unit_try * quantity
+        except Exception as exc:
+            logger.error(
+                "Used-parts total could not be calculated for %s: %s",
+                tracking_no,
+                exc,
+            )
+            raise
+        return round(parts_total, 4)
 
     def _sync_service_debt_from_tracking(
         self, tracking_no, create_if_missing=False, reason=""
@@ -147,6 +229,8 @@ class DeviceMixin:
 
             if not customer_id:
                 return False
+            if not self.create_payment_debt_links_table():
+                raise RuntimeError("Payment allocation schema is unavailable")
 
             total_amount = self._get_service_total_amount(
                 tracking_no,
@@ -172,55 +256,63 @@ class DeviceMixin:
                 if total_amount <= 0:
                     return False
 
-                debt_rate = float(debt_rate or 1.0)
-                try_equivalent = round(total_amount * debt_rate, 4)
+                debt_rate = 1.0
+                try_equivalent = round(total_amount, 4)
 
                 paid_sum = 0.0
-                try:
+                self.cursor.execute(
+                    "SELECT COALESCE(SUM(amount), 0) FROM payment_debt_links WHERE debt_txn_id=?",
+                    (debt_id,),
+                )
+                paid_sum = float((self.cursor.fetchone() or [0])[0] or 0.0)
+                if paid_sum <= 0:
                     self.cursor.execute(
-                        "SELECT COALESCE(SUM(amount), 0) FROM payment_debt_links WHERE debt_txn_id=?",
-                        (debt_id,),
+                        """
+                        SELECT COALESCE(SUM(amount), 0)
+                        FROM currency_transactions
+                        WHERE customer_id=?
+                          AND tracking_no=?
+                          AND transaction_type='CREDIT'
+                          AND currency=?
+                        """,
+                        (customer_id, tracking_no, _debt_currency or "TRY"),
                     )
                     paid_sum = float((self.cursor.fetchone() or [0])[0] or 0.0)
-                except Exception:
-                    paid_sum = 0.0
 
                 new_current_balance = round((-1.0 * total_amount) + paid_sum, 2)
 
                 self.cursor.execute(
                     """
                     UPDATE currency_transactions
-                    SET amount=?, try_equivalent=?, current_balance=?
+                    SET amount=?, currency='TRY', exchange_rate=1,
+                        try_equivalent=?, current_balance=?
                     WHERE id=?
                     """,
                     (total_amount, try_equivalent, new_current_balance, debt_id),
                 )
                 self.conn.commit()
-                try:
-                    self.recalculate_all_customer_balances()
-                except Exception:
-                    pass
+                _debt_currency = "TRY"
+                if hasattr(self, "auto_allocate_unlinked_customer_payments"):
+                    self.auto_allocate_unlinked_customer_payments(
+                        customer_id=customer_id,
+                        currency=_debt_currency,
+                    )
+                self.recalculate_customer_currency_balance(
+                    customer_id,
+                    _debt_currency,
+                )
                 return True
 
             if not create_if_missing:
                 return False
 
-            if not self._is_in_repair_status(status):
+            if not self._should_create_service_debt(status):
                 return False
 
             if total_amount <= 0:
                 return False
 
-            try:
-                from src.utils.currency_helper import CurrencyHelper
-
-                debt_currency = CurrencyHelper.get_code(self)
-            except Exception:
-                debt_currency = "TRY"
-
-            debt_currency = str(debt_currency or "TRY").upper()
-            if len(debt_currency) > 8:
-                debt_currency = "TRY"
+            debt_currency = "TRY"
 
             debt_desc = (
                 f"Servis Borcu (Tamirde): #{tracking_no} - {customer_name or 'Müşteri'}"
@@ -228,7 +320,7 @@ class DeviceMixin:
             if reason:
                 debt_desc += f" [{reason}]"
 
-            return bool(
+            created = bool(
                 self.add_currency_transaction(
                     customer_id=customer_id,
                     amount=total_amount,
@@ -239,6 +331,47 @@ class DeviceMixin:
                     tracking_no=tracking_no,
                 )
             )
+            if not created:
+                return False
+
+            paid_sum = 0.0
+            self.cursor.execute(
+                """
+                SELECT COALESCE(SUM(amount), 0)
+                FROM currency_transactions
+                WHERE customer_id=?
+                  AND tracking_no=?
+                  AND transaction_type='CREDIT'
+                  AND currency=?
+                """,
+                (customer_id, tracking_no, debt_currency),
+            )
+            paid_sum = float((self.cursor.fetchone() or [0])[0] or 0.0)
+
+            if paid_sum > 0:
+                debt_txn_id = self.get_last_currency_transaction_id()
+                if debt_txn_id:
+                    self.cursor.execute(
+                        """
+                        UPDATE currency_transactions
+                        SET current_balance=?
+                        WHERE id=?
+                        """,
+                        (round((-1.0 * total_amount) + paid_sum, 2), debt_txn_id),
+                    )
+                    self.conn.commit()
+
+            if hasattr(self, "auto_allocate_unlinked_customer_payments"):
+                self.auto_allocate_unlinked_customer_payments(
+                    customer_id=customer_id,
+                    currency=debt_currency,
+                )
+
+            self.recalculate_customer_currency_balance(
+                customer_id,
+                debt_currency,
+            )
+            return True
         except Exception as e:
             logger.error("Service debt sync failed for %s: %s", tracking_no, e)
             return False
@@ -271,6 +404,141 @@ class DeviceMixin:
             ("Mini PC", "ASUS"),
             ("Mini PC", "HP"),
         ]
+
+    def _get_default_device_model_rows(self):
+        """Return the maintained 2021-2026 device catalog seed rows."""
+        return [
+            ("bilgisayar", "Laptop", "Apple", "MacBook Air M2", 2022, "apple.com"),
+            ("bilgisayar", "Laptop", "Apple", "MacBook Air M3", 2024, "apple.com"),
+            ("bilgisayar", "Laptop", "Apple", "MacBook Air M4", 2025, "apple.com"),
+            ("bilgisayar", "Laptop", "Lenovo", "ThinkPad E14 Gen 5", 2023, "lenovo.com"),
+            ("bilgisayar", "Laptop", "Lenovo", "ThinkPad T14 Gen 5", 2024, "lenovo.com"),
+            ("bilgisayar", "Laptop", "Lenovo", "LOQ 15", 2024, "lenovo.com"),
+            ("bilgisayar", "Laptop", "ASUS", "Zenbook 14", 2024, "asus.com"),
+            ("bilgisayar", "Laptop", "ASUS", "ROG Strix G16", 2024, "asus.com"),
+            ("bilgisayar", "Laptop", "HP", "Pavilion Plus 14", 2024, "hp.com"),
+            ("bilgisayar", "Laptop", "HP", "Victus 15", 2024, "hp.com"),
+            ("bilgisayar", "Laptop", "Dell", "Latitude 5450", 2024, "dell.com"),
+            ("bilgisayar", "Laptop", "Dell", "Inspiron 15", 2024, "dell.com"),
+            ("bilgisayar", "Laptop", "Acer", "Aspire 5", 2024, "acer.com"),
+            ("bilgisayar", "Laptop", "Acer", "Nitro V 15", 2024, "acer.com"),
+            ("bilgisayar", "Laptop", "MSI", "Katana 15", 2024, "msi.com"),
+            ("bilgisayar", "Masa\u00fcst\u00fc PC", "Apple", "Mac mini M4", 2024, "apple.com"),
+            ("bilgisayar", "Masa\u00fcst\u00fc PC", "Lenovo", "IdeaCentre Tower", 2024, "lenovo.com"),
+            ("bilgisayar", "Masa\u00fcst\u00fc PC", "ASUS", "ROG G22", 2024, "asus.com"),
+            ("bilgisayar", "Monit\u00f6r", "Samsung", "Odyssey G5", 2024, "samsung.com"),
+            ("bilgisayar", "Monit\u00f6r", "LG", "UltraGear", 2024, "lg.com"),
+            ("bilgisayar", "Monit\u00f6r", "ASUS", "TUF Gaming VG27", 2024, "asus.com"),
+            ("cep_telefonu", "Cep Telefonu", "Apple", "iPhone 13", 2021, "apple.com"),
+            ("cep_telefonu", "Cep Telefonu", "Apple", "iPhone 14", 2022, "apple.com"),
+            ("cep_telefonu", "Cep Telefonu", "Apple", "iPhone 15", 2023, "apple.com"),
+            ("cep_telefonu", "Cep Telefonu", "Apple", "iPhone 16", 2024, "apple.com"),
+            ("cep_telefonu", "Cep Telefonu", "Apple", "iPhone 17", 2025, "apple.com"),
+            ("cep_telefonu", "Cep Telefonu", "Samsung", "Galaxy S21", 2021, "samsung.com"),
+            ("cep_telefonu", "Cep Telefonu", "Samsung", "Galaxy S23", 2023, "samsung.com"),
+            ("cep_telefonu", "Cep Telefonu", "Samsung", "Galaxy S24", 2024, "samsung.com"),
+            ("cep_telefonu", "Cep Telefonu", "Samsung", "Galaxy S25", 2025, "samsung.com"),
+            ("cep_telefonu", "Cep Telefonu", "Samsung", "Galaxy A55", 2024, "samsung.com"),
+            ("cep_telefonu", "Cep Telefonu", "Samsung", "Galaxy A56", 2025, "samsung.com"),
+            ("cep_telefonu", "Cep Telefonu", "Xiaomi", "Redmi Note 13", 2024, "mi.com"),
+            ("cep_telefonu", "Cep Telefonu", "Xiaomi", "Redmi Note 14", 2025, "mi.com"),
+            ("cep_telefonu", "Cep Telefonu", "Xiaomi", "Xiaomi 14T", 2024, "mi.com"),
+            ("cep_telefonu", "Cep Telefonu", "Google", "Pixel 8", 2023, "store.google.com"),
+            ("cep_telefonu", "Cep Telefonu", "Google", "Pixel 9", 2024, "store.google.com"),
+            ("cep_telefonu", "Cep Telefonu", "OPPO", "Reno 12", 2024, "oppo.com"),
+            ("cep_telefonu", "Cep Telefonu", "HONOR", "HONOR 200", 2024, "honor.com"),
+            ("cep_telefonu", "Tablet", "Apple", "iPad 10. nesil", 2022, "apple.com"),
+            ("cep_telefonu", "Tablet", "Apple", "iPad Air M2", 2024, "apple.com"),
+            ("cep_telefonu", "Tablet", "Samsung", "Galaxy Tab S9", 2023, "samsung.com"),
+            ("cep_telefonu", "Tablet", "Samsung", "Galaxy Tab S10", 2024, "samsung.com"),
+            ("cep_telefonu", "Tablet", "Xiaomi", "Pad 6", 2023, "mi.com"),
+            ("cep_telefonu", "Ak\u0131ll\u0131 Saat", "Apple", "Apple Watch Series 10", 2024, "apple.com"),
+            ("cep_telefonu", "Ak\u0131ll\u0131 Saat", "Samsung", "Galaxy Watch7", 2024, "samsung.com"),
+            ("akilli_ev", "Ak\u0131ll\u0131 Ev Merkezi", "Tapo", "H100", 2023, "tp-link.com"),
+            ("akilli_ev", "Ak\u0131ll\u0131 Ev Merkezi", "Tapo", "H200", 2024, "tp-link.com"),
+            ("akilli_ev", "Ak\u0131ll\u0131 Ev Merkezi", "Tapo", "H500", 2024, "tp-link.com"),
+            ("akilli_ev", "Ak\u0131ll\u0131 Ev Merkezi", "Aqara", "Hub M2", 2021, "aqara.com"),
+            ("akilli_ev", "Ak\u0131ll\u0131 Ev Merkezi", "Aqara", "Hub M3", 2024, "aqara.com"),
+            ("akilli_ev", "Ak\u0131ll\u0131 Priz", "Tapo", "P110", 2021, "tp-link.com"),
+            ("akilli_ev", "Ak\u0131ll\u0131 Kamera", "Tapo", "C210", 2021, "tp-link.com"),
+            ("akilli_ev", "Ak\u0131ll\u0131 Kamera", "Tapo", "C520WS", 2023, "tp-link.com"),
+            ("akilli_ev", "Sens\u00f6r", "Tapo", "T100", 2023, "tp-link.com"),
+            ("akilli_ev", "Sens\u00f6r", "Tapo", "T110", 2023, "tp-link.com"),
+            ("akilli_ev", "Ak\u0131ll\u0131 Ayd\u0131nlatma", "Tapo", "L530E", 2023, "tp-link.com"),
+            ("akilli_ev", "Termostat", "Google", "Nest Thermostat", 2021, "store.google.com"),
+            ("akilli_ev", "Ak\u0131ll\u0131 Ev Merkezi", "Google", "Nest Hub 2nd Gen", 2021, "store.google.com"),
+            ("akilli_ev", "Robot S\u00fcp\u00fcrge", "Roborock", "Qrevo", 2023, "roborock.com"),
+            ("akilli_ev", "Robot S\u00fcp\u00fcrge", "Roborock", "S8", 2023, "roborock.com"),
+        ]
+
+    def create_device_model_catalog_table(self):
+        """Ensure the user-managed brand/model catalog schema and defaults."""
+        self.cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS device_models (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                business_profile TEXT NOT NULL,
+                device_type TEXT NOT NULL,
+                brand TEXT NOT NULL,
+                model TEXT NOT NULL,
+                release_year INTEGER,
+                source TEXT,
+                is_active INTEGER DEFAULT 1,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(business_profile, device_type, brand, model)
+            )
+            """
+        )
+        self.cursor.execute(
+            "CREATE INDEX IF NOT EXISTS idx_device_models_lookup "
+            "ON device_models (business_profile, device_type, brand, is_active)"
+        )
+
+    def refresh_device_model_catalog(self):
+        """Upsert the reviewed catalog and expose its brands in brand management."""
+        self.create_device_model_catalog_table()
+        for profile, device_type, brand, model, year, source in self._get_default_device_model_rows():
+            self.cursor.execute(
+                """
+                INSERT OR IGNORE INTO device_models
+                    (business_profile, device_type, brand, model, release_year, source, is_active)
+                VALUES (?, ?, ?, ?, ?, ?, 1)
+                """,
+                (profile, device_type, brand, model, year, source),
+            )
+            self.cursor.execute(
+                """
+                INSERT INTO device_brands (device_type, brand, is_active)
+                SELECT ?, ?, 1
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM device_brands WHERE device_type=? AND brand=?
+                )
+                """,
+                (device_type, brand, device_type, brand),
+            )
+        self.conn.commit()
+
+    def get_device_model_catalog(self, profiles=None, device_type=None, brand=None):
+        """Return active catalog rows filtered by business profile, type, and brand."""
+        self.create_device_model_catalog_table()
+        clauses = ["is_active=1"]
+        params = []
+        profiles = [str(item).strip() for item in (profiles or []) if str(item).strip()]
+        if profiles:
+            clauses.append("business_profile IN ({})".format(",".join("?" for _ in profiles)))
+            params.extend(profiles)
+        if device_type:
+            clauses.append("device_type=?")
+            params.append(str(device_type).strip())
+        if brand:
+            clauses.append("brand=?")
+            params.append(str(brand).strip())
+        sql = (
+            "SELECT business_profile, device_type, brand, model, release_year, source "
+            "FROM device_models WHERE {} ORDER BY brand, model".format(" AND ".join(clauses))
+        )
+        self.cursor.execute(sql, tuple(params))
+        return self.cursor.fetchall() or []
 
     def add_device(self, data):
         """Yeni cihaz/servis kaydı ekle"""
@@ -310,11 +578,11 @@ class DeviceMixin:
             status = data.get("status")
             self.conn.commit()
 
-            if tracking_no and self._is_in_repair_status(status):
+            if tracking_no and self._should_create_service_debt(status):
                 self._sync_service_debt_from_tracking(
                     tracking_no,
                     create_if_missing=True,
-                    reason="status_tamirde",
+                    reason=f"status_{self._normalize_status_key(status)}",
                 )
 
             return self.cursor.lastrowid
@@ -322,52 +590,82 @@ class DeviceMixin:
             logger.error(f"Device add error: {e}")
             return None
 
-    def get_all_devices(self, include_archived=False):
+    def get_all_devices(self, include_archived=False, columns=None, limit=None, offset=0):
         """Tüm cihazları getir"""
-        if include_archived:
-            self.cursor.execute(
-                "SELECT * FROM devices WHERE COALESCE(is_deleted, 0) = 0 ORDER BY entry_date DESC"
-            )
-        else:
-            self.cursor.execute(
-                "SELECT * FROM devices WHERE COALESCE(is_deleted, 0) = 0 AND COALESCE(is_archived, 0)=0 ORDER BY entry_date DESC"
-            )
-        return self.cursor.fetchall()
-
-    def get_devices_by_status(self, status):
-        """Belirli durumdaki cihazları getir"""
-        self.cursor.execute(
-            "SELECT * FROM devices WHERE status=? AND COALESCE(is_deleted, 0) = 0",
-            (status,),
+        select_clause = self._device_select_clause(columns)
+        where = ["COALESCE(is_deleted, 0) = 0"]
+        if not include_archived:
+            where.append("COALESCE(is_archived, 0)=0")
+        sql = "SELECT {fields} FROM devices WHERE {where} ORDER BY entry_date DESC".format(
+            fields=select_clause,
+            where=" AND ".join(where),
         )
+        params = []
+        safe_limit = self._normalize_query_limit(limit)
+        if safe_limit:
+            sql += " LIMIT ?"
+            params.append(safe_limit)
+            try:
+                safe_offset = max(0, int(offset or 0))
+            except (TypeError, ValueError):
+                safe_offset = 0
+            if safe_offset:
+                sql += " OFFSET ?"
+                params.append(safe_offset)
+        self.cursor.execute(sql, params)
         return self.cursor.fetchall()
 
-    def get_recent_services(self, limit=10):
+    def get_devices_by_status(self, status, columns=None, limit=None, include_archived=False):
+        """Belirli durumdaki cihazları getir"""
+        select_clause = self._device_select_clause(columns)
+        where = ["status=?", "COALESCE(is_deleted, 0) = 0"]
+        if not include_archived:
+            where.append("COALESCE(is_archived, 0)=0")
+        sql = "SELECT {fields} FROM devices WHERE {where} ORDER BY entry_date DESC".format(
+            fields=select_clause,
+            where=" AND ".join(where),
+        )
+        params = [status]
+        safe_limit = self._normalize_query_limit(limit)
+        if safe_limit:
+            sql += " LIMIT ?"
+            params.append(safe_limit)
+        self.cursor.execute(sql, params)
+        return self.cursor.fetchall()
+
+    def get_recent_services(self, limit=10, columns=None):
         """Son servisleri getir"""
         try:
             safe_limit = max(1, int(limit))
         except (TypeError, ValueError):
             safe_limit = 10
+        select_clause = self._device_select_clause(columns)
         self.cursor.execute(
-            "SELECT * FROM devices WHERE COALESCE(is_deleted, 0) = 0 ORDER BY entry_date DESC LIMIT ?",
+            "SELECT {fields} FROM devices WHERE COALESCE(is_deleted, 0) = 0 AND COALESCE(is_archived, 0)=0 ORDER BY entry_date DESC LIMIT ?".format(
+                fields=select_clause
+            ),
             (safe_limit,),
         )
         return self.cursor.fetchall()
 
-    def search_devices(self, query):
+    def search_devices(self, query, columns=None, limit=100):
         """Cihaz ara"""
         q = f"%{query}%"
+        select_clause = self._device_select_clause(columns)
+        safe_limit = self._normalize_query_limit(limit, default=100)
         self.cursor.execute(
             """
-            SELECT * FROM devices 
+            SELECT {fields} FROM devices
             WHERE (customer_name LIKE ? OR tracking_no LIKE ? OR device_model LIKE ?)
-            AND COALESCE(is_deleted, 0) = 0
-        """,
-            (q, q, q),
+            AND COALESCE(is_deleted, 0) = 0 AND COALESCE(is_archived, 0)=0
+            ORDER BY entry_date DESC
+            LIMIT ?
+        """.format(fields=select_clause),
+            (q, q, q, safe_limit),
         )
         return self.cursor.fetchall()
 
-    def advanced_search(self, criteria):
+    def advanced_search(self, criteria, columns=None, limit=200):
         """Gelişmiş arama"""
         try:
             conditions = ["COALESCE(is_deleted, 0) = 0"]
@@ -379,16 +677,34 @@ class DeviceMixin:
                     params.append(f"%{value}%")
 
             if len(conditions) == 1:
-                return self.get_all_devices()
+                return self.get_all_devices(columns=columns, limit=limit)
 
-            sql = "SELECT * FROM devices WHERE {conditions}".format(
-                conditions=" AND ".join(conditions)
+            select_clause = self._device_select_clause(columns)
+            sql = "SELECT {fields} FROM devices WHERE {conditions} ORDER BY entry_date DESC".format(
+                fields=select_clause,
+                conditions=" AND ".join(conditions),
             )
+            safe_limit = self._normalize_query_limit(limit, default=200)
+            if safe_limit:
+                sql += " LIMIT ?"
+                params.append(safe_limit)
             self.cursor.execute(sql, params)
             return self.cursor.fetchall()
         except Exception as e:
             logger.error(f"Advanced search error: {e}")
             return []
+
+    def get_device_by_tracking_no(self, tracking_no, columns=None, include_deleted=False):
+        select_clause = self._device_select_clause(columns)
+        where = ["tracking_no=?"]
+        if not include_deleted:
+            where.append("COALESCE(is_deleted, 0) = 0")
+        sql = "SELECT {fields} FROM devices WHERE {where} LIMIT 1".format(
+            fields=select_clause,
+            where=" AND ".join(where),
+        )
+        self.cursor.execute(sql, (tracking_no,))
+        return self.cursor.fetchone()
 
     def update_status(self, tracking_no, status):
         """Cihaz durumunu güncelle"""
@@ -399,11 +715,11 @@ class DeviceMixin:
             )
             self.conn.commit()
 
-            if self._is_in_repair_status(status):
+            if self._should_create_service_debt(status):
                 self._sync_service_debt_from_tracking(
                     tracking_no,
                     create_if_missing=True,
-                    reason="status_tamirde",
+                    reason=f"status_{self._normalize_status_key(status)}",
                 )
 
             # Trigger notification if needed
@@ -505,6 +821,18 @@ class DeviceMixin:
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP
                 )
             """)
+            self.cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS product_groups (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+                    is_active INTEGER DEFAULT 1,
+                    created_at TEXT,
+                    updated_at TEXT
+                )
+                """
+            )
+            self.create_device_model_catalog_table()
             for device_type, brand in self._get_default_device_brand_pairs():
                 self.cursor.execute(
                     """
@@ -517,6 +845,34 @@ class DeviceMixin:
                     """,
                     (device_type, brand, device_type, brand),
                 )
+            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            self.cursor.execute(
+                """
+                INSERT OR IGNORE INTO product_groups (
+                    name, is_active, created_at, updated_at
+                )
+                SELECT DISTINCT
+                    TRIM(device_type),
+                    1,
+                    ?,
+                    ?
+                FROM device_brands
+                WHERE TRIM(COALESCE(device_type, '')) <> ''
+                """,
+                (now, now),
+            )
+            self.refresh_device_model_catalog()
+            self.cursor.execute(
+                """
+                INSERT OR IGNORE INTO product_groups (
+                    name, is_active, created_at, updated_at
+                )
+                SELECT DISTINCT TRIM(device_type), 1, ?, ?
+                FROM device_brands
+                WHERE TRIM(COALESCE(device_type, '')) <> ''
+                """,
+                (now, now),
+            )
             self.conn.commit()
             logger.info("device_brands table ensured")
         except Exception as e:

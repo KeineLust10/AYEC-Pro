@@ -171,6 +171,11 @@ class DesignTokens(metaclass=_DesignTokensMeta):
         return _map.get((status_type, part), tc("text"))
 
     @classmethod
+    def apply_spinbox_styles(cls, spinbox):
+        from src.utils.theme_colors import theme_qss
+        spinbox.setStyleSheet(theme_qss(cls.get_input_qss()))
+
+    @classmethod
     def get_combobox_qss(cls, dark_mode=False):
         return f"""
             QComboBox {{
@@ -194,16 +199,19 @@ class DesignTokens(metaclass=_DesignTokensMeta):
                 border: 1px solid @accent;
             }}
             QComboBox::drop-down {{
+                border: none;
                 border-left: 1px solid @border;
                 width: 30px;
                 background: @surface_alt;
             }}
             QComboBox::down-arrow {{
                 image: none;
+                width: 0px;
+                height: 0px;
                 border-left: 5px solid transparent;
                 border-right: 5px solid transparent;
-                border-top: 6px solid @text;
-                margin-right: 10px;
+                border-top: 6px solid @text_muted;
+                margin-right: 9px;
             }}
             QComboBox QAbstractItemView {{
                 background-color: @surface;
@@ -212,13 +220,20 @@ class DesignTokens(metaclass=_DesignTokensMeta):
                 selection-background-color: @selection_bg;
                 selection-color: @selection_text;
                 outline: none;
-                border-radius: {cls.RADIUS_MD};
-                padding: 4px;
             }}
             QComboBox QAbstractItemView::item {{
-                height: 35px;
                 padding-left: 8px;
-                border-radius: {cls.RADIUS_SM};
+                padding-top: 4px;
+                padding-bottom: 4px;
+                color: @text;
+            }}
+            QComboBox QAbstractItemView::item:hover {{
+                background-color: @surface_alt;
+                color: @text;
+            }}
+            QComboBox QAbstractItemView::item:selected {{
+                background-color: @selection_bg;
+                color: @selection_text;
             }}
         """
 
@@ -276,10 +291,50 @@ class DesignTokens(metaclass=_DesignTokensMeta):
             QLineEdit::placeholder, QTextEdit::placeholder, QPlainTextEdit::placeholder {{
                 color: @text_muted;
             }}
+            QDateEdit::drop-down {{
+                width: 30px;
+                background: @surface_alt;
+                border: none;
+                border-left: 1px solid {border};
+            }}
+            QDateEdit::down-arrow {{
+                image: none;
+                width: 0px;
+                height: 0px;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 6px solid @text_muted;
+                margin-right: 9px;
+            }}
+        """
+
+    @classmethod
+    def get_icon_btn_qss(cls):
+        """QSS for emoji/icon-only buttons. Font-size 20px is embedded directly
+        so it cannot be overridden by setFont(). Background is transparent with
+        a soft surface_alt hover \u2014 no border/frame."""
+        return """
+            QPushButton {
+                background: transparent;
+                border: none;
+                border-radius: 8px;
+                padding: 0px;
+                font-size: 24px;
+            }
+            QPushButton:hover {
+                background: @surface_alt;
+            }
+            QPushButton:pressed {
+                background: @border;
+            }
+            QPushButton:disabled {
+                opacity: 0.4;
+            }
         """
 
     @classmethod
     def get_button_qss(cls, variant="primary", size="md"):
+
         # Size mapping
         dims = {"sm": "8px 16px", "md": "10px 20px", "lg": "14px 28px"}
         padding = dims.get(size, dims["md"])
@@ -357,6 +412,9 @@ class DesignTokens(metaclass=_DesignTokensMeta):
                 color: @text;
                 outline: none;
             }}
+            QTableWidget:focus, QListWidget:focus, QTreeWidget:focus, QTreeView:focus {{
+                outline: none;
+            }}
             QHeaderView::section {{
                 background-color: @surface_alt;
                 color: @text;
@@ -377,6 +435,7 @@ class DesignTokens(metaclass=_DesignTokensMeta):
                 padding: 10px;
                 border-bottom: 1px solid @border;
                 color: @text;
+                outline: none;
             }}
             QTableWidget::item:alternate, QListWidget::item:alternate,
             QTreeWidget::item:alternate, QTreeView::item:alternate {{
@@ -393,11 +452,24 @@ class DesignTokens(metaclass=_DesignTokensMeta):
                 background-color: @selection_bg;
                 color: @selection_text;
                 font-weight: 600;
+                border: none;
+                outline: none;
             }}
             QTableWidget::item:selected:hover, QListWidget::item:selected:hover,
             QTreeWidget::item:selected:hover, QTreeView::item:selected:hover {{
                 background-color: @selection_bg;
                 color: @selection_text;
+                border: none;
+                outline: none;
+            }}
+            QTableWidget::item:focus, QListWidget::item:focus,
+            QTreeWidget::item:focus, QTreeView::item:focus,
+            QTableWidget::item:selected:focus, QListWidget::item:selected:focus,
+            QTreeWidget::item:selected:focus, QTreeView::item:selected:focus,
+            QTableWidget::item:selected:active, QListWidget::item:selected:active,
+            QTreeWidget::item:selected:active, QTreeView::item:selected:active {{
+                outline: none;
+                border: none;
             }}
         """
 

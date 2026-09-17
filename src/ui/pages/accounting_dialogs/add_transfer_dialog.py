@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 from PyQt6.QtWidgets import (QFormLayout, QComboBox, QLineEdit, QDateEdit,
                              QDoubleSpinBox, QPushButton)
 from PyQt6.QtCore import QDate
@@ -7,13 +9,19 @@ from src.ui.widgets.premium_dialog import PremiumDialog
 from src.utils.toast_notification import show_warning, show_error
 
 
+
 class AddTransferDialog(PremiumDialog):
+
+    def _on_ui_widget_changed(self, *args):
+        from src.ui.utils.ui_signal_helpers import on_ui_widget_changed
+        on_ui_widget_changed(self, *args)
     def __init__(self, db, parent=None):
         super().__init__("Banka Transferi", parent)
         self.db = db
         self.resize(420, 520)
         self.setup_ui()
 
+        self._wire_ui_signals()
     def setup_ui(self):
         form = QFormLayout()
         form.setSpacing(15)
@@ -23,7 +31,15 @@ class AddTransferDialog(PremiumDialog):
         self.cmb_from = QComboBox()
         self.cmb_to = QComboBox()
         for acc in self.accounts:
-            acc_id, bank, branch, acc_name, acc_no, iban, balance_val, is_active_val, created_at = acc
+            acc_id = self._bank_field(acc, "id", 0)
+            bank = self._bank_field(acc, "bank_name", 1)
+            acc_name = self._bank_field(acc, "account_holder", 2)
+            if not acc_name:
+                acc_name = self._bank_field(acc, "account_name", 2)
+            acc_no = self._bank_field(acc, "account_number", 4)
+            if not acc_no:
+                acc_no = self._bank_field(acc, "account_no", 4)
+            is_active_val = self._bank_field(acc, "is_active", 7, 1)
             if int(is_active_val or 0) != 1:
                 continue
             label_parts = [str(bank or "").strip(), str(acc_name or "").strip()]
@@ -59,11 +75,29 @@ class AddTransferDialog(PremiumDialog):
         btn_save.clicked.connect(self.save)
         self.body_layout.addWidget(btn_save)
 
+    def _wire_ui_signals(self):
+        self.cmb_from.currentIndexChanged.connect(self._on_ui_widget_changed)
+        self.cmb_to.currentIndexChanged.connect(self._on_ui_widget_changed)
+
     def _load_bank_accounts(self):
         try:
             return self.db.get_bank_accounts() or []
         except Exception:
             return []
+
+    @staticmethod
+    def _bank_field(account, key, index, default=None):
+        if isinstance(account, dict):
+            return account.get(key, default)
+        try:
+            if hasattr(account, "keys") and key in account.keys():
+                return account[key]
+        except Exception:
+            pass
+        try:
+            return account[index]
+        except Exception:
+            return default
 
     def save(self):
         try:

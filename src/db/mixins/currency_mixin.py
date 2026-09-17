@@ -28,6 +28,7 @@ class CurrencyMixin:
         tracking_no="",
         created_at=None,
         is_invoiced=0,
+        commit=True,
     ):
         """
         Dövizli işlem ekle
@@ -50,10 +51,9 @@ class CurrencyMixin:
                         self, currency, "selling"
                     )
                     if not exchange_rate:
-                        logger.warning(
-                            f"No rate found for {currency}, defaulting to 1.0"
+                        raise ValueError(
+                            f"Exchange rate unavailable for {currency}"
                         )
-                        exchange_rate = 1.0
 
             # 2. TL Karşılığını hesapla (Tam hassasiyet)
             try_equivalent = round(amount * exchange_rate, 4)
@@ -112,7 +112,8 @@ class CurrencyMixin:
                 ),
             )
 
-            self.conn.commit()
+            if commit:
+                self.conn.commit()
             logger.info(
                 f"Smart Transaction: {amount} {currency} (Rate: {exchange_rate}) for customer {customer_id}. New Balance: {new_balance}"
             )
@@ -233,6 +234,45 @@ class CurrencyMixin:
         except Exception as e:
             logger.error(f"Error recalculating balances: {e}")
             return 0
+
+    def recalculate_customer_currency_balance(
+        self,
+        customer_id,
+        currency,
+        commit=True,
+    ):
+        """Rebuild one customer/currency balance from immutable transactions."""
+        row = self.cursor.execute(
+            """
+            SELECT
+                COALESCE(SUM(
+                    CASE WHEN transaction_type='CREDIT' THEN amount ELSE 0 END
+                ), 0) -
+                COALESCE(SUM(
+                    CASE WHEN transaction_type='DEBIT' THEN amount ELSE 0 END
+                ), 0)
+            FROM currency_transactions
+            WHERE customer_id=? AND currency=?
+            """,
+            (customer_id, currency),
+        ).fetchone()
+        correct_balance = round(float(row[0] or 0.0), 2) if row else 0.0
+        self.cursor.execute(
+            """
+            INSERT OR REPLACE INTO customer_currency_balances
+            (customer_id, currency, balance, last_updated)
+            VALUES (?, ?, ?, ?)
+            """,
+            (
+                customer_id,
+                currency,
+                correct_balance,
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            ),
+        )
+        if commit:
+            self.conn.commit()
+        return correct_balance
 
     def get_customer_currency_balance(self, customer_id, currency):
         """Müşterinin belirli döviz bakiyesini getir"""
@@ -384,6 +424,7 @@ class CurrencyMixin:
         currency,
         payment_transaction_id=None,
         selected_debt_ids=None,
+        commit=True,
     ):
         """
         Tahsilatı seçili borç kalemlerine dağıt ve kalanı cari hesaba işle.
@@ -399,65 +440,120 @@ class CurrencyMixin:
             dict: {'allocated': dağıtılan tutar, 'remaining': kalan tutar, 'linked_debts': bağlanan borçlar}
         """
         try:
+            payment_amount = round(float(payment_amount or 0.0), 2)
+            if payment_amount <= 0:
+                raise ValueError("Payment amount must be positive")
+            if not payment_transaction_id:
+                raise ValueError("Payment transaction id is required")
+            if not self.create_payment_debt_links_table(commit=commit):
+                raise RuntimeError("Payment allocation schema is unavailable")
+
+            payment_row = self.cursor.execute(
+                """
+                SELECT amount
+                FROM currency_transactions
+                WHERE id=? AND customer_id=? AND currency=?
+                  AND transaction_type='CREDIT'
+                """,
+                (payment_transaction_id, customer_id, currency),
+            ).fetchone()
+            if not payment_row:
+                raise ValueError("Payment transaction does not match the customer")
+
+            payment_total = round(float(payment_row[0] or 0.0), 2)
+            already_linked_row = self.cursor.execute(
+                """
+                SELECT COALESCE(SUM(amount), 0)
+                FROM payment_debt_links
+                WHERE payment_txn_id=?
+                """,
+                (payment_transaction_id,),
+            ).fetchone()
+            already_linked = round(
+                float(already_linked_row[0] or 0.0)
+                if already_linked_row
+                else 0.0,
+                2,
+            )
+            remaining_payment = round(
+                max(0.0, min(payment_amount, payment_total) - already_linked),
+                2,
+            )
             allocated = 0.0
             linked_debts = []
 
-            # Eğer seçili borç yoksa, açık borçları getir (en eski başlayarak)
             if not selected_debt_ids:
                 debts = self.cursor.execute(
                     """
-                    SELECT id, amount, current_balance 
-                    FROM currency_transactions 
-                    WHERE customer_id = ? AND currency = ? AND transaction_type = 'DEBIT'
-                    AND (current_balance < 0 OR current_balance IS NULL)
-                    ORDER BY created_at ASC
-                """,
+                    SELECT
+                        ct.id,
+                        ct.amount,
+                        COALESCE(SUM(pdl.amount), 0) AS linked_amount
+                    FROM currency_transactions ct
+                    LEFT JOIN payment_debt_links pdl
+                      ON pdl.debt_txn_id=ct.id
+                    WHERE ct.customer_id=? AND ct.currency=?
+                      AND ct.transaction_type='DEBIT'
+                    GROUP BY ct.id, ct.amount, ct.created_at
+                    HAVING COALESCE(ct.amount, 0) -
+                           COALESCE(SUM(pdl.amount), 0) > 0.009
+                    ORDER BY ct.created_at ASC, ct.id ASC
+                    """,
                     (customer_id, currency),
                 ).fetchall()
             else:
-                # Seçili borçları getir
-                placeholders = ",".join(["?" for _ in selected_debt_ids])
-                debts = self.cursor.execute(
-                    """
-                    SELECT id, amount, current_balance 
-                    FROM currency_transactions 
-                    WHERE id IN ({placeholders})
-                      AND customer_id = ?
-                      AND currency = ?
-                      AND transaction_type = 'DEBIT'
-                    ORDER BY created_at ASC
-                """.format(placeholders=placeholders),
-                    tuple(selected_debt_ids) + (customer_id, currency),
-                ).fetchall()
+                debt_ids = [
+                    int(debt_id)
+                    for debt_id in selected_debt_ids
+                    if debt_id is not None
+                ]
+                if not debt_ids:
+                    debts = []
+                else:
+                    placeholders = ",".join(["?"] * len(debt_ids))
+                    debts = self.cursor.execute(
+                        """
+                        SELECT
+                            ct.id,
+                            ct.amount,
+                            COALESCE(SUM(pdl.amount), 0) AS linked_amount
+                        FROM currency_transactions ct
+                        LEFT JOIN payment_debt_links pdl
+                          ON pdl.debt_txn_id=ct.id
+                        WHERE ct.id IN ({placeholders})
+                          AND ct.customer_id=?
+                          AND ct.currency=?
+                          AND ct.transaction_type='DEBIT'
+                        GROUP BY ct.id, ct.amount, ct.created_at
+                        HAVING COALESCE(ct.amount, 0) -
+                               COALESCE(SUM(pdl.amount), 0) > 0.009
+                        ORDER BY ct.created_at ASC, ct.id ASC
+                        """.format(placeholders=placeholders),
+                        tuple(debt_ids) + (customer_id, currency),
+                    ).fetchall()
 
-            remaining_payment = payment_amount
-
-            for debt_id, debt_amount, current_balance in debts:
+            for debt_id, debt_amount, linked_amount in debts:
                 if remaining_payment <= 0:
                     break
 
-                # Borç kalanını hesapla (pozitif değer = ödenmesi gereken)
-                if current_balance is None:
-                    debt_remaining = debt_amount
-                elif current_balance < 0:
-                    # Negatif bakiye = kapanmamış borç
-                    debt_remaining = abs(current_balance)
-                else:
-                    continue  # Bu borç zaten kapanmış
-
-                # Bu borca ne kadar ödeme yapılabilir
-                payment_for_this = min(remaining_payment, debt_remaining)
+                debt_remaining = round(
+                    max(
+                        0.0,
+                        float(debt_amount or 0.0)
+                        - float(linked_amount or 0.0),
+                    ),
+                    2,
+                )
+                payment_for_this = round(
+                    min(remaining_payment, debt_remaining),
+                    2,
+                )
 
                 if payment_for_this > 0:
-                    if current_balance is None:
-                        new_debt_balance = round(
-                            (-float(debt_amount or 0)) + payment_for_this, 2
-                        )
-                    else:
-                        new_debt_balance = round(
-                            float(current_balance or 0) + payment_for_this, 2
-                        )
-                    # Ödeme-borç bağlantısını kaydet
+                    new_debt_remaining = round(
+                        max(0.0, debt_remaining - payment_for_this),
+                        2,
+                    )
                     self.cursor.execute(
                         """
                         INSERT INTO payment_debt_links 
@@ -477,7 +573,7 @@ class CurrencyMixin:
                         SET current_balance = ?
                         WHERE id = ?
                     """,
-                        (new_debt_balance, debt_id),
+                        (-new_debt_remaining, debt_id),
                     )
 
                     linked_debts.append(
@@ -485,25 +581,26 @@ class CurrencyMixin:
                             "debt_id": debt_id,
                             "amount": payment_for_this,
                             "debt_remaining_before": debt_remaining,
-                            "debt_remaining_after": max(0.0, abs(new_debt_balance))
-                            if new_debt_balance < 0
-                            else 0.0,
+                            "debt_remaining_after": new_debt_remaining,
                         }
                     )
 
                     allocated += payment_for_this
-                    remaining_payment -= payment_for_this
+                    remaining_payment = round(
+                        max(0.0, remaining_payment - payment_for_this),
+                        2,
+                    )
 
-            try:
-                self.recalculate_all_customer_balances()
-            except Exception as recalc_err:
-                logger.warning(
-                    f"Balance recalc after payment allocation skipped: {recalc_err}"
-                )
-
-            self.conn.commit()
+            self.recalculate_customer_currency_balance(
+                customer_id,
+                currency,
+                commit=False,
+            )
+            if commit:
+                self.conn.commit()
 
             return {
+                "ok": True,
                 "allocated": allocated,
                 "remaining": remaining_payment,
                 "linked_debts": linked_debts,
@@ -511,8 +608,15 @@ class CurrencyMixin:
 
         except Exception as e:
             logger.error(f"Error applying payment to debts: {e}")
-            self.conn.rollback()
-            return {"allocated": 0, "remaining": payment_amount, "linked_debts": []}
+            if commit:
+                self.conn.rollback()
+            return {
+                "ok": False,
+                "error": str(e),
+                "allocated": 0,
+                "remaining": payment_amount,
+                "linked_debts": [],
+            }
 
     def get_unpaid_debts(self, customer_id, currency=None):
         """
@@ -541,29 +645,180 @@ class CurrencyMixin:
             logger.error(f"Error getting unpaid debts: {e}")
             return []
 
-    def create_payment_debt_links_table(self):
+    def create_payment_debt_links_table(self, commit=True):
         """Ödeme-borç bağlantı tablosunu oluştur (yoksa)"""
         try:
-            self.cursor.execute("""
-                CREATE TABLE IF NOT EXISTS payment_debt_links (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    payment_txn_id INTEGER NOT NULL,
-                    debt_txn_id INTEGER NOT NULL,
-                    amount REAL NOT NULL,
-                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (payment_txn_id) REFERENCES currency_transactions(id),
-                    FOREIGN KEY (debt_txn_id) REFERENCES currency_transactions(id)
-                )
-            """)
-            self.cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_payment_debt_payment 
-                ON payment_debt_links(payment_txn_id)
-            """)
-            self.cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_payment_debt_debt 
-                ON payment_debt_links(debt_txn_id)
-            """)
-            self.conn.commit()
-            logger.info("Payment debt links table created/verified")
+            row = self.cursor.execute(
+                """
+                SELECT 1
+                FROM sqlite_master
+                WHERE type='table' AND name='payment_debt_links'
+                LIMIT 1
+                """
+            ).fetchone()
+            if row:
+                return True
+            logger.error(
+                "Payment allocation schema is missing; startup migration required"
+            )
+            return False
         except Exception as e:
-            logger.error(f"Error creating payment debt links table: {e}")
+            logger.error(f"Error verifying payment debt links table: {e}")
+            return False
+
+    def auto_allocate_unlinked_customer_payments(self, customer_id=None, currency=None):
+        """
+        Linklenmemis tahsilatlari ayni musterinin acik borclarina FIFO mantigiyla dagit.
+        """
+        try:
+            if not self.create_payment_debt_links_table():
+                raise RuntimeError("Payment allocation schema is unavailable")
+
+            customer_sql = "SELECT DISTINCT customer_id FROM currency_transactions"
+            customer_params = []
+            if customer_id is not None:
+                customer_sql += " WHERE customer_id=?"
+                customer_params.append(customer_id)
+
+            customer_rows = self.cursor.execute(
+                customer_sql, tuple(customer_params)
+            ).fetchall() or []
+            customers = [row[0] for row in customer_rows if row and row[0] is not None]
+
+            allocations = 0
+            affected_pairs = set()
+
+            for cid in customers:
+                currency_sql = """
+                    SELECT DISTINCT currency
+                    FROM currency_transactions
+                    WHERE customer_id=?
+                """
+                currency_params = [cid]
+                if currency:
+                    currency_sql += " AND currency=?"
+                    currency_params.append(currency)
+
+                currency_rows = self.cursor.execute(
+                    currency_sql, tuple(currency_params)
+                ).fetchall() or []
+                currencies = [row[0] for row in currency_rows if row and row[0]]
+
+                for curr in currencies:
+                    credit_rows = self.cursor.execute(
+                        """
+                        SELECT
+                            ct.id,
+                            ct.amount,
+                            ct.created_at,
+                            COALESCE(SUM(pdl.amount), 0) AS linked_amount
+                        FROM currency_transactions ct
+                        LEFT JOIN payment_debt_links pdl ON pdl.payment_txn_id = ct.id
+                        WHERE ct.customer_id=?
+                          AND ct.currency=?
+                          AND ct.transaction_type='CREDIT'
+                        GROUP BY ct.id, ct.amount, ct.created_at
+                        HAVING COALESCE(ct.amount, 0) - COALESCE(SUM(pdl.amount), 0) > 0.009
+                        ORDER BY ct.created_at ASC, ct.id ASC
+                        """,
+                        (cid, curr),
+                    ).fetchall() or []
+
+                    debt_rows = self.cursor.execute(
+                        """
+                        SELECT
+                            ct.id,
+                            ct.amount,
+                            ct.created_at,
+                            COALESCE(SUM(pdl.amount), 0) AS linked_amount
+                        FROM currency_transactions ct
+                        LEFT JOIN payment_debt_links pdl ON pdl.debt_txn_id = ct.id
+                        WHERE ct.customer_id=?
+                          AND ct.currency=?
+                          AND ct.transaction_type='DEBIT'
+                        GROUP BY ct.id, ct.amount, ct.created_at
+                        HAVING COALESCE(ct.amount, 0) - COALESCE(SUM(pdl.amount), 0) > 0.009
+                        ORDER BY ct.created_at ASC, ct.id ASC
+                        """,
+                        (cid, curr),
+                    ).fetchall() or []
+
+                    if not credit_rows or not debt_rows:
+                        continue
+
+                    debt_state = [
+                        {
+                            "id": row[0],
+                            "remaining": round(
+                                max(0.0, float(row[1] or 0.0) - float(row[3] or 0.0)), 2
+                            ),
+                        }
+                        for row in debt_rows
+                    ]
+
+                    for credit in credit_rows:
+                        payment_id = credit[0]
+                        credit_remaining = round(
+                            max(0.0, float(credit[1] or 0.0) - float(credit[3] or 0.0)),
+                            2,
+                        )
+                        if credit_remaining <= 0.009:
+                            continue
+
+                        for debt in debt_state:
+                            if credit_remaining <= 0.009:
+                                break
+                            if debt["remaining"] <= 0.009:
+                                continue
+
+                            allocate_amount = round(
+                                min(credit_remaining, debt["remaining"]), 2
+                            )
+                            if allocate_amount <= 0.009:
+                                continue
+
+                            self.cursor.execute(
+                                """
+                                INSERT INTO payment_debt_links
+                                (payment_txn_id, debt_txn_id, amount, created_at)
+                                VALUES (?, ?, ?, ?)
+                                """,
+                                (
+                                    payment_id,
+                                    debt["id"],
+                                    allocate_amount,
+                                    datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                ),
+                            )
+                            debt["remaining"] = round(
+                                max(0.0, debt["remaining"] - allocate_amount), 2
+                            )
+                            credit_remaining = round(
+                                max(0.0, credit_remaining - allocate_amount), 2
+                            )
+                            allocations += 1
+                            affected_pairs.add((cid, curr))
+
+                    for debt in debt_state:
+                        self.cursor.execute(
+                            """
+                            UPDATE currency_transactions
+                            SET current_balance=?
+                            WHERE id=?
+                            """,
+                            (round(-debt["remaining"], 2), debt["id"]),
+                        )
+
+            if allocations:
+                for cid, curr in affected_pairs:
+                    self.rebuild_customer_currency_balance(
+                        cid,
+                        curr,
+                        commit=False,
+                    )
+                self.conn.commit()
+            return allocations
+        except Exception as e:
+            logger.error(f"Error auto allocating customer payments: {e}")
+            self.conn.rollback()
+            return 0
