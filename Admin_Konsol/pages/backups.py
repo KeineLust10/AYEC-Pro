@@ -136,12 +136,12 @@ class BackupsPage(QWidget):
 
         self._table = QTableWidget()
         self._table.setObjectName("dataTable")
-        self._table.setColumnCount(7)
+        self._table.setColumnCount(8)
         self._table.setHorizontalHeaderLabels([
-            "Dosya", "Kaynak", "Tarih", "Boyut", "Durum", "Program", "Cihaz"
+            "Dosya", "Kaynak", "Tarih", "Boyut", "Durum", "Program", "Cihaz", "Kurulum"
         ])
         self._table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        for column in range(1, 7):
+        for column in range(1, 8):
             self._table.horizontalHeader().setSectionResizeMode(
                 column, QHeaderView.ResizeMode.ResizeToContents
             )
@@ -209,6 +209,7 @@ class BackupsPage(QWidget):
                 "Haz\u0131r",
                 item.get("product_code", "teknik_servis"),
                 item.get("hardware_id") or "-",
+                item.get("installation_id") or "-",
             ]
             for column, value in enumerate(values):
                 self._table.setItem(row, column, QTableWidgetItem(str(value)))

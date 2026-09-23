@@ -87,7 +87,7 @@ class CloudBackupManager:
                 },
                 'remote_server': {
                     'enabled': True,
-                    'url': 'http://85.117.239.60:8000/api/backup/upload',
+                    'url': 'https://lisans.ayecpro.com/api/support/backups/upload',
                     'auth_token': ''
                 }
             }

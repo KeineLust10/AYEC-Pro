@@ -103,6 +103,14 @@ STATUS_ALIASES.update({
     "Servise Alinacak": "Bekliyor",
 })
 
+# Database files created by older Windows code pages can contain the literal
+# mojibake form of Turkish status text. Keep it equivalent to the canonical
+# value so dashboard and service-list counts remain identical.
+STATUS_ALIASES.update({
+    "Test S\u00c3\u00bcrecinde": "Test S\u00fcrecinde",
+    "Par\u00c3\u00a7a Bekliyor": "Par\u00e7a Bekliyor",
+})
+
 
 def _status_key(status):
     if status is None:

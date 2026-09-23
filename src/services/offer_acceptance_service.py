@@ -216,6 +216,222 @@ class OfferAcceptanceService:
                 )
         self.db.conn.commit()
 
+    @staticmethod
+    def _normalized_status(value):
+        return (
+            str(value or "").strip().lower()
+            .replace("\u0131", "i")
+            .replace("\u015f", "s")
+            .replace("\u0130", "i")
+            .replace("\u015e", "s")
+            .replace("\u0307", "")
+        )
+
+    def reverse_for_revision(self, offer_id, reason, reversed_by=""):
+        """Reverse an accepted offer with traceable counter entries."""
+        self.db.create_offer_tables()
+        offer = self._offer(offer_id)
+        status = self._normalized_status(_value(offer, "status", default=""))
+        if status not in {"accepted", "processed", "islenmis", "kabul edildi"}:
+            raise OfferAcceptanceError("Only a processed offer can be reversed.")
+
+        reason = str(reason or "").strip()
+        if len(reason) < 5:
+            raise OfferAcceptanceError("A reversal reason is required.")
+        original_tracking = str(
+            _value(offer, "processed_tracking_no", default="") or ""
+        ).strip()
+        if not original_tracking:
+            raise OfferAcceptanceError("Processed offer tracking was not found.")
+
+        existing = self.db.cursor.execute(
+            "SELECT id FROM offer_reversals WHERE offer_id=? AND original_tracking_no=?",
+            (int(offer_id), original_tracking),
+        ).fetchone()
+        if existing:
+            raise OfferAcceptanceError("This offer was already reversed.")
+
+        created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        reversal_tracking = (
+            f"{original_tracking}-REV-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        )
+        offer_no = str(_value(offer, "offer_no", default=offer_id) or offer_id)
+        customer_id = _value(offer, "customer_id")
+        summary = {
+            "currency_entries": 0,
+            "accounting_entries": 0,
+            "stock_entries": 0,
+            "service_logs": 0,
+        }
+
+        try:
+            self.db.conn.execute("BEGIN IMMEDIATE")
+
+            currency_rows = []
+            if self._table_exists("currency_transactions"):
+                currency_rows = self.db.cursor.execute(
+                    "SELECT * FROM currency_transactions WHERE tracking_no=? ORDER BY id",
+                    (original_tracking,),
+                ).fetchall()
+            transaction_ids = [int(row["id"]) for row in currency_rows]
+            if transaction_ids and self._table_exists("payment_debt_links"):
+                marks = ",".join("?" for _ in transaction_ids)
+                self.db.cursor.execute(
+                    "DELETE FROM payment_debt_links "
+                    f"WHERE payment_txn_id IN ({marks}) OR debt_txn_id IN ({marks})",
+                    tuple(transaction_ids + transaction_ids),
+                )
+
+            for row in currency_rows:
+                tx_type = str(row["transaction_type"] or "").upper()
+                reverse_type = "CREDIT" if tx_type == "DEBIT" else "DEBIT"
+                amount = float(row["amount"] or 0)
+                currency = str(row["currency"] or "TRY").upper()
+                balance_row = self.db.cursor.execute(
+                    "SELECT balance FROM customer_currency_balances "
+                    "WHERE customer_id=? AND currency=?",
+                    (int(row["customer_id"]), currency),
+                ).fetchone()
+                current_balance = float(balance_row[0] or 0) if balance_row else 0.0
+                new_balance = (
+                    current_balance - amount
+                    if reverse_type == "DEBIT"
+                    else current_balance + amount
+                )
+                self.db.cursor.execute(
+                    "INSERT INTO currency_transactions "
+                    "(customer_id,transaction_type,amount,currency,exchange_rate,"
+                    "try_equivalent,description,tracking_no,created_at,current_balance,is_invoiced) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,0)",
+                    (
+                        int(row["customer_id"]), reverse_type, amount, currency,
+                        float(row["exchange_rate"] or 1),
+                        float(row["try_equivalent"] or 0),
+                        f"Offer reversal | Ref: {offer_no} | {reason}",
+                        reversal_tracking, created_at, round(new_balance, 2),
+                    ),
+                )
+                self.db.cursor.execute(
+                    "INSERT OR REPLACE INTO customer_currency_balances "
+                    "(customer_id,currency,balance,last_updated) VALUES (?,?,?,?)",
+                    (int(row["customer_id"]), currency, round(new_balance, 2), created_at),
+                )
+                summary["currency_entries"] += 1
+
+            if self._table_exists("accounting"):
+                accounting_rows = self.db.cursor.execute(
+                    "SELECT * FROM accounting WHERE tracking_no=? ORDER BY id",
+                    (original_tracking,),
+                ).fetchall()
+                columns = [
+                    str(item[1])
+                    for item in self.db.cursor.execute("PRAGMA table_info(accounting)").fetchall()
+                    if str(item[1]) not in {"id", "payment_no"}
+                ]
+                for row in accounting_rows:
+                    values = {name: row[name] for name in columns}
+                    old_type = str(values.get("type") or "")
+                    values["type"] = "Gider" if old_type.casefold() == "gelir" else "Gelir"
+                    values["category"] = "Islem Geri Alma"
+                    values["description"] = (
+                        f"Offer reversal | Ref: {offer_no} | {reason} | "
+                        f"Original: {values.get('description') or ''}"
+                    )
+                    values["tracking_no"] = reversal_tracking
+                    values["ref_no"] = offer_no
+                    values["date"] = created_at[:10]
+                    values["created_at"] = created_at
+                    insert_columns = [name for name in columns if name in values]
+                    marks = ",".join("?" for _ in insert_columns)
+                    quoted = ",".join(f'"{name}"' for name in insert_columns)
+                    self.db.cursor.execute(
+                        f"INSERT INTO accounting ({quoted}) VALUES ({marks})",
+                        tuple(values[name] for name in insert_columns),
+                    )
+                    summary["accounting_entries"] += 1
+
+            if self._table_exists("used_parts"):
+                used_rows = self.db.cursor.execute(
+                    "SELECT part_id,COALESCE(SUM(quantity),0),MAX(part_name) "
+                    "FROM used_parts WHERE tracking_no=? AND part_id IS NOT NULL GROUP BY part_id",
+                    (original_tracking,),
+                ).fetchall()
+                for part_id, quantity, part_name in used_rows:
+                    stock_row = self.db.cursor.execute(
+                        "SELECT COALESCE(stock,0) FROM parts WHERE id=?",
+                        (int(part_id),),
+                    ).fetchone()
+                    current_stock = float(stock_row[0] or 0) if stock_row else 0.0
+                    if not self.db.record_stock_movement(
+                        int(part_id), float(quantity or 0), current_stock=current_stock,
+                        type_val="Giris",
+                        desc=(
+                            f"Offer reversal: {offer_no} | {part_name or part_id} | "
+                            f"Original: {original_tracking}"
+                        ),
+                        commit=False,
+                    ):
+                        raise OfferAcceptanceError("Stock reversal could not be recorded.")
+                    summary["stock_entries"] += 1
+
+            service_tracking = str(_value(offer, "project_name", default="") or "").strip()
+            if service_tracking and self._table_exists("devices"):
+                device = self.db.cursor.execute(
+                    "SELECT tracking_no FROM devices WHERE tracking_no=? LIMIT 1",
+                    (service_tracking,),
+                ).fetchone()
+                if device and self._table_exists("service_logs"):
+                    self.db.cursor.execute(
+                        "INSERT INTO service_logs "
+                        "(device_tracking_no,log_type,message,created_at,user) VALUES (?,?,?,?,?)",
+                        (
+                            service_tracking, "Offer Revision",
+                            f"Offer {offer_no} reversed for revision. Reason: {reason}",
+                            created_at, str(reversed_by or "System"),
+                        ),
+                    )
+                    summary["service_logs"] += 1
+
+            self.db.cursor.execute(
+                "INSERT INTO offer_reversals "
+                "(offer_id,original_tracking_no,reversal_tracking_no,reason,reversed_by,payload_json,created_at) "
+                "VALUES (?,?,?,?,?,?,?)",
+                (
+                    int(offer_id), original_tracking, reversal_tracking, reason,
+                    str(reversed_by or ""), json.dumps(summary, ensure_ascii=True), created_at,
+                ),
+            )
+            self.db.cursor.execute(
+                "UPDATE offers SET status='revision_pending',processed_tracking_no='',"
+                "accepted_at=NULL,accepted_by='',accepted_payment=0,accepted_payment_try=0,"
+                "remaining_amount=0,remaining_try=0,payment_method='',processing_error='',"
+                "updated_at=? WHERE id=?",
+                (created_at, int(offer_id)),
+            )
+            if self._table_exists("audit_logs"):
+                self.db.cursor.execute(
+                    "INSERT INTO audit_logs "
+                    "(user_id,table_name,action,details,created_at) VALUES (?,?,?,?,?)",
+                    (
+                        str(reversed_by or "System"), "offers", "REVERSE_FOR_REVISION",
+                        f"Offer {offer_no} | Original: {original_tracking} | Reason: {reason}",
+                        created_at,
+                    ),
+                )
+            self.db.conn.commit()
+        except Exception:
+            self.db.conn.rollback()
+            raise
+
+        return {
+            "offer_id": int(offer_id),
+            "offer_no": offer_no,
+            "original_tracking_no": original_tracking,
+            "reversal_tracking_no": reversal_tracking,
+            "customer_id": customer_id,
+            **summary,
+        }
+
     def accept(
         self,
         offer_id,
@@ -225,10 +441,17 @@ class OfferAcceptanceService:
     ):
         offer = self._offer(offer_id)
         status = str(_value(offer, "status", default="") or "").strip().lower()
+        status = (
+            status.replace("\u0131", "i")
+            .replace("\u015f", "s")
+            .replace("\u0130", "i")
+            .replace("\u015e", "s")
+            .replace("\u0307", "")
+        )
         previous_tracking = str(
             _value(offer, "processed_tracking_no", default="") or ""
         ).strip()
-        if status in {"accepted", "processed"}:
+        if status in {"accepted", "processed", "islenmis", "kabul edildi"}:
             raise OfferAcceptanceError("This offer was already processed.")
         if previous_tracking and self._tracking_exists(previous_tracking):
             raise OfferAcceptanceError(

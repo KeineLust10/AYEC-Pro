@@ -3,8 +3,10 @@
 import os
 import sys
 import subprocess
+import json
 from datetime import datetime
 from PyQt6.QtCore import QObject, Qt, QThread, pyqtSignal
+from PyQt6.QtWidgets import QMessageBox
 from src.utils.logger import logger
 from src.utils.path_helper import PathHelper
 from src.utils.secure_update import (
@@ -68,7 +70,8 @@ class UpdateWorker(QThread):
             logger.error("Update check failed: %s", e)
             self.finished.emit(False, "", "", "", "")
 
-    def _compare_versions(self, new, current):
+    @staticmethod
+    def _compare_versions(new, current):
         try:
             v1 = [int(x) for x in str(new).split('.')]
             v2 = [int(x) for x in str(current).split('.')]
@@ -90,16 +93,76 @@ class UpdateManager(QObject):
         self.download_sha256 = ""
         self.update_found = False
         self.download_completed = False
+        self._ready_prompted_once = False
+
+    def _state_path(self):
+        return os.path.join(PathHelper.get_app_data_dir(), "update_state.json")
+
+    def _save_ready_state(self):
+        payload = {"version": self.new_version, "path": self.download_path, "sha256": self.download_sha256}
+        try:
+            with open(self._state_path(), "w", encoding="utf-8") as handle:
+                json.dump(payload, handle)
+        except Exception as exc:
+            logger.warning("Update state save failed: %s", exc)
+
+    def _load_ready_state(self):
+        try:
+            with open(self._state_path(), "r", encoding="utf-8") as handle:
+                state = json.load(handle)
+            path = str(state.get("path") or "")
+            digest = str(state.get("sha256") or "")
+            if path and os.path.isfile(path) and state.get("version") and verify_update_file(path, digest):
+                return state
+        except Exception:
+            pass
+        return None
+
+    def _show_ready_dialog(self):
+        if self._ready_prompted_once:
+            return
+        self._ready_prompted_once = True
+        dialog = QMessageBox(self.parent)
+        dialog.setWindowTitle("G\u00fcncelleme haz\u0131r")
+        dialog.setText(f"v{self.new_version} g\u00fcncelleme dosyan\u0131z haz\u0131r.")
+        dialog.setInformativeText("Uygulama kapanacak ve yeni s\u00fcr\u00fcm kurulacak.")
+        install_button = dialog.addButton("\u015eimdi g\u00fcncelle", QMessageBox.ButtonRole.AcceptRole)
+        dialog.addButton("Daha sonra g\u00fcncelle", QMessageBox.ButtonRole.RejectRole)
+        dialog.exec()
+        if dialog.clickedButton() is install_button:
+            self.install_update()
+        else:
+            self._save_ready_state()
 
     def check_for_updates(self):
+        if self.check_worker and self.check_worker.isRunning():
+            return
+        if self.download_worker and self.download_worker.isRunning():
+            return
         try:
             version_path = PathHelper.get_resource_path("version.txt")
-            with open(version_path, "r", encoding="utf-8") as f:
-                current_version = f.read().strip()
-        except Exception as e:
-            logger.warning("Local version read failed: %s", e)
+            with open(version_path, "r", encoding="utf-8") as handle:
+                current_version = handle.read().strip()
+        except Exception as exc:
+            logger.warning("Local version read failed: %s", exc)
             current_version = "0.0.0"
-
+        saved = self._load_ready_state()
+        if saved:
+            if not UpdateWorker._compare_versions(saved["version"], current_version):
+                try:
+                    os.remove(self._state_path())
+                except OSError:
+                    pass
+                saved = None
+        if saved:
+            self.new_version = str(saved["version"])
+            self.download_path = str(saved["path"])
+            self.download_sha256 = str(saved.get("sha256") or "")
+            self.download_completed = True
+            if hasattr(self.parent, "app_header"):
+                self.parent.app_header.show_update_button(self.new_version, "ready")
+            self._show_ready_dialog()
+            return
         self.check_worker = UpdateWorker(current_version, self)
         self.check_worker.finished.connect(self._on_check_finished)
         self.check_worker.start()
@@ -155,6 +218,7 @@ class UpdateManager(QObject):
     def _on_download_finished(self, success, path):
         if success:
             self.download_completed = True
+            self._save_ready_state()
             if hasattr(self.parent, "app_header"):
                 header = self.parent.app_header
                 if hasattr(header, "show_update_button"):
@@ -164,6 +228,7 @@ class UpdateManager(QObject):
                 "Yeni güncelleme yüklenmeye hazır!",
                 "success"
             )
+            self._show_ready_dialog()
         else:
             logger.error("Background update download failed: %s", path)
             self.parent.show_notification(
@@ -186,6 +251,10 @@ class UpdateManager(QObject):
                     )
                     if not backup_path:
                         raise RuntimeError("Pre-update database backup failed.")
+                try:
+                    os.remove(self._state_path())
+                except OSError:
+                    pass
                 subprocess.Popen(self.download_path)
                 sys.exit(0)
             except Exception as e:

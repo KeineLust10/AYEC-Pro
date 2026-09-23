@@ -153,12 +153,13 @@ class ServerSettingsPage(QWidget):
         self._srv_tenants.setText(str(data.get("tenant_count", "-")))
 
     def _save_conn(self):
-        url = self._srv_url.text().strip()
+        url = config.normalize_server_url(self._srv_url.text())
         timeout = self._timeout_input.text().strip()
         if not url:
             self._status_lbl.setText("URL bos olamaz.")
             return
-        config.set("server_url", url.rstrip("/"))
+        self._srv_url.setText(url)
+        config.set("server_url", url)
         try:
             config.set("timeout", int(timeout))
         except ValueError:

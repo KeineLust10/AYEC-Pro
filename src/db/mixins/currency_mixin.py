@@ -62,6 +62,67 @@ class CurrencyMixin:
             if not created_at:
                 created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+            # Prevent over-collection: a credit cannot exceed the open
+            # balance in the selected currency.
+            if transaction_type == "CREDIT":
+                # The new credit has not been inserted yet, so there is no
+                # transaction id to exclude from the legacy allocation scan.
+                payment_transaction_id = 0
+                if tracking_no:
+                    mismatched = self.cursor.execute(
+                        """SELECT 1 FROM currency_transactions
+                           WHERE customer_id=? AND tracking_no=?
+                             AND transaction_type='DEBIT' AND UPPER(currency)<>UPPER(?)
+                           LIMIT 1""",
+                        (customer_id, tracking_no, currency),
+                    ).fetchone()
+                    if mismatched:
+                        logger.warning(
+                            "Payment rejected with mismatched currency: customer=%s tracking=%s currency=%s",
+                            customer_id, tracking_no, currency,
+                        )
+                        return False
+                open_row = self.cursor.execute(
+                    """
+                    SELECT COALESCE(SUM(
+                        CASE
+                          WHEN links.paid IS NOT NULL THEN MAX(d.amount-links.paid, 0)
+                          WHEN legacy.paid IS NOT NULL THEN MAX(d.amount-legacy.paid, 0)
+                          ELSE MAX(COALESCE(-d.current_balance, 0), 0)
+                        END
+                    ), 0)
+                    FROM currency_transactions d
+                    LEFT JOIN (
+                        SELECT debt_txn_id, SUM(amount) AS paid
+                        FROM payment_debt_links GROUP BY debt_txn_id
+                    ) links ON links.debt_txn_id=d.id
+                    LEFT JOIN (
+                        SELECT d2.id, SUM(c.amount) AS paid
+                        FROM currency_transactions d2
+                        JOIN currency_transactions c
+                          ON c.customer_id=d2.customer_id AND c.currency=d2.currency
+                         AND c.transaction_type='CREDIT'
+                         AND (c.tracking_no=d2.tracking_no OR c.tracking_no=d2.tracking_no || '-PAY')
+                         AND c.id<>?
+                         AND NOT EXISTS (
+                             SELECT 1 FROM payment_debt_links pcl
+                             WHERE pcl.payment_txn_id=c.id
+                         )
+                        WHERE d2.transaction_type='DEBIT'
+                        GROUP BY d2.id
+                    ) legacy ON legacy.id=d.id
+                    WHERE d.customer_id=? AND d.currency=? AND d.transaction_type='DEBIT'
+                    """,
+                    (payment_transaction_id, customer_id, currency),
+                ).fetchone()
+                open_balance = float(open_row[0] or 0.0) if open_row else 0.0
+                if float(amount) > open_balance + 0.009:
+                    logger.warning(
+                        "Payment rejected above open balance: customer=%s currency=%s amount=%s open=%s",
+                        customer_id, currency, amount, open_balance,
+                    )
+                    return False
+
             # 4. Güncel Bakiyeyi Hesapla (Current Balance Engine)
             # Konvansiyon: Negatif bakiye = müşteri bize borçlu (Alacak)
             #              Pozitif bakiye = müşterinin fazla ödemesi (Borç - biz müşteriye borçluyuz)
@@ -488,15 +549,26 @@ class CurrencyMixin:
                     SELECT
                         ct.id,
                         ct.amount,
-                        COALESCE(SUM(pdl.amount), 0) AS linked_amount
+                        COALESCE(SUM(pdl.amount), 0) + COALESCE(legacy.total, 0)
+                        AS paid_amount
                     FROM currency_transactions ct
                     LEFT JOIN payment_debt_links pdl
                       ON pdl.debt_txn_id=ct.id
+                    LEFT JOIN (
+                        SELECT d2.id, SUM(c.amount) AS total
+                        FROM currency_transactions d2
+                        JOIN currency_transactions c
+                          ON c.customer_id=d2.customer_id AND c.currency=d2.currency
+                         AND c.transaction_type='CREDIT'
+                         AND (c.tracking_no=d2.tracking_no OR c.tracking_no=d2.tracking_no || '-PAY')
+                        WHERE d2.transaction_type='DEBIT'
+                        GROUP BY d2.id
+                    ) legacy ON legacy.id=ct.id
                     WHERE ct.customer_id=? AND ct.currency=?
                       AND ct.transaction_type='DEBIT'
                     GROUP BY ct.id, ct.amount, ct.created_at
                     HAVING COALESCE(ct.amount, 0) -
-                           COALESCE(SUM(pdl.amount), 0) > 0.009
+                           (COALESCE(SUM(pdl.amount), 0) + COALESCE(legacy.total, 0)) > 0.009
                     ORDER BY ct.created_at ASC, ct.id ASC
                     """,
                     (customer_id, currency),
@@ -516,20 +588,36 @@ class CurrencyMixin:
                         SELECT
                             ct.id,
                             ct.amount,
-                            COALESCE(SUM(pdl.amount), 0) AS linked_amount
+                            COALESCE(SUM(pdl.amount), 0) + COALESCE(legacy.total, 0)
+                            AS paid_amount
                         FROM currency_transactions ct
                         LEFT JOIN payment_debt_links pdl
                           ON pdl.debt_txn_id=ct.id
+                        LEFT JOIN (
+                            SELECT d2.id, SUM(c.amount) AS total
+                            FROM currency_transactions d2
+                            JOIN currency_transactions c
+                              ON c.customer_id=d2.customer_id AND c.currency=d2.currency
+                             AND c.transaction_type='CREDIT'
+                             AND (c.tracking_no=d2.tracking_no OR c.tracking_no=d2.tracking_no || '-PAY')
+                             AND c.id<>?
+                             AND NOT EXISTS (
+                                 SELECT 1 FROM payment_debt_links pcl
+                                 WHERE pcl.payment_txn_id=c.id
+                             )
+                            WHERE d2.transaction_type='DEBIT'
+                            GROUP BY d2.id
+                        ) legacy ON legacy.id=ct.id
                         WHERE ct.id IN ({placeholders})
                           AND ct.customer_id=?
                           AND ct.currency=?
                           AND ct.transaction_type='DEBIT'
                         GROUP BY ct.id, ct.amount, ct.created_at
                         HAVING COALESCE(ct.amount, 0) -
-                               COALESCE(SUM(pdl.amount), 0) > 0.009
+                               (COALESCE(SUM(pdl.amount), 0) + COALESCE(legacy.total, 0)) > 0.009
                         ORDER BY ct.created_at ASC, ct.id ASC
                         """.format(placeholders=placeholders),
-                        tuple(debt_ids) + (customer_id, currency),
+                        (payment_transaction_id,) + tuple(debt_ids) + (customer_id, currency),
                     ).fetchall()
 
             for debt_id, debt_amount, linked_amount in debts:
@@ -619,26 +707,45 @@ class CurrencyMixin:
             }
 
     def get_unpaid_debts(self, customer_id, currency=None):
-        """
-        Müşterinin ödenmemiş borç kalemlerini getir.
-
-        Returns:
-            list: [(id, amount, currency, description, tracking_no, created_at, current_balance), ...]
-        """
+        """Return each debt's unpaid amount, never its running account balance."""
         try:
             query = """
-                SELECT id, amount, currency, description, tracking_no, created_at, current_balance
-                FROM currency_transactions 
-                WHERE customer_id = ? AND transaction_type = 'DEBIT'
-                AND (current_balance < 0 OR current_balance IS NULL)
+                SELECT ct.id, ct.amount, ct.currency, ct.description,
+                       ct.tracking_no, ct.created_at,
+                       -ROUND(
+                           CASE WHEN paid.total IS NOT NULL
+                                THEN MAX(ct.amount - paid.total, 0)
+                                WHEN legacy.total IS NOT NULL
+                                THEN MAX(ct.amount - legacy.total, 0)
+                                ELSE MIN(MAX(ct.amount, 0), MAX(COALESCE(-ct.current_balance, 0), 0))
+                           END, 2)
+                FROM currency_transactions ct
+                LEFT JOIN (
+                    SELECT debt_txn_id, SUM(amount) AS total
+                    FROM payment_debt_links GROUP BY debt_txn_id
+                ) paid ON paid.debt_txn_id = ct.id
+                LEFT JOIN (
+                    SELECT d.id, SUM(c.amount) AS total
+                    FROM currency_transactions d
+                    JOIN currency_transactions c
+                      ON c.customer_id=d.customer_id AND c.currency=d.currency
+                     AND c.transaction_type='CREDIT'
+                     AND (c.tracking_no=d.tracking_no OR c.tracking_no=d.tracking_no || '-PAY')
+                    WHERE d.transaction_type='DEBIT'
+                    GROUP BY d.id
+                ) legacy ON legacy.id=ct.id
+                WHERE ct.customer_id = ? AND ct.transaction_type = 'DEBIT'
+                  AND ROUND(CASE WHEN paid.total IS NOT NULL THEN MAX(ct.amount - paid.total, 0)
+                                 WHEN legacy.total IS NOT NULL THEN MAX(ct.amount - legacy.total, 0)
+                                 ELSE MIN(MAX(ct.amount, 0), MAX(COALESCE(-ct.current_balance, 0), 0)) END, 2) > 0.009
             """
             params = [customer_id]
 
             if currency:
-                query += " AND currency = ?"
+                query += " AND ct.currency = ?"
                 params.append(currency)
 
-            query += " ORDER BY created_at DESC"
+            query += " ORDER BY ct.created_at DESC, ct.id DESC"
 
             return self.cursor.execute(query, params).fetchall()
         except Exception as e:

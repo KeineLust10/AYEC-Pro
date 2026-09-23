@@ -353,7 +353,16 @@ class AccordionItem(QWidget):
         self._toggle_row.setStyleSheet(self._row_qss(True))
         
         self.sub_container.show()
-        content_height = self.sub_container.layout().sizeHint().height() + 4
+        visible_rows = sum(1 for row, *_rest in self._child_rows if row.isVisible())
+        nested_height = sum(
+            state["container"].sizeHint().height()
+            for state in self.nested_groups
+            if state["container"].isVisible()
+        )
+        content_height = max(
+            self.sub_container.layout().sizeHint().height() + 4,
+            (visible_rows * 34) + (len(self.nested_groups) * 34) + nested_height + 8,
+        )
         self.anim = QPropertyAnimation(self.sub_container, b"maximumHeight")
         self.anim.setDuration(200)
         self.anim.setStartValue(self.sub_container.height())

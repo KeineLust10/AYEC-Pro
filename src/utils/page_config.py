@@ -16,7 +16,8 @@ PAGE_MAPPING = {
     261: ("src.ui.pages.user_manual_page", "UserManualPage", "user_manual_page", None),
     140: ("src.ui.pages.services_page", "ServicesPage", "services_page", None),
     41: ("src.ui.pages.service_board_page", "ServiceBoardPage", "service_board_page", None),
-    42: ("src.ui.pages.job_service_tracking_page", "JobServiceTrackingPage", "service_list_page", None),
+    42: ("src.ui.pages.service_list_page", "ServiceListPage", "service_list_page", None),
+    43: ("src.ui.pages.service_status_page", "ServiceStatusPage", "service_status_page", None),
     50: ("src.ui.pages.technical_stock_page", "TechnicalStockPage", "stock_page", None),
     51: (
         "src.ui.pages.stock_locations_page",
@@ -62,6 +63,7 @@ PAGE_NAMES = {
     40: "Genel Bakış",
     41: "Servis Panosu",
     42: "Servis Listesi",
+    43: "Durum Paneli",
     62: "Teknisyen Paneli",
     60: "Araç Parça Stoğu",
     61: "Saha Servis Haritası",

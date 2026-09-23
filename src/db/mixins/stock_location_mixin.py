@@ -9,7 +9,7 @@ class StockLocationMixin:
     def ensure_stock_location_schema(self, commit=True):
         try:
             cur = self.conn.cursor()
-            cur.executescript(
+            schema_statements = (
                 """
                 CREATE TABLE IF NOT EXISTS stock_locations (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -81,8 +81,16 @@ class StockLocationMixin:
                     ON stock_location_balances(location_id);
                 CREATE INDEX IF NOT EXISTS idx_transfer_created
                     ON stock_transfers(created_at DESC);
-                """
+                """,
             )
+            # Do not use executescript here: sqlite3 implicitly commits an
+            # active transaction before executescript(), which breaks the
+            # stock/finance rollback boundary.
+            for schema_sql in schema_statements:
+                for statement in schema_sql.split(";"):
+                    statement = statement.strip()
+                    if statement:
+                        cur.execute(statement)
             now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             cur.execute(
                 """
@@ -369,22 +377,6 @@ class StockLocationMixin:
                 target_qty = float(target_row[0] if target_row else 0)
                 self._set_location_balance(cur, part_id, source_id, source_qty - quantity, now)
                 self._set_location_balance(cur, part_id, target_id, target_qty + quantity, now)
-                cur.execute(
-                    """
-                    INSERT INTO stock_movements(part_id, movement_type, amount, new_stock, description, created_at)
-                    VALUES (?, 'Cikis', ?, ?, ?, ?)
-                    """,
-                    (part_id, quantity, source_qty - quantity,
-                     "Transfer cikisi: {} -> {}".format(source_label, target_label), now),
-                )
-                cur.execute(
-                    """
-                    INSERT INTO stock_movements(part_id, movement_type, amount, new_stock, description, created_at)
-                    VALUES (?, 'Giris', ?, ?, ?, ?)
-                    """,
-                    (part_id, quantity, target_qty + quantity,
-                     "Transfer girisi: {} -> {}".format(source_label, target_label), now),
-                )
                 cur.execute(
                     "INSERT INTO stock_transfer_lines(transfer_id, part_id, quantity, unit) VALUES (?, ?, ?, ?)",
                     (transfer_id, part_id, quantity, unit),

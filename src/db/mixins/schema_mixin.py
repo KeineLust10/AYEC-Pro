@@ -44,7 +44,8 @@ class SchemaMixin:
 
             db_name = getattr(self, "_db_name", "ayecpro.db")
             db_path = PathHelper.get_db_path(db_name)
-            if os.path.exists(db_path):
+            is_memory_database = str(db_name) == ":memory:"
+            if is_memory_database or os.path.exists(db_path):
                 try:
                     self.conn.commit()
                     self.cursor.execute("PRAGMA wal_checkpoint(FULL)")

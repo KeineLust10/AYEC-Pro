@@ -261,6 +261,42 @@ def test_public_user_includes_menu_permissions(monkeypatch, tmp_path):
     assert web_main.public_user(user)["permissions"] == '{"pages":[40,50]}'
 
 
+def test_super_admin_scope_and_update_deployment_queue(monkeypatch, tmp_path):
+    actor, _ = _setup_tenant(monkeypatch, tmp_path)
+    customer = {
+        "id": 1,
+        "username": "customer-admin",
+        "role": "Admin",
+        "email": "customer@example.com",
+        "_tenant_id": "tenant-1",
+    }
+
+    assert web_main.is_control_admin(actor) is True
+    assert web_main.is_control_admin(customer) is False
+    assert web_main.can_access_control_center(actor) is True
+    assert web_main.can_access_control_center(customer) is False
+
+    result = web_main.admin_deploy_update(
+        {
+            "version": "2.0.5",
+            "targets": ["tenant-1"],
+            "changelog": "Update queue smoke test",
+            "channel": "pilot",
+        },
+        actor,
+    )
+    assert result == {"ok": True, "version": "2.0.5", "targets": ["tenant-1"]}
+    with web_main.registry_connect() as registry:
+        command = registry.execute(
+            "SELECT tenant_id,command_type,status,payload_json,created_by_user_id "
+            "FROM desktop_commands ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+    assert command[0] == "tenant-1"
+    assert command[1:3] == ("deploy_update", "pending")
+    assert json.loads(command[3])["channel"] == "pilot"
+    assert command[4] == 2
+
+
 def test_vendor_owner_is_registered_in_each_matching_tenant(monkeypatch, tmp_path):
     actor, _ = _setup_tenant(monkeypatch, tmp_path)
     registry = web_main.registry_connect()
@@ -411,13 +447,21 @@ def test_admin_backup_catalog_queues_support_restore(monkeypatch, tmp_path):
         conn.execute("CREATE TABLE sample(value INTEGER)")
         conn.execute("INSERT INTO sample(value) VALUES(9)")
     stored = web_main.support_store_backup(
-        actor, source.read_bytes(), "Customer.db"
+        actor, source.read_bytes(), "Customer.db",
+        product_code="barkod_okuyucu", hardware_id="pc-1",
+        installation_id="installation-1",
     )
 
     catalog = web_main.admin_list_backups("tenant-1")
     support_item = next(
         item for item in catalog if item.get("backup_id") == stored["backup_id"]
     )
+    assert support_item["product_code"] == "barkod_okuyucu"
+    assert support_item["hardware_id"] == "pc-1"
+    assert support_item["installation_id"] == "installation-1"
+    assert web_main.admin_download_support_backup(
+        actor, "tenant-1", stored["backup_id"]
+    )[0] == source.read_bytes()
     queued = web_main.admin_restore_backup(
         "tenant-1",
         support_item["index"],
@@ -428,10 +472,16 @@ def test_admin_backup_catalog_queues_support_restore(monkeypatch, tmp_path):
     assert queued["ok"] is True
     with web_main.registry_connect() as registry:
         command = registry.execute(
-            "SELECT command_type,status FROM desktop_commands WHERE id=?",
+            "SELECT command_type,status,payload_json FROM desktop_commands WHERE id=?",
             (queued["command_id"],),
         ).fetchone()
-    assert tuple(command) == ("restore_backup", "pending")
+    assert tuple(command[:2]) == ("restore_backup", "pending")
+    payload = json.loads(command[2])
+    assert payload["tenant_id"] == "tenant-1"
+    assert payload["product_code"] == "barkod_okuyucu"
+    assert payload["hardware_id"] == "pc-1"
+    assert payload["installation_id"] == "installation-1"
+    assert payload["size_bytes"] == len(source.read_bytes())
 
     current_queued = web_main.admin_restore_backup(
         "tenant-1", -1, actor

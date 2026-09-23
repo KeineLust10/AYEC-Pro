@@ -12,10 +12,12 @@ from PyQt6.QtGui import QFont, QIcon
 
 import config
 import api_client
+import logging
 from product_catalog import product_names
 
 from pages.dashboard import DashboardPage
 from pages.companies import CompaniesPage
+from pages.customer_360 import Customer360Page
 from pages.installation_map import InstallationMapPage
 from pages.licenses import LicensesPage
 from pages.license_requests import LicenseRequestsPage
@@ -35,6 +37,7 @@ from table_interaction import apply_professional_table
 _NAV_ITEMS = [
     ("dashboard",        "\ud83d\udcca", "Dashboard"),
     ("companies",        "\ud83c\udfe2", "Firma Y\u00f6netimi"),
+    ("customer_360",     "\ud83e\udde9", "M\u00fc\u015fteri 360"),
     ("installation_map", "\ud83d\udccd", "Kurulum Haritasi"),
     ("licenses",         "\ud83c\udf9f\ufe0f", "Lisans Y\u00f6netimi"),
     ("license_requests", "\ud83d\udcec", "Lisans Talepleri"),
@@ -402,6 +405,7 @@ class MainWindow(QMainWindow):
             constructors = {
                 "dashboard":       DashboardPage,
                 "companies":       CompaniesPage,
+                "customer_360":    Customer360Page,
                 "installation_map": InstallationMapPage,
                 "licenses":        LicensesPage,
                 "license_requests": LicenseRequestsPage,
@@ -418,7 +422,12 @@ class MainWindow(QMainWindow):
             }
             cls = constructors.get(page_id)
             if cls:
-                page = cls()
+                try:
+                    page = cls()
+                except Exception as exc:
+                    logging.getLogger("ayec_admin").exception("Page initialization failed: %s", page_id)
+                    page = QLabel(f"Sayfa yuklenemedi: {page_id}\\n{type(exc).__name__}: {exc}")
+                    page.setAlignment(Qt.AlignmentFlag.AlignCenter)
                 self._prepare_tables(page)
                 self._pages[page_id] = page
                 self._stack.addWidget(page)

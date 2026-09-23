@@ -11,7 +11,7 @@ building or starting it. Include the wheel in release dependencies; no source
 checkout or developer-specific path is required at runtime.
 
 ```powershell
-python -m pip install "path/to/ayec_core-0.2.0-py3-none-any.whl[smart-import]"
+python -m pip install "path/to/ayec_core-0.3.0-py3-none-any.whl[smart-import]"
 python -m pip install --find-links ./ecosystem/wheels -r ./ecosystem/requirements-desktop.txt
 python -m unittest discover -s ecosystem/tests -v
 ```

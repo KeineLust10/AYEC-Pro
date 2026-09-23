@@ -20,11 +20,12 @@ from ctypes import wintypes
 import urllib.error
 import urllib.request
 import tempfile
+import uuid
 from datetime import datetime
 from pathlib import Path
 
 
-DEFAULT_WEB_SYNC_URL = "http://85.117.239.60"
+DEFAULT_WEB_SYNC_URL = "https://lisans.ayecpro.com"
 WEB_SYNC_SESSION_FILE = "web_sync_session.dat"
 _SQL_IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 logger = logging.getLogger(__name__)
@@ -44,6 +45,8 @@ class WebSyncClient:
         self.timeout = timeout
         self.cookies: dict[str, str] = {}
         self.device_id = ""
+        self.tenant_id = ""
+        self.installation_id = ""
         self.sync_epoch = 1
         self.context = ssl.create_default_context() if verify_tls else ssl._create_unverified_context()
 
@@ -53,6 +56,10 @@ class WebSyncClient:
         headers["X-AYEC-Product-Code"] = "teknik_servis"
         if self.device_id:
             headers["X-AYEC-Device-ID"] = self.device_id
+        if self.installation_id:
+            headers["X-AYEC-Installation-ID"] = self.installation_id
+        if self.tenant_id:
+            headers["X-AYEC-Tenant-ID"] = self.tenant_id
         if self.cookies:
             headers["Cookie"] = "; ".join(f"{k}={v}" for k, v in self.cookies.items())
         if body is not None:
@@ -90,6 +97,7 @@ class WebSyncClient:
         request_headers = {
             "X-AYEC-Product-Code": "teknik_servis",
             "X-AYEC-Device-ID": self.device_id,
+            "X-AYEC-Installation-ID": self.installation_id,
             "Accept": "application/octet-stream,application/vnd.sqlite3",
             "User-Agent": "AYEC-Pro-Desktop-Sync/1.0",
             **(headers or {}),
@@ -125,13 +133,20 @@ class WebSyncClient:
 
     def save_session(self, path: str | Path, metadata: dict | None = None) -> None:
         from ayec_core.session import save_session
+        scoped = dict(metadata or {})
+        scoped.update(tenant_id=self.tenant_id, device_id=self.device_id,
+                      installation_id=self.installation_id)
         save_session(path, base_url=self.base_url, product_code="teknik_servis",
-                     cookies=self.cookies, metadata=metadata, protect=_protect_for_current_user)
+                     cookies=self.cookies, metadata=scoped, protect=_protect_for_current_user)
 
     def load_session(self, path: str | Path) -> dict:
         from ayec_core.session import load_session
-        return load_session(path, base_url=self.base_url, product_code="teknik_servis",
-                            cookies=self.cookies, unprotect=_unprotect_for_current_user)
+        metadata = load_session(path, base_url=self.base_url, product_code="teknik_servis",
+                                cookies=self.cookies, unprotect=_unprotect_for_current_user)
+        self.tenant_id = str(metadata.get("tenant_id") or "")
+        self.device_id = str(metadata.get("device_id") or "")
+        self.installation_id = str(metadata.get("installation_id") or "")
+        return metadata
 
     @staticmethod
     def clear_session(path: str | Path) -> None:
@@ -203,7 +218,10 @@ class WebSyncClient:
         from ayec_core.restore import stage_restore
         try:
             return stage_restore(command, local_db, self.download_backup,
-                                 product_code="teknik_servis")
+                                 product_code="teknik_servis",
+                                 tenant_id=self.tenant_id,
+                                 hardware_id=self.device_id,
+                                 installation_id=self.installation_id)
         except ValueError as error:
             raise WebSyncError(str(error)) from error
 
@@ -219,6 +237,7 @@ class WebSyncClient:
         state = {
             "since": {},
             "machine_id": secrets.token_hex(8),
+            "installation_id": str(uuid.uuid4()),
             "row_hashes": {},
             "conflict_hashes": {},
         }
@@ -266,6 +285,7 @@ class WebSyncClient:
             ).hexdigest()[:16]
 
         self.device_id = str(state.get("machine_id") or "")
+        self.installation_id = str(state.get("installation_id") or "")
         manifest = self.manifest()
         remote_epoch = max(1, int(manifest.get("sync_epoch") or 1))
         local_epoch = max(1, int(state.get("sync_epoch") or 1))

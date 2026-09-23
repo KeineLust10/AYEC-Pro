@@ -120,7 +120,7 @@ class ToastManager(QObject):
         # Calculate position relative to container
         # Reserve the assistant alert lane at the lower-right corner.
         horizontal_margin = 30
-        vertical_margin = 145
+        vertical_margin = 30
         spacing = 15
         
         # Every new toast enters the bottom notification lane. Older toasts
@@ -174,7 +174,7 @@ class ToastManager(QObject):
             is_fallback = False
             
         horizontal_margin = 30
-        vertical_margin = 145
+        vertical_margin = 30
         spacing = 15
         
         # The newest toast always finishes in the bottom notification lane.
@@ -230,7 +230,7 @@ class ToastManager(QObject):
             is_fallback = False
             
         horizontal_margin = 30
-        vertical_margin = 145
+        vertical_margin = 220
         spacing = 15
         
         y_offset = vertical_margin

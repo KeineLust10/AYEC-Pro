@@ -33,6 +33,15 @@ class OutboxTests(unittest.TestCase):
             outbox.mark_done(item)
             self.assertEqual(outbox.due(now=1000), [])
 
+    def test_retry_after_honors_server_wait_with_exponential_cap(self):
+        with tempfile.TemporaryDirectory() as directory:
+            outbox = self.create(Path(directory) / "outbox.db")
+            item = outbox.enqueue("backup_upload", {"path": "x"},
+                                  idempotency_key="backup-1", now=100)
+            outbox.mark_retry(item, "429", now=100, jitter=False, retry_after=120)
+            self.assertEqual(outbox.due(now=219), [])
+            self.assertEqual(len(outbox.due(now=220)), 1)
+
     def test_invalid_scope_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             with self.assertRaises(ValueError):

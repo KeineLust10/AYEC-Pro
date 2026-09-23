@@ -29,10 +29,9 @@ class DashboardFuncMixin:
     def change_status(self, tracking_no, new_status=None):
         if new_status:
             try:
-                if new_status == "Teslim Edildi":
-                    self.notify("Teslim edildi işlemini teknisyen panelinden tahsilat ile tamamlayın.", "info")
-                    self.open_technician_panel(tracking_no); return
-                self.db.update_status(tracking_no, new_status)
+                saved = self.db.update_status(tracking_no, new_status)
+                if not saved:
+                    raise RuntimeError("Durum veritaban\u0131na kaydedilemedi")
                 if hasattr(self, "audit_logger"):
                     self.audit_logger.log_action("devices", "UPDATE", f"Takip No: {tracking_no} için durum '{new_status}' olarak güncellendi.")
                 self.refresh_data()
@@ -446,6 +445,21 @@ class DashboardFuncMixin:
             rate = float(data.get("exchange_rate", 1.0) or 1.0)
             amt = float(data.get("amount", 0) or 0)
             if amt <= 0: self.notify("Tahsilat tutarı geçersiz.", "warning"); return False
+            if tracking_no:
+                open_debts = self.db.get_unpaid_debts(customer_id, currency=None)
+                matching = [row for row in open_debts if str(row[2] or "TRY").upper() == currency and str(row[4] or "") == str(tracking_no)]
+                if not matching:
+                    available = [str(row[2] or "TRY").upper() for row in open_debts if str(row[4] or "") == str(tracking_no)]
+                    expected = available[0] if available else None
+                    self.notify(
+                        f"Bu servis icin tahsilat para birimi {expected or 'tanimsiz'} olmalidir.",
+                        "warning",
+                    )
+                    return False
+                remaining = round(sum(max(0.0, -float(row[6] or 0.0)) for row in matching), 2)
+                if amt > remaining + 0.009:
+                    self.notify(f"Acik servis borcu {remaining:,.2f} {currency}. Fazla tahsilat yapilamaz.", "warning")
+                    return False
             acc_date, c_at = None, None
             if data.get("date"):
                 parsed = QDate.fromString(str(data.get("date")), "dd.MM.yyyy")
@@ -457,15 +471,20 @@ class DashboardFuncMixin:
             full_desc = f"Ref: {ref_tr} | {notes or 'Cari borç kapatma tahsilatı'}"
             try: self.db.create_payment_debt_links_table()
             except: pass
-            saved = self.db.add_currency_transaction(customer_id=customer_id, amount=amt, currency=currency, transaction_type="CREDIT", exchange_rate=rate, description=full_desc, tracking_no=ref_tr, created_at=c_at)
+            saved = self.db.add_currency_transaction(customer_id=customer_id, amount=amt, currency=currency, transaction_type="CREDIT", exchange_rate=rate, description=full_desc, tracking_no=ref_tr, created_at=c_at, commit=False)
             if not saved: self.notify("Tahsilat kaydedilemedi.", "warning"); return False
             try:
                 pid = self.db.get_last_currency_transaction_id()
-                if pid: self.db.apply_payment_to_debts(customer_id=customer_id, payment_amount=amt, currency=currency, payment_transaction_id=pid, selected_debt_ids=data.get("selected_debt_ids"))
+                if pid: self.db.apply_payment_to_debts(customer_id=customer_id, payment_amount=amt, currency=currency, payment_transaction_id=pid, selected_debt_ids=data.get("selected_debt_ids"), commit=False)
             except Exception as e: logger.warning(f"Payment allocation error: {e}")
             tl_amt = amt * (rate if currency != "TRY" else 1.0)
             try:
                 self.db.add_transaction(t_type="Gelir", category="Tahsilat", amount=tl_amt, description=full_desc, customer_name=customer.get("name"), customer_id=customer_id, date=acc_date, payment_method=data.get("method"), bank_account_id=data.get("bank_account_id"), tracking_no=ref_tr, ref_no=ref_tr, currency=currency, original_amount=amt)
-            except Exception as e: logger.warning(f"Accounting mirror error: {e}")
+            except Exception as e:
+                self.db.conn.rollback()
+                logger.error("Payment accounting mirror failed: %s", e)
+                self.notify("Tahsilat ve muhasebe kaydi birlikte kaydedilemedi.", "error")
+                return False
+            self.db.conn.commit()
             return True
         except Exception as e: logger.exception("Payment save failed"); self.notify(f"Hata: {e}", "error"); return False

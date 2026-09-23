@@ -718,26 +718,13 @@ class ModernPaymentDialog(ModernDialog):
         self._build_currency_cards()
 
     def _load_debt_items(self):
-        """Müşterinin borç kalemlerini yükle"""
+        """Load outstanding amounts from the shared payment allocation query."""
         customer_id = self.customer.get("id")
         if not customer_id:
             return
 
         try:
-            # DEBIT (borç) işlemlerini getir
-            cursor = self.db.cursor
-            cursor.execute(
-                """
-                SELECT id, amount, currency, description, tracking_no, created_at, current_balance
-                FROM currency_transactions
-                WHERE customer_id = ? AND transaction_type = 'DEBIT'
-                  AND (current_balance < 0 OR current_balance IS NULL)
-                ORDER BY created_at DESC
-            """,
-                (customer_id,),
-            )
-
-            raw_items = cursor.fetchall() or []
+            raw_items = self.db.get_unpaid_debts(customer_id) or []
             unique_items = []
             seen_ids = set()
             for debt in raw_items:

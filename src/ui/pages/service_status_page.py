@@ -270,7 +270,8 @@ class ServiceStatusPage(QWidget):
         shadow_t_color.setAlpha(15)
         shadow_t.setColor(shadow_t_color)
         shadow_t.setOffset(0, 5)
-        table_frame.setGraphicsEffect(shadow_t)
+        # Keep the status table crisp across light and dark themes.
+        table_frame.setGraphicsEffect(None)
         
         tl = QVBoxLayout(table_frame)
         tl.setContentsMargins(0, 0, 0, 0)
@@ -343,10 +344,7 @@ class ServiceStatusPage(QWidget):
             for row_idx, data in enumerate(services):
                 self.table.insertRow(row_idx)
                 # data: name, brand, model, status, entry, est, urgency
-                c_name = data[0] or ""
-                # Mask Name logic
-                parts = c_name.split()
-                masked = f"{parts[0]} {parts[-1][0]}***" if len(parts) > 1 else c_name
+                c_name = data[0] or "-"
                 
                 device = f"{data[1] or ''} {data[2] or ''}".strip()
                 status = (data[3] or "Bekliyor").upper()
@@ -355,7 +353,7 @@ class ServiceStatusPage(QWidget):
                 urgency = (data[6] or "Normal").upper()
                 
                 # Items
-                self.table.setItem(row_idx, 0, QTableWidgetItem(masked))
+                self.table.setItem(row_idx, 0, QTableWidgetItem(c_name))
                 self.table.setItem(row_idx, 1, QTableWidgetItem(device))
                 
                 # Status with Color

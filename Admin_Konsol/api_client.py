@@ -97,6 +97,16 @@ def company_detail(tenant_id: str) -> dict:
     return _parse(resp)
 
 
+def customer_360(tenant_id: str) -> dict:
+    """Fetch one tenant's isolated support overview."""
+    resp = requests.get(
+        _url(f"/api/admin/customer-360/{tenant_id}"),
+        headers=_headers(),
+        timeout=config.timeout(),
+    )
+    return _parse(resp)
+
+
 def update_company(tenant_id: str, data: dict) -> dict:
     resp = requests.post(_url(f"/api/admin/companies/{tenant_id}"), headers=_headers(), json=data, timeout=config.timeout())
     return _parse(resp)
@@ -172,6 +182,16 @@ def reset_user_password(tenant_id: str, user_id: int, new_password: str) -> dict
         _url(f"/api/admin/users/{user_id}/reset-password"),
         headers=_headers(),
         json={"tenant_id": tenant_id, "new_password": new_password},
+        timeout=config.timeout(),
+    )
+    return _parse(resp)
+
+
+def send_temporary_password(tenant_id: str, user_id: int) -> dict:
+    resp = requests.post(
+        _url("/api/admin/users/temporary-password"),
+        headers=_headers(),
+        json={"tenant_id": tenant_id, "user_id": int(user_id)},
         timeout=config.timeout(),
     )
     return _parse(resp)

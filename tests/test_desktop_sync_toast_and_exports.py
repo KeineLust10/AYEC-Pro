@@ -67,6 +67,130 @@ def test_login_failure_does_not_provision_duplicate_company(monkeypatch):
     assert "login failed" in events[0][1]["error"]
 
 
+def test_deploy_update_command_is_consumed_and_forwarded_to_update_manager(monkeypatch):
+    events = []
+    completed_commands = []
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            self.cookies = {}
+
+        def load_session(self, path):
+            return {}
+
+        def login(self, *args, **kwargs):
+            return {
+                "user": {
+                    "username": "demo",
+                    "tenant_id": "tenant-1",
+                    "company_name": "Demo Company",
+                }
+            }
+
+        def save_session(self, path, metadata):
+            return None
+
+        def sync_sqlite(self, path, push_local=True):
+            return {"ok": True, "pulled": 0, "pushed": {"applied": 0}}
+
+        def update_company_location(self, payload):
+            return {"ok": True}
+
+        def pending_commands(self):
+            return [
+                {
+                    "id": 7,
+                    "command_type": "deploy_update",
+                    "payload": {
+                        "version": "2.0.7",
+                        "channel": "pilot",
+                        "changelog": "Client update test",
+                    },
+                }
+            ]
+
+        def complete_command(self, command_id, success, result=None):
+            completed_commands.append((command_id, success, result or {}))
+            return {"ok": True}
+
+        def upload_backup(self, path):
+            return {"ok": True}
+
+        @staticmethod
+        def clear_session(path):
+            return None
+
+    monkeypatch.setattr(desktop_web_sync, "WebSyncClient", FakeClient)
+    monkeypatch.setattr(
+        desktop_web_sync, "configured_sync_url", lambda: "http://127.0.0.1"
+    )
+    monkeypatch.setattr(desktop_web_sync, "sync_session_path", lambda: "session.json")
+    monkeypatch.setattr(
+        desktop_web_sync.PathHelper, "get_db_path", lambda name: "company.db"
+    )
+    worker = desktop_web_sync.DesktopWebSyncWorker(
+        username="demo",
+        password="Secret123",
+        tenant_id="tenant-1",
+    )
+    worker.completed.connect(lambda ok, payload: events.append((ok, payload)))
+
+    worker.run()
+
+    assert events and events[0][0] is True
+    assert events[0][1]["update_requests"] == [
+        {
+            "version": "2.0.7",
+            "channel": "pilot",
+            "changelog": "Client update test",
+        }
+    ]
+    assert completed_commands[0][0:2] == (7, True)
+
+
+def test_first_sync_reads_and_forwards_saved_installation_location(
+    monkeypatch, tmp_path
+):
+    database_path = tmp_path / "location.db"
+    with sqlite3.connect(database_path) as conn:
+        conn.execute(
+            "CREATE TABLE company_info(company_name TEXT, authorized_person TEXT, "
+            "phone TEXT, email TEXT, address TEXT)"
+        )
+        conn.execute(
+            "INSERT INTO company_info VALUES(?,?,?,?,?)",
+            ("Demo Company", "Demo User", "05000000000", "demo@example.com", "Istanbul"),
+        )
+        conn.execute("CREATE TABLE users(username TEXT, full_name TEXT, email TEXT)")
+        conn.execute(
+            "INSERT INTO users VALUES(?,?,?)",
+            ("demo", "Demo User", "demo@example.com"),
+        )
+        conn.execute("CREATE TABLE settings(key TEXT, value TEXT)")
+        conn.executemany(
+            "INSERT INTO settings(key,value) VALUES(?,?)",
+            [
+                ("installation_lat", "41.0082"),
+                ("installation_lng", "28.9784"),
+                ("installation_address", "Istanbul"),
+            ],
+        )
+
+    monkeypatch.setattr(
+        desktop_web_sync.PathHelper,
+        "get_db_path",
+        lambda name: str(database_path),
+    )
+
+    payload = desktop_web_sync.local_provisioning_payload(
+        "ayecpro.db", "demo", "Secret123"
+    )
+
+    assert payload["installation_lat"] == 41.0082
+    assert payload["installation_lng"] == 28.9784
+    assert payload["installation_address"] == "Istanbul"
+
+
 def test_first_local_setup_can_provision_then_sync(monkeypatch):
     events = []
 

@@ -55,3 +55,6 @@ Desktop.ini
 # Local media captures and maintenance uploads
 maintenance_photos/
 Web_Arayuzu/web/assets/live-captures/
+
+# Duplicate legacy conversation folder with a non-ASCII name
+Kon[!u]*malar/

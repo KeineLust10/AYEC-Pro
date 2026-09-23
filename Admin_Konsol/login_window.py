@@ -102,7 +102,7 @@ class LoginWindow(QDialog):
         self._server = QLineEdit()
         self._server.setObjectName("fieldInput")
         self._server.setText(config.server_url())
-        self._server.setPlaceholderText("http://85.117.239.60")
+        self._server.setPlaceholderText("https://lisans.ayecpro.com")
         body_layout.addWidget(self._server)
         body_layout.addSpacing(16)
 
@@ -205,7 +205,7 @@ class LoginWindow(QDialog):
             return
         email = self._email.text().strip()
         password = self._password.text()
-        server = self._server.text().strip()
+        server = config.normalize_server_url(self._server.text())
 
         if not email or not password:
             self._show_error("L\u00fctfen e-posta ve \u015fifre girin.")
@@ -215,7 +215,8 @@ class LoginWindow(QDialog):
             return
 
         # Sunucu adresini kaydet
-        config.set("server_url", server.rstrip("/"))
+        self._server.setText(server)
+        config.set("server_url", server)
 
         self._login_in_progress = True
         self._set_loading(True)

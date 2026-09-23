@@ -522,6 +522,8 @@ def ensure_web_schema(conn: sqlite3.Connection) -> None:
         "active": "INTEGER DEFAULT 1",
         "interface_edit_access": "INTEGER DEFAULT 0",
         "phone": "TEXT",
+        "must_change_password": "INTEGER DEFAULT 0",
+        "temporary_password_expires_at": "TEXT",
     }
     for column, definition in additions.items():
         if column not in user_columns:
@@ -857,6 +859,9 @@ def registry_connect() -> sqlite3.Connection:
         "license_updated_at": "TEXT",
         "sync_epoch": "INTEGER NOT NULL DEFAULT 1",
         "product_code": "TEXT NOT NULL DEFAULT 'teknik_servis'",
+        "muted": "INTEGER NOT NULL DEFAULT 0",
+        "muted_at": "TEXT",
+        "muted_reason": "TEXT",
     }
     for column, definition in tenant_additions.items():
         if column not in tenant_columns:
@@ -884,6 +889,9 @@ def registry_connect() -> sqlite3.Connection:
             source TEXT NOT NULL DEFAULT 'desktop',
             created_at TEXT NOT NULL,
             created_by_user_id INTEGER,
+            product_code TEXT NOT NULL DEFAULT 'teknik_servis',
+            hardware_id TEXT NOT NULL DEFAULT '',
+            installation_id TEXT NOT NULL DEFAULT '',
             status TEXT NOT NULL DEFAULT 'available'
         );
         CREATE INDEX IF NOT EXISTS idx_support_backups_tenant
@@ -991,7 +999,8 @@ def registry_connect() -> sqlite3.Connection:
     if "protected_until" not in support_backup_columns:
         conn.execute("ALTER TABLE support_backups ADD COLUMN protected_until TEXT")
     for column, declaration in {"product_code": "TEXT NOT NULL DEFAULT 'teknik_servis'",
-                                "hardware_id": "TEXT NOT NULL DEFAULT ''"}.items():
+                                "hardware_id": "TEXT NOT NULL DEFAULT ''",
+                                "installation_id": "TEXT NOT NULL DEFAULT ''"}.items():
         if column not in support_backup_columns:
             conn.execute(f"ALTER TABLE support_backups ADD COLUMN {column} {declaration}")
     command_columns = {row[1] for row in conn.execute('PRAGMA table_info("desktop_commands")')}
@@ -1015,6 +1024,14 @@ def registry_connect() -> sqlite3.Connection:
             hardware_id TEXT NOT NULL, installation_id TEXT NOT NULL,
             created_at TEXT NOT NULL,
             PRIMARY KEY (tenant_id, product_code, hardware_id)
+        )"""
+    )
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS muted_devices (
+            tenant_id TEXT NOT NULL, product_code TEXT NOT NULL,
+            hardware_id TEXT NOT NULL, installation_id TEXT NOT NULL DEFAULT '',
+            muted_at TEXT NOT NULL, reason TEXT NOT NULL DEFAULT '',
+            PRIMARY KEY (tenant_id, product_code, hardware_id, installation_id)
         )"""
     )
     conn.execute(
@@ -1066,6 +1083,8 @@ def tenant_access_error(tenant: dict | None) -> str:
     """Return an access error for an inactive or expired tenant, otherwise an empty string."""
     if not tenant:
         return "Firma bulunamadi."
+    if int(tenant.get("muted") or 0) == 1:
+        return "Firma susturuldu. Yonetici ile iletisime gecin."
     if int(tenant.get("active") or 0) != 1:
         return "Firma erisime kapatildi."
     license_type = str(tenant.get("license_type") or "Lifetime").strip().casefold()
@@ -1087,7 +1106,9 @@ def tenant_access_summary(tenant: dict | None) -> dict:
     expired = _parse_registry_time((tenant or {}).get("license_end"))
     reason = ""
     if error:
-        if status in {"inactive", "passive", "revoked", "cancelled", "canceled"} or (
+        if int((tenant or {}).get("muted") or 0) == 1:
+            reason = "muted"
+        elif status in {"inactive", "passive", "revoked", "cancelled", "canceled"} or (
             tenant and int(tenant.get("active") or 0) != 1
         ):
             reason = "revoked"
@@ -1104,6 +1125,8 @@ def tenant_access_summary(tenant: dict | None) -> dict:
         "license_start": str((tenant or {}).get("license_start") or ""),
         "license_end": str((tenant or {}).get("license_end") or ""),
         "license_updated_at": str((tenant or {}).get("license_updated_at") or ""),
+        "muted": bool((tenant or {}).get("muted")),
+        "muted_reason": str((tenant or {}).get("muted_reason") or ""),
         "reason_code": reason,
     }
 
@@ -1296,11 +1319,11 @@ def _license_smtp_settings(tenant_id: str = "") -> dict:
     """Platform notifications use the official mailbox, never tenant SMTP."""
     config = official_service_settings()
     return {
-        "host": str(os.environ.get("AYEC_OFFICIAL_SMTP_HOST") or config.get("smtp_host") or "srvm07.trwww.com").strip(),
-        "port": str(os.environ.get("AYEC_OFFICIAL_SMTP_PORT") or config.get("smtp_port") or "465"),
-        "from": OFFICIAL_EMAIL,
-        "username": OFFICIAL_EMAIL,
-        "password": os.environ.get("AYEC_OFFICIAL_SMTP_PASSWORD") or str(config.get("smtp_password") or ""),
+        "host": str(os.environ.get("AYEC_OFFICIAL_SMTP_HOST") or os.environ.get("AYECPRO_SMTP_SERVER") or config.get("smtp_host") or "srvm07.trwww.com").strip(),
+        "port": str(os.environ.get("AYEC_OFFICIAL_SMTP_PORT") or os.environ.get("AYECPRO_SMTP_PORT") or config.get("smtp_port") or "465"),
+        "from": str(os.environ.get("AYEC_OFFICIAL_SMTP_EMAIL") or os.environ.get("AYECPRO_SMTP_EMAIL") or OFFICIAL_EMAIL).strip(),
+        "username": str(os.environ.get("AYEC_OFFICIAL_SMTP_USERNAME") or os.environ.get("AYECPRO_SMTP_EMAIL") or OFFICIAL_EMAIL).strip(),
+        "password": os.environ.get("AYEC_OFFICIAL_SMTP_PASSWORD") or os.environ.get("AYECPRO_SMTP_APP_PASSWORD") or str(config.get("smtp_password") or ""),
         "tls": True,
     }
 
@@ -1483,6 +1506,8 @@ def control_create_reset_link(actor: dict, data: dict) -> dict:
     user_id = int(data.get("user_id") or 0)
     tenant = _tenant_record_required(tenant_id)
     path = _tenant_path(tenant)
+    if not path.exists():
+        raise FileNotFoundError("Firma veritabani bulunamadi")
     with closing(_raw_connect(path)) as conn:
         _ensure_path_schema(conn, path)
         user = conn.execute(
@@ -1514,11 +1539,34 @@ def control_create_reset_link(actor: dict, data: dict) -> dict:
         )
         conn.commit()
     _support_audit(actor, "password_reset_link_created", tenant_id, user_id)
+    recipient = str(user["email"] or "").strip()
+    reset_url = f"{PUBLIC_SERVER_URL}/?reset={token}"
+    mail_sent, mail_message = send_license_email(
+        tenant_id,
+        recipient,
+        "AYEC Pro parola yenileme ba\u011flant\u0131s\u0131",
+        (
+            f"Merhaba {user['username'] or ''},\n\n"
+            "Parolan\u0131z\u0131 yenilemek i\u00e7in a\u015fa\u011f\u0131daki ba\u011flant\u0131y\u0131 kullan\u0131n:\n"
+            f"{reset_url}\n\n"
+            f"Bu ba\u011flant\u0131 {expires_at} UTC tarihine kadar ve yaln\u0131zca bir kez ge\u00e7erlidir.\n"
+            "Bu iste\u011fi siz ba\u015flatmad\u0131ysan\u0131z destek ekibinizle ileti\u015fime ge\u00e7in."
+        ),
+    )
+    _support_audit(
+        actor,
+        "password_reset_email_sent" if mail_sent else "password_reset_email_failed",
+        tenant_id,
+        user_id,
+        detail={"recipient": recipient, "message": mail_message},
+    )
     return {
         "ok": True,
         "expires_at": expires_at,
-        "reset_url": f"{PUBLIC_SERVER_URL}/?reset={token}",
+        "reset_url": reset_url,
         "username": user["username"] or "",
+        "mail_sent": mail_sent,
+        "mail_message": mail_message,
     }
 
 
@@ -1552,6 +1600,39 @@ def complete_password_reset(data: dict) -> dict:
     return {"ok": True}
 
 
+def complete_temporary_password_change(data: dict) -> dict:
+    """Replace an emailed temporary password before creating a session."""
+    tenant_id = str(data.get("tenant_id") or "").strip()
+    identifier = str(data.get("identifier") or "").strip()
+    temporary_password = str(data.get("temporary_password") or "")
+    new_password = str(data.get("new_password") or "")
+    if not tenant_id or not identifier or not temporary_password:
+        raise ValueError("Firma, kullanici ve gecici parola gereklidir")
+    if len(new_password) < 10 or not re.search(r"[A-Za-z]", new_password) or not re.search(r"\d", new_password):
+        raise ValueError("Yeni parola en az 10 karakter, bir harf ve bir rakam icermelidir")
+    if secrets.compare_digest(temporary_password, new_password):
+        raise ValueError("Yeni parola gecici paroladan farkli olmalidir")
+    user = authenticate_account(identifier, temporary_password, tenant_id)
+    if not user or not bool(user.get("must_change_password")):
+        raise PermissionError("Gecici parola gecersiz veya sureci tamamlanmis")
+    tenant = _tenant_record_required(tenant_id)
+    path = _tenant_path(tenant)
+    with closing(_raw_connect(path)) as conn:
+        _ensure_path_schema(conn, path)
+        cursor = conn.execute(
+            "UPDATE users SET password=?,must_change_password=0,temporary_password_expires_at=NULL,remember_token=NULL,auto_login=0 "
+            "WHERE id=? AND COALESCE(must_change_password,0)=1 AND password=?",
+            (password_hash(new_password), int(user["id"]), user["password"]),
+        )
+        if cursor.rowcount != 1:
+            conn.rollback()
+            raise PermissionError("Gecici parola degistirilmis. Yeniden giris yapin")
+        conn.execute("DELETE FROM web_sessions WHERE user_id=?", (int(user["id"]),))
+        conn.commit()
+    _support_audit(None, "temporary_password_changed", tenant_id, int(user["id"]))
+    return {"ok": True}
+
+
 def prune_support_backups(tenant_id: str, keep: int | None = None) -> dict:
     """Keep a bounded backup history without deleting queued restore sources."""
     tenant_id = str(tenant_id or "").strip()
@@ -1574,7 +1655,7 @@ def prune_support_backups(tenant_id: str, keep: int | None = None) -> dict:
             if backup_id:
                 protected_ids.add(backup_id)
         backup_rows = conn.execute(
-            "SELECT id,filename,size_bytes,protected_until,product_code,hardware_id FROM support_backups "
+            "SELECT id,filename,size_bytes,protected_until,product_code,hardware_id,installation_id FROM support_backups "
             "WHERE tenant_id=? AND status='available' ORDER BY id DESC",
             (tenant_id,),
         ).fetchall()
@@ -1586,7 +1667,7 @@ def prune_support_backups(tenant_id: str, keep: int | None = None) -> dict:
                 continue
             if str(row[3] or "") > utc_now().isoformat(timespec="seconds"):
                 continue
-            scope = (str(row[4]), str(row[5]))
+            scope = (str(row[4]), str(row[5]), str(row[6]))
             if retained_regular.get(scope, 0) < retention:
                 retained_regular[scope] = retained_regular.get(scope, 0) + 1
                 continue
@@ -1601,7 +1682,9 @@ def prune_support_backups(tenant_id: str, keep: int | None = None) -> dict:
         archive_root = product_backup_root(str(row[4]))
         if archive_root is not None and PROGRAM_BACKUP_ROOT in archive_root.parents:
             device_key = hashlib.sha256(str(row[5]).encode()).hexdigest()[:24] if row[5] else "legacy"
-            versions = (archive_root / "tenants" / tenant_id / "devices" / device_key / "versions").resolve()
+            installation_key = hashlib.sha256(str(row[6]).encode()).hexdigest()[:24] if row[6] else "legacy"
+            versions = (archive_root / "tenants" / tenant_id / "devices" / device_key /
+                        "installations" / installation_key / "versions").resolve()
             if archive_root not in versions.parents:
                 continue
             try:
@@ -1645,6 +1728,7 @@ def _store_support_backup_for_tenant(
     source: str,
     product_code: str = "teknik_servis",
     hardware_id: str = "",
+    installation_id: str = "",
 ) -> dict:
     if len(payload) < 100 or len(payload) > 1024 * 1024 * 1024:
         raise ValueError("Backup size is invalid")
@@ -1655,8 +1739,9 @@ def _store_support_backup_for_tenant(
     digest = hashlib.sha256(payload).hexdigest()
     with closing(registry_connect()) as conn:
         existing = conn.execute(
-            "SELECT id FROM support_backups WHERE tenant_id=? AND sha256=? AND product_code=? AND hardware_id=?",
-            (tenant_id, digest, product_code, hardware_id)
+            "SELECT id FROM support_backups WHERE tenant_id=? AND sha256=? AND product_code=? "
+            "AND hardware_id=? AND installation_id=?",
+            (tenant_id, digest, product_code, hardware_id, installation_id)
         ).fetchone()
     if existing:
         cleanup = prune_support_backups(tenant_id)
@@ -1678,7 +1763,8 @@ def _store_support_backup_for_tenant(
     with closing(registry_connect()) as conn:
         cursor = conn.execute(
             "INSERT INTO support_backups(tenant_id,filename,original_name,sha256,size_bytes,source,"
-            "created_at,created_by_user_id,product_code,hardware_id) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            "created_at,created_by_user_id,product_code,hardware_id,installation_id) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
             (
                 tenant_id,
                 filename,
@@ -1690,6 +1776,7 @@ def _store_support_backup_for_tenant(
                 int(created_by_user_id or 0),
                 product_code,
                 hardware_id,
+                installation_id,
             ),
         )
         conn.commit()
@@ -1704,13 +1791,17 @@ def _store_support_backup_for_tenant(
     }
 
 
-def support_store_backup(user: dict, payload: bytes, original_name: str = "desktop.db", program_name: str = "", product_code: str = "", hardware_id: str = "") -> dict:
+def support_store_backup(user: dict, payload: bytes, original_name: str = "desktop.db",
+                         program_name: str = "", product_code: str = "",
+                         hardware_id: str = "", installation_id: str = "") -> dict:
     tenant_id = str(dict(user).get("_tenant_id") or active_tenant_id() or "")
     product_code = str(product_code or "teknik_servis").strip().lower()
     if product_code not in configured_product_codes():
         raise ValueError("Unknown backup product")
     if len(hardware_id) > 256 or any(ord(char) < 32 for char in hardware_id):
         raise ValueError("Invalid device identity")
+    if len(installation_id) > 256 or any(ord(char) < 32 for char in installation_id):
+        raise ValueError("Invalid installation identity")
     result = _store_support_backup_for_tenant(
         tenant_id,
         int(dict(user).get("id") or 0),
@@ -1719,6 +1810,7 @@ def support_store_backup(user: dict, payload: bytes, original_name: str = "deskt
         "desktop",
         product_code,
         hardware_id,
+        installation_id,
     )
     # The registry remains authoritative. Mirror failures are visible to callers.
     try:
@@ -1734,7 +1826,8 @@ def support_store_backup(user: dict, payload: bytes, original_name: str = "deskt
         if tenant_root.parent != root / "tenants":
             raise ValueError("Invalid backup tenant")
         device_key = hashlib.sha256(hardware_id.encode()).hexdigest()[:24] if hardware_id else "legacy"
-        device_root = tenant_root / "devices" / device_key
+        installation_key = hashlib.sha256(installation_id.encode()).hexdigest()[:24] if installation_id else "legacy"
+        device_root = tenant_root / "devices" / device_key / "installations" / installation_key
         digest = hashlib.sha256(payload).hexdigest()
         for folder in (device_root / "current", device_root / "versions"):
             folder.mkdir(parents=True, exist_ok=True)
@@ -1775,8 +1868,10 @@ def control_queue_restore(actor: dict, data: dict) -> dict:
             (
                 tenant_id,
                 json.dumps({"backup_id": backup_id, "sha256": backup["sha256"],
+                            "size_bytes": backup["size_bytes"], "tenant_id": tenant_id,
                             "product_code": backup["product_code"],
-                            "hardware_id": backup["hardware_id"]}, ensure_ascii=True),
+                            "hardware_id": backup["hardware_id"],
+                            "installation_id": backup["installation_id"]}, ensure_ascii=True),
                 str(item.get("_tenant_id") or ""),
                 int(item.get("id") or 0),
                 utc_now().isoformat(timespec="seconds"),
@@ -1802,7 +1897,8 @@ def control_prune_backups(actor: dict, data: dict) -> dict:
     return result
 
 
-def desktop_pending_commands(user: dict, product_code: str = "teknik_servis", hardware_id: str = "") -> dict:
+def desktop_pending_commands(user: dict, product_code: str = "teknik_servis",
+                             hardware_id: str = "", installation_id: str = "") -> dict:
     tenant_id = str(dict(user).get("_tenant_id") or active_tenant_id() or "")
     current_time = utc_now()
     now = current_time.isoformat(timespec="seconds")
@@ -1813,9 +1909,10 @@ def desktop_pending_commands(user: dict, product_code: str = "teknik_servis", ha
             "SELECT id,command_type,payload_json,created_at FROM desktop_commands "
             "WHERE tenant_id=? AND product_code=? "
             "AND (COALESCE(json_extract(payload_json,'$.hardware_id'),'')='' OR json_extract(payload_json,'$.hardware_id')=?) "
+            "AND (COALESCE(json_extract(payload_json,'$.installation_id'),'')='' OR json_extract(payload_json,'$.installation_id')=?) "
             "AND (status='pending' OR (status='claimed' AND claimed_at<?)) "
             "ORDER BY id LIMIT 10",
-            (tenant_id, product_code, hardware_id, stale_at),
+            (tenant_id, product_code, hardware_id, installation_id, stale_at),
         )
         ids = [int(item["id"]) for item in pending]
         if ids:
@@ -1840,7 +1937,8 @@ def desktop_pending_commands(user: dict, product_code: str = "teknik_servis", ha
     return {"ok": True, "commands": commands}
 
 
-def desktop_complete_command(user: dict, data: dict, product_code: str = "teknik_servis", hardware_id: str = "") -> dict:
+def desktop_complete_command(user: dict, data: dict, product_code: str = "teknik_servis",
+                             hardware_id: str = "", installation_id: str = "") -> dict:
     tenant_id = str(dict(user).get("_tenant_id") or active_tenant_id() or "")
     command_id = int(data.get("command_id") or 0)
     success = bool(data.get("success"))
@@ -1850,6 +1948,7 @@ def desktop_complete_command(user: dict, data: dict, product_code: str = "teknik
             "UPDATE desktop_commands SET status=?,completed_at=?,result_json=? "
             "WHERE id=? AND tenant_id=? AND product_code=? "
             "AND (COALESCE(json_extract(payload_json,'$.hardware_id'),'')='' OR json_extract(payload_json,'$.hardware_id')=?) "
+            "AND (COALESCE(json_extract(payload_json,'$.installation_id'),'')='' OR json_extract(payload_json,'$.installation_id')=?) "
             "AND status IN ('claimed','pending')",
             (
                 "completed" if success else "failed",
@@ -1859,6 +1958,7 @@ def desktop_complete_command(user: dict, data: dict, product_code: str = "teknik
                 tenant_id,
                 product_code,
                 hardware_id,
+                installation_id,
             ),
         )
         conn.commit()
@@ -1870,8 +1970,9 @@ def desktop_complete_command(user: dict, data: dict, product_code: str = "teknik
             existing = conn.execute(
                 "SELECT status,result_json FROM desktop_commands "
                 "WHERE id=? AND tenant_id=? AND product_code=? "
-                "AND (COALESCE(json_extract(payload_json,'$.hardware_id'),'')='' OR json_extract(payload_json,'$.hardware_id')=?)",
-                (command_id, tenant_id, product_code, hardware_id),
+                "AND (COALESCE(json_extract(payload_json,'$.hardware_id'),'')='' OR json_extract(payload_json,'$.hardware_id')=?) "
+                "AND (COALESCE(json_extract(payload_json,'$.installation_id'),'')='' OR json_extract(payload_json,'$.installation_id')=?)",
+                (command_id, tenant_id, product_code, hardware_id, installation_id),
             ).fetchone()
         if not existing:
             raise LookupError("Desktop command was not found")
@@ -1886,13 +1987,15 @@ def desktop_complete_command(user: dict, data: dict, product_code: str = "teknik
     return {"ok": True}
 
 
-def support_backup_file(user: dict, backup_id: int, product_code: str = "teknik_servis", hardware_id: str = "") -> tuple[bytes, str, str]:
+def support_backup_file(user: dict, backup_id: int, product_code: str = "teknik_servis",
+                        hardware_id: str = "", installation_id: str = "") -> tuple[bytes, str, str]:
     tenant_id = str(dict(user).get("_tenant_id") or active_tenant_id() or "")
     with closing(registry_connect()) as conn:
         row = conn.execute(
             "SELECT * FROM support_backups WHERE id=? AND tenant_id=? AND product_code=? "
-            "AND (hardware_id='' OR hardware_id=?) AND status='available'",
-            (int(backup_id), tenant_id, product_code, hardware_id),
+            "AND (hardware_id='' OR hardware_id=?) "
+            "AND (installation_id='' OR installation_id=?) AND status='available'",
+            (int(backup_id), tenant_id, product_code, hardware_id, installation_id),
         ).fetchone()
     if not row:
         raise LookupError("Backup was not found")
@@ -2051,6 +2154,40 @@ def admin_company_detail(tenant_id: str) -> dict:
     return dict(t)
 
 
+def admin_customer_360(tenant_id: str) -> dict:
+    """Return the support-facing 360 view for one tenant."""
+    tenant_id = str(tenant_id or "").strip()
+    company = admin_company_detail(tenant_id)
+    users = admin_company_users(tenant_id)
+    licenses = [
+        item for item in admin_list_licenses(str(company.get("product_code") or ""))
+        if str(item.get("tenant_id") or "") == tenant_id
+    ]
+    backups = admin_list_backups(tenant_id)
+    logs = admin_error_logs(tenant_id, 25)
+    audit = admin_audit_logs(tenant_id, 50)
+    live = [
+        item for item in admin_live_status()
+        if str(item.get("tenant_id") or "") == tenant_id
+    ]
+    return {
+        "company": company,
+        "users": users,
+        "licenses": licenses,
+        "backups": backups,
+        "error_logs": logs,
+        "audit_logs": audit,
+        "live_status": live[0] if live else None,
+        "summary": {
+            "user_count": len(users),
+            "backup_count": len(backups),
+            "error_count": len(logs),
+            "audit_count": len(audit),
+            "online": bool(live),
+        },
+    }
+
+
 def admin_update_company(tenant_id: str, data: dict, actor: dict | None = None) -> dict:
     """Update company active status or metadata."""
     tenant_id = str(tenant_id or "").strip()
@@ -2059,10 +2196,47 @@ def admin_update_company(tenant_id: str, data: dict, actor: dict | None = None) 
         if not row:
             raise LookupError("Firma bulunamadi")
         tenant = dict(row)
-        allowed = {k: data[k] for k in ("active", "company_name", "license_type",
+        device_hardware = str(data.get("hardware_id") or "").strip()
+        device_installation = str(data.get("installation_id") or "").strip()
+        if device_hardware:
+            if len(device_hardware) < 12 or len(device_hardware) > 256:
+                raise ValueError("Gecersiz donanim kimligi")
+            if len(device_installation) > 256:
+                raise ValueError("Gecersiz kurulum kimligi")
+            device_muted = str(data.get("muted", "")).casefold() in {"1", "true", "yes", "on"}
+            if device_muted:
+                conn.execute(
+                    "INSERT OR REPLACE INTO muted_devices(tenant_id,product_code,hardware_id,installation_id,muted_at,reason) VALUES (?,?,?,?,?,?)",
+                    (tenant_id, str(tenant.get("product_code") or "teknik_servis"), device_hardware, device_installation,
+                     utc_now().isoformat(timespec="seconds"), str(data.get("muted_reason") or "Yonetici tarafindan susturuldu.")[:500]),
+                )
+            else:
+                # The admin UI may only know the hardware identity.  In that
+                # case remove every mute entry for that device; otherwise an
+                # installation-scoped row would survive and keep the device
+                # blocked after the operator re-activates it.
+                product = str(tenant.get("product_code") or "teknik_servis")
+                if device_installation:
+                    conn.execute(
+                        "DELETE FROM muted_devices WHERE tenant_id=? AND product_code=? "
+                        "AND hardware_id=? AND (installation_id=? OR installation_id='')",
+                        (tenant_id, product, device_hardware, device_installation),
+                    )
+                else:
+                    conn.execute(
+                        "DELETE FROM muted_devices WHERE tenant_id=? AND product_code=? AND hardware_id=?",
+                        (tenant_id, product, device_hardware),
+                    )
+            conn.commit()
+            if not any(key in data for key in ("active", "company_name", "license_type", "license_end", "license_start", "contact_name", "phone", "email", "sector", "company_address", "installation_lat", "installation_lng")):
+                return {"ok": True, "tenant_id": tenant_id, "hardware_id": device_hardware, "installation_id": device_installation, "muted": device_muted}
+        allowed = {k: data[k] for k in ("active", "muted", "muted_reason", "company_name", "license_type",
                                          "license_end", "license_start", "contact_name",
                                          "phone", "email", "sector", "company_address",
                                          "installation_lat", "installation_lng") if k in data}
+        if device_hardware:
+            allowed.pop("muted", None)
+            allowed.pop("muted_reason", None)
         if not allowed:
             raise ValueError("Guncellenecek alan bulunamadi")
         if "sector" in allowed:
@@ -2084,6 +2258,13 @@ def admin_update_company(tenant_id: str, data: dict, actor: dict | None = None) 
                 allowed["installation_lng"] = longitude
         if "company_address" in allowed or "installation_lat" in allowed or "installation_lng" in allowed:
             allowed["location_updated_at"] = utc_now().isoformat(timespec="seconds")
+        if "muted" in allowed:
+            allowed["muted"] = 1 if str(allowed["muted"]).casefold() in {"1", "true", "yes", "on"} else 0
+            allowed["muted_at"] = utc_now().isoformat(timespec="seconds") if allowed["muted"] else None
+            if not allowed["muted"]:
+                allowed["muted_reason"] = ""
+        if "active" in allowed:
+            allowed["active"] = 1 if str(allowed["active"]).casefold() in {"1", "true", "yes", "on", "aktif"} else 0
         sets = ", ".join(f'"{k}"=?' for k in allowed)
         vals = list(allowed.values()) + [tenant_id]
         conn.execute(f"UPDATE tenants SET {sets} WHERE id=?", vals)
@@ -2098,6 +2279,8 @@ def admin_update_company(tenant_id: str, data: dict, actor: dict | None = None) 
     return {
         "ok": True,
         "tenant_id": tenant_id,
+        "active": int(allowed.get("active", tenant.get("active") or 0)),
+        "muted": int(allowed.get("muted", tenant.get("muted") or 0)),
         "sector": allowed.get("sector", tenant.get("sector") or "teknik_servis"),
     }
 
@@ -2300,6 +2483,77 @@ def admin_reset_user_password(
     return {"ok": True, "user_id": user_id}
 
 
+def admin_send_temporary_password(
+    tenant_id: str,
+    user_id: int,
+    actor: dict | None = None,
+) -> dict:
+    """Generate a one-time temporary password and send it by email."""
+    tenant_id = str(tenant_id or "").strip()
+    with closing(registry_connect()) as registry:
+        tenant = registry.execute("SELECT * FROM tenants WHERE id=?", (tenant_id,)).fetchone()
+    if not tenant:
+        raise LookupError("Firma bulunamadi")
+    path = _tenant_path(dict(tenant))
+    if not path.exists():
+        raise FileNotFoundError("Firma veritabani bulunamadi")
+    temporary_password = secrets.token_urlsafe(9) + "Aa1"
+    temporary_expires_at = utc_now() + timedelta(minutes=30)
+    with closing(_raw_connect(path)) as conn:
+        _ensure_path_schema(conn, path)
+        conn.execute("BEGIN IMMEDIATE")
+        user = conn.execute(
+            "SELECT id,username,email,active FROM users WHERE id=?", (int(user_id),)
+        ).fetchone()
+        if not user:
+            conn.rollback()
+            raise LookupError("Kullanici bulunamadi")
+        recipient = str(user["email"] or "").strip()
+        if not valid_email(recipient) or not int(user["active"] or 0):
+            conn.rollback()
+            raise ValueError("Kullanicinin e-posta adresi bulunamadi")
+        conn.execute(
+            "UPDATE users SET password=?,must_change_password=1,temporary_password_expires_at=?,remember_token=NULL,auto_login=0 WHERE id=?",
+            (password_hash(temporary_password), temporary_expires_at.isoformat(timespec="seconds"), int(user_id)),
+        )
+        conn.execute("DELETE FROM web_sessions WHERE user_id=?", (int(user_id),))
+        try:
+            mail_sent, mail_message = send_license_email(
+                tenant_id,
+                recipient,
+                "AYEC Pro gecici parola",
+                (
+                    f"Merhaba {user['username'] or ''},\n\n"
+                    f"Gecici parolaniz: {temporary_password}\n\n"
+                    f"Bu parola {temporary_expires_at.isoformat(timespec='seconds')} UTC tarihine kadar gecerlidir.\n"
+                    "Ilk giriste yeni bir parola belirlemeniz istenecektir.\n"
+                    "Bu e-postayi siz istemediyseniz destek ekibinizle iletisime gecin."
+                ),
+            )
+        except Exception:
+            conn.rollback()
+            raise
+        if mail_sent:
+            conn.commit()
+        else:
+            conn.rollback()
+    _support_audit(
+        actor,
+        "temporary_password_email_sent" if mail_sent else "temporary_password_email_failed",
+        tenant_id,
+        int(user_id),
+        detail={"recipient": recipient, "message": mail_message},
+    )
+    return {
+        "ok": True,
+        "user_id": int(user_id),
+        "recipient": recipient,
+        "mail_sent": mail_sent,
+        "mail_message": mail_message,
+        "expires_at": temporary_expires_at.isoformat(timespec="seconds") if mail_sent else None,
+    }
+
+
 def admin_list_licenses(product_code: str = "") -> list:
     """List all tenant license information."""
     with closing(registry_connect()) as conn:
@@ -2447,6 +2701,8 @@ def create_license_order(user: dict, data: dict) -> dict:
     tenant = dict(row) if row else None
     if not tenant:
         raise LookupError("Firma bulunamadi.")
+    if int(tenant.get("muted") or 0) == 1:
+        raise PermissionError("Firma susturuldu. Yonetici ile iletisime gecin.")
     now = utc_now().isoformat(timespec="seconds")
     payment_reported = bool(data.get("payment_reported"))
     initial_status = "payment_reported" if payment_reported else "payment_pending"
@@ -2454,20 +2710,20 @@ def create_license_order(user: dict, data: dict) -> dict:
         request_no, payment_reference = _new_license_reference(conn)
         cursor = conn.execute(
             "INSERT INTO license_orders "
-            "(request_no,tenant_id,product_code,requester_user_id,requester_name,requester_email,requester_phone,hardware_id,location_json,"
+            "(request_no,tenant_id,product_code,requester_user_id,requester_name,requester_email,requester_phone,hardware_id,installation_id,location_json,"
             "plan_code,plan_label,duration_months,amount_try,currency,payment_reference,status,created_at,updated_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 request_no, tenant_id, str(data.get("product_code") or tenant.get("product_code") or "teknik_servis"), int(user.get("id") or 0),
                 str(user.get("full_name") or user.get("username") or ""),
-                str(user.get("email") or ""), str(user.get("phone") or ""), hardware_id, json.dumps(data.get("location") or data.get("location_json") or {}, ensure_ascii=False),
+                str(user.get("email") or ""), str(user.get("phone") or ""), hardware_id,
+                str(data.get("installation_id") or ""),
+                json.dumps(data.get("location") or data.get("location_json") or {}, ensure_ascii=False),
                 plan["code"], plan["label"], plan["duration_months"], plan["amount_try"],
                 plan["currency"], payment_reference, initial_status, now, now,
             ),
         )
         order_id = int(cursor.lastrowid)
-        conn.execute("UPDATE license_orders SET installation_id=? WHERE id=?",
-                     (str(data.get("installation_id") or ""), order_id))
         if payment_reported:
             conn.execute(
                 "UPDATE license_orders SET payment_reported_at=?,payment_note=? WHERE id=?",
@@ -2853,11 +3109,23 @@ def license_status_from_device(data: dict) -> dict:
         raise ValueError("Unknown product")
     with closing(registry_connect()) as conn:
         tenant = dict(_tenant_row_any(conn, tenant_id))
+        device_mute = conn.execute(
+            "SELECT 1 FROM muted_devices WHERE tenant_id=? AND product_code=? AND hardware_id=? "
+            "AND (installation_id='' OR installation_id=?) LIMIT 1",
+            (tenant_id, product, hardware, installation),
+        ).fetchone()
         order = conn.execute(
             "SELECT * FROM license_orders WHERE tenant_id=? AND product_code=? AND hardware_id=? "
             "AND status IN ('active','cancelled') ORDER BY id DESC LIMIT 1",
             (tenant_id, product, hardware),
         ).fetchone()
+    if device_mute:
+        from Web_Arayuzu.central_entitlements import sign_access
+        access = tenant_access_summary({**tenant, "muted": 1, "muted_reason": "Bu donanim yonetici tarafindan susturuldu."})
+        access.update(product_code=product, tenant_id=tenant_id, hardware_id=hardware,
+                      installation_id=installation, server_time=utc_now().isoformat(timespec="seconds"))
+        return {"ok": True, "access": sign_access(access),
+                "tenant": {"id": tenant_id, "company_name": str(tenant.get("company_name") or "")}}
     if order:
         order = dict(order)
         if order.get("installation_id") and order["installation_id"] != installation:
@@ -3005,7 +3273,7 @@ def admin_list_backups(tenant_id: str) -> list:
     with closing(registry_connect()) as conn:
         support_rows = rows(
             conn,
-            "SELECT id,original_name,size_bytes,source,created_at,status,product_code,hardware_id,sha256 "
+            "SELECT id,original_name,size_bytes,source,created_at,status,product_code,hardware_id,installation_id,sha256 "
             "FROM support_backups WHERE tenant_id=? AND status='available' "
             "ORDER BY id DESC LIMIT 25",
             (tenant_id,),
@@ -3021,6 +3289,7 @@ def admin_list_backups(tenant_id: str) -> list:
             "kind": "support",
             "product_code": item["product_code"],
             "hardware_id": item["hardware_id"],
+            "installation_id": item["installation_id"],
             "sha256": item["sha256"],
         })
     backup_dir = TENANT_ROOT.parent / "backups"
@@ -3057,13 +3326,13 @@ def admin_download_support_backup(actor: dict, tenant_id: str, backup_id: int) -
         raise PermissionError("Platform operator permission is required")
     with closing(registry_connect()) as conn:
         backup = conn.execute(
-            "SELECT product_code,hardware_id FROM support_backups WHERE id=? AND tenant_id=?",
+            "SELECT product_code,hardware_id,installation_id FROM support_backups WHERE id=? AND tenant_id=?",
             (int(backup_id), tenant_id),
         ).fetchone()
     if not backup:
         raise LookupError("Backup was not found")
     return support_backup_file({**actor, "_tenant_id": tenant_id}, backup_id,
-                               str(backup[0]), str(backup[1]))
+                               str(backup[0]), str(backup[1]), str(backup[2] or ""))
 
 
 def admin_download_backup(tenant_id: str, backup_index: int) -> tuple:
@@ -3942,6 +4211,7 @@ def public_user(user: dict | sqlite3.Row) -> dict:
         "full_name": item.get("full_name") or item.get("username") or "",
         "email": item.get("email") or "",
         "phone": item.get("phone") or "",
+        "must_change_password": bool(item.get("must_change_password")),
         "role": item.get("role") or "User",
         "permissions": item.get("permissions") or "",
         "is_admin": role_is_admin(item.get("role")),
@@ -4551,6 +4821,9 @@ def authenticate_account(identifier: str, password: str, tenant_id: str | None =
             conn.execute("UPDATE users SET last_login=? WHERE id=?", (utc_now().isoformat(timespec="seconds"), row["id"]))
             conn.commit()
             result = dict(conn.execute("SELECT * FROM users WHERE id=?", (row["id"],)).fetchone())
+            temporary_expiry = _parse_registry_time(result.get("temporary_password_expires_at"))
+            if bool(result.get("must_change_password")) and temporary_expiry and utc_now() > temporary_expiry:
+                continue
             result["_tenant_id"] = tenant["id"]
             result["_company_name"] = tenant["company_name"]
             return result
@@ -4737,7 +5010,19 @@ def save_web_customer_balances(
         if balance_id:
             update_available(conn, "customer_currency_balances", int(balance_id), values)
         else:
-            insert_available(conn, "customer_currency_balances", values)
+            # The customer/currency pair is unique; use an upsert so sync
+            # remains idempotent even when a legacy database has no row id.
+            conn.execute(
+                """
+                INSERT INTO customer_currency_balances
+                    (customer_id, currency, balance, last_updated)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(customer_id, currency) DO UPDATE SET
+                    balance=excluded.balance,
+                    last_updated=excluded.last_updated
+                """,
+                (customer_id, currency, balance, updated_at),
+            )
 
 
 def link_web_automotive_service(
@@ -6894,7 +7179,26 @@ def sync_push(body: dict, source_device_id: str = "") -> dict:
                     clean = {key: value for key, value in row.items() if key in columns}
                     if not clean:
                         raise ValueError("Boş kayıt")
-                    if "id" in columns and clean.get("id") is not None:
+                    if table == "customer_currency_balances" and clean.get("customer_id") is not None and clean.get("currency"):
+                        # Composite identity is customer + currency; desktop sync
+                        # payloads may omit the server row id.
+                        existing = conn.execute(
+                            "SELECT id FROM customer_currency_balances WHERE customer_id=? AND currency=? LIMIT 1",
+                            (clean["customer_id"], clean["currency"]),
+                        ).fetchone()
+                        if existing:
+                            updates = {key: value for key, value in clean.items() if key not in {"id", "customer_id", "currency"}}
+                            if updates:
+                                setters = ",".join(f'"{key}"=?' for key in updates)
+                                conn.execute(
+                                    f'UPDATE "{table}" SET {setters} WHERE id=?',
+                                    (*updates.values(), existing[0]),
+                                )
+                        else:
+                            names = ",".join(f'"{key}"' for key in clean)
+                            marks = ",".join("?" for _ in clean)
+                            conn.execute(f'INSERT INTO "{table}" ({names}) VALUES ({marks})', tuple(clean.values()))
+                    elif "id" in columns and clean.get("id") is not None:
                         existing = conn.execute(f'SELECT * FROM "{table}" WHERE id=?', (clean["id"],)).fetchone()
                         if existing:
                             existing_row = dict(existing)
@@ -7246,6 +7550,10 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
                     search = query.get("q", [""])[0]
                     product_code = query.get("product_code", [""])[0]
                     return self.send_json({"companies": admin_list_companies(search, product_code)})
+                # Customer 360 support view
+                if path.startswith("/api/admin/customer-360/"):
+                    tid = path.split("/api/admin/customer-360/")[-1].strip("/")
+                    return self.send_json(admin_customer_360(tid))
                 # Company detail
                 if path.startswith("/api/admin/companies/") and not path.endswith("/users"):
                     tid = path.split("/api/admin/companies/")[-1]
@@ -7330,14 +7638,18 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
                     return self.send_json({"error": str(error)}, 403)
             if path == "/api/support/desktop/commands":
                 return self.send_json(desktop_pending_commands(self.current_user(),
-                    self.headers.get("X-AYEC-Product-Code", "teknik_servis"), self.headers.get("X-AYEC-Device-ID", "")))
+                    self.headers.get("X-AYEC-Product-Code", "teknik_servis"),
+                    self.headers.get("X-AYEC-Device-ID", ""),
+                    self.headers.get("X-AYEC-Installation-ID", "")))
             if path.startswith("/api/support/backups/"):
                 backup_text = path.rsplit("/", 1)[-1]
                 if not backup_text.isdigit():
                     return self.send_json({"error": "Invalid backup number"}, 400)
                 try:
                     payload, digest, name = support_backup_file(self.current_user(), int(backup_text),
-                        self.headers.get("X-AYEC-Product-Code", "teknik_servis"), self.headers.get("X-AYEC-Device-ID", ""))
+                        self.headers.get("X-AYEC-Product-Code", "teknik_servis"),
+                        self.headers.get("X-AYEC-Device-ID", ""),
+                        self.headers.get("X-AYEC-Installation-ID", ""))
                     return self.send_bytes(
                         payload,
                         "application/vnd.sqlite3",
@@ -7615,6 +7927,13 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
                 if not user:
                     record_auth_failure(client_key)
                     return self.send_json({"error": "Kullanıcı adı/e-posta veya parola hatalı."}, 401)
+                if bool(user.get("must_change_password")):
+                    clear_auth_failures(client_key)
+                    return self.send_json({
+                        "ok": True,
+                        "password_change_required": True,
+                        "tenant_id": user.get("_tenant_id"),
+                    })
                 access_error = tenant_access_error(tenant_by_id(str(user.get("_tenant_id") or "")))
                 if access_error and not is_control_admin(user):
                     return self.send_json({"error": access_error, "code": "LICENSE_REQUIRED"}, 403)
@@ -7643,6 +7962,18 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
                     return self.send_json(complete_password_reset(self.read_json()))
                 except ValueError as error:
                     return self.send_json({"error": str(error)}, 400)
+            if path == "/api/auth/change-temporary-password":
+                if not self.same_origin() or not self.headers.get("Origin"):
+                    return self.send_json({"error": "Gecersiz istek kaynagi."}, 403)
+                if auth_rate_limited(self.client_ip()):
+                    return self.send_json({"error": "Cok fazla deneme. Daha sonra tekrar deneyin."}, 429)
+                try:
+                    result = complete_temporary_password_change(self.read_json())
+                    clear_auth_failures(self.client_ip())
+                    return self.send_json(result)
+                except (ValueError, PermissionError) as error:
+                    record_auth_failure(self.client_ip())
+                    return self.send_json({"error": str(error)}, 400)
             if path == "/api/control/telemetry/errors":
                 try:
                     return self.send_json(control_add_error_log(self.read_json()))
@@ -7658,6 +7989,8 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
                 )
                 if not user or not is_control_admin(user):
                     return self.send_json({"error": "Super Admin yetkisi yok veya kimlik bilgileri hatali."}, 401)
+                if bool(user.get("must_change_password")):
+                    return self.send_json({"error": "Once gecici parolanizi degistirin."}, 403)
                 token, max_age = create_session(
                     int(user["id"]), True, self.headers.get("User-Agent", ""),
                     self.client_ip(), user.get("_tenant_id")
@@ -7694,6 +8027,10 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
                     uid = int(path.split("/api/admin/users/")[-1].replace("/reset-password", ""))
                     return self.send_json(admin_reset_user_password(
                         body.get("tenant_id", ""), uid, body.get("new_password", ""), user
+                    ))
+                if path == "/api/admin/users/temporary-password":
+                    return self.send_json(admin_send_temporary_password(
+                        body.get("tenant_id", ""), int(body.get("user_id") or 0), user
                     ))
                 if path.startswith("/api/admin/license-orders/") and path.endswith("/approve"):
                     order_id = int(path.split("/api/admin/license-orders/")[-1].replace("/approve", ""))
@@ -7859,7 +8196,9 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
             if path == "/api/support/desktop/complete":
                 try:
                     return self.send_json(desktop_complete_command(user, self.read_json(),
-                        self.headers.get("X-AYEC-Product-Code", "teknik_servis"), self.headers.get("X-AYEC-Device-ID", "")))
+                        self.headers.get("X-AYEC-Product-Code", "teknik_servis"),
+                        self.headers.get("X-AYEC-Device-ID", ""),
+                        self.headers.get("X-AYEC-Installation-ID", "")))
                 except LookupError as error:
                     return self.send_json({"error": str(error)}, 404)
             if path == "/api/support/backups/upload":
@@ -7869,7 +8208,14 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
                         return self.send_json({"error": "Backup size is invalid"}, 413)
                     payload = self.rfile.read(size)
                     return self.send_json(
-                        support_store_backup(user, payload, self.headers.get("X-AYEC-Backup-Name", "desktop.db"), self.headers.get("X-AYEC-Program", ""), self.headers.get("X-AYEC-Product-Code", ""), self.headers.get("X-AYEC-Device-ID", ""))
+                        support_store_backup(
+                            user, payload,
+                            self.headers.get("X-AYEC-Backup-Name", "desktop.db"),
+                            self.headers.get("X-AYEC-Program", ""),
+                            self.headers.get("X-AYEC-Product-Code", ""),
+                            self.headers.get("X-AYEC-Device-ID", ""),
+                            self.headers.get("X-AYEC-Installation-ID", ""),
+                        )
                     )
                 except PermissionError as error:
                     return self.send_json({"error": str(error)}, 403)
@@ -8035,7 +8381,25 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
                     )
                     conn.commit()
                     return self.send_json({"ok": True, "id": body["key"], "action": "upsert"})
-                if action == "delete" and row_id is not None:
+                if table == "customer_currency_balances" and clean.get("customer_id") is not None and clean.get("currency"):
+                    balance_row = conn.execute(
+                        "SELECT id FROM customer_currency_balances WHERE customer_id=? AND currency=? LIMIT 1",
+                        (clean["customer_id"], clean["currency"]),
+                    ).fetchone()
+                    if balance_row:
+                        updates = {k: v for k, v in clean.items() if k not in {"customer_id", "currency", "id"}}
+                        if updates:
+                            sets = ",".join(f'"{k}"=?' for k in updates)
+                            conn.execute(f'UPDATE customer_currency_balances SET {sets} WHERE id=?', (*updates.values(), balance_row[0]))
+                        row_id = balance_row[0]
+                        action = "update"
+                    else:
+                        names = ",".join(f'"{k}"' for k in clean)
+                        marks = ",".join("?" for _ in clean)
+                        conn.execute(f'INSERT INTO customer_currency_balances ({names}) VALUES ({marks})', tuple(clean.values()))
+                        row_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+                        action = "insert"
+                elif action == "delete" and row_id is not None:
                     if "is_deleted" in columns:
                         if "updated_at" in columns:
                             conn.execute(

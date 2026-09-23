@@ -135,7 +135,7 @@ class CurrencyHelper:
         code = (currency_code or "TRY").upper()
         rate = float(CurrencyHelper._get_rate(db, code) or 0.0)
         if rate <= 0:
-            return 47.5736 if code == "USD" else (51.50 if code == "EUR" else 1.0)
+            raise ValueError(f"Exchange rate unavailable: {code}")
         return rate
 
     @staticmethod

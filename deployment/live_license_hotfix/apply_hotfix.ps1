@@ -1,5 +1,7 @@
 param(
-    [string]$Target = "C:\Web_Arayuzu"
+    [string]$Target = "C:\Web_Arayuzu",
+    [Parameter(Mandatory = $true)]
+    [string]$SourceMain
 )
 
 $ErrorActionPreference = "Stop"
@@ -11,12 +13,8 @@ if (-not $targetPath.Equals($expectedTarget, [System.StringComparison]::OrdinalI
 }
 
 $targetMain = Join-Path $targetPath "Main.py"
-$payloadMain = Join-Path $PSScriptRoot "payload\Main.py"
 if (-not (Test-Path -LiteralPath $targetMain -PathType Leaf)) {
     throw "Live Main.py was not found at $targetMain"
-}
-if (-not (Test-Path -LiteralPath $payloadMain -PathType Leaf)) {
-    throw "Hotfix payload Main.py is missing."
 }
 
 $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
@@ -32,7 +30,22 @@ if (Test-Path -LiteralPath $dataDir -PathType Container) {
         }
 }
 
-Copy-Item -LiteralPath $payloadMain -Destination $targetMain -Force
+if (-not (Test-Path -LiteralPath $sourceMain -PathType Leaf)) {
+    throw "Source Main.py was not found at $SourceMain"
+}
+$sourceText = Get-Content -LiteralPath $sourceMain -Raw
+$liveText = Get-Content -LiteralPath $targetMain -Raw
+$oldSql = '"INSERT INTO license_orders "' + "`r`n" +
+    '            "(request_no,tenant_id,requester_user_id,requester_name,requester_email,requester_phone,hardware_id,"' + "`r`n" +
+    '            "plan_code,plan_label,duration_months,amount_try,currency,payment_reference,status,created_at,updated_at) "' + "`r`n" +
+    '            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",'
+if ($liveText.Contains($oldSql)) {
+    throw "Live Main.py still uses the legacy license-order SQL. Deploy the current central Web_Arayuzu source before restarting."
+}
+if (-not $sourceText.Contains('installation_id') -or -not $sourceText.Contains('VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')) {
+    throw "Current source does not contain the expected installation-scoped 19-value license-order INSERT."
+}
+Copy-Item -LiteralPath $sourceMain -Destination $targetMain -Force
 
 $python = Join-Path $targetPath ".venv\Scripts\python.exe"
 if (-not (Test-Path -LiteralPath $python -PathType Leaf)) {

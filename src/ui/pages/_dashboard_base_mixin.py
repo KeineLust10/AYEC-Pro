@@ -60,6 +60,24 @@ class DashboardBaseMixin:
                 self.update_dashboard_status_tiles()
             if hasattr(self, "update_filter_buttons_style"):
                 self.update_filter_buttons_style()
+
+            # Refresh breakdown panel counts
+            if hasattr(self, "_breakdown_labels") and hasattr(self, "_status_tiles"):
+                for key, lbl in self._breakdown_labels.items():
+                    tile = self._status_tiles.get(key)
+                    if tile and tile.get("count"):
+                        count_text = tile["count"].text()
+                        try:
+                            count_val = int(count_text.replace("ADET", "").strip())
+                            lbl.setText(str(count_val))
+                        except (ValueError, AttributeError):
+                            lbl.setText("0")
+
+            # Refresh recent activity panel
+            if hasattr(self, "_refresh_recent_activity"):
+                self._refresh_recent_activity()
+            if hasattr(self, "_refresh_dashboard_chart_widgets"):
+                self._refresh_dashboard_chart_widgets()
             
             # Utilize fast_render_context if table exists
             table_widget = getattr(self, "table", None)

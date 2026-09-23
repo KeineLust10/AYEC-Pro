@@ -75,7 +75,11 @@ class DeviceMixin:
 
     def _should_create_service_debt(self, status):
         normalized = self._normalize_status_key(status)
-        return normalized in {"tamirde", "teslim edildi"}
+        # Once a part/labor is attached, an open service must become a debit
+        # even before the technician changes the status to "tamirde". This
+        # keeps collection allocation consistent with the service total while
+        # the over-collection guard still rejects payments after settlement.
+        return normalized in {"bekliyor", "acik", "tamirde", "teslim edildi"}
 
     def _resolve_customer_id_by_name(self, customer_name):
         try:
@@ -170,6 +174,25 @@ class DeviceMixin:
             raise
         return round(parts_total, 4)
 
+    def _get_used_parts_totals_by_currency(self, tracking_no):
+        """Return used-part totals in their original currencies and rates."""
+        totals = {}
+        self.cursor.execute("PRAGMA table_info(used_parts)")
+        cols = {row[1] for row in (self.cursor.fetchall() or [])}
+        qty_expr = "COALESCE(quantity, 1)" if "quantity" in cols else "1"
+        cur_expr = "COALESCE(currency, 'TRY')" if "currency" in cols else "'TRY'"
+        rate_expr = "COALESCE(exchange_rate, 1)" if "exchange_rate" in cols else "1"
+        deleted = " AND (is_deleted=0 OR is_deleted IS NULL)" if "is_deleted" in cols else ""
+        rows = self.cursor.execute(
+            f"SELECT COALESCE(price,0), {qty_expr}, {cur_expr}, {rate_expr} FROM used_parts WHERE tracking_no=?{deleted}",
+            (tracking_no,),
+        ).fetchall()
+        for price, qty, currency, rate in rows:
+            code = str(currency or "TRY").upper()
+            totals[code] = totals.get(code, 0.0) + round(float(price or 0) * float(qty or 1), 4)
+            totals.setdefault(f"{code}_RATE", float(rate or 1.0))
+        return {code: round(value, 4) for code, value in totals.items()}
+
     def _sync_service_debt_from_tracking(
         self, tracking_no, create_if_missing=False, reason=""
     ):
@@ -238,6 +261,15 @@ class DeviceMixin:
                 cargo_fee=cargo_fee,
                 price=price,
             )
+            part_totals = self._get_used_parts_totals_by_currency(tracking_no)
+            service_currency = "TRY"
+            non_try = [code for code in ("USD", "EUR") if part_totals.get(code, 0) > 0]
+            if len(non_try) == 1 and not float(labor_cost or 0) and not float(cargo_fee or 0):
+                service_currency = non_try[0]
+                total_amount = part_totals[service_currency]
+                debt_rate = part_totals.get(f"{service_currency}_RATE", 1.0)
+            else:
+                debt_rate = 1.0
 
             self.cursor.execute(
                 """
@@ -256,7 +288,6 @@ class DeviceMixin:
                 if total_amount <= 0:
                     return False
 
-                debt_rate = 1.0
                 try_equivalent = round(total_amount, 4)
 
                 paid_sum = 0.0
@@ -271,11 +302,11 @@ class DeviceMixin:
                         SELECT COALESCE(SUM(amount), 0)
                         FROM currency_transactions
                         WHERE customer_id=?
-                          AND tracking_no=?
+                          AND (tracking_no=? OR tracking_no=? || '-PAY')
                           AND transaction_type='CREDIT'
                           AND currency=?
                         """,
-                        (customer_id, tracking_no, _debt_currency or "TRY"),
+                        (customer_id, tracking_no, tracking_no, _debt_currency or "TRY"),
                     )
                     paid_sum = float((self.cursor.fetchone() or [0])[0] or 0.0)
 
@@ -284,14 +315,14 @@ class DeviceMixin:
                 self.cursor.execute(
                     """
                     UPDATE currency_transactions
-                    SET amount=?, currency='TRY', exchange_rate=1,
+                    SET amount=?, currency=?, exchange_rate=?,
                         try_equivalent=?, current_balance=?
                     WHERE id=?
                     """,
-                    (total_amount, try_equivalent, new_current_balance, debt_id),
+                    (total_amount, service_currency, debt_rate, round(total_amount * debt_rate, 4), new_current_balance, debt_id),
                 )
                 self.conn.commit()
-                _debt_currency = "TRY"
+                _debt_currency = service_currency
                 if hasattr(self, "auto_allocate_unlinked_customer_payments"):
                     self.auto_allocate_unlinked_customer_payments(
                         customer_id=customer_id,
@@ -312,7 +343,7 @@ class DeviceMixin:
             if total_amount <= 0:
                 return False
 
-            debt_currency = "TRY"
+            debt_currency = service_currency
 
             debt_desc = (
                 f"Servis Borcu (Tamirde): #{tracking_no} - {customer_name or 'Müşteri'}"
@@ -326,7 +357,7 @@ class DeviceMixin:
                     amount=total_amount,
                     currency=debt_currency,
                     transaction_type="DEBIT",
-                    exchange_rate=1.0,
+                    exchange_rate=debt_rate,
                     description=debt_desc,
                     tracking_no=tracking_no,
                 )
@@ -344,7 +375,7 @@ class DeviceMixin:
                   AND transaction_type='CREDIT'
                   AND currency=?
                 """,
-                (customer_id, tracking_no, debt_currency),
+                (customer_id, tracking_no, tracking_no, debt_currency),
             )
             paid_sum = float((self.cursor.fetchone() or [0])[0] or 0.0)
 

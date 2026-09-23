@@ -28,6 +28,7 @@ from PyQt6.QtWidgets import (
 from src.ui.dialogs.base_modern_dialog import BaseModernDialog
 from src.ui.dialogs.customer_vehicle_dialog import CustomerVehicleDialog
 from src.ui.dialogs.payment_dialog import ModernPaymentDialog
+from src.ui.dialogs.modern_input_dialog import ModernInputDialog
 from src.utils.theme_colors import tc, theme_qss
 from src.utils.currency_helper import CurrencyHelper
 from src.utils.logger import logger
@@ -36,7 +37,7 @@ from src.utils.system_config import SystemConfig
 from src.utils.path_helper import PathHelper
 from src.utils.offer_pdf_data import load_offer_pdf_data
 from src.utils.service_work_details import clean_offer_line_description
-from src.utils.toast_notification import show_error, show_success
+from src.utils.toast_notification import show_error, show_success, show_warning
 
 
 class StatBox(QFrame):
@@ -250,7 +251,7 @@ class CustomerNoteDialog(BaseModernDialog):
 
     def set_font_size(self, size_str):
         try:
-            self.editor.setFontPointSize(float(size_str))
+            self.editor.setFontPointSize(max(1.0, float(size_str)))
         except:
             pass
 
@@ -364,11 +365,24 @@ class Customer360Dialog(BaseModernDialog):
             except Exception:
                 pass
 
-    def _announce_payment_received(self):
+    def _announce_payment_received(self, customer_name=None, currency=None):
         show_success(self, "\u00d6deme al\u0131nd\u0131.")
         try:
             from src.utils.asistan_motoru import sesli_cevap_ver_async
-            sesli_cevap_ver_async("\u00d6deme al\u0131nd\u0131.")
+            balance = self.db.get_customer_currency_balance(self.customer_id, currency or "TRY")
+            name = customer_name or self.customer_name
+            manager = getattr(self.main_window, "assistant_manager", None)
+            def spoken(value):
+                if manager and hasattr(manager, "_amount_in_words"):
+                    return manager._amount_in_words(value, currency or "TRY")
+                return f"{value:.2f} {currency or 'TRY'}"
+            if balance < -0.009:
+                text = f"\u00d6deme al\u0131nd\u0131. {name} i\u00e7in kalan bor\u00e7 {spoken(abs(balance))}."
+            elif balance > 0.009:
+                text = f"\u00d6deme al\u0131nd\u0131. {name} alacakl\u0131 duruma ge\u00e7ti. Bakiye {spoken(balance)}."
+            else:
+                text = f"\u00d6deme al\u0131nd\u0131. {name} borcu bitmi\u015ftir."
+            sesli_cevap_ver_async(text)
         except Exception:
             pass
 
@@ -767,20 +781,24 @@ class Customer360Dialog(BaseModernDialog):
         actions.addStretch()
         self.btn_open_offer = QPushButton("Teklifi A\u00e7")
         self.btn_edit_offer = QPushButton("Teklifi D\u00fczenle")
+        self.btn_reverse_offer = QPushButton("\u0130\u015flemi Geri Al ve Revize Et")
         self.btn_process_offer = QPushButton(
             "Teklifi M\u00fc\u015fteri Hesab\u0131na \u0130\u015fle"
         )
         for button in (
             self.btn_open_offer,
             self.btn_edit_offer,
+            self.btn_reverse_offer,
             self.btn_process_offer,
         ):
             button.setMinimumHeight(36)
         self.btn_open_offer.clicked.connect(self.open_selected_offer_from_button)
         self.btn_edit_offer.clicked.connect(self.edit_selected_offer)
+        self.btn_reverse_offer.clicked.connect(self.reverse_selected_offer)
         self.btn_process_offer.clicked.connect(self.process_selected_offer)
         actions.addWidget(self.btn_open_offer)
         actions.addWidget(self.btn_edit_offer)
+        actions.addWidget(self.btn_reverse_offer)
         actions.addWidget(self.btn_process_offer)
         l.addLayout(actions)
 
@@ -966,7 +984,7 @@ class Customer360Dialog(BaseModernDialog):
         )
         balance_label = f"AKTIF BAKIYE ({display_currency})"
         if display_balance < 0:
-            balance_label = f"BEKLEYEN ALACAK ({display_currency})"
+            balance_label = f"MUSTERI NET BORCU ({display_currency})"
         elif display_balance > 0:
             balance_label = f"MUSTERI ALACAGI ({display_currency})"
         if missing_rate_codes:
@@ -1087,30 +1105,24 @@ class Customer360Dialog(BaseModernDialog):
                     SELECT
                         tracking_no,
                         currency,
-                        COALESCE(
-                            SUM(
-                                CASE
-                                    WHEN transaction_type='DEBIT'
-                                    THEN amount
-                                    ELSE 0
-                                END
-                            ),
-                            0
-                        ) AS debit_amount,
-                        COALESCE(
-                            SUM(
-                                CASE
-                                    WHEN transaction_type='DEBIT'
-                                     AND COALESCE(current_balance, 0) < 0
-                                    THEN ABS(COALESCE(current_balance, 0))
-                                    ELSE 0
-                                END
-                            ),
-                            0
-                        ) AS remaining_amount
-                    FROM currency_transactions
-                    WHERE customer_id=?
-                      AND tracking_no IN ({placeholders})
+                        MAX(amount) AS debit_amount,
+                        MAX(CASE WHEN transaction_type='DEBIT' THEN
+                            CASE WHEN links.paid IS NOT NULL THEN MAX(amount-links.paid, 0)
+                                 WHEN legacy.paid IS NOT NULL THEN MAX(amount-legacy.paid, 0)
+                                 ELSE MAX(COALESCE(-current_balance, 0), 0) END
+                            ELSE 0 END) AS remaining_amount
+                    FROM currency_transactions ct
+                    LEFT JOIN (SELECT debt_txn_id, SUM(amount) AS paid FROM payment_debt_links GROUP BY debt_txn_id) links
+                      ON links.debt_txn_id=ct.id
+                    LEFT JOIN (SELECT d.id, SUM(c.amount) AS paid
+                               FROM currency_transactions d JOIN currency_transactions c
+                                 ON c.customer_id=d.customer_id AND c.currency=d.currency
+                                AND c.transaction_type='CREDIT'
+                                AND (c.tracking_no=d.tracking_no OR c.tracking_no=d.tracking_no || '-PAY')
+                               WHERE d.transaction_type='DEBIT' GROUP BY d.id) legacy
+                      ON legacy.id=ct.id
+                    WHERE ct.customer_id=?
+                      AND ct.tracking_no IN ({placeholders})
                     GROUP BY tracking_no, currency
                     """,
                     (self.customer_id, *tracking_numbers),
@@ -1140,6 +1152,9 @@ class Customer360Dialog(BaseModernDialog):
             )
 
             if tx_rows:
+                # Keep the currency of the service debit. Parts may be priced
+                # in USD/EUR; the service ledger must not rewrite that amount
+                # based on unrelated customer-cari transactions.
                 primary_currency = tx_rows[0][0] or display_currency
                 total = float(tx_rows[0][1] or 0.0)
                 remaining = max(0.0, float(tx_rows[0][2] or 0.0))
@@ -1356,30 +1371,21 @@ class Customer360Dialog(BaseModernDialog):
             is_settled = False
             remaining_debt = float(amt or 0)
             if t_type == "DEBIT":
-                if current_balance is not None:
-                    try:
-                        remaining_debt = max(0.0, -float(current_balance or 0.0))
-                    except Exception:
-                        remaining_debt = float(amt or 0)
+                paid_row = self.db.conn.execute(
+                    "SELECT SUM(amount) FROM payment_debt_links WHERE debt_txn_id=?",
+                    (tid,),
+                ).fetchone()
+                if paid_row[0] is None:
+                    legacy_row = self.db.conn.execute(
+                        """SELECT SUM(amount) FROM currency_transactions
+                           WHERE customer_id=? AND currency=? AND transaction_type='CREDIT'
+                             AND (tracking_no=? OR tracking_no=? || '-PAY')""",
+                        (self.customer_id, curr, tracking_no, tracking_no),
+                    ).fetchone()
+                    paid_value = legacy_row[0] if legacy_row and legacy_row[0] is not None else None
+                    remaining_debt = max(0.0, float(amt or 0) - float(paid_value or 0)) if paid_value is not None else max(0.0, -float(current_balance or 0.0))
                 else:
-                    # Legacy fallback: current_balance boş eski satırlar için kaba hesap.
-                    chk = self.db.conn.cursor()
-                    if tracking_no:
-                        chk.execute(
-                            """SELECT COALESCE(SUM(amount), 0)
-                               FROM currency_transactions
-                               WHERE customer_id=? AND transaction_type='CREDIT' AND tracking_no=? AND currency=?""",
-                            (self.customer_id, tracking_no, curr),
-                        )
-                    else:
-                        chk.execute(
-                            """SELECT COALESCE(SUM(amount), 0)
-                               FROM currency_transactions
-                               WHERE customer_id=? AND transaction_type='CREDIT' AND id > ? AND currency=?""",
-                            (self.customer_id, tid, curr),
-                        )
-                    paid_total = float(chk.fetchone()[0] or 0)
-                    remaining_debt = max(0.0, float(amt or 0) - paid_total)
+                    remaining_debt = max(0.0, float(amt or 0) - float(paid_row[0] or 0))
                 is_settled = remaining_debt <= 0.01
 
             if t_type == "DEBIT":
@@ -1550,8 +1556,26 @@ class Customer360Dialog(BaseModernDialog):
         except Exception as exc:
             logger.debug(f"Customer360 tracking part detail append skipped: {exc}")
 
+    def _service_is_closed(self, tracking_no):
+        """Return whether a service reached a collection-eligible closed state."""
+        row = self.db.conn.execute(
+            "SELECT status FROM devices WHERE customer_id=? AND tracking_no=? LIMIT 1",
+            (self.customer_id, tracking_no),
+        ).fetchone()
+        status = str(row[0] or "").strip().casefold() if row else ""
+        return status in {"teslim edildi", "teslim", "bitti", "tamamlandi", "tamamland\u0131", "closed", "completed"}
+
+    def _warn_service_must_close(self, tracking_no):
+        show_warning(
+            self,
+            f"{self.customer_name} i\u00e7in \u00f6nce servisi kapat\u0131n. Tahsilat servis kapat\u0131ld\u0131ktan sonra al\u0131nabilir.",
+        )
+
     def _pay_service(self, tracking_no, amount, currency, device_label):
         """Servis listesinden doğrudan ödeme al"""
+        if not self._service_is_closed(tracking_no):
+            self._warn_service_must_close(tracking_no)
+            return
         desc = f"Servis tahsilatı - {device_label} (#{tracking_no})"
         preselected_debt_ids = self._get_open_debt_ids_for_tracking(
             tracking_no, currency
@@ -1569,12 +1593,26 @@ class Customer360Dialog(BaseModernDialog):
     def _get_open_debt_ids_for_tracking(self, tracking_no, currency=None):
         try:
             query = """
-                SELECT id
-                FROM currency_transactions
-                WHERE customer_id=?
-                  AND tracking_no=?
-                  AND transaction_type='DEBIT'
-                  AND (current_balance < 0 OR current_balance IS NULL)
+                SELECT d.id
+                FROM currency_transactions d
+                LEFT JOIN (
+                    SELECT debt_txn_id, SUM(amount) AS paid
+                    FROM payment_debt_links GROUP BY debt_txn_id
+                ) links ON links.debt_txn_id=d.id
+                LEFT JOIN (
+                    SELECT d2.id, SUM(c.amount) AS paid
+                    FROM currency_transactions d2
+                    JOIN currency_transactions c
+                      ON c.customer_id=d2.customer_id AND c.currency=d2.currency
+                     AND c.transaction_type='CREDIT'
+                     AND (c.tracking_no=d2.tracking_no OR c.tracking_no=d2.tracking_no || '-PAY')
+                    WHERE d2.transaction_type='DEBIT'
+                    GROUP BY d2.id
+                ) legacy ON legacy.id=d.id
+                WHERE d.customer_id=? AND d.tracking_no=? AND d.transaction_type='DEBIT'
+                  AND ROUND(CASE WHEN links.paid IS NOT NULL THEN MAX(d.amount-links.paid, 0)
+                                 WHEN legacy.paid IS NOT NULL THEN MAX(d.amount-legacy.paid, 0)
+                                 ELSE MAX(COALESCE(-d.current_balance, 0), 0) END, 2) > 0.009
             """
             params = [self.customer_id, tracking_no]
             if currency:
@@ -1591,33 +1629,32 @@ class Customer360Dialog(BaseModernDialog):
             return []
 
     def _get_remaining_debt_for_tracking(self, tracking_no, currency=None):
-        try:
-            query = """
-                SELECT COALESCE(
-                    SUM(
-                        CASE
-                            WHEN transaction_type='DEBIT' AND current_balance < 0 THEN ABS(current_balance)
-                            ELSE 0
-                        END
-                    ),
-                    0
-                )
-                FROM currency_transactions
-                WHERE customer_id=? AND tracking_no=?
-            """
-            params = [self.customer_id, tracking_no]
-            if currency:
-                query += " AND currency=?"
-                params.append(currency)
-            cur = self.db.conn.cursor()
-            cur.execute(query, tuple(params))
-            row = cur.fetchone()
-            return float(row[0] or 0.0) if row else 0.0
-        except Exception as exc:
-            logger.debug(
-                f"Customer360 remaining debt lookup skipped for {tracking_no}: {exc}"
-            )
-            return 0.0
+        query = """
+            SELECT COALESCE(SUM(CASE WHEN links.paid IS NOT NULL THEN MAX(ct.amount-links.paid, 0)
+                WHEN legacy.paid IS NOT NULL THEN MAX(ct.amount-legacy.paid, 0)
+                ELSE MAX(COALESCE(-ct.current_balance, 0), 0) END), 0)
+            FROM currency_transactions ct
+            LEFT JOIN (SELECT debt_txn_id, SUM(amount) AS paid FROM payment_debt_links GROUP BY debt_txn_id) links
+              ON links.debt_txn_id=ct.id
+            LEFT JOIN (
+                SELECT d.id, SUM(c.amount) AS paid
+                FROM currency_transactions d
+                JOIN currency_transactions c
+                  ON c.customer_id=d.customer_id AND c.currency=d.currency
+                 AND c.transaction_type='CREDIT'
+                 AND (c.tracking_no=d.tracking_no OR c.tracking_no=d.tracking_no || '-PAY')
+                WHERE d.transaction_type='DEBIT' GROUP BY d.id
+            ) legacy ON legacy.id=ct.id
+            WHERE ct.customer_id=? AND ct.tracking_no=? AND ct.transaction_type='DEBIT'
+              AND ROUND(CASE WHEN links.paid IS NOT NULL THEN MAX(ct.amount-links.paid, 0)
+                             WHEN legacy.paid IS NOT NULL THEN MAX(ct.amount-legacy.paid, 0)
+                             ELSE MAX(COALESCE(-ct.current_balance, 0), 0) END, 2) > 0.009
+        """
+        params=[self.customer_id, tracking_no]
+        if currency:
+            query += " AND ct.currency=?"; params.append(currency)
+        row=self.db.conn.execute(query, tuple(params)).fetchone()
+        return float(row[0] or 0.0) if row else 0.0
 
     def open_payment_dialog(
         self,
@@ -1627,6 +1664,14 @@ class Customer360Dialog(BaseModernDialog):
         reference_desc=None,
         preselected_debt_ids=None,
     ):
+        if tracking_no:
+            service_row = self.db.conn.execute(
+                "SELECT 1 FROM devices WHERE customer_id=? AND tracking_no=? LIMIT 1",
+                (self.customer_id, tracking_no),
+            ).fetchone()
+            if service_row and not self._service_is_closed(tracking_no):
+                self._warn_service_must_close(tracking_no)
+                return
         dlg = ModernPaymentDialog(
             self, self.db, {"id": self.customer_id, "name": self.customer_name}
         )
@@ -1650,7 +1695,7 @@ class Customer360Dialog(BaseModernDialog):
             if self._save_payment(data):
                 self.refresh_financial_views()
                 self._emit_financial_data_changed()
-                self._announce_payment_received()
+                self._announce_payment_received(currency=data.get("currency"))
                 parent = self.parent()
                 if parent and hasattr(parent, "request_reload"):
                     try:
@@ -1706,6 +1751,7 @@ class Customer360Dialog(BaseModernDialog):
                 description=full_desc,
                 tracking_no=reference_tracking,
                 created_at=created_at,
+                commit=False,
             )
             if not saved:
                 show_error(self, "Ödeme kaydedilemedi.")
@@ -1730,6 +1776,7 @@ class Customer360Dialog(BaseModernDialog):
                     currency=currency,
                     payment_transaction_id=payment_txn_id,
                     selected_debt_ids=data.get("selected_debt_ids") or None,
+                    commit=False,
                 )
                 if not allocation.get("ok", False):
                     logger.error(
@@ -1746,7 +1793,7 @@ class Customer360Dialog(BaseModernDialog):
             tl_amount = amount * (exchange_rate if currency != "TRY" else 1.0)
 
             try:
-                self.db.add_transaction(
+                accounting_id = self.db.add_transaction(
                     t_type="Gelir",
                     category="Tahsilat",
                     amount=tl_amount,
@@ -1760,11 +1807,16 @@ class Customer360Dialog(BaseModernDialog):
                     ref_no=reference_tracking,
                     currency=currency,
                     original_amount=amount,
+                    commit=False,
                 )
+                if not accounting_id:
+                    raise RuntimeError("Accounting transaction could not be recorded")
+                self.db.conn.commit()
             except Exception as accounting_exc:
-                logger.warning(
-                    f"Customer360 accounting mirror save skipped: {accounting_exc}"
-                )
+                self.db.conn.rollback()
+                logger.error("Customer360 payment rolled back: %s", accounting_exc)
+                show_error(self, "Tahsilat ve muhasebe kaydi birlikte kaydedilemedi.")
+                return False
 
             return True
         except Exception as exc:
@@ -1938,6 +1990,7 @@ class Customer360Dialog(BaseModernDialog):
                     "processed": "\u0130\u015flendi",
                     "processing": "\u0130\u015fleniyor",
                     "processing_error": "\u0130\u015flem Hatas\u0131",
+                    "revision_pending": "Revizyon Bekliyor",
                     "created": "Teklif",
                     "draft": "Taslak",
                 }
@@ -1967,6 +2020,21 @@ class Customer360Dialog(BaseModernDialog):
                     child.setText(3, f"Adet: {float(qty or 0):g}")
                     child.setText(4, f"{float(line_total or 0):,.2f} {currency_symbol or ''}")
                     child.setForeground(1, QColor(tc("text_muted", default="#64748B")))
+                try:
+                    reversal_rows = self.db.cursor.execute(
+                        "SELECT reason, reversed_by, created_at FROM offer_reversals "
+                        "WHERE offer_id=? ORDER BY id DESC",
+                        (int(offer_id),),
+                    ).fetchall()
+                    for reason, reversed_by, reversed_at in reversal_rows:
+                        child = QTreeWidgetItem(parent)
+                        child.setText(1, "Islem geri alindi / revizyon")
+                        child.setText(2, str(reason or ""))
+                        child.setText(3, str(reversed_by or "System"))
+                        child.setText(4, str(reversed_at or ""))
+                        child.setForeground(1, QColor(tc("danger", default="#DC2626")))
+                except Exception:
+                    pass
                 parent.setExpanded(True)
         except Exception as exc:
             logger.error(f"Customer360 offer table load failed: {exc}")
@@ -2039,7 +2107,14 @@ class Customer360Dialog(BaseModernDialog):
             show_error(self, "L\u00fctfen d\u00fczenlenecek teklifi se\u00e7in.")
             return
         status = str(data.get("status") or "").strip().lower()
-        if status in {"accepted", "processed"}:
+        status = (
+            status.replace("\u0131", "i")
+            .replace("\u015f", "s")
+            .replace("\u0130", "i")
+            .replace("\u015e", "s")
+            .replace("\u0307", "")
+        )
+        if status in {"accepted", "processed", "islenmis", "kabul edildi"}:
             show_error(
                 self,
                 "Kabul edilmi\u015f teklif de\u011fi\u015ftirilemez. Yeni teklif olu\u015fturun.",
@@ -2065,6 +2140,56 @@ class Customer360Dialog(BaseModernDialog):
             logger.exception("Customer360 offer edit navigation failed")
             show_error(self, f"Teklif d\u00fczenlemeye a\u00e7\u0131lamad\u0131: {exc}")
 
+    def reverse_selected_offer(self):
+        data = self._selected_offer_data()
+        offer_id = data.get("offer_id")
+        if not offer_id:
+            show_error(self, "L\u00fctfen geri al\u0131nacak teklifi se\u00e7in.")
+            return
+        reason, accepted = ModernInputDialog.get_multiline(
+            self,
+            "\u0130\u015flemi Geri Al ve Revize Et",
+            "Geri alma/revizyon gerek\u00e7esini yaz\u0131n:",
+        )
+        if not accepted or not str(reason or "").strip():
+            return
+        try:
+            from src.services.offer_acceptance_service import OfferAcceptanceService
+
+            main_window = self._main_window_for_offer_action()
+            current_user = getattr(main_window, "current_user", {}) if main_window else {}
+            reversed_by = ""
+            if isinstance(current_user, dict):
+                reversed_by = str(
+                    current_user.get("username")
+                    or current_user.get("full_name")
+                    or ""
+                )
+            result = OfferAcceptanceService(self.db).reverse_for_revision(
+                int(offer_id), str(reason), reversed_by=reversed_by
+            )
+            self.load_offer_table()
+            self.refresh_financial_views()
+            self._emit_financial_data_changed()
+            if main_window:
+                try:
+                    main_window.stock_updated.emit()
+                except Exception:
+                    pass
+                for page_id in (21, 40, 50, 60, 101, 150):
+                    try:
+                        main_window.refresh_loaded_page(page_id)
+                    except Exception:
+                        pass
+            show_success(
+                self,
+                "Teklif i\u015flemi geri al\u0131nd\u0131. Stok ve cari hareketler ters kay\u0131tland\u0131; teklif revizyona a\u00e7\u0131l\u0131yor.",
+            )
+            self.edit_selected_offer()
+        except Exception as exc:
+            logger.exception("Customer360 offer reversal failed")
+            show_error(self, f"Teklif i\u015flemi geri al\u0131namad\u0131: {exc}")
+
     def process_selected_offer(self):
         data = self._selected_offer_data()
         offer_id = data.get("offer_id")
@@ -2076,7 +2201,14 @@ class Customer360Dialog(BaseModernDialog):
             if not offer:
                 raise RuntimeError("Offer record was not found.")
             status = str(offer["status"] or "").strip().lower()
-            if status in {"accepted", "processed"}:
+            status = (
+                status.replace("\u0131", "i")
+                .replace("\u015f", "s")
+                .replace("\u0130", "i")
+                .replace("\u015e", "s")
+                .replace("\u0307", "")
+            )
+            if status in {"accepted", "processed", "islenmis", "kabul edildi"}:
                 show_error(self, "Bu teklif daha \u00f6nce m\u00fc\u015fteri hesab\u0131na i\u015flendi.")
                 return
 

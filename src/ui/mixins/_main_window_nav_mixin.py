@@ -7,6 +7,7 @@ import traceback
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel
 from PyQt6.QtCore import Qt, QTimer
 from src.utils.page_config import PAGE_MAPPING, PAGE_NAMES
+from src.utils.page_ids import PageIds
 from src.utils.system_config import SystemConfig
 from src.utils.sector_config import SECTOR_PAGES, SectorType
 from src.utils.theme_colors import theme_qss
@@ -62,10 +63,17 @@ class MainWindowNavMixin:
             return
         self._current_page_index = index
         if hasattr(self, "app_top_nav"): self.app_top_nav.sync_active(index)
+        if hasattr(self, "app_sidebar"):
+            side_menu = getattr(self.app_sidebar, "side_menu", None)
+            if side_menu is not None and hasattr(side_menu, "on_page_changed_internal"):
+                side_menu.on_page_changed_internal(index)
         
         with perf_span(f"navigation.page.{index}"):
             page = self.get_page(index)
             if page:
+                # Re-read dashboard data whenever it becomes visible again.
+                if page.__class__.__name__ == "DashboardPage" and hasattr(page, "refresh_data"):
+                    page.refresh_data()
                 self._switch_content_with_fade(page)
                 if hasattr(self, "app_header") and hasattr(self.app_header, "breadcrumb"):
                     self.app_header.breadcrumb.update_path([(self.get_page_name_by_index(index), index)])
@@ -194,6 +202,8 @@ class MainWindowNavMixin:
         self.on_menu_click(PageIds.SERVICE_LIST)
         page = self.pages.get(PageIds.SERVICE_LIST)
         if page is not None and hasattr(page, "show_service_list"):
+            if hasattr(page, "refresh_data"):
+                page.refresh_data()
             page.show_service_list(category)
 
     def refresh_side_menu(self):

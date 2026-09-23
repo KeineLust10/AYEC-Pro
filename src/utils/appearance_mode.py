@@ -94,6 +94,9 @@ class AppearanceModeManager:
                 tokens[key] = value if isinstance(value, str) and value else default
         except Exception:
             pass
+        # Classic mode keeps a stable high-contrast tooltip/text foreground;
+        # do not let the modern light-theme token override it.
+        tokens["text"] = "#111827"
         return tokens
 
     @classmethod
@@ -597,23 +600,15 @@ class AppearanceModeManager:
 
     @classmethod
     def _apply_widget_text(cls, widget, classic):
-        if isinstance(widget, QAbstractButton) or isinstance(widget, QLabel):
-            if widget.property(cls._PROP_ORIG_TEXT) is None:
-                widget.setProperty(cls._PROP_ORIG_TEXT, widget.text())
-            original = widget.property(cls._PROP_ORIG_TEXT)
-            if isinstance(original, str):
-                widget.setText(original)
-
+        # Appearance refreshes must preserve live text. Restoring the first
+        # observed value resets counters, filters and edited list items.
+        if isinstance(widget, (QAbstractButton, QLabel)):
+            widget.setProperty(cls._PROP_ORIG_TEXT, widget.text())
         if isinstance(widget, QListWidget):
             for i in range(widget.count()):
                 item = widget.item(i)
-                if not isinstance(item, QListWidgetItem):
-                    continue
-                original = item.data(0x0100 + 91)
-                if original is None:
+                if isinstance(item, QListWidgetItem):
                     item.setData(0x0100 + 91, item.text())
-                    original = item.text()
-                item.setText(str(original))
 
     @classmethod
     def _apply_widget_visibility(cls, widget, classic):

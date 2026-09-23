@@ -340,6 +340,12 @@ class _TpOperations:
                     ),
                 )
                 self.db.conn.commit()
+                # Use the canonical status writer as the final write so
+                # technician-panel changes update delivery timestamps,
+                # notifications, and legacy status integrations together.
+                saved_status = self.db.update_status(self.tracking_no, merged_data.get("status"))
+                if not saved_status:
+                    raise RuntimeError("Servis durumu kaydedilemedi")
                 if not self._is_automotive():
                     try:
                         self.db.cursor.execute(

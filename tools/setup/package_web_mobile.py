@@ -84,11 +84,29 @@ def main() -> int:
         temp = Path(temp_text)
         web_stage = temp / "AYECPro_Web_Server"
         web_stage.mkdir()
-        for filename in ("Main.py", "requirements.txt", "server-windows-start.ps1"):
+        for filename in (
+            "Main.py",
+            ".env.example",
+            "requirements.txt",
+            "requirements-ocr.txt",
+            "requirements-paddle.txt",
+            "server-windows-start.ps1",
+            "server-windows-install.ps1",
+            "AYEC_START.cmd",
+            "AYEC_START.ps1",
+            "setup_server.sh",
+            "start_server.sh",
+        ):
             shutil.copy2(WEB_ROOT / filename, web_stage / filename)
         for filename in ("configure_official_services.py", "CONFIGURE_AYEC_OFFICIAL_SERVICES.cmd"):
             shutil.copy2(ROOT / "tools" / "setup" / filename, web_stage / filename)
         copy_tree(WEB_ROOT / "web", web_stage / "web", {"__pycache__", "*.pyc"})
+        copy_tree(WEB_ROOT / "iis", web_stage / "iis", {"__pycache__", "*.pyc"})
+        copy_tree(
+            WEB_ROOT / "tools",
+            web_stage / "tools",
+            {"__pycache__", "*.pyc", "*.log"},
+        )
         (web_stage / "data").mkdir(parents=True, exist_ok=True)
         shutil.copy2(WEB_ROOT / "data" / "demo_template.db", web_stage / "data" / "demo_template.db")
         copy_web_runtime(web_stage)
@@ -99,7 +117,7 @@ def main() -> int:
             "2. Create .venv with the required Python version.\n"
             "3. Run: .venv\\Scripts\\python.exe -m pip install -r requirements.txt\n"
             "4. Copy the production ayecpro.db into data\\ayecpro.db.\n"
-            "5. Run server-windows-start.ps1 from PowerShell.\n\n"
+            "5. Double-click AYEC_START.cmd. It prepares the runtime, resets the Admin password, and starts the Web server.\n\n"
             "Set AYEC_PUBLIC_URL=https://panel.ayecpro.com in the server environment.\n"
             "Set AYEC_LICENSE_API_URL=https://lisans.ayecpro.com for license checks.\n"
             "Bind panel.ayecpro.com and lisans.ayecpro.com to HTTPS in IIS before enabling public login.\n\n"

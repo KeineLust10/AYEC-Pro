@@ -29,7 +29,7 @@ class EmailManager:
         self.db = db
         self.smtp_server = os.getenv("AYECPRO_SMTP_SERVER", OFFICIAL_SMTP_SERVER)
         self.smtp_port = int(os.getenv("AYECPRO_SMTP_PORT", str(OFFICIAL_SMTP_PORT)))
-        self.smtp_user = os.getenv("AYECPRO_SMTP_EMAIL", OFFICIAL_EMAIL)
+        self.smtp_user = os.getenv("AYECPRO_SMTP_EMAIL", "")
         self.smtp_pass = os.getenv("AYECPRO_SMTP_APP_PASSWORD", "")
         self.use_tls = True
 

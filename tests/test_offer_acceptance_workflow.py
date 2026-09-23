@@ -191,6 +191,69 @@ def test_accepted_offer_cannot_be_overwritten_by_edit_save():
         )
 
 
+def test_localized_processed_offer_cannot_be_overwritten_by_edit_save():
+    db = Database(":memory:")
+    customer_id = _create_customer(db)
+    part_id = _create_part(db)
+    offer_id = _create_offer(db, customer_id, part_id)
+    db.cursor.execute("UPDATE offers SET status=? WHERE id=?", ("\u0130\u015flendi", offer_id))
+    db.conn.commit()
+
+    with pytest.raises(ValueError, match="cannot be edited"):
+        db.save_offer_record(
+            {
+                "offer_id": offer_id,
+                "offer_no": "PRF-TEST-1",
+                "customer_id": customer_id,
+                "currency_code": "TRY",
+                "totals": {"total": 1},
+                "totals_try": {"total": 1},
+                "items": [],
+            }
+        )
+
+
+def test_processed_offer_can_be_reversed_for_revision_with_stock_and_audit_trace():
+    db = Database(":memory:")
+    customer_id = _create_customer(db)
+    part_id = _create_part(db)
+    offer_id = _create_offer(db, customer_id, part_id)
+    result = OfferAcceptanceService(db).accept(offer_id, payment_amount=0)
+
+    reversal = OfferAcceptanceService(db).reverse_for_revision(
+        offer_id, "Musteri urun miktarini degistirdi", reversed_by="tester"
+    )
+    assert reversal["stock_entries"] == 1
+    assert reversal["currency_entries"] >= 1
+    assert reversal["accounting_entries"] >= 1
+    assert db.cursor.execute(
+        "SELECT stock FROM parts WHERE id=?", (part_id,)
+    ).fetchone()[0] == 10
+    assert db.cursor.execute(
+        "SELECT status FROM offers WHERE id=?", (offer_id,)
+    ).fetchone()[0] == "revision_pending"
+    assert db.cursor.execute(
+        "SELECT COUNT(*) FROM stock_movements WHERE description LIKE 'Offer reversal:%'"
+    ).fetchone()[0] == 1
+    assert db.cursor.execute(
+        "SELECT COUNT(*) FROM audit_logs WHERE action='REVERSE_FOR_REVISION'"
+    ).fetchone()[0] == 1
+
+
+def test_reversal_restores_net_currency_balance_after_partial_collection():
+    db = Database(":memory:")
+    customer_id = _create_customer(db)
+    part_id = _create_part(db)
+    offer_id = _create_offer(db, customer_id, part_id)
+    OfferAcceptanceService(db).accept(offer_id, payment_amount=10000)
+    assert db.get_customer_currency_balance(customer_id, "TRY") == -30000
+
+    OfferAcceptanceService(db).reverse_for_revision(
+        offer_id, "Revizyon icin tahsilat ve borc geri alindi", reversed_by="tester"
+    )
+    assert db.get_customer_currency_balance(customer_id, "TRY") == 0
+
+
 def test_customer_360_offer_actions_have_live_qt_connections():
     app = _app()
     db = Database(":memory:")

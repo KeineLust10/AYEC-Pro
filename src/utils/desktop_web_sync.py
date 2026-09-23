@@ -190,6 +190,7 @@ class DesktopWebSyncWorker(QThread):
                 client.cookies = {}
             session_user = str(metadata.get("username") or "").strip()
             session_tenant = str(metadata.get("tenant_id") or "").strip()
+            client.tenant_id = session_tenant
             wrong_user = bool(
                 self.username
                 and session_user
@@ -260,6 +261,7 @@ class DesktopWebSyncWorker(QThread):
                     "company_name": remote_user.get("company_name") or "",
                     "initial_pull_pending": initial_pull_pending,
                 }
+                client.tenant_id = str(metadata.get("tenant_id") or "")
                 client.save_session(sync_session_path(), metadata)
             elif not client.cookies:
                 WebSyncClient.clear_session(sync_session_path())

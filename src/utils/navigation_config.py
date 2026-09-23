@@ -12,7 +12,9 @@ PAGE_LABELS: Dict[int, str] = {
     26: "\u00c7al\u0131\u015fma Ortaklar\u0131",
     30: "Randevular",
     40: "Genel Bak\u0131\u015f",
-    41: "Durum Paneli",
+    41: "Servis Panosu",
+    42: "Servis Listesi",
+    43: "Durum Paneli",
     50: "Stok Y\u00f6netimi",
     51: "Depo ve Ara\u00e7 Stoklar\u0131",
     60: "Yedek Par\u00e7a",
@@ -56,6 +58,7 @@ MODULE_REQUIREMENTS: Dict[int, str] = {
     26: "crm",
     30: "operations",
     41: "operations",
+    42: "operations",
     50: "stock",
     51: "stock",
     60: "operations",
@@ -86,7 +89,7 @@ MODULE_REQUIREMENTS: Dict[int, str] = {
 
 
 TECHNICAL_MENU_SECTIONS: Sequence[Tuple[str, Sequence[int]]] = (
-    ("Servis Y\u00f6netimi", (40, 41, 62, 61, 30, 65, 201)),
+    ("Servis Y\u00f6netimi", (40, 41, 42, 62, 61, 30, 65, 201)),
     ("Servis Y\u00f6netim Ayar\u0131", (146, 145, 147, 140)),
     ("M\u00fc\u015fteri Hub", (21, 26, 25, 90, 120)),
     ("Proje Y\u00f6netimi", (200, 202)),
@@ -118,6 +121,7 @@ PAGE_WEB_ROUTES: Dict[int, str] = {
     30: "appointments",
     40: "dashboard",
     41: "service-status",
+    42: "service-list",
     50: "stock",
     51: "stock-locations",
     60: "stock",

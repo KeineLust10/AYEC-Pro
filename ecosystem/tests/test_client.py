@@ -8,6 +8,7 @@ from pathlib import Path
 import tempfile
 import hashlib
 import sqlite3
+from urllib.error import HTTPError
 from unittest.mock import patch
 from ayec_core.connectivity import classify_error
 from ayec_core.client import CentralClient, CentralApiError
@@ -56,6 +57,51 @@ class ClientTests(unittest.TestCase):
     def test_remote_http_is_rejected(self):
         with self.assertRaises(CentralApiError):
             CentralClient('http://example.test', product_code='elek')
+
+    def test_rate_limit_retry_after_is_bounded_and_exposed(self):
+        client = CentralClient('https://example.test', product_code='elek')
+        error = HTTPError('https://example.test/api/test', 429, 'Too Many Requests',
+                          {'Retry-After': '17'}, None)
+        with patch('ayec_core.client.urlopen', side_effect=error):
+            with self.assertRaises(CentralApiError) as failure:
+                client.catalog()
+        self.assertEqual(failure.exception.status_code, 429)
+        self.assertEqual(failure.exception.retry_after, 17.0)
+
+        capped = HTTPError('https://example.test/api/test', 429, 'Too Many Requests',
+                           {'Retry-After': '999999'}, None)
+        with patch('ayec_core.client.urlopen', side_effect=capped):
+            with self.assertRaises(CentralApiError) as failure:
+                client.catalog()
+        self.assertEqual(failure.exception.retry_after, 21600.0)
+
+    def test_rate_limit_retry_after_is_carried_without_retrying_request(self):
+        class Handler(BaseHTTPRequestHandler):
+            calls = 0
+
+            def log_message(self, *args):
+                pass
+
+            def do_GET(self):
+                Handler.calls += 1
+                self.send_response(429)
+                self.send_header('Retry-After', '120')
+                self.end_headers()
+
+        server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+        worker = threading.Thread(target=server.serve_forever, daemon=True)
+        worker.start()
+        try:
+            client = CentralClient(f'http://127.0.0.1:{server.server_port}', product_code='elek')
+            with self.assertRaises(CentralApiError) as failure:
+                client.catalog()
+            self.assertEqual(failure.exception.status_code, 429)
+            self.assertEqual(failure.exception.retry_after, 120.0)
+            self.assertEqual(Handler.calls, 1)
+        finally:
+            server.shutdown()
+            server.server_close()
+            worker.join()
 
     def test_backup_requires_matching_remote_checksum_and_size(self):
         with tempfile.TemporaryDirectory() as directory:

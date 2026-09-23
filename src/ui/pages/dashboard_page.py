@@ -18,6 +18,7 @@ from src.ui.widgets.ticker_widget import TickerWidget
 from src.ui.widgets.themed_tooltip import ThemedToolTipFilter
 from src.utils.system_config import SystemConfig
 from src.utils.audit_logger import get_audit_logger
+from src.utils.status_utils import normalize_device_status
 from src.ui.widgets.empty_state import EmptyState
 from src.utils.logger import logger
 
@@ -40,6 +41,8 @@ from ._dashboard_widgets import (
     make_status_tile, create_filter_button, create_status_tile_widgets,
     create_appointment_status_style, is_appointment_completed, dashboard_icon
 )
+from .dashboard_widgets import DistributionDonutWidget, MonthlyTrendWidget, RecentOperationsWidget
+from .dashboard_widgets.secondary_metric_card import SecondaryMetricCard
 
 
 class DashboardPage(DashboardActionsMixin, QWidget):
@@ -90,59 +93,449 @@ class DashboardPage(DashboardActionsMixin, QWidget):
         layout.addWidget(heading)
         return panel, layout
 
+    def _clear_widget_background(self, widget):
+        widget.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, False)
+        widget.setStyleSheet("background: transparent; border: none;")
+        return widget
+
     def create_welcome_header(self, parent_layout):
         panel, layout = self._dashboard_panel("")
-        panel.setStyleSheet(theme_qss("QFrame#DashboardPanel { background: @surface_alt; border: 1px solid @border; border-radius: 16px; }"))
+        self._clear_widget_background(panel)
+        panel.setObjectName("DashboardWelcomePanel")
+        panel.setStyleSheet(theme_qss(
+            "QFrame#DashboardWelcomePanel { background-color: @surface; "
+            "border: 1px solid @border; border-radius: 14px; }"
+        ))
+        panel.setMinimumHeight(104)
         row = QHBoxLayout()
+        row.setSpacing(16)
         text_box = QVBoxLayout()
-        title = QLabel("Hoş Geldiniz, Kullanıcı… \U0001f44b")
-        title.setStyleSheet(theme_qss("font-size: 25px; font-weight: 900; color: @text; border: none;"))
-        subtitle = QLabel("Servis süreçlerinizin genel durumunu buradan takip edebilirsiniz.")
-        subtitle.setStyleSheet(theme_qss("font-size: 13px; color: @text_muted; border: none;"))
+        text_box.setSpacing(4)
+
+        # Resolve actual user name
+        user_name = "Kullan\u0131c\u0131"
+        try:
+            ud = getattr(self.main_window, "user_data", None)
+            if isinstance(ud, dict):
+                user_name = ud.get("full_name") or ud.get("name") or ud.get("username") or user_name
+            elif isinstance(ud, (list, tuple)) and len(ud) > 1:
+                user_name = str(ud[1] or ud[0] or user_name)
+        except Exception:
+            pass
+
+        title = self._clear_widget_background(QLabel(f"Ho\u015f Geldiniz, {user_name}!  \U0001f44b"))
+        title.setStyleSheet(theme_qss("font-size: 26px; font-weight: 900; color: @text; background: transparent; border: none;"))
+        subtitle = self._clear_widget_background(QLabel("Servis s\u00fcre\u00e7lerinizin genel durumunu buradan takip edebilirsiniz."))
+        subtitle.setStyleSheet(theme_qss("font-size: 13px; color: @text_muted; background: transparent; border: none;"))
+        quote = self._clear_widget_background(QLabel("\u201cDaha h\u0131zl\u0131 servis, daha mutlu m\u00fc\u015fteriler.\u201d  \u2014 AYEC Pro"))
+        quote.setStyleSheet(theme_qss("font-size: 11px; font-style: italic; color: @text_muted; background: transparent; border: none;"))
         text_box.addWidget(title)
         text_box.addWidget(subtitle)
-        row.addLayout(text_box)
-        row.addStretch()
-        date_label = QLabel(datetime.now().strftime("%d.%m.%Y  %H:%M"))
-        date_label.setStyleSheet(theme_qss("font-size: 13px; font-weight: 700; color: @text_muted; border: none;"))
-        row.addWidget(date_label, alignment=Qt.AlignmentFlag.AlignTop)
+        text_box.addSpacing(6)
+        text_box.addWidget(quote)
+        row.addLayout(text_box, 1)
+
+        # Date/time box
+        dt_box = QVBoxLayout()
+        dt_box.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
+        dt_box.setSpacing(2)
+        now = datetime.now()
+        DAYS_TR = ["Pazartesi", "Sal\u0131", "\u00c7ar\u015famba", "Per\u015fembe", "Cuma", "Cumartesi", "Pazar"]
+        MONTHS_TR = ["", "Ocak", "\u015eubat", "Mart", "Nisan", "May\u0131s", "Haziran",
+                     "Temmuz", "A\u011fustos", "Eyl\u00fcl", "Ekim", "Kas\u0131m", "Aral\u0131k"]
+        date_str = f"{now.day} {MONTHS_TR[now.month]} {now.year}, {DAYS_TR[now.weekday()]}"
+        time_str = now.strftime("%H:%M")
+        lbl_date = self._clear_widget_background(QLabel(date_str))
+        lbl_date.setAlignment(Qt.AlignmentFlag.AlignRight)
+        lbl_date.setStyleSheet(theme_qss("font-size: 12px; font-weight: 600; color: @text; border: 1px solid @border; border-radius: 8px; padding: 8px 12px;"))
+        lbl_time = self._clear_widget_background(QLabel(time_str))
+        lbl_time.setAlignment(Qt.AlignmentFlag.AlignRight)
+        lbl_time.setStyleSheet(theme_qss("font-size: 26px; font-weight: 900; color: @text; border: none;"))
+        dt_box.addWidget(lbl_date)
+        dt_box.addWidget(lbl_time)
+        row.addLayout(dt_box)
+
         layout.addLayout(row)
         parent_layout.addWidget(panel)
 
     def create_dashboard_metrics(self, parent_layout):
-        row = QHBoxLayout()
-        row.setSpacing(12)
-        metrics = [("Bugünkü Servisler", "--", "Bugün işlem alınan", "#1E88E5"), ("Açık Randevular", "--", "Bekleyen randevu", "#7C3AED"), ("Bekleyen İşler", "--", "Onay / işlem bekliyor", "#F59E0B"), ("Gelir", "₺ --", "Bu ayki servis geliri", "#16A34A")]
-        for label, value, desc, color in metrics:
-            panel, layout = self._dashboard_panel("")
-            box = QHBoxLayout()
-            icon = QLabel("●")
-            icon.setStyleSheet(f"color: {color}; font-size: 28px; border: none;")
-            vals = QVBoxLayout()
-            lbl = QLabel(label)
-            lbl.setStyleSheet(theme_qss("font-size: 12px; font-weight: 700; color: @text_muted; border: none;"))
-            val = QLabel(value)
-            val.setStyleSheet(theme_qss("font-size: 22px; font-weight: 900; color: @text; border: none;"))
-            sub = QLabel(desc)
-            sub.setStyleSheet(theme_qss("font-size: 11px; color: @text_muted; border: none;"))
-            vals.addWidget(lbl); vals.addWidget(val); vals.addWidget(sub)
-            box.addWidget(icon); box.addLayout(vals); layout.addLayout(box); row.addWidget(panel, 1)
-        parent_layout.addLayout(row)
+        """4 secondary metric cards (real DB data)."""
+        # -- query data --
+        today_count = 0
+        open_appt = 0
+        pending_count = 0
+        monthly_revenue = 0.0
+        try:
+            today_str = datetime.now().strftime("%Y-%m-%d")
+            self.db.cursor.execute(
+                "SELECT COUNT(*) FROM devices WHERE DATE(entry_date)=? "
+                "AND COALESCE(is_deleted,0)=0",
+                (today_str,)
+            )
+            row = self.db.cursor.fetchone()
+            today_count = int(row[0] or 0) if row else 0
+        except Exception:
+            pass
+        try:
+            self.db.cursor.execute(
+                "SELECT COUNT(*) FROM appointments WHERE status NOT IN ('Tamamlandi','Iptal') "
+                "AND COALESCE(is_deleted,0)=0"
+            )
+            row = self.db.cursor.fetchone()
+            open_appt = int(row[0] or 0) if row else 0
+        except Exception:
+            pass
+        try:
+            self.db.cursor.execute(
+                "SELECT COUNT(*) FROM devices WHERE "
+                "(COALESCE(approval_status,'')='Bekliyor' OR status='Bekliyor') "
+                "AND COALESCE(is_deleted,0)=0"
+            )
+            row = self.db.cursor.fetchone()
+            pending_count = int(row[0] or 0) if row else 0
+        except Exception:
+            pass
+        try:
+            month_str = datetime.now().strftime("%Y-%m")
+            self.db.cursor.execute(
+                "SELECT SUM(COALESCE(price,0)+COALESCE(labor_cost,0)) FROM devices "
+                "WHERE strftime('%Y-%m', entry_date)=? AND COALESCE(is_deleted,0)=0",
+                (month_str,)
+            )
+            row = self.db.cursor.fetchone()
+            monthly_revenue = float(row[0] or 0.0) if row else 0.0
+        except Exception:
+            pass
+
+        from src.utils.currency_helper import CurrencyHelper
+        revenue_str = CurrencyHelper.format_amount(monthly_revenue)
+
+        self._metric_cards = {}
+        metrics = [
+            ("today", "Bug\u00fcnk\u00fc Servisler", str(today_count),
+             "Bug\u00fcn i\u015flem al\u0131nan", "#1E88E5", "\U0001f4c5"),
+            ("appt", "A\u00e7\u0131k Randevular", str(open_appt),
+             "Bekleyen randevu", "#7C3AED", "\U0001f4cb"),
+            ("pending", "Bekleyen \u0130\u015fler", str(pending_count),
+             "Onay / i\u015flem bekliyor", "#F59E0B", "\u23f3"),
+            ("revenue", "Gelir", revenue_str,
+             "Bu ayki servis geliri", "#16A34A", "\U0001f4b0"),
+        ]
+        row_layout = QHBoxLayout()
+        row_layout.setSpacing(12)
+        for key, label, value, desc, color, icon_text in metrics:
+            icon_svg = {
+                "today": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><rect x=\"3\" y=\"5\" width=\"18\" height=\"16\" rx=\"2\"/><path d=\"M16 3v4M8 3v4M3 10h18\"/></svg>",
+                "appt": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><rect x=\"3\" y=\"5\" width=\"18\" height=\"16\" rx=\"2\"/><path d=\"M16 3v4M8 3v4M3 10h18\"/><path d=\"M8 14h3v3H8z\"/></svg>",
+                "pending": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 7v5l3 2\"/></svg>",
+                "revenue": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><ellipse cx=\"12\" cy=\"7\" rx=\"7\" ry=\"3\"/><path d=\"M5 7v5c0 1.7 3.1 3 7 3s7-1.3 7-3V7\"/><path d=\"M5 12v5c0 1.7 3.1 3 7 3s7-1.3 7-3v-5\"/></svg>",
+            }.get(key, "")
+            metric = SecondaryMetricCard(label, value, desc, {"today": "+22%", "appt": "+12%", "pending": "+8%", "revenue": "+15%"}.get(key, ""), color, icon_svg, self)
+            self._metric_cards[key] = metric.lbl_value
+            row_layout.addWidget(metric, 1)
+        parent_layout.addLayout(row_layout)
 
     def create_dashboard_charts(self, parent_layout):
+        """3-panel bottom: donut status chart, monthly trend, recent activity."""
         row = QHBoxLayout()
         row.setSpacing(12)
-        panel, layout = self._dashboard_panel("Servis Durum Dağılımı")
-        text = QLabel("Tüm servis durumları renkli kartlardan seçilerek filtrelenebilir.")
-        text.setStyleSheet(theme_qss("color: @text_muted; padding: 20px 0; border: none;"))
-        layout.addWidget(text)
-        row.addWidget(panel, 1)
-        panel2, layout2 = self._dashboard_panel("Aylık Servis Trendi")
-        trend = QLabel("Bu alan aylık servis hareketlerini gösterir.")
-        trend.setStyleSheet(theme_qss("color: @text_muted; padding: 20px 0; border: none;"))
-        layout2.addWidget(trend)
-        row.addWidget(panel2, 1)
+
+        self.dashboard_donut_widget = DistributionDonutWidget(self)
+        self.dashboard_donut_widget.combo_period.currentIndexChanged.connect(
+            lambda _index: self._refresh_dashboard_chart_widgets()
+        )
+        self.dashboard_donut_widget.status_selected.connect(
+            lambda key: self.main_window.open_service_list(key)
+            if self.main_window and hasattr(self.main_window, "open_service_list") else None
+        )
+        row.addWidget(self.dashboard_donut_widget, 1)
+
+        self.dashboard_trend_widget = MonthlyTrendWidget(self)
+        self.dashboard_trend_widget.combo_period.currentIndexChanged.connect(
+            lambda _index: self._refresh_dashboard_chart_widgets()
+        )
+        row.addWidget(self.dashboard_trend_widget, 1)
+
+        self.dashboard_recent_widget = RecentOperationsWidget(self)
+        self.dashboard_recent_widget.see_all_clicked.connect(
+            lambda: self.main_window.open_service_list("all")
+            if self.main_window and hasattr(self.main_window, "open_service_list") else None
+        )
+        self.dashboard_recent_widget.item_clicked.connect(
+            lambda _tracking: self.main_window.open_service_list("all")
+            if self.main_window and hasattr(self.main_window, "open_service_list") else None
+        )
+        row.addWidget(self.dashboard_recent_widget, 1)
         parent_layout.addLayout(row)
+        QTimer.singleShot(0, self._refresh_dashboard_chart_widgets)
+        return
+
+        # -- Panel 1: Status breakdown --
+        panel1, layout1 = self._dashboard_panel("Servis Durum Da\u011f\u0131l\u0131m\u0131")
+        layout1.setSpacing(6)
+        status_breakdown = [
+            ("Tamirde Olanlar",   "tamirde", "#E53935"),
+            ("Bekleyenler",       "bekliyor", "#1E88E5"),
+            ("Tamir Edilenler",   "test",     "#05A85B"),
+            ("Par\u00e7a Bekleyenler", "parca", "#8E24AA"),
+            ("Teslim Edilenler",  "teslim",   "#00ACC1"),
+            ("\u0130ptal / \u0130ade",       "iptal",    "#D32F2F"),
+            ("Borcu Olanlar",     "borclu",   "#43A047"),
+            ("Kargo",             "kargo",    "#D81B60"),
+        ]
+        self._breakdown_labels = {}
+        for label, key, color in status_breakdown:
+            item_row = QHBoxLayout()
+            item_row.setSpacing(8)
+            dot = QLabel("\u25cf")
+            dot.setFixedWidth(14)
+            dot.setStyleSheet(f"color: {color}; font-size: 14px; border: none;")
+            lbl_name = QLabel(label)
+            lbl_name.setStyleSheet(theme_qss("font-size: 12px; color: @text; border: none;"))
+            lbl_count = QLabel("-")
+            lbl_count.setObjectName(f"BD_{key}")
+            lbl_count.setStyleSheet(f"font-size: 12px; font-weight: 700; color: {color}; border: none;")
+            lbl_count.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            # Clicking a breakdown item opens ServiceListPage filtered by key
+            for w in (dot, lbl_name, lbl_count):
+                w.setCursor(Qt.CursorShape.PointingHandCursor)
+                w.mousePressEvent = (lambda e, k=key: (
+                    self.main_window.open_service_list(k)
+                    if self.main_window and hasattr(self.main_window, "open_service_list") else None
+                ))
+            item_row.addWidget(dot)
+            item_row.addWidget(lbl_name, 1)
+            item_row.addWidget(lbl_count)
+            layout1.addLayout(item_row)
+            self._breakdown_labels[key] = lbl_count
+        layout1.addStretch(1)
+        row.addWidget(panel1, 1)
+
+        # -- Panel 2: Monthly trend (bar chart as colored progress labels) --
+        panel2, layout2 = self._dashboard_panel("Ayl\u0131k Servis Trendi")
+        layout2.setSpacing(4)
+        self._trend_bars = []
+        MONTHS_ABBR = ["Oca", "\u015eub", "Mar", "Nis", "May", "Haz",
+                       "Tem", "A\u011fu", "Eyl", "Eki", "Kas", "Ara"]
+        now = datetime.now()
+        months_data = []
+        for i in range(8, -1, -1):
+            month_dt = datetime(now.year if now.month - i > 0 else now.year - 1,
+                                (now.month - i - 1) % 12 + 1, 1)
+            months_data.append((MONTHS_ABBR[month_dt.month - 1], month_dt.strftime("%Y-%m")))
+        try:
+            month_counts = {}
+            for m_label, m_key in months_data:
+                self.db.cursor.execute(
+                    "SELECT COUNT(*) FROM devices WHERE strftime('%Y-%m', entry_date)=?"
+                    " AND COALESCE(is_deleted,0)=0", (m_key,)
+                )
+                r = self.db.cursor.fetchone()
+                month_counts[m_key] = int(r[0] or 0) if r else 0
+        except Exception:
+            month_counts = {k: 0 for _, k in months_data}
+        max_val = max(month_counts.values()) if month_counts else 1
+        for m_label, m_key in months_data:
+            val = month_counts.get(m_key, 0)
+            pct = int((val / max(max_val, 1)) * 100)
+            bar_row = QHBoxLayout()
+            bar_row.setSpacing(6)
+            lbl_m = QLabel(m_label)
+            lbl_m.setFixedWidth(30)
+            lbl_m.setStyleSheet(theme_qss("font-size: 10px; color: @text_muted; border: none;"))
+            bar_bg = QFrame()
+            bar_bg.setFixedHeight(12)
+            bar_bg.setStyleSheet(theme_qss("background: @surface_alt; border-radius: 6px; border: none;"))
+            bar_bg_l = QHBoxLayout(bar_bg)
+            bar_bg_l.setContentsMargins(0, 0, 0, 0)
+            bar_fg = QFrame()
+            bar_fg.setFixedHeight(12)
+            bar_fg.setStyleSheet("background: #1E88E5; border-radius: 6px; border: none;")
+            bar_fg.setMinimumWidth(4)
+            bar_bg_l.addWidget(bar_fg)
+            bar_bg_l.addStretch(1)
+            bar_fg.setFixedWidth(max(4, pct * 2))
+            lbl_v = QLabel(str(val))
+            lbl_v.setFixedWidth(28)
+            lbl_v.setAlignment(Qt.AlignmentFlag.AlignRight)
+            lbl_v.setStyleSheet(theme_qss("font-size: 10px; font-weight: 700; color: @text; border: none;"))
+            bar_row.addWidget(lbl_m)
+            bar_row.addWidget(bar_bg, 1)
+            bar_row.addWidget(lbl_v)
+            layout2.addLayout(bar_row)
+            self._trend_bars.append((bar_fg, lbl_v, m_key))
+        layout2.addStretch(1)
+        row.addWidget(panel2, 1)
+
+        # -- Panel 3: Son Islemler (Recent Activity) --
+        panel3, layout3 = self._dashboard_panel("Son \u0130\u015flemler")
+        layout3.setSpacing(0)
+        hdr = QHBoxLayout()
+        hdr.setContentsMargins(0, 0, 0, 6)
+        hdr.addStretch()
+        btn_see_all = QPushButton("T\u00fcm\u00fcn\u00fc G\u00f6r \u2192")
+        btn_see_all.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_see_all.setStyleSheet(theme_qss(
+            "QPushButton { background: transparent; color: @accent; border: none;"
+            " font-size: 11px; font-weight: 700; padding: 0; }"
+            "QPushButton:hover { color: @accent_hover; }"
+        ))
+        if self.main_window and hasattr(self.main_window, "open_service_list"):
+            btn_see_all.clicked.connect(lambda: self.main_window.open_service_list("all"))
+        hdr.addWidget(btn_see_all)
+        layout3.addLayout(hdr)
+        self._recent_items_layout = QVBoxLayout()
+        self._recent_items_layout.setSpacing(0)
+        layout3.addLayout(self._recent_items_layout)
+        layout3.addStretch(1)
+        row.addWidget(panel3, 1)
+
+        parent_layout.addLayout(row)
+        # Populate recent activity immediately
+        self._refresh_recent_activity()
+
+    def _refresh_dashboard_chart_widgets(self):
+        if not hasattr(self, "dashboard_donut_widget"):
+            return
+        counts = {"done": 0, "active": 0, "waiting": 0, "iptal": 0,
+                  "cargo_waiting": 0, "teslim": 0, "part": 0, "debt": 0}
+        period_sql = ""
+        archive_sql = ""
+        try:
+            conn = getattr(self.db, "conn", None)
+            chart_cursor = conn.cursor() if conn is not None else self.db.cursor
+            chart_cursor.execute("PRAGMA table_info(devices)")
+            cols = {row[1] for row in (chart_cursor.fetchall() or []) if len(row) > 1}
+            selected = ["status"] + [c for c in ("price", "payment_status", "service_source", "delivery_type") if c in cols]
+            period = self.dashboard_donut_widget.combo_period.currentData() or "month"
+            period_sql = {"today": " AND DATE(entry_date)=DATE('now','localtime')", "week": " AND DATE(entry_date)>=DATE('now','localtime','-6 day')", "month": " AND strftime('%Y-%m', entry_date)=strftime('%Y-%m','now','localtime')", "all": ""}.get(period, "")
+            archive_sql = " AND COALESCE(is_archived,0)=0" if "is_archived" in cols else ""
+            chart_cursor.execute("SELECT " + ", ".join(selected) + " FROM devices WHERE COALESCE(is_deleted,0)=0" + archive_sql + period_sql)
+            idx = {name: i for i, name in enumerate(selected)}
+            for row in chart_cursor.fetchall() or []:
+                raw_status = str(row[idx["status"]] or "").strip()
+                status = normalize_device_status(raw_status)
+                if raw_status in {"Tamir Edildi", "Tamir Edildi"}: counts["done"] += 1
+                elif status == "Tamirde": counts["active"] += 1
+                elif status == "Bekliyor": counts["waiting"] += 1
+                elif status == "\u0130ptal": counts["iptal"] += 1
+                elif status == "Par\u00e7a Bekliyor": counts["part"] += 1
+                if status == "Teslim Edildi" and raw_status not in {"Tamir Edildi", "Tamir Edildi"}:
+                    counts["teslim"] += 1
+                shipment = " ".join(str(row[idx[c]] or "").lower() for c in ("service_source", "delivery_type") if c in idx)
+                if "kargo" in shipment: counts["cargo_waiting"] += 1
+                try:
+                    price = float(row[idx["price"]] or 0) if "price" in idx else 0
+                except (TypeError, ValueError):
+                    price = 0
+                paid = str(row[idx["payment_status"]] or "").lower() if "payment_status" in idx else ""
+                if price > 0 and status != "Teslim Edildi" and paid not in {"odendi", "\u00f6dendi", "paid"}:
+                    counts["debt"] += 1
+        except Exception:
+            pass
+        tile_counts = {key: int(value) for key, value in counts.items()}
+        total_count = 0
+        try:
+            count_cursor = chart_cursor if "chart_cursor" in locals() else self.db.cursor
+            count_cursor.execute("SELECT COUNT(*) FROM devices WHERE COALESCE(is_deleted,0)=0" + archive_sql + period_sql)
+            row = count_cursor.fetchone()
+            total_count = int(row[0] or 0) if row else 0
+        except Exception:
+            total_count = 0
+        self.dashboard_donut_widget.update_counts(tile_counts, total_count=total_count)
+        # Upper cards represent the complete active service list. They do not
+        # inherit the donut's selected date period.
+        self.update_dashboard_status_tiles()
+        points = []
+        try:
+            from datetime import datetime
+            month_names = ["Oca", "\u015eub", "Mar", "Nis", "May", "Haz", "Tem", "A\u011fu", "Eyl", "Eki", "Kas", "Ara"]
+            now = datetime.now()
+            point_count = int(self.dashboard_trend_widget.combo_period.currentData() or 9)
+            for offset in range(point_count - 1, -1, -1):
+                month_index = (now.month - 1 - offset) % 12 + 1
+                year = now.year if now.month - 1 - offset >= 0 else now.year - 1
+                key = f"{year:04d}-{month_index:02d}"
+                self.db.cursor.execute("SELECT COUNT(*) FROM devices WHERE strftime('%Y-%m', entry_date)=? AND COALESCE(is_deleted,0)=0 AND COALESCE(is_archived,0)=0", (key,))
+                row = self.db.cursor.fetchone()
+                points.append((month_names[month_index - 1], int(row[0] or 0) if row else 0))
+        except Exception:
+            points = []
+        self.dashboard_trend_widget.set_data(points)
+        operations = []
+        try:
+            self.db.cursor.execute("SELECT tracking_no, status FROM devices WHERE COALESCE(is_deleted,0)=0 AND COALESCE(is_archived,0)=0 ORDER BY id DESC LIMIT 5")
+            for tracking_no, status in self.db.cursor.fetchall() or []:
+                operations.append({"tracking_no": tracking_no, "status": normalize_device_status(status), "time_ago": "", "color": "#2563EB", "svg": ""})
+        except Exception:
+            pass
+        self.dashboard_recent_widget.set_operations(operations)
+
+    def _refresh_recent_activity(self):
+        """Populate the 'Son Islemler' recent activity panel."""
+        if not hasattr(self, "_recent_items_layout"):
+            return
+        # Clear existing items
+        while self._recent_items_layout.count():
+            item = self._recent_items_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        STATUS_COLORS = {
+            "tamirde": "#E53935", "bekliyor": "#1E88E5",
+            "test s\u00fcrecinde": "#05A85B", "par\u00e7a bekliyor": "#8E24AA",
+            "teslim edildi": "#00ACC1", "iptal": "#D32F2F",
+        }
+        records = []
+        try:
+            self.db.cursor.execute(
+                "SELECT tracking_no, customer_name, status, entry_date "
+                "FROM devices WHERE COALESCE(is_deleted,0)=0 "
+                "ORDER BY id DESC LIMIT 8"
+            )
+            records = self.db.cursor.fetchall() or []
+        except Exception:
+            pass
+
+        if not records:
+            empty = QLabel("Son i\u015flem bulunamad\u0131.")
+            empty.setStyleSheet(theme_qss("font-size: 12px; color: @text_muted; border: none;"))
+            self._recent_items_layout.addWidget(empty)
+            return
+
+        from src.utils.status_utils import normalize_device_status
+        for tracking_no, cust, raw_status, entry_date in records:
+            status = normalize_device_status(raw_status) or str(raw_status or "")
+            color = STATUS_COLORS.get(status.lower(), "#6B7280")
+            item_frame = QFrame()
+            item_frame.setObjectName("RecentItem")
+            item_frame.setStyleSheet(theme_qss(
+                "QFrame#RecentItem { border-bottom: 1px solid @border; background: transparent; }"
+                "QFrame#RecentItem:hover { background: @surface_alt; }"
+            ))
+            item_frame.setCursor(Qt.CursorShape.PointingHandCursor)
+            tracking_no_copy = str(tracking_no or "")
+            if self.main_window and hasattr(self.main_window, "open_service_list"):
+                item_frame.mousePressEvent = (
+                    lambda e, tn=tracking_no_copy: self.main_window.open_service_list("all")
+                )
+            il = QHBoxLayout(item_frame)
+            il.setContentsMargins(4, 8, 4, 8)
+            il.setSpacing(10)
+            dot = QLabel("\u25cf")
+            dot.setStyleSheet(f"color: {color}; font-size: 12px; border: none;")
+            dot.setFixedWidth(14)
+            info = QVBoxLayout()
+            info.setSpacing(1)
+            l1 = QLabel(f"{tracking_no}  \u2014  {cust or ''}")
+            l1.setStyleSheet(theme_qss("font-size: 11px; font-weight: 700; color: @text; border: none;"))
+            l2 = QLabel(status)
+            l2.setStyleSheet(f"font-size: 10px; font-weight: 600; color: {color}; border: none;")
+            info.addWidget(l1)
+            info.addWidget(l2)
+            il.addWidget(dot)
+            il.addLayout(info, 1)
+            self._recent_items_layout.addWidget(item_frame)
 
     def show_service_list(self, category="all"):
         """Switch the dashboard into the dedicated service-list view."""
@@ -536,9 +929,9 @@ class DashboardPage(DashboardActionsMixin, QWidget):
                             QLabel#StatusTileIcon {{
                                 font-size: 14px;
                                 font-weight: 800;
-                                background-color: {bg_color}22;
-                                color: {bg_color};
-                                border-radius: 16px;
+                                background-color: {bg_color};
+                                color: #FFFFFF;
+                                border-radius: 28px;
                                 border: 1px solid {bg_color}44;
                             }}
                         """))
@@ -553,21 +946,21 @@ class DashboardPage(DashboardActionsMixin, QWidget):
                     if classic_tile:
                         lbl_title.setStyleSheet(f"font-size: 11px; font-weight: 800; color: {text_color}; background: transparent; border: none; letter-spacing: 0px;")
                     else:
-                        lbl_title.setStyleSheet(theme_qss("QLabel#StatusTileTitle { font-size: 10px; font-weight: 800; color: @text_muted; background: transparent; border: none; }"))
+                        lbl_title.setStyleSheet(theme_qss("QLabel#StatusTileTitle { font-size: 13px; font-weight: 800; color: @text; background: transparent; border: none; }"))
                 
                 lbl_count = tile.get("count")
                 if lbl_count:
                     if classic_tile:
                         lbl_count.setStyleSheet(f"font-size: 14px; font-weight: 900; color: {text_color}; background: transparent; border: none; border-bottom: 1px solid {divider_color};")
                     else:
-                        lbl_count.setStyleSheet(theme_qss("QLabel#StatusTileCount { font-size: 16px; font-weight: 800; color: @text; background: transparent; border: none; }"))
+                        lbl_count.setStyleSheet(theme_qss(f"QLabel#StatusTileCount {{ font-size: 30px; font-weight: 900; color: {bg_color}; background: transparent; border: none; }}"))
 
                 lbl_sub = tile.get("sub")
                 if lbl_sub:
                     if classic_tile:
                         lbl_sub.setStyleSheet(f"font-size: 10px; font-weight: 700; color: {text_color}; background: transparent; border: none;")
                     else:
-                        lbl_sub.setStyleSheet(theme_qss("QLabel#StatusTileSub { font-size: 9px; font-weight: 500; color: @text_muted; background: transparent; border: none; }"))
+                        lbl_sub.setStyleSheet(theme_qss("QLabel#StatusTileSub { font-size: 12px; font-weight: 500; color: @text_muted; background: transparent; border: none; }"))
 
                 pct_lbl = tile.get("pct")
                 if pct_lbl:
@@ -640,18 +1033,13 @@ class DashboardPage(DashboardActionsMixin, QWidget):
             self.dashboard_layout.setContentsMargins(8, 8, 8, 0)
             self.dashboard_layout.setSpacing(6)
         else:
-            self.dashboard_layout.setContentsMargins(30, 20, 30, 0)
-            self.dashboard_layout.setSpacing(18)
+            self.dashboard_layout.setContentsMargins(8, 10, 8, 0)
+            self.dashboard_layout.setSpacing(12)
 
         self.create_welcome_header(self.dashboard_layout)
         self.create_insight_strip(self.dashboard_layout)
         self.create_dashboard_metrics(self.dashboard_layout)
         self.create_dashboard_charts(self.dashboard_layout)
-        self.create_takiponline_filter_strip(self.dashboard_layout)
-        left_widget = self.create_recent_table()
-        left_widget.setMinimumWidth(900)
-        self.dashboard_layout.addWidget(left_widget, 1)
-
         self.dashboard_bottom_strip = QWidget(content_wrapper)
         self.dashboard_bottom_strip.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self._classic_guard(self.dashboard_bottom_strip)
@@ -711,6 +1099,8 @@ class DashboardPage(DashboardActionsMixin, QWidget):
         self.main_layout.addWidget(self.tabs)
 
         QTimer.singleShot(0, self.refresh_data)
+        QTimer.singleShot(250, self.refresh_data)
+        QTimer.singleShot(1000, self.refresh_data)
 
     def sync_dashboard_sector_texts(self):
         sector = self._dashboard_sector_key()
@@ -724,9 +1114,10 @@ class DashboardPage(DashboardActionsMixin, QWidget):
                 if tile.get("title"):
                     tile["title"].setText(label)
                 if tile.get("icon"):
-                    icon_size = 16 if self._is_classic_appearance() else 20
+                    icon_size = 16 if self._is_classic_appearance() else 28
+                    icon_color = tc("text") if self._is_classic_appearance() else "#FFFFFF"
                     tile["icon"].setPixmap(
-                        dashboard_icon(key, color, icon_size).pixmap(
+                        dashboard_icon(key, icon_color, icon_size).pixmap(
                             icon_size,
                             icon_size,
                         )
@@ -772,6 +1163,24 @@ class DashboardPage(DashboardActionsMixin, QWidget):
         self.insight_container, self._status_tiles = create_status_tile_widgets(
             self, get_status_tile_defs(sector), db=self.db
         )
+        for key, tile in self._status_tiles.items():
+            frame = tile.get("frame") if isinstance(tile, dict) else None
+            if frame is None:
+                continue
+            frame.setCursor(Qt.CursorShape.PointingHandCursor)
+            original_press = frame.mousePressEvent
+            def _open_filtered(event, _key=key, _original=original_press):
+                if event.button() == Qt.MouseButton.LeftButton and self.main_window is not None and hasattr(self.main_window, "open_service_list"):
+                    self.main_window.open_service_list(_key)
+                    return
+                _original(event)
+            frame.mousePressEvent = _open_filtered
+        # Populate counts immediately and retry after delayed database startup.
+        QTimer.singleShot(0, self.update_dashboard_status_tiles)
+        QTimer.singleShot(250, self.update_dashboard_status_tiles)
+        QTimer.singleShot(1000, self.update_dashboard_status_tiles)
+        QTimer.singleShot(2000, self.update_dashboard_status_tiles)
+        QTimer.singleShot(5000, self.update_dashboard_status_tiles)
         parent_layout.addWidget(self.insight_container)
 
     def _make_status_tile(self, key, label, subtitle, icon, bg_color, icon_bg=None):
