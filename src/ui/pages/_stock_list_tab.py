@@ -102,7 +102,7 @@ class StockListTabMixin:
             )
             return btn
 
-        self._purchase_prices_all_visible = True
+        self._purchase_prices_all_visible = False
         self._revealed_purchase_price_ids = set()
         self.btn_purchase_price_visibility = make_tool_button(
             "\U0001F441", "Al\u0131\u015f fiyatlarini goster"
@@ -605,9 +605,8 @@ class StockListTabMixin:
                 item.setText(str(display_no))
 
     def _on_stock_header_section_clicked(self, logical_index):
-        # The purchase-price section is consumed by PurchasePriceHeader.
-        # Other headers continue to use the table's built-in sorting.
-        return
+        if int(logical_index) == self._purchase_price_column():
+            self.toggle_purchase_price_visibility()
 
     def toggle_purchase_price_visibility(self):
         all_visible = bool(getattr(self, "_purchase_prices_all_visible", False))
@@ -629,9 +628,18 @@ class StockListTabMixin:
         pass
 
     def _on_stock_cell_clicked_toggle_purchase_price(self, row, col):
-        # Individual cells no longer toggle price visibility.
-        # The toolbar eye button controls every purchase price consistently.
-        return
+        if int(col) != self._purchase_price_column():
+            return
+        part_id = self._stock_part_id_from_row(row)
+        if part_id is None or bool(getattr(self, "_purchase_prices_all_visible", False)):
+            return
+        revealed = set(getattr(self, "_revealed_purchase_price_ids", set()))
+        if part_id in revealed:
+            revealed.remove(part_id)
+        else:
+            revealed.add(part_id)
+        self._revealed_purchase_price_ids = revealed
+        self._update_purchase_price_cell(row)
 
     def _update_purchase_price_cell(self, row):
         target_col = self._purchase_price_column()

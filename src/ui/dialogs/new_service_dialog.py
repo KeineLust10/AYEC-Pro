@@ -91,8 +91,6 @@ class NewServiceDialog(
             self.is_automotive = self.sector_manager.get_current_plugin().sector_id == "otomotiv"
         else:
             self.is_automotive = SystemConfig.get_current_sector(self.db) == "otomotiv"
-        if not self.is_automotive:
-            raise RuntimeError("NewServiceDialog is reserved for the automotive sector")
         self.device_data = device_data 
         self._service_area = "Bilgisayar"
         if not self.is_automotive:
@@ -1450,10 +1448,12 @@ class NewServiceDialog(
                 pass
         collect_descriptor_values = getattr(self, "_collect_descriptor_service_values", None)
         descriptor_values = collect_descriptor_values() if callable(collect_descriptor_values) else {}
+        model_widget = getattr(self, "cmb_model", None) or getattr(self, "inp_model", None)
+        model_value = model_widget.currentText() if hasattr(model_widget, "currentText") else model_widget.text()
         data = {
             "customer_name": self.cmb_customer.currentText(),
             "device_brand": self.cmb_brand.currentText(),
-            "device_model": self.cmb_model.currentText(),
+            "device_model": model_value,
             "serial_no": self.inp_serial.text(),
             "urgency": self.cmb_urgency.currentText(),
             "technician": self.cmb_personnel.currentText(),
