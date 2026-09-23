@@ -1780,7 +1780,7 @@ updateCurrentUser=function(user){
   renderNav();
 };
 const managementCenterBtn=$("#managementCenterBtn");
-if(managementCenterBtn)managementCenterBtn.onclick=()=>{if(canAccessControlCenter())navigate("control-center")};
+if(managementCenterBtn)managementCenterBtn.onclick=()=>navigate("control-center");
 
 let activeAdminTab = "dashboard";
 

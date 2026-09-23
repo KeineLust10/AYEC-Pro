@@ -74,7 +74,7 @@ SECTOR_MENU_GROUPS: Dict[SectorType, Dict[str, List[int]]] = {
 # Keep the automotive menu aligned with the allowed page set.
 SECTOR_MENU_GROUPS[SectorType.OTOMOTIV] = {
     "Ana Sayfa": [40],
-    "Servis Y\u00f6netimi": [41, 42, 43, 62, 210, 30],
+    "Servis Y\u00f6netimi": [41, 42, 62, 210, 30],
     "Servis Y\u00f6netim Ayar\u0131": [146, 145, 147, 140],
     "M\u00fc\u015fteri": [21, 25, 26, 90, 120],
     "Stok / Sipari\u015f": [60, 51, 66],
