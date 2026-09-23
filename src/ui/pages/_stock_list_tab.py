@@ -476,8 +476,13 @@ class StockListTabMixin:
             except Exception:
                 limit = 5.0
 
-            s_item = QTableWidgetItem(str(int(stock_val)))
-            s_item.setData(Qt.ItemDataRole.EditRole, int(stock_val))
+            unit_value = str(_get("unit", "Adet") or "Adet")
+            is_integer_unit = unit_value.strip().lower() in {"adet", "paket", "kutu"}
+            stock_text = str(int(stock_val)) if is_integer_unit and stock_val.is_integer() else f"{stock_val:g}"
+            limit_text = str(int(limit)) if is_integer_unit and limit.is_integer() else f"{limit:g}"
+
+            s_item = QTableWidgetItem(stock_text)
+            s_item.setData(Qt.ItemDataRole.EditRole, stock_val)
             if stock_val <= 0:
                 s_item.setForeground(qc("danger"))
             elif stock_val <= limit:
@@ -501,8 +506,8 @@ class StockListTabMixin:
             p_out = QTableWidgetItem(f"{sel_p:,.2f}")
             p_out.setData(Qt.ItemDataRole.EditRole, sel_p)
             p_curr = QTableWidgetItem(item_curr)
-            p_lim = QTableWidgetItem(str(int(limit)))
-            p_lim.setData(Qt.ItemDataRole.EditRole, int(limit))
+            p_lim = QTableWidgetItem(limit_text)
+            p_lim.setData(Qt.ItemDataRole.EditRole, limit)
 
             item_brand = QTableWidgetItem(str(_get("brand", "") or ""))
             compatible_models_text = str(_get("compatible_models", "") or "")
@@ -539,7 +544,7 @@ class StockListTabMixin:
                 "price": p_out,
                 "sale_price": p_out.clone(),
                 "currency": p_curr,
-                "unit": p_curr.clone(),
+                "unit": QTableWidgetItem(unit_value),
                 "min_stock": p_lim,
             }
             if self._stock_column_map:

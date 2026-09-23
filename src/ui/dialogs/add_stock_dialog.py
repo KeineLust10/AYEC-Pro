@@ -767,12 +767,12 @@ class AddStockDialog(ModernDialog):
         v3_unit = QVBoxLayout(); v3_unit.setSpacing(8)
         v3_unit.addWidget(QLabel("Birim", styleSheet=label_style))
         self.cmb_unit = QComboBox()
-        self.cmb_unit.addItems(["Adet", "Metre", "Kg", "Lt", "Paket", "Kutu"])
+        self.cmb_unit.addItems(["Adet", "Metre", "Kg", "Litre", "Paket", "Kutu"])
         self.cmb_unit.setStyleSheet(input_style)
         self.cmb_unit.setFixedHeight(42)
 
         def _on_unit_changed(unit_text):
-            is_decimal = unit_text in ("Metre", "Kg", "Lt")
+            is_decimal = unit_text in ("Metre", "Kg", "Litre", "Lt")
             self.inp_stock.setDecimals(3 if is_decimal else 0)
             self.inp_stock.setSingleStep(0.5 if is_decimal else 1)
             if hasattr(self, "inp_min_stock"):

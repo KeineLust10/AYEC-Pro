@@ -7,7 +7,7 @@ Includes parts table, status, and cost management
 """
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QGridLayout,
                              QPushButton, QFrame, QGroupBox, QTableWidget, QHeaderView,
-                             QTableWidgetItem, QDateEdit, QLineEdit, QComboBox, QSizePolicy)
+                             QTableWidgetItem, QDateEdit, QLineEdit, QComboBox, QSizePolicy, QDoubleSpinBox)
 from PyQt6.QtCore import Qt, QDate, QEvent
 from PyQt6.QtGui import QFont
 
@@ -449,6 +449,15 @@ class TechnicianWizardPage3(QWidget):
         self.combo_parts.installEventFilter(self)
         self.combo_parts.setAccessibleName("parca_secimi")
         part_row.addWidget(self.combo_parts, 2)
+
+        self.spin_part_quantity = QDoubleSpinBox()
+        self.spin_part_quantity.setRange(0.001, 1000000)
+        self.spin_part_quantity.setDecimals(3)
+        self.spin_part_quantity.setValue(1)
+        self.spin_part_quantity.setSingleStep(1)
+        self.spin_part_quantity.setFixedWidth(92)
+        self.spin_part_quantity.setToolTip("Kullanilacak miktar")
+        part_row.addWidget(self.spin_part_quantity)
         
         btn_use = QPushButton("+ Se\u00e7iliyi Kullan")
         btn_use.setFixedHeight(36)
@@ -543,7 +552,8 @@ class TechnicianWizardPage3(QWidget):
             cur = self.db.conn.cursor()
             cur.execute("""
                 SELECT p.id, p.name, p.price, COALESCE(b.quantity, 0),
-                       COALESCE(p.currency, 'TRY') AS currency
+                       COALESCE(p.currency, 'TRY') AS currency,
+                       COALESCE(p.unit, 'Adet') AS unit
                 FROM parts p
                 JOIN stock_location_balances b ON b.part_id=p.id
                 WHERE b.location_id=?
@@ -555,8 +565,9 @@ class TechnicianWizardPage3(QWidget):
             parts = cur.fetchall()
             for p in parts:
                 currency = str(p[4] or 'TRY').upper()
+                unit = str(p[5] or 'Adet')
                 self.combo_parts.addItem(
-                    f"{p[1]} (Stok: {p[3]}) - {CurrencyHelper.format_amount(p[2], currency_code=currency)}",
+                    f"{p[1]} (Stok: {p[3]:g} {unit}) - {CurrencyHelper.format_amount(p[2], currency_code=currency)}",
                     p[0],
                 )
             self._parts_loaded = True
@@ -665,12 +676,15 @@ class TechnicianWizardPage3(QWidget):
             return
         
         part_id = self.combo_parts.currentData()
+        quantity = float(self.spin_part_quantity.value() or 0)
+        if quantity <= 0:
+            return
         
         try:
             # use_part handles stock check, stock reduction, and used_parts snapshot
             success = self.db.use_part(
                 part_id,
-                1,
+                quantity,
                 self.tracking_no,
                 location_id=self.combo_stock_location.currentData(),
             )
