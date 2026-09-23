@@ -93,10 +93,6 @@ class CurrencyHelper:
     @staticmethod
     def get_symbol(db=None, currency_code=None):
         code = (currency_code or CurrencyHelper.get_code(db)).upper()
-
-    @staticmethod
-    def get_symbol(db=None, currency_code=None):
-        code = (currency_code or CurrencyHelper.get_code(db)).upper()
         if code == "USD":
             return "$"
         if code == "EUR":
