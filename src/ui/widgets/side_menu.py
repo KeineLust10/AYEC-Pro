@@ -166,8 +166,13 @@ class SideMenu(QWidget):
         # Clear layout
         while self.menu_layout.count():
             child = self.menu_layout.takeAt(0)
-            if child.widget():
-                child.widget().deleteLater()
+            old_widget = child.widget()
+            if old_widget:
+                # Detach old menu widgets without scheduling deferred Qt
+                # deletion. Tests and rapid sector switches may still hold a
+                # reference while the replacement menu is being built.
+                old_widget.setParent(None)
+                old_widget.hide()
 
         self.accordion_groups = []
         self.flat_buttons = []
@@ -1136,6 +1141,8 @@ class SideMenu(QWidget):
             today_appointments = 0
 
         self.set_badge(43, pending_services)   # Durum Paneli
+        # Legacy layouts used page 41 for the same status badge.
+        self.set_badge(41, pending_services)
         self.set_badge(30, today_appointments)  # Randevular
     # Badge Sistemi Sonu
 

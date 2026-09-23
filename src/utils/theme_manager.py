@@ -1301,7 +1301,7 @@ QFocusFrame {{
             app,
             name,
             deferred_refresh=True,
-            refresh_widgets=True,
+            refresh_widgets=window is None,
         )
 
     @classmethod

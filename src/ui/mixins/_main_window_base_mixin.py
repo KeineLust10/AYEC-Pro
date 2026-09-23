@@ -62,7 +62,7 @@ class MainWindowBaseMixin:
                 appearance_mode = AppearanceModeManager.current(self.db)
                 ThemeManager.apply_theme(app, normalized, window=self, animate=appearance_mode != AppearanceModeManager.CLASSIC)
                 self._current_theme_name = normalized
-                self.apply_appearance_mode(appearance_mode, force_tree=True)
+                self.apply_appearance_mode(appearance_mode, force_tree=False)
                 if hasattr(self, "_apply_shell_theme_styles"): self._apply_shell_theme_styles()
             
             try: self.db.set_setting("color_theme_full", normalized)
