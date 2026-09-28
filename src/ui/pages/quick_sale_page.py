@@ -458,6 +458,19 @@ class QuickSalePage(QWidget):
     def add_to_cart_by_id(self, p_id):
         product = next((p for p in self.all_products if p["id"] == p_id), None)
         if not product: return
+
+        product_currency = str(product.get("currency", "TRY") or "TRY").upper()
+        cart_currencies = {
+            str(item.get("currency", "TRY") or "TRY").upper()
+            for item in self.cart_items
+        }
+        if cart_currencies and product_currency not in cart_currencies:
+            show_warning(
+                self.window(),
+                "Mixed-currency carts are not supported. Complete each currency separately.",
+                1500,
+            )
+            return
         
         # Stok kontrol (Burada hafızadan yapıyoruz, satış anında DB kontrolü var)
         current_qty = sum(item['qty'] for item in self.cart_items if item['id'] == p_id)
@@ -559,8 +572,20 @@ class QuickSalePage(QWidget):
     def finish_sale(self, method):
         if not self.cart_items:
             return
-            
-        total = sum(item['total'] for item in self.cart_items)
+
+        currencies_in_cart = {
+            str(item.get("currency", "TRY") or "TRY").upper()
+            for item in self.cart_items
+        }
+        if len(currencies_in_cart) > 1:
+            show_error(
+                self.window(),
+                "Mixed-currency carts are not supported. Complete each currency separately.",
+            )
+            return
+
+        sale_currency = next(iter(currencies_in_cart), "TRY")
+        total = sum(float(item["total"] or 0) for item in self.cart_items)
         customer_id = self.selected_customer['id'] if self.selected_customer else None
         customer_name = self.selected_customer['name'] if self.selected_customer else None
         
@@ -589,9 +614,6 @@ class QuickSalePage(QWidget):
             
             self.db.conn.commit()
 
-            # Sepetteki döviz birimini belirle
-            currencies_in_cart = set(item.get('currency', 'TRY') for item in self.cart_items)
-            sale_currency = list(currencies_in_cart)[0] if len(currencies_in_cart) == 1 else 'TRY'
             sale_sym = "$" if sale_currency == "USD" else "€" if sale_currency == "EUR" else "₺"
 
             item_lines = []
@@ -604,6 +626,8 @@ class QuickSalePage(QWidget):
             if item_lines:
                 full_desc = header_desc + "\n" + "\n".join(item_lines)
 
+            from src.utils.currency_helper import CurrencyHelper
+            sale_rate = CurrencyHelper.require_rate(self.db, sale_currency)
             self.db.add_transaction(
                 "Gelir",
                 "Satış",
@@ -613,45 +637,62 @@ class QuickSalePage(QWidget):
                 customer_id=customer_id,
                 currency=sale_currency,
                 original_amount=total,
+                exchange_rate=sale_rate,
             )
 
             # --- GİDER KAYDI: Satılan Malın Maliyeti (COGS) ---
             try:
-                total_material_cost = 0.0
-                cost_parts = []
+                cost_groups = {}
                 if self.cart_items:
                     try:
                         item_ids = [str(item['id']) for item in self.cart_items]
                         placeholders = ','.join(['?'] * len(item_ids))
                         self.db.cursor.execute(
-                            "SELECT id, purchase_price FROM parts WHERE id IN ({placeholders})".format(
+                            "SELECT id, purchase_price, currency FROM parts WHERE id IN ({placeholders})".format(
                                 placeholders=placeholders
                             ),
                             item_ids,
                         )
-                        prices = {row[0]: float(row[1] or 0) for row in self.db.cursor.fetchall()}
+                        prices = {
+                            row[0]: (float(row[1] or 0), str(row[2] or "TRY").upper())
+                            for row in self.db.cursor.fetchall()
+                        }
                         
                         for item in self.cart_items:
-                            pp = prices.get(item['id'], 0.0)
-                            if pp > 0:
-                                line_cost = pp * item['qty']
-                                total_material_cost += line_cost
-                                cost_parts.append(f"{item['name']}x{item['qty']}")
+                            pp, part_currency = prices.get(item["id"], (0.0, "TRY"))
+                            if pp <= 0:
+                                continue
+                            line_cost = pp * float(item["qty"] or 0)
+                            group = cost_groups.setdefault(
+                                part_currency,
+                                {"amount": 0.0, "parts": []},
+                            )
+                            group["amount"] += line_cost
+                            group["parts"].append(f"{item['name']}x{item['qty']}")
                     except Exception:
                         pass
 
-                if total_material_cost > 0:
+                if cost_groups:
                     cost_desc = f"Satılan Malın Maliyeti - POS ({len(self.cart_items)} kalem)"
-                    if cost_parts:
-                        cost_desc += f" [{', '.join(cost_parts)}]"
-                    self.db.add_transaction(
-                        t_type="Gider",
-                        category="Satılan Malın Maliyeti",
-                        amount=total_material_cost,
-                        description=cost_desc,
-                        customer_name=customer_name,
-                        customer_id=customer_id,
-                    )
+                    for part_currency, group in cost_groups.items():
+                        original_cost = float(group["amount"])
+                        if original_cost <= 0:
+                            continue
+                        rate = CurrencyHelper.require_rate(self.db, part_currency)
+                        group_desc = cost_desc
+                        if group["parts"]:
+                            group_desc += f" [{', '.join(group['parts'])}]"
+                        self.db.add_transaction(
+                            t_type="Gider",
+                            category="Sat\u0131lan Mal\u0131n Maliyeti",
+                            amount=original_cost,
+                            description=group_desc,
+                            customer_name=customer_name,
+                            customer_id=customer_id,
+                            currency=part_currency,
+                            original_amount=original_cost,
+                            exchange_rate=rate,
+                        )
             except Exception as cogs_err:
                 logger.error(f"POS COGS recording error: {cogs_err}")
 

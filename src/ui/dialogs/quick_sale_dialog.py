@@ -234,12 +234,13 @@ class QuickSaleDialog(ModernDialog):
         p_name = self.table_products.item(row, 1).text()
         p_stock = int(self.table_products.item(row, 2).text())
         p_price = float(self.table_products.item(row, 3).text().replace(" TL", ""))
+        currency = self._get_product_currency(p_id)
         
         if p_stock <= 0:
             show_warning(self, "Bu üründen stokta kalmamış!")
             return
             
-        self.add_to_cart(p_id, p_name, p_price, p_stock)
+        self.add_to_cart(p_id, p_name, p_price, p_stock, currency)
         
     def add_by_barcode(self):
         # Exact match logic or first hit
@@ -263,12 +264,35 @@ class QuickSaleDialog(ModernDialog):
             p_stock = found[3]
             p_price = found[4]
             if p_stock > 0:
-                self.add_to_cart(p_id, p_name, p_price, p_stock)
+                currency = self._get_product_currency(p_id)
+                self.add_to_cart(p_id, p_name, p_price, p_stock, currency)
                 self.inp_search.clear()
             else:
                 show_warning(self, "Stok yok.")
                 
-    def add_to_cart(self, p_id, name, price, max_stock):
+    def _get_product_currency(self, product_id):
+        """Read the stock currency by column name across legacy schemas."""
+        try:
+            row = self.db.cursor.execute(
+                "SELECT COALESCE(currency, 'TRY') FROM parts WHERE id=?",
+                (product_id,),
+            ).fetchone()
+            return str(row[0] if row else "TRY").upper()
+        except Exception:
+            return "TRY"
+
+    def add_to_cart(self, p_id, name, price, max_stock, currency="TRY"):
+        currency = str(currency or "TRY").upper()
+        cart_currencies = {
+            str(item.get("currency", "TRY") or "TRY").upper()
+            for item in self.cart
+        }
+        if cart_currencies and currency not in cart_currencies:
+            show_warning(
+                self,
+                "Mixed-currency carts are not supported. Complete each currency separately.",
+            )
+            return
         # Check if already in cart
         for item in self.cart:
             if item['id'] == p_id:
@@ -284,6 +308,7 @@ class QuickSaleDialog(ModernDialog):
             'id': p_id,
             'name': name,
             'price': price,
+            'currency': currency,
             'qty': 1,
             'stock': max_stock
         })
@@ -300,12 +325,13 @@ class QuickSaleDialog(ModernDialog):
             total += row_total
             
             self.table_cart.setItem(i, 0, QTableWidgetItem(item['name']))
-            self.table_cart.setItem(i, 1, QTableWidgetItem(f"{item['price']:.2f}"))
+            symbol = "$" if item.get("currency") == "USD" else "EUR" if item.get("currency") == "EUR" else "TL"
+            self.table_cart.setItem(i, 1, QTableWidgetItem(f"{item['price']:.2f} {symbol}"))
             
             # Qty (Editable would be nice, but simple label for now)
             self.table_cart.setItem(i, 2, QTableWidgetItem(str(item['qty'])))
             
-            self.table_cart.setItem(i, 3, QTableWidgetItem(f"{row_total:.2f}"))
+            self.table_cart.setItem(i, 3, QTableWidgetItem(f"{row_total:.2f} {symbol}"))
             
             # Remove Btn
             btn_del = QPushButton("✖")
@@ -325,26 +351,50 @@ class QuickSaleDialog(ModernDialog):
         discount = self.inp_discount.value()
         total = max(0, self.subtotal_val - discount)
         
-        self.lbl_subtotal.setText(f"{self.subtotal_val:.2f} TL")
-        self.lbl_total.setText(f"{total:.2f} TL")
+        currencies = {
+            str(item.get("currency", "TRY") or "TRY").upper()
+            for item in self.cart
+        }
+        currency = next(iter(currencies), "TRY")
+        symbol = "$" if currency == "USD" else "EUR" if currency == "EUR" else "TL"
+        self.inp_discount.setSuffix(f" {symbol}")
+        self.lbl_subtotal.setText(f"{self.subtotal_val:.2f} {symbol}")
+        self.lbl_total.setText(f"{total:.2f} {symbol}")
         
     def checkout(self):
         if not self.cart:
             show_warning(self, "Lütfen ürün ekleyin.")
             return
 
+        currencies = {
+            str(item.get("currency", "TRY") or "TRY").upper()
+            for item in self.cart
+        }
+        if len(currencies) > 1:
+            show_warning(
+                self,
+                "Mixed-currency carts are not supported. Complete each currency separately.",
+            )
+            return
+        sale_currency = next(iter(currencies), "TRY")
+
         dlg = SimpleConfirmDialog(self, "Satış Onayı", f"Toplam {self.lbl_total.text()} tutarında satışı onaylıyor musunuz")
         if not dlg.exec():
             return
 
         try:
-            total_amount = float(self.lbl_total.text().split(" ")[0])
+            total_amount = max(
+                0.0,
+                sum(float(item["price"] or 0) * int(item["qty"] or 1) for item in self.cart)
+                - float(self.inp_discount.value() or 0),
+            )
             payment_method = self.cmb_payment.currentText()
             desc = f"Hızlı Satış ({payment_method})"
             detail_lines = []
             for index, item in enumerate(self.cart, start=1):
                 line_total = float(item["price"] or 0) * int(item["qty"] or 1)
-                detail_lines.append(f"{index}. {item['name']} (x{item['qty']}) - {line_total:,.2f} TL")
+                symbol = "$" if item.get("currency") == "USD" else "EUR" if item.get("currency") == "EUR" else "TL"
+                detail_lines.append(f"{index}. {item['name']} (x{item['qty']}) - {line_total:,.2f} {symbol}")
             sale_description = f"{desc} - {len(self.cart)} kalem ürün"
             if detail_lines:
                 sale_description += "\n" + "\n".join(detail_lines)
@@ -361,52 +411,68 @@ class QuickSaleDialog(ModernDialog):
             if bank_id == -1:
                 bank_id = None
 
-            try:
-                self.db.add_transaction_extended(
-                    type="Gelir",
-                    category=cat,
-                    amount=total_amount,
-                    description=sale_description,
-                    date=datetime.now().strftime("%Y-%m-%d"),
-                    payment_method=payment_method,
-                    bank_account_id=bank_id,
-                )
-            except Exception:
-                self.db.add_transaction("Gelir", cat, total_amount, sale_description)
+            from src.utils.currency_helper import CurrencyHelper
+            sale_rate = CurrencyHelper.require_rate(self.db, sale_currency)
+            self.db.add_transaction(
+                t_type="Gelir",
+                category=cat,
+                amount=total_amount,
+                description=sale_description,
+                date=datetime.now().strftime("%Y-%m-%d"),
+                payment_method=payment_method,
+                bank_account_id=bank_id,
+                currency=sale_currency,
+                original_amount=total_amount,
+                exchange_rate=sale_rate,
+            )
 
             try:
-                total_material_cost = 0.0
-                cost_parts = []
+                cost_groups = {}
                 if self.cart:
                     try:
                         item_ids = [str(item['id']) for item in self.cart]
                         placeholders = ','.join('?' * len(item_ids))
                         self.db.cursor.execute(
-                            "SELECT id, purchase_price FROM parts WHERE id IN ({placeholders})".format(
+                            "SELECT id, purchase_price, currency FROM parts WHERE id IN ({placeholders})".format(
                                 placeholders=placeholders
                             ),
                             item_ids,
                         )
-                        prices = {row[0]: float(row[1] or 0) for row in self.db.cursor.fetchall()}
+                        prices = {
+                            row[0]: (float(row[1] or 0), str(row[2] or "TRY").upper())
+                            for row in self.db.cursor.fetchall()
+                        }
                         for item in self.cart:
-                            pp = prices.get(item['id'], 0.0)
-                            if pp > 0:
-                                line_cost = pp * item['qty']
-                                total_material_cost += line_cost
-                                cost_parts.append(f"{item['name']}x{item['qty']}")
+                            pp, part_currency = prices.get(item["id"], (0.0, "TRY"))
+                            if pp <= 0:
+                                continue
+                            group = cost_groups.setdefault(
+                                part_currency, {"amount": 0.0, "parts": []}
+                            )
+                            group["amount"] += pp * int(item["qty"] or 1)
+                            group["parts"].append(f"{item['name']}x{item['qty']}")
                     except Exception:
                         pass
 
-                if total_material_cost > 0:
+                if cost_groups:
                     cost_desc = f"Satilan Malin Maliyeti - Hızlı Satış ({len(self.cart)} kalem)"
-                    if cost_parts:
-                        cost_desc += f" [{', '.join(cost_parts)}]"
-                    self.db.add_transaction(
-                        t_type="Gider",
-                        category="Satilan Malin Maliyeti",
-                        amount=total_material_cost,
-                        description=cost_desc,
-                    )
+                    for part_currency, group in cost_groups.items():
+                        original_cost = float(group["amount"])
+                        if original_cost <= 0:
+                            continue
+                        rate = CurrencyHelper.require_rate(self.db, part_currency)
+                        group_desc = cost_desc
+                        if group["parts"]:
+                            group_desc += f" [{', '.join(group['parts'])}]"
+                        self.db.add_transaction(
+                            t_type="Gider",
+                            category="Satilan Malin Maliyeti",
+                            amount=original_cost,
+                            description=group_desc,
+                            currency=part_currency,
+                            original_amount=original_cost,
+                            exchange_rate=rate,
+                        )
             except Exception:
                 pass
 
