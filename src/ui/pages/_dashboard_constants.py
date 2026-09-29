@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 
 _TECHNICAL_STATUS_TILE_DEFS = [
-    ("test", "TAMİR EDİLENLER", "Tamir Edildi", "T", "#05A85B", "#008B4A"),
-    ("tamirde", "TAMİRDE OLANLAR", "Tamiri Devam Etmekte", "D", "#F39C12", "#C97700"),
-    ("bekliyor", "İŞLEME ALINACAKLAR", "İşleme Alınmadı", "İ", "#1E88E5", "#001A33"),
-    ("iptal", "İPTAL / İADE", "İptal İade", "X", "#E24A3B", "#B7372B"),
-    ("kargo", "KARGOYA VERİLENLER", "Kargoya Verildi", "K", "#D41462", "#B20F50"),
-    ("teslim", "TESLİM EDİLENLER", "Teslim Edildi", "E", "#0891B2", "#075985"),
-    ("parca", "PARÇA BEKLEYENLER", "Parça Bekliyor", "P", "#0E7AB4", "#075F8D"),
-    ("borclu", "BORÇLU OLANLAR", "Borcu Var", "B", "#625DA8", "#4F4A8E"),
+    ("test", "Tamir Edilenler", "Tamir Edildi", "T", "#05A85B", "#008B4A"),
+    ("tamirde", "Tamirde Olanlar", "Tamiri Devam Etmekte", "D", "#F39C12", "#C97700"),
+    ("bekliyor", "\u0130\u015fleme Al\u0131nacaklar", "\u0130\u015fleme Al\u0131nmad\u0131", "\u0130", "#1E88E5", "#001A33"),
+    ("iptal", "\u0130ptal / \u0130ade", "\u0130ptal \u0130ade", "X", "#E24A3B", "#B7372B"),
+    ("kargo", "Kargoya Verilenler", "Kargoya Verildi", "K", "#D41462", "#B20F50"),
+    ("teslim", "Teslim Edilenler", "Teslim Edildi", "E", "#0891B2", "#075985"),
+    ("parca", "Par\u00e7a Bekleyenler", "Par\u00e7a Bekliyor", "P", "#0E7AB4", "#075F8D"),
+    ("borclu", "Bor\u00e7lu Olanlar", "Borcu Var", "B", "#625DA8", "#4F4A8E"),
 ]
 
 _AUTOMOTIVE_STATUS_TILE_DEFS = [

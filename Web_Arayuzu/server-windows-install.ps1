@@ -3,6 +3,8 @@ param(
     [string]$PublicIp = "85.117.239.60",
     [int]$BackendPort = 8501,
     [string]$Python,
+    [ValidateSet("requirements.txt", "requirements-ocr.txt", "requirements-paddle.txt")]
+    [string]$RequirementsFile = "requirements-paddle.txt",
     [switch]$SkipIisModuleInstall
 )
 
@@ -102,7 +104,7 @@ if (-not (Test-Path -LiteralPath $VenvPython)) {
     & $Python -m venv $VenvPath
     if ($LASTEXITCODE -ne 0) { throw "AYEC Python environment could not be created." }
 }
-& $VenvPython -m pip install --disable-pip-version-check -r (Join-Path $ProjectPath "requirements.txt")
+& $VenvPython -m pip install --disable-pip-version-check -r (Join-Path $ProjectPath $RequirementsFile)
 if ($LASTEXITCODE -ne 0) { throw "AYEC Python çalışma zamanı kurulamadı." }
 
 $Database = Join-Path $ProjectPath "data\ayecpro.db"

@@ -7,6 +7,7 @@ import traceback
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel
 from PyQt6.QtCore import Qt, QTimer
 from src.utils.page_config import PAGE_MAPPING, PAGE_NAMES
+from src.utils.page_ids import PageIds
 from src.utils.system_config import SystemConfig
 from src.utils.sector_config import SECTOR_PAGES, SectorType
 from src.utils.theme_colors import theme_qss
@@ -60,17 +61,58 @@ class MainWindowNavMixin:
                     "warning",
                 )
             return
+        previous_index = getattr(self, "_current_page_index", None)
+        if (
+            previous_index is not None
+            and int(previous_index) != int(index)
+            and not getattr(self, "_navigation_back_active", False)
+        ):
+            history = getattr(self, "_navigation_history", [])
+            history.append(int(previous_index))
+            self._navigation_history = history[-30:]
         self._current_page_index = index
+        self._sync_back_button()
         if hasattr(self, "app_top_nav"): self.app_top_nav.sync_active(index)
+        if hasattr(self, "app_sidebar"):
+            side_menu = getattr(self.app_sidebar, "side_menu", None)
+            if side_menu is not None and hasattr(side_menu, "on_page_changed_internal"):
+                side_menu.on_page_changed_internal(index)
         
         with perf_span(f"navigation.page.{index}"):
             page = self.get_page(index)
             if page:
+                if int(index) == int(PageIds.DASHBOARD) and hasattr(page, "show_shortcut_screen"):
+                    page.show_shortcut_screen()
+                # Re-read dashboard data whenever it becomes visible again.
+                if page.__class__.__name__ == "DashboardPage" and hasattr(page, "refresh_data"):
+                    page.refresh_data()
                 self._switch_content_with_fade(page)
                 if hasattr(self, "app_header") and hasattr(self.app_header, "breadcrumb"):
                     self.app_header.breadcrumb.update_path([(self.get_page_name_by_index(index), index)])
                 return
             logger.error(f"Page load failure: {index}")
+
+    def navigate_back(self):
+        history = getattr(self, "_navigation_history", [])
+        current = getattr(self, "_current_page_index", None)
+        while history and current is not None and int(history[-1]) == int(current):
+            history.pop()
+        if not history:
+            self._sync_back_button()
+            return
+        target = int(history.pop())
+        self._navigation_history = history
+        self._navigation_back_active = True
+        try:
+            self.on_menu_click(target)
+        finally:
+            self._navigation_back_active = False
+            self._sync_back_button()
+
+    def _sync_back_button(self):
+        header = getattr(self, "app_header", None)
+        if header is not None and hasattr(header, "set_back_enabled"):
+            header.set_back_enabled(bool(getattr(self, "_navigation_history", [])))
 
     def get_page(self, index):
         if index in self.pages:
@@ -194,6 +236,8 @@ class MainWindowNavMixin:
         self.on_menu_click(PageIds.SERVICE_LIST)
         page = self.pages.get(PageIds.SERVICE_LIST)
         if page is not None and hasattr(page, "show_service_list"):
+            if hasattr(page, "refresh_data"):
+                page.refresh_data()
             page.show_service_list(category)
 
     def refresh_side_menu(self):

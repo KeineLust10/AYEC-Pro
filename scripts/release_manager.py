@@ -1,16 +1,12 @@
 import os
 import json
+import hashlib
+import os
 import re
 import sys
 import shutil
 import subprocess
 from datetime import datetime
-try:
-    from scripts.create_version_info import create_version_file
-except ImportError:
-    # If running from root
-    sys.path.append(os.path.join(os.getcwd(), 'scripts'))
-    from create_version_info import create_version_file
 
 class ReleaseManager:
     def __init__(self):
@@ -64,6 +60,11 @@ class ReleaseManager:
 
     def build_project(self):
         # Generate version info file for PyInstaller
+        try:
+            from scripts.create_version_info import create_version_file
+        except ImportError:
+            sys.path.append(os.path.join(os.getcwd(), "scripts"))
+            from create_version_info import create_version_file
         current_ver = self.get_current_version()
         print(f"Generating version info for {current_ver}...")
         create_version_file(current_ver)
@@ -87,11 +88,18 @@ class ReleaseManager:
             shutil.copy2(src_setup, os.path.join(release_dir, "setup.exe"))
         else:
             print(f"Warning: Setup file not found: {src_setup}")
+            return
+
+        digest = hashlib.sha256()
+        with open(src_setup, "rb") as setup_stream:
+            for chunk in iter(lambda: setup_stream.read(1024 * 1024), b""):
+                digest.update(chunk)
 
         # Create version.json
         manifest = {
             "version": version,
-            "url": f"http://85.117.239.60:8000/Releases/v{version}/setup.exe",
+            "url": f"https://lisans.ayecpro.com/Update/{os.path.basename(src_setup)}",
+            "sha256": digest.hexdigest(),
             "release_date": datetime.now().isoformat(),
             "critical": critical,
             "notes": notes

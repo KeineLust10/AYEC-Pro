@@ -8,6 +8,8 @@ src/ayec_core/entitlements.py
 src/ayec_core/license_cache.py
 src/ayec_core/licensing.py
 src/ayec_core/outbox.py
+src/ayec_core/product_license.py
+src/ayec_core/product_runtime.py
 src/ayec_core/restore.py
 src/ayec_core/session.py
 src/ayec_core/storage.py
@@ -36,6 +38,7 @@ tests/test_license_cache.py
 tests/test_licensing.py
 tests/test_outbox.py
 tests/test_parser_package.py
+tests/test_product_runtime.py
 tests/test_restore.py
 tests/test_session.py
 tests/test_storage.py

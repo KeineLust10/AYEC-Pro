@@ -30,8 +30,8 @@ class SideMenu(QWidget):
     page_changed = pyqtSignal(int)
     logout_requested = pyqtSignal()
     pin_changed = pyqtSignal(bool)
-    EXPANDED_WIDTH = 300
-    COLLAPSED_WIDTH = 92
+    EXPANDED_WIDTH = 272
+    COLLAPSED_WIDTH = 76
     ICON_ONLY_WIDTH = 76
 
     def __init__(self, parent=None, callback=None, db=None, sector_manager=None, current_user=None):
@@ -193,14 +193,14 @@ class SideMenu(QWidget):
         sector = self._current_sector()
         if sector == "otomotiv":
             return {
-                40, 41, 60, 62, 30, 150, 210,
+                40, 41, 42, 43, 60, 62, 30, 150, 210,
                 21, 25, 26, 90, 120,
                 50, 51, 140, 145, 146, 147, 66, 313, 314,
                 101, 105, 106, 115,
                 10, 160, 261, 130, 135, 180, 70,
             }
         technical_only = {
-            40, 41, 62, 61, 30, 65, 201,
+            40, 41, 42, 43, 62, 61, 30, 65, 201,
             21, 25, 26, 90, 120,
             50, 51, 66, 140, 145, 146, 147, 150, 250, 300,
             313, 314,
@@ -489,7 +489,7 @@ class SideMenu(QWidget):
                     ("Genel Bak\u0131\u015f", 40),
                     ("Servis Listesi", 42),
                     ("Ara\u00e7 Bak\u0131m Takibi", 210),
-                    ("Durum Paneli", 41),
+                    ("Durum Paneli", 43),
                     ("Teknisyen Paneli", 62),
                     ("Randevular", 30),
                     ("Servis Y\u00f6netim Ayar\u0131", settings_items),
@@ -557,6 +557,7 @@ class SideMenu(QWidget):
             "dashboard": 40,
             "vehicles": 210,
             "service_board": 41,
+            "service_list": 42,
             "customers": 21,
             "technician": 62,
             "appointments": 30,
@@ -1134,7 +1135,7 @@ class SideMenu(QWidget):
         except Exception:
             today_appointments = 0
 
-        self.set_badge(41, pending_services)   # Durum Paneli
+        self.set_badge(43, pending_services)   # Durum Paneli
         self.set_badge(30, today_appointments)  # Randevular
     # Badge Sistemi Sonu
 
@@ -1485,15 +1486,17 @@ class SideMenu(QWidget):
 
     def _build_technical_sections(self):
         return [
-            ("SERVİS OPERASYON", [
-                ("Servis Yönetimi", "🔧", [
-                    ("Genel Bakış", 40),
-                    ("Durum Paneli", 41),
+            ("SERVIS OPERASYON", [
+                ("Servis Y\u00f6netimi", "\U0001f527", [
+                    ("Genel Bak\u0131\u015f", 40),
+                    ("Servis Panosu", 41),
+                    ("Servis Listesi", 42),
+                    ("Durum Paneli", 43),
                     ("Teknisyen Paneli", 62),
-                    ("Saha Haritası", 61),
+                    ("Saha Haritas\u0131", 61),
                     ("Randevular", 30),
-                    ("Lojistik & Garanti Yönetimi", 65),
-                    ("İş/Servis Takibi Raporları", 201),
+                    ("Lojistik & Garanti Y\u00f6netimi", 65),
+                    ("\u0130\u015f/Servis Takibi Raporlar\u0131", 201),
                     ("AI Asistan", 170),
                 ]),
             ]),

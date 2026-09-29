@@ -100,12 +100,20 @@ class SMSSettingsDialog(ModernDialog):
 
     def load_settings(self):
         self.inp_account_sid.setText(self.db.get_setting("twilio_account_sid", ""))
-        self.inp_auth_token.setText(self.db.get_setting("twilio_auth_token", ""))
+        from src.utils.secure_setting_store import SecureSettingStore
+
+        self.inp_auth_token.setText(
+            SecureSettingStore.get(self.db, "twilio_auth_token", "")
+        )
         self.inp_from_number.setText(self.db.get_setting("twilio_from_number", ""))
 
     def save_settings(self):
         self.db.set_setting("twilio_account_sid", self.inp_account_sid.text().strip())
-        self.db.set_setting("twilio_auth_token", self.inp_auth_token.text().strip())
+        from src.utils.secure_setting_store import SecureSettingStore
+
+        SecureSettingStore.set(
+            self.db, "twilio_auth_token", self.inp_auth_token.text().strip()
+        )
         self.db.set_setting("twilio_from_number", self.inp_from_number.text().strip())
         show_info(self, "SMS ayarlari kaydedildi!")
         self.accept()
@@ -115,7 +123,11 @@ class SMSSettingsDialog(ModernDialog):
         self.test_result.append("Baglanti test ediliyor...\n")
         self.btn_test.setEnabled(False)
         self.db.set_setting("twilio_account_sid", self.inp_account_sid.text().strip())
-        self.db.set_setting("twilio_auth_token", self.inp_auth_token.text().strip())
+        from src.utils.secure_setting_store import SecureSettingStore
+
+        SecureSettingStore.set(
+            self.db, "twilio_auth_token", self.inp_auth_token.text().strip()
+        )
         self.db.set_setting("twilio_from_number", self.inp_from_number.text().strip())
         self.sms_test_worker = SMSTestWorker(getattr(self.db, "_db_name", "ayecpro.db"))
         self.sms_test_worker.finished.connect(self.on_test_connection_finished)

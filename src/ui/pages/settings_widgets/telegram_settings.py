@@ -6,6 +6,7 @@ from PyQt6.QtGui import QFont
 from src.utils.toast_notification import show_success
 from src.utils.theme_colors import theme_qss
 from src.utils.design_system import DesignTokens
+from src.utils.secure_setting_store import SecureSettingStore
 
 
 class TelegramSettingsWidget(QWidget):
@@ -67,12 +68,12 @@ class TelegramSettingsWidget(QWidget):
         layout.addStretch()
 
     def load_data(self):
-        token = self.db.get_setting("telegram_bot_token", "")
+        token = SecureSettingStore.get(self.db, "telegram_bot_token", "")
         self.inp_token.setText(token)
 
     def save_data(self):
         token = self.inp_token.text().strip()
-        self.db.set_setting("telegram_bot_token", token)
+        SecureSettingStore.set(self.db, "telegram_bot_token", token)
 
         if self.main_window:
             self.main_window.show_notification("Telegram ayarları kaydedildi. Lütfen programı yeniden başlatın.", "success")

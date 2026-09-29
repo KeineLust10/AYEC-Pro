@@ -94,7 +94,7 @@ class DurableOutbox:
     def mark_done(self, item_id):
         self._set_state(item_id, "done", 0, "")
 
-    def mark_retry(self, item_id, error, *, now=None, jitter=True):
+    def mark_retry(self, item_id, error, *, now=None, jitter=True, retry_after=None):
         current = float(time.time() if now is None else now)
         with self._connect() as connection:
             row = connection.execute(
@@ -105,6 +105,13 @@ class DurableOutbox:
                 raise KeyError(item_id)
             attempts = int(row["attempts"]) + 1
             delay = RETRY_DELAYS[min(attempts - 1, len(RETRY_DELAYS) - 1)]
+            if retry_after is not None:
+                try:
+                    # Honor the server's minimum wait while keeping an outage
+                    # from pinning the queue indefinitely.
+                    delay = max(delay, min(float(retry_after), RETRY_DELAYS[-1]))
+                except (TypeError, ValueError):
+                    pass
             if jitter:
                 delay *= random.uniform(0.85, 1.15)
             connection.execute(

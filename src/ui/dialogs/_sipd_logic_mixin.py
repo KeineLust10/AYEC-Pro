@@ -423,14 +423,12 @@ class StockImportPreviewLogicMixin:
                 total_cost = stock * purchase_price
                 tx_exchange_rate = None
                 if currency != "TRY":
-                    from src.utils.currency_helper import CurrencyHelper
+                    from src.utils.exchange_rate_manager import ExchangeRateManager
 
-                    raw_rate = CurrencyHelper._get_rate(self.db, currency)
-                    tx_exchange_rate = (
-                        float(raw_rate)
-                        if raw_rate and float(raw_rate) > 1.0
-                        else (47.5736 if currency == "USD" else (51.50 if currency == "EUR" else 1.0))
+                    raw_rate = ExchangeRateManager.get_current_rate(
+                        self.db, currency, "selling"
                     )
+                    tx_exchange_rate = float(raw_rate) if raw_rate else 1.0
                 transaction_id = self.db.add_transaction(
                     t_type="Gider",
                     category="Yedek Parca Alimi" if self.is_automotive else "Stok Alimi",

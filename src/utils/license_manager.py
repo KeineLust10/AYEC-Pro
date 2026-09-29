@@ -152,42 +152,19 @@ class LicenseManager:
             "expiry_date": expiry_str,
         }
     def check_license_online(self, license_key=None):
-        """Sunucu tabanlı lisans doğrulaması (5. dakikada tetiklenir)"""
-        hwid = self.get_hwid()
-        # Kullanıcının belirttiği direkt IP/check yapısı - GÜNCELLENDİ
-        endpoint = "http://85.117.239.60/ayec_api/check-license.php"
-        
+        """Validate through the shared central signed entitlement endpoint."""
         try:
-            logger.info(f"Lisans sunucu sorgusu başlatılıyor (HWID: {hwid})")
-            
-            # Web referansına göre POST veya parametreli sorgu gerekiyor
-            payload = {
-                "hwid": hwid,
-                "license_key": license_key
-            }
-            
-            # POST isteği ile kontrol
-            response = requests.post(endpoint, json=payload, timeout=15)
-            
-            if response.status_code == 200:
-                data = response.json()
-                if data.get("status") == "active" or data.get("is_valid") == True:
-                    logger.info("Sunucu doğrulama başarılı.")
-                    return True, "Doğrulama Başarılı"
-                else:
-                    msg = data.get("message", "Geçersiz Lisans")
-                    if "Farkli Cihaz" in msg or "Different Device" in msg:
-                        msg = "⚠️ Lisans hatası: Farklı Cihaz Algılandı.\nBu lisans başka bir bilgisayarda kullanılıyor.\nLütfen teknik destek ile iletişime geçin veya lisansı sıfırlayın."
-                    logger.error(f"Lisans RED: {msg}")
-                    return False, msg
-            else:
-                logger.error(f"Sunucu hatası: {response.status_code}")
-                # Sunucu hatası durumunda hemen kilitlemek yerine logla (Kullanıcı kararı)
-                return False, f"Lisans sunucusuna ulaşılamıyor (HTTP {response.status_code})"
-                
-        except Exception as e:
-            logger.error(f"Lisans sunucusuna ulaşılamadı: {e}")
-            return False, "İnternet bağlantısı veya lisans sunucusu hatası!"
+            client = LicenseApiClient(timeout=15)
+            settings = self.db.get_settings() if self.db else {}
+            client.configure_scope(
+                tenant_id=settings.get("central_tenant_id", ""),
+                installation_id=settings.get("central_installation_id", ""),
+            )
+            result = client.status_for_device(self._license_device_identity())
+            return self.apply_server_entitlement(result)
+        except Exception as error:
+            logger.warning("Central license check deferred: %s", error)
+            return False, "Central license check deferred; local state was preserved."
 
     def apply_server_entitlement(self, payload):
         access = dict(payload.get("access") or {})

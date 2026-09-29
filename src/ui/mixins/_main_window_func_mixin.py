@@ -27,6 +27,27 @@ class MainWindowFuncMixin:
         # Reserve the lower-right notification lane above the assistant.
         self.assistant_fab.move(self.width() - 90, self.height() - 90)
 
+    def _verify_technician_lock(self):
+        if self.db.get_setting("tech_lock_active", "0") != "1":
+            return True
+        stored_password = str(self.db.get_setting("tech_password", "") or "")
+        if not stored_password:
+            logger.warning("Technician lock is enabled without a password")
+            return False
+        from src.ui.dialogs.app_lock_dialog import AppLockDialog
+
+        dialog = AppLockDialog(
+            stored_password,
+            parent=self,
+            title_text="AYEC Pro - Teknisyen Guvenligi",
+            heading_text="Teknisyen Paneli Kilitli",
+        )
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return False
+        if dialog.upgraded_hash:
+            self.db.set_setting("tech_password", dialog.upgraded_hash)
+        return True
+
     def toggle_assistant(self):
         from src.ui.widgets.assistant_sidebar import AssistantSidebarDialog
         if self.assistant_sidebar and self.assistant_sidebar.isVisible():
@@ -115,6 +136,8 @@ class MainWindowFuncMixin:
         if tracking_key:
             self._last_technician_tracking = tracking_key
             QTimer.singleShot(10000, lambda: setattr(self, "_last_technician_tracking", None))
+        if not self._verify_technician_lock():
+            return
         if getattr(self, "_dialog_open", False):
             return
         self._dialog_open = True

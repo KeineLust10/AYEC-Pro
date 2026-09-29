@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import logging
-from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget
+from PyQt6.QtWidgets import QApplication, QDialog, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget
 from PyQt6.QtCore import QTimer, Qt, pyqtSignal
 
 # Import Mixins
@@ -50,6 +50,8 @@ class MainWindow(QMainWindow, MainWindowBaseMixin, MainWindowNavMixin, MainWindo
         self.is_archive_mode = False
         self._active_db = db
         self._current_page_index = 40
+        self._navigation_history = []
+        self._navigation_back_active = False
         self._initial_page_loaded = False
         self._dialog_open = False
         self._web_sync_worker = None
@@ -93,6 +95,27 @@ class MainWindow(QMainWindow, MainWindowBaseMixin, MainWindowNavMixin, MainWindo
         # This also sends the company location on the first successful sync.
         auto_sync = self.db.get_setting("desktop_auto_web_sync", "1") == "1"
         QTimer.singleShot(1200, lambda: self.configure_auto_web_sync(auto_sync))
+        QTimer.singleShot(0, self._enforce_app_lock)
+
+    def _enforce_app_lock(self):
+        """Prompt for the configured app password after the window is ready."""
+        try:
+            if self.db.get_setting("app_lock_active", "0") != "1":
+                return
+            stored_password = str(self.db.get_setting("app_password", "") or "")
+            if not stored_password:
+                logger.warning("App lock is enabled without a configured password")
+                return
+            from src.ui.dialogs.app_lock_dialog import AppLockDialog
+
+            dialog = AppLockDialog(stored_password, parent=self)
+            if dialog.exec() != QDialog.DialogCode.Accepted:
+                self.close()
+                return
+            if dialog.upgraded_hash:
+                self.db.set_setting("app_password", dialog.upgraded_hash)
+        except Exception as exc:
+            logger.exception("App lock startup check failed: %s", exc)
 
     def init_ui(self):
         self.setWindowTitle("AYEC Pro")
@@ -180,6 +203,14 @@ class MainWindow(QMainWindow, MainWindowBaseMixin, MainWindowNavMixin, MainWindo
             tax_worker.terminate()
             tax_worker.wait(1500)
         event.accept()
+
+    def toggle_dashboard_shortcuts(self):
+        """Show or hide the large shortcut screen on the overview page."""
+        page = self.pages.get(40)
+        if page is None:
+            page = self.get_page(40)
+        if page is not None and hasattr(page, "toggle_shortcut_screen"):
+            page.toggle_shortcut_screen()
 
     def configure_auto_web_sync(self, enabled):
         for timer_name in ("_web_sync_startup_timer", "_web_sync_hourly_timer"):

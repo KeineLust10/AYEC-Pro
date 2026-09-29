@@ -35,6 +35,7 @@ def main() -> int:
         "--include-package=pages",
         "--include-package=requests",
         "--include-data-dir=assets=assets",
+        f"--include-data-files={ROOT / 'ecosystem' / 'products.json'}=ecosystem/products.json",
         "--windows-icon-from-ico=assets/admin_icon.ico",
         "--output-filename=AYECPro_Admin_Console.exe",
         f"--output-dir={BUILD_ROOT}",

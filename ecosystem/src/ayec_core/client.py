@@ -2,6 +2,8 @@
 import json
 import hashlib
 import ssl
+from email.utils import parsedate_to_datetime
+from datetime import datetime, timezone
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
@@ -13,10 +15,30 @@ from .restore import stage_restore
 
 
 class CentralApiError(RuntimeError):
-    def __init__(self, message, *, status_code=None, error_code=""):
+    def __init__(self, message, *, status_code=None, error_code="", retry_after=None):
         super().__init__(message)
         self.status_code = status_code
         self.error_code = str(error_code or "")
+        self.retry_after = retry_after
+
+
+def _retry_after_seconds(value):
+    """Parse a bounded Retry-After value without making another request."""
+    if value is None:
+        return None
+    try:
+        seconds = float(str(value).strip())
+        if seconds >= 0:
+            return min(seconds, 6 * 60 * 60)
+    except (TypeError, ValueError):
+        pass
+    try:
+        target = parsedate_to_datetime(str(value))
+        if target.tzinfo is None:
+            target = target.replace(tzinfo=timezone.utc)
+        return min(max(0.0, (target - datetime.now(timezone.utc)).total_seconds()), 6 * 60 * 60)
+    except (TypeError, ValueError, OverflowError):
+        return None
 
 
 class CentralClient:
@@ -59,7 +81,10 @@ class CentralClient:
         except HTTPError as error:
             if error.code == 401:
                 self.cookies.clear()
-            raise CentralApiError(f'Central API HTTP {error.code}', status_code=error.code) from error
+            raise CentralApiError(
+                f'Central API HTTP {error.code}', status_code=error.code,
+                retry_after=_retry_after_seconds(error.headers.get('Retry-After')),
+            ) from error
         except (URLError, TimeoutError, OSError) as error:
             raise CentralApiError('Central API connection failed') from error
         if binary:
@@ -149,4 +174,8 @@ class CentralClient:
 
     def stage_restore_command(self, command, path, required_tables=()):
         return stage_restore(command, path, self.download_backup,
-                             product_code=self.product_code, required_tables=required_tables)
+                             product_code=self.product_code,
+                             tenant_id=self.tenant_id,
+                             hardware_id=self.device_id,
+                             installation_id=self.installation_id,
+                             required_tables=required_tables)

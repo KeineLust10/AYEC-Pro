@@ -594,6 +594,7 @@ class AddCustomerDialog(ModernDialog):
                 self.db.conn.commit()
                 if extension_data and hasattr(self.db, "upsert_sector_extension"):
                     self.db.upsert_sector_extension("customer", customer_id, extension_data, self._active_sector_id())
+                self._save_customer_360_note(customer_id, data.get("notes"))
                 self.saved_customer_id = customer_id
                 self.saved_customer_name = data["name"]
                 self.accept()
@@ -603,6 +604,7 @@ class AddCustomerDialog(ModernDialog):
                 if new_customer_id:
                     if extension_data and hasattr(self.db, "upsert_sector_extension"):
                         self.db.upsert_sector_extension("customer", new_customer_id, extension_data, self._active_sector_id())
+                    self._save_customer_360_note(new_customer_id, data.get("notes"))
                     try:
                         row = self.db.cursor.execute("SELECT id, name FROM customers WHERE id=?", (new_customer_id,)).fetchone()
                         if row:
@@ -656,6 +658,19 @@ class AddCustomerDialog(ModernDialog):
                     show_error(self, "Müşteri eklenirken bir hata oluştu.")
         except Exception as e:
             show_error(self, f"Veritabanı hatası: {e}")
+
+    def _save_customer_360_note(self, customer_id, content):
+        """Mirror the registration note into the Customer 360 notes stream."""
+        text = str(content or "").strip()
+        if not text or not customer_id or not hasattr(self.db, "add_customer_note"):
+            return
+        try:
+            existing = self.db.get_customer_notes(customer_id) if hasattr(self.db, "get_customer_notes") else ()
+            if any(str(row[1]).casefold() == "note" and str(row[2] or "").strip() == text for row in (existing or ())):
+                return
+            self.db.add_customer_note(customer_id, "Note", text)
+        except Exception:
+            logger.exception("Customer 360 note could not be saved for customer %s", customer_id)
 
     def on_mail_finished(self, success, message):
         if success:

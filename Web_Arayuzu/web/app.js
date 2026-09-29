@@ -1180,12 +1180,39 @@ function openProfileDialog(){
  dialog.showModal();
 }
 
+function renderTemporaryPasswordChange(identifier, tenantId, message=""){
+ showAuth(`<div class="auth-form-wrap"><div class="auth-form-head"><span class="auth-step-label">HESAP GUVENLIGI</span><h2>Yeni parolanizi belirleyin</h2><p>Gecici parola ile normal oturum acilmaz.</p></div>${authAlert(message,message?"error":"info")}<form class="auth-form" id="temporaryPasswordForm"><label>Gecici parola<input name="temporary_password" type="password" autocomplete="current-password" required autofocus></label><label>Yeni parola<input name="new_password" type="password" minlength="10" autocomplete="new-password" required></label><label>Yeni parola tekrar<input name="confirm_password" type="password" minlength="10" autocomplete="new-password" required></label><button class="primary auth-submit" type="submit">Parolayi Degistir</button></form></div>`);
+ const form=$("#temporaryPasswordForm");
+ form.onsubmit=async event=>{
+  event.preventDefault();
+  const values=Object.fromEntries(new FormData(form));
+  if(values.new_password!==values.confirm_password)return renderTemporaryPasswordChange(identifier,tenantId,"Parolalar eslesmiyor.");
+  setAuthBusy(form,true,"Parola degistiriliyor...");
+  try{
+   await apiFetch("/api/auth/change-temporary-password",{method:"POST",body:JSON.stringify({tenant_id:tenantId,identifier,temporary_password:values.temporary_password,new_password:values.new_password})});
+   renderLogin("Parolaniz guncellendi. Yeni parolanizla giris yapin.",identifier,"success");
+  }catch(error){renderTemporaryPasswordChange(identifier,tenantId,error.message)}
+  finally{setAuthBusy(form,false)}
+ };
+ bindAuthControls();
+}
+
 function renderLogin(message="",prefill="",messageType="info"){
  if(!authTenants.length)setTimeout(async()=>{try{const status=await apiFetch("/api/auth/status");authTenants=status.tenants||[];if(authTenants.length>1&&$("#loginForm"))renderLogin(message,$("#loginForm").identifier?.value||prefill,messageType)}catch{}},0);
  if(authTenants.length>1)setTimeout(()=>{const form=$("#loginForm");if(!form||form.querySelector("[name=tenant_id]"))return;const label=document.createElement("label");label.textContent="Firma";const select=document.createElement("select");select.name="tenant_id";select.innerHTML='<option value="">Otomatik se\u00e7</option>'+authTenants.map(t=>`<option value="${esc(t.id)}">${esc(t.company_name)}</option>`).join("");label.append(select);form.insertBefore(label,form.querySelector("label:nth-of-type(2)"))},0);
  showAuth(`<div class="auth-form-wrap"><div class="auth-form-head"><span class="auth-step-label">HOŞ GELDİNİZ</span><h2>AYEC Pro'ya giriş yapın</h2><p>Yönetim ekranınıza güvenli oturumla devam edin.</p></div>${authAlert(message,messageType)}<form class="auth-form" id="loginForm"><label>Kullanıcı adı veya e-posta<input name="identifier" value="${esc(prefill)}" autocomplete="username" required autofocus></label><label>Parola<div class="password-control"><input name="password" type="password" autocomplete="current-password" required><button type="button" data-toggle-password aria-label="Parolayı göster">◉</button></div></label><label class="remember-row"><input class="switch" name="remember" type="checkbox" value="1"><span><strong>Beni hatırla</strong><small>Bu cihazda 30 gün oturumu açık tut</small></span></label><button class="primary auth-submit" type="submit">Giriş Yap</button></form>${registrationEnabled?'<p class="auth-switch">Yeni kullanıcı mısınız? <button type="button" data-auth-view="register">Hesap oluşturun</button></p>':""}<div class="auth-help">Sorun yaşıyorsanız sistem yöneticinizle iletişime geçin.</div></div>`);
  if(setupRequired){const setupBack=document.createElement("p");setupBack.className="auth-switch";setupBack.innerHTML='<button type="button">Kuruluma geri dön</button>';setupBack.querySelector("button").onclick=()=>{wizardState.step=0;renderWizard()};$("#loginForm")?.after(setupBack)}
- const form=$("#loginForm");form.onsubmit=async event=>{event.preventDefault();setAuthBusy(form,true,"Giriş yapılıyor…");try{const values=Object.fromEntries(new FormData(form));const result=await apiFetch("/api/auth/login",{method:"POST",body:JSON.stringify({...values,remember:Boolean(values.remember)})});updateCurrentUser(result.user);hideAuth();await startApplication();toast(`Hoş geldiniz, ${result.user.full_name||result.user.username}`,"success")}catch(error){renderLogin(error.message,form.identifier.value,"error")}finally{setAuthBusy(form,false)}};
+ const form=$("#loginForm");form.onsubmit=async event=>{
+  event.preventDefault();setAuthBusy(form,true,"Giris yapiliyor...");
+  try{
+   const values=Object.fromEntries(new FormData(form));
+   const result=await apiFetch("/api/auth/login",{method:"POST",body:JSON.stringify({...values,remember:Boolean(values.remember)})});
+   if(result.password_change_required)return renderTemporaryPasswordChange(values.identifier,result.tenant_id);
+   updateCurrentUser(result.user);hideAuth();await startApplication();
+   toast(`Hos geldiniz, ${result.user.full_name||result.user.username}`,"success");
+  }catch(error){renderLogin(error.message,form.identifier.value,"error")}
+  finally{setAuthBusy(form,false)}
+ };
  bindAuthControls();
 }
 
@@ -1197,7 +1224,20 @@ renderLogin=function(message="",prefill="",messageType="info"){
   if(option)option.textContent="Otomatik se\u00e7";
   const form=$("#loginForm");
   if(!form)return;
-  form.onsubmit=async event=>{event.preventDefault();setAuthBusy(form,true,"Giris yapiliyor...");try{const values=Object.fromEntries(new FormData(form));const result=await apiFetch("/api/auth/login",{method:"POST",body:JSON.stringify({...values,remember:Boolean(values.remember)})});updateCurrentUser(result.user);hideAuth();await startApplication();toast(`Hos geldiniz, ${result.user.full_name||result.user.username}`,"success")}catch(error){const text=String(error.message||"").toLocaleLowerCase("tr-TR");if(text.includes("deneme")||text.includes("lisans"))renderLicenseActivation(error.message,form.identifier.value);else renderLogin(error.message,form.identifier.value,"error")}finally{setAuthBusy(form,false)}};
+  form.onsubmit=async event=>{
+   event.preventDefault();setAuthBusy(form,true,"Giris yapiliyor...");
+   try{
+    const values=Object.fromEntries(new FormData(form));
+    const result=await apiFetch("/api/auth/login",{method:"POST",body:JSON.stringify({...values,remember:Boolean(values.remember)})});
+    if(result.password_change_required)return renderTemporaryPasswordChange(values.identifier,result.tenant_id);
+    updateCurrentUser(result.user);hideAuth();await startApplication();
+    toast(`Hos geldiniz, ${result.user.full_name||result.user.username}`,"success");
+   }catch(error){
+    const text=String(error.message||"").toLocaleLowerCase("tr-TR");
+    if(text.includes("deneme")||text.includes("lisans"))renderLicenseActivation(error.message,form.identifier.value);
+    else renderLogin(error.message,form.identifier.value,"error");
+   }finally{setAuthBusy(form,false)}
+  };
   if(form.parentElement.querySelector(".license-activation-link"))return;
   const link=document.createElement("p");
   link.className="auth-switch license-activation-link";
@@ -1907,12 +1947,17 @@ async function loadControlCenter(){
             const u = t.users[uIdx];
             try {
               const res = await apiFetch("/api/control/password-reset", {method: "POST", body: JSON.stringify({tenant_id: t.id, user_id: u.id})});
-              let copied = false;
-              try { await navigator.clipboard.writeText(res.reset_url); copied = true; } catch(e) {}
-              openDialog("Sifre Sifirlama Baglantisi", "30 DAKIKA GECERLI", `
+                const delivery = res.mail_sent
+                  ? `Gecici parola yenileme baglantisi ${esc(res.recipient || "kayitli e-posta")} adresine gonderildi.`
+                  : `E-posta gonderilemedi: ${esc(res.mail_message || "SMTP hatasi")}`;
+                let fallback = "";
+                if (!res.mail_sent) {
+                  try { await navigator.clipboard.writeText(res.reset_url); } catch(e) {}
+                  fallback = `<div class="field"><label>Destek baglantisi</label><textarea readonly style="height: 60px;">${esc(res.reset_url)}</textarea></div>`;
+                }
+                openDialog("Sifre Sifirlama Baglantisi", "30 DAKIKA GECERLI", `
                 <div class="field"><label>Kullanici</label><input disabled value="${esc(res.username)}"></div>
-                <div class="field"><label>Baglanti</label><textarea readonly style="height: 60px;">${esc(res.reset_url)}</textarea></div>
-                <p class="muted">${copied ? "Baglanti panoya kopyalandi." : "Baglantiyi yukaridaki kutudan kopyalayip musteriye iletin."}</p>
+                <p class="muted">${delivery}</p>${fallback}
               `, () => true, "Kapat");
             } catch(err) { toast(err.message, "error"); }
           };

@@ -33,7 +33,9 @@ class MailWorker(QThread):
         # Credentials must come from the environment or encrypted app settings.
         self.smtp_server = os.getenv("AYECPRO_SMTP_SERVER", OFFICIAL_SMTP_SERVER)
         self.smtp_port = int(os.getenv("AYECPRO_SMTP_PORT", str(OFFICIAL_SMTP_PORT)))
-        self.system_email = os.getenv("AYECPRO_SMTP_EMAIL", OFFICIAL_EMAIL)
+        # Never ship a preselected sender identity; SMTP must be configured
+        # explicitly through environment variables or application settings.
+        self.system_email = os.getenv("AYECPRO_SMTP_EMAIL", "")
         self.app_password = os.getenv("AYECPRO_SMTP_APP_PASSWORD", "")
         self.use_tls = True
         
@@ -45,7 +47,9 @@ class MailWorker(QThread):
                     self.db.get_setting("smtp_email", "").strip()
                     or self.db.get_setting("smtp_user", "").strip()
                 )
-                db_pass = self.db.get_setting("smtp_password", "").strip()
+                from src.utils.secure_setting_store import SecureSettingStore
+
+                db_pass = SecureSettingStore.get(self.db, "smtp_password", "").strip()
                 db_tls = self.db.get_setting("smtp_use_tls", "1").strip()
 
                 if db_server: self.smtp_server = db_server

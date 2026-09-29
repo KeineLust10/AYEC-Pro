@@ -15,12 +15,19 @@ from product_catalog import product_code
 
 
 class _FetchLicenses(QThread):
-    done = pyqtSignal(list)
+    done = pyqtSignal(str, list)
     error = pyqtSignal(str)
+
+    def __init__(self, product_code: str = ""):
+        super().__init__()
+        self.product_code = str(product_code or "")
 
     def run(self):
         try:
-            self.done.emit(api_client.licenses(getattr(self, 'product_code', '')))
+            self.done.emit(
+                self.product_code,
+                api_client.licenses(self.product_code),
+            )
         except Exception as exc:
             self.error.emit(str(exc))
 
@@ -44,6 +51,7 @@ class _UpdateLicense(QThread):
 class LicensesPage(QWidget):
     def __init__(self):
         super().__init__()
+        self.product_code = ""
         self._licenses: list[dict] = []
         self._threads = set()
         self._build_ui()
@@ -209,11 +217,18 @@ class LicensesPage(QWidget):
         root.addWidget(self._status_lbl)
 
     def _load(self):
-        t = _FetchLicenses()
-        t.done.connect(self._populate)
+        t = _FetchLicenses(self.product_code)
+        t.done.connect(self._populate_for_product)
         t.error.connect(lambda e: self._status_lbl.setText(f"Hata: {e}"))
         self._keep_thread(t)
         t.start()
+
+    def _populate_for_product(self, requested_product: str, data: list):
+        # Ignore a slow response from an earlier selection so it cannot put
+        # another product's rows back into the table after the user switches.
+        if requested_product != self.product_code:
+            return
+        self._populate(data)
 
     def _keep_thread(self, thread):
         self._threads.add(thread)

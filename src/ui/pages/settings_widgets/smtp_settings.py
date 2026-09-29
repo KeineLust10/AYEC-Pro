@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QFormLayout, QLineEdit, QPushB
 
 from src.utils.theme_colors import theme_qss
 from src.utils.design_system import DesignTokens
+from src.utils.secure_setting_store import SecureSettingStore
 
 
 class SMTPSettingsWidget(QWidget):
@@ -35,7 +36,9 @@ class SMTPSettingsWidget(QWidget):
         self.inp_smtp_server = QLineEdit(self.db.get_setting("smtp_server", "srvm07.trwww.com"))
         self.inp_smtp_port = QLineEdit(self.db.get_setting("smtp_port", "465"))
         self.inp_smtp_email = QLineEdit(self.db.get_setting("smtp_email", "info@ayecpro.com"))
-        self.inp_smtp_password = QLineEdit(self.db.get_setting("smtp_password", ""))
+        self.inp_smtp_password = QLineEdit(
+            SecureSettingStore.get(self.db, "smtp_password", "")
+        )
         self.inp_smtp_password.setEchoMode(QLineEdit.EchoMode.Password)
         for field in (
             self.inp_smtp_server,
@@ -66,7 +69,7 @@ class SMTPSettingsWidget(QWidget):
         self.db.set_setting("smtp_server", self.inp_smtp_server.text())
         self.db.set_setting("smtp_port", self.inp_smtp_port.text())
         self.db.set_setting("smtp_email", self.inp_smtp_email.text())
-        self.db.set_setting("smtp_password", self.inp_smtp_password.text())
+        SecureSettingStore.set(self.db, "smtp_password", self.inp_smtp_password.text())
 
         if self.main_window:
             self.main_window.show_notification("SMTP ayarları kaydedildi.", "success")

@@ -321,7 +321,9 @@ class JarvisAssistantDialog(ModernDialog):
                 return
 
         if not self.ai_service.is_configured:
-            api_key = self.db.get_setting("gemini_api_key", "")
+            from src.utils.secure_setting_store import SecureSettingStore
+
+            api_key = SecureSettingStore.get(self.db, "gemini_api_key", "")
             if api_key: self.ai_service.setup_gemini(api_key)
             if not self.ai_service.is_configured:
                 self.add_message("Gemini API anahtarı eksik. Ayarlardan yapılandırın.", True)

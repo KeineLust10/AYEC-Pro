@@ -133,7 +133,9 @@ class MainWindowServiceMixin:
             return
         self._gemini_startup_models_requested = True
         try:
-            keys_str = self.db.get_setting("gemini_api_key", "")
+            from src.utils.secure_setting_store import SecureSettingStore
+
+            keys_str = SecureSettingStore.get(self.db, "gemini_api_key", "")
             keys_list = [k.strip() for k in str(keys_str or "").replace(",", "\n").split("\n") if k.strip()]
             if not keys_list:
                 logger.info("Gemini startup model list skipped: API key is not configured.")

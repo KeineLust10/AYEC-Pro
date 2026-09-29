@@ -25,6 +25,7 @@ from src.ui.pages.settings_widgets.voice_training_widget import VoiceTrainingWid
 from src.ui.pages.settings_widgets.whatsapp_settings import WhatsAppSettingsWidget
 from src.utils.theme_colors import tc, theme_qss
 from src.utils.appearance_mode import AppearanceModeManager
+from src.utils.secure_setting_store import SecureSettingStore
 
 
 class IntegrationHubWidget(QWidget):
@@ -274,9 +275,13 @@ class IntegrationHubWidget(QWidget):
         form.setFormAlignment(Qt.AlignmentFlag.AlignTop)
 
         endpoint = QLineEdit(str(self.db.get_setting(f"{key}_endpoint", "") or ""))
-        api_key = QLineEdit(str(self.db.get_setting(f"{key}_api_key", "") or ""))
+        api_key = QLineEdit(
+            SecureSettingStore.get(self.db, f"{key}_api_key", "")
+        )
         api_key.setEchoMode(QLineEdit.EchoMode.Password)
-        webhook = QLineEdit(str(self.db.get_setting(f"{key}_webhook", "") or ""))
+        webhook = QLineEdit(
+            SecureSettingStore.get(self.db, f"{key}_webhook", "")
+        )
 
         form.addRow("Endpoint:", endpoint)
         form.addRow("API Key:", api_key)
@@ -295,8 +300,10 @@ class IntegrationHubWidget(QWidget):
 
         def _save():
             self.db.set_setting(f"{key}_endpoint", endpoint.text().strip())
-            self.db.set_setting(f"{key}_api_key", api_key.text().strip())
-            self.db.set_setting(f"{key}_webhook", webhook.text().strip())
+            SecureSettingStore.set(self.db, f"{key}_api_key", api_key.text().strip())
+            SecureSettingStore.set(
+                self.db, f"{key}_webhook", webhook.text().strip()
+            )
 
         save_btn.clicked.connect(_save)
         layout.addWidget(save_btn, alignment=Qt.AlignmentFlag.AlignLeft)

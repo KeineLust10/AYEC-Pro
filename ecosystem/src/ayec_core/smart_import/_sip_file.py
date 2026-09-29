@@ -8,8 +8,6 @@ import re
 import zipfile
 from pathlib import Path
 
-from defusedxml import ElementTree as ET
-
 class _SipFile:
     """
     Dosya ayrıştırma işlemleri.
@@ -47,8 +45,11 @@ class _SipFile:
     # ── CSV ────────────────────────────────────────────────────────────────
     @classmethod
     def _parse_csv(cls, file_path):
-        from ._sip_lazy_imports import get_pd
-        pd = get_pd()
+        try:
+            from ._sip_lazy_imports import get_pd
+            pd = get_pd()
+        except ImportError:
+            pd = None
         rows   = []
         columns = []
         metadata = {}
@@ -58,7 +59,7 @@ class _SipFile:
             {"encoding": "cp1254",    "sep": None},
             {"encoding": "latin1",    "sep": None},
         ]
-        for attempt in read_attempts:
+        for attempt in read_attempts if pd is not None else ():
             try:
                 df = pd.read_csv(
                     file_path,
@@ -178,6 +179,10 @@ class _SipFile:
     # ── DOCX ──────────────────────────────────────────────────────────────
     @classmethod
     def _read_docx_text(cls, file_path):
+        try:
+            from defusedxml import ElementTree as ET
+        except ImportError as error:
+            raise RuntimeError("DOCX/XML import requires the smart-import extra") from error
         namespaces = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
         with zipfile.ZipFile(file_path) as zf:
             xml_bytes = zf.read("word/document.xml")
@@ -192,6 +197,14 @@ class _SipFile:
             if parts:
                 lines.append(" ".join(parts))
         return "\n".join(lines)
+
+    @staticmethod
+    def _xml_element_tree():
+        try:
+            from defusedxml import ElementTree as ET
+        except ImportError as error:
+            raise RuntimeError("XML import requires the smart-import extra") from error
+        return ET
 
     # ── PDF ────────────────────────────────────────────────────────────────
     @classmethod
@@ -451,6 +464,7 @@ class _SipFile:
     # ── XML ────────────────────────────────────────────────────────────────
     @classmethod
     def _parse_xml_invoice(cls, file_path):
+        ET = cls._xml_element_tree()
         try:
             root = ET.parse(str(file_path)).getroot()
         except Exception:

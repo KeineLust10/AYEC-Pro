@@ -18,7 +18,14 @@ class DashboardUIMixin:
         if row == -1:
             return
 
-        tracking_no = self.table.item(row, 0).text()
+        tracking_item = self.table.item(row, 0)
+        # ServiceListPage reserves column 0 for its selection checkbox.
+        # Resolve the actual tracking number from column 1 in that table.
+        if tracking_item is None and self.table.columnCount() > 1:
+            tracking_item = self.table.item(row, 1)
+        if tracking_item is None:
+            return
+        tracking_no = tracking_item.text()
         customer_item = self.table.item(row, 2) if self.table.columnCount() > 2 else self.table.item(row, 1)
         customer_name = customer_item.text() if customer_item else ""
 

@@ -49,15 +49,19 @@ class AccountingFuncMixin:
             if ref_ds and ref_ds not in full_ds: full_ds = f"{full_ds} | {ref_ds}"
             try: self.db.create_payment_debt_links_table()
             except: pass
-            saved = self.db.add_currency_transaction(customer_id=customer["id"], amount=amt, currency=curr, transaction_type="CREDIT", exchange_rate=rate, description=full_ds, tracking_no=ref_tr, created_at=c_at)
+            saved = self.db.add_currency_transaction(customer_id=customer["id"], amount=amt, currency=curr, transaction_type="CREDIT", exchange_rate=rate, description=full_ds, tracking_no=ref_tr, created_at=c_at, commit=False)
             if not saved: show_warning(self, "Tahsilat kaydedilirken bir hata oluştu."); return
             try:
                 pid = self.db.get_last_currency_transaction_id()
-                if pid: self.db.apply_payment_to_debts(customer_id=customer["id"], payment_amount=amt, currency=curr, payment_transaction_id=pid, selected_debt_ids=data.get("selected_debt_ids") or None)
-            except: pass
+                if pid: self.db.apply_payment_to_debts(customer_id=customer["id"], payment_amount=amt, currency=curr, payment_transaction_id=pid, selected_debt_ids=data.get("selected_debt_ids") or None, commit=False)
+            except Exception:
+                self.db.conn.rollback()
+                raise
             tl_amt = amt * (rate if curr != "TRY" else 1.0)
-            try: self.db.add_transaction(t_type="Gelir", category="Tahsilat", amount=tl_amt, description=full_ds, customer_name=customer.get("name"), customer_id=customer["id"], date=acc_date, payment_method=data.get("method"), bank_account_id=data.get("bank_account_id"), tracking_no=ref_tr, ref_no=ref_tr, currency=curr, original_amount=amt)
-            except: pass
+            accounting_id = self.db.add_transaction(t_type="Gelir", category="Tahsilat", amount=tl_amt, description=full_ds, customer_name=customer.get("name"), customer_id=customer["id"], date=acc_date, payment_method=data.get("method"), bank_account_id=data.get("bank_account_id"), tracking_no=ref_tr, ref_no=ref_tr, currency=curr, original_amount=amt, commit=False)
+            if not accounting_id:
+                raise RuntimeError("Muhasebe kaydi olusturulamadi")
+            self.db.conn.commit()
             show_success(self, "Tahsilat ba\u015far\u0131yla kaydedildi.")
             try:
                 from src.utils.asistan_motoru import sesli_cevap_ver_async

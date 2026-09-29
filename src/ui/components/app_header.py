@@ -46,6 +46,14 @@ class AppHeader(QWidget):
                 mw.start_window_drag(event.globalPosition().toPoint())
         super().mousePressEvent(event)
 
+    def _go_back(self):
+        if hasattr(self.main_window, "navigate_back"):
+            self.main_window.navigate_back()
+
+    def set_back_enabled(self, enabled):
+        if hasattr(self, "btn_back"):
+            self.btn_back.setEnabled(bool(enabled))
+
     def mouseMoveEvent(self, event):
         mw = self.main_window
         if hasattr(mw, "update_window_drag"):
@@ -84,6 +92,15 @@ class AppHeader(QWidget):
             self.lbl_logo.setText("*")
             self.lbl_logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.lbl_logo)
+
+        self.btn_back = QPushButton("< Geri")
+        self.btn_back.setObjectName("HeaderActionButton")
+        self.btn_back.setFixedHeight(34)
+        self.btn_back.setMinimumWidth(72)
+        self.btn_back.setToolTip("Onceki sayfaya don")
+        self.btn_back.setEnabled(False)
+        self.btn_back.clicked.connect(self._go_back)
+        layout.addWidget(self.btn_back)
 
         # ── Uygulama adı ─────────────────────────────────────────────────────
         self.lbl_app_name = QLabel("AYEC Pro")
@@ -143,6 +160,13 @@ class AppHeader(QWidget):
         self.btn_settings.setIconSize(self.btn_settings.size() * 0.52)
         self.btn_settings.clicked.connect(lambda: self.main_window.on_menu_click(130))
         layout.addWidget(self.btn_settings)
+
+        self.btn_shortcuts = QPushButton("\u2605")
+        self.btn_shortcuts.setObjectName("HeaderIconButton")
+        self.btn_shortcuts.setFixedSize(34, 34)
+        self.btn_shortcuts.setToolTip("Genel Bak\u0131\u015f k\u0131sayollar\u0131")
+        self.btn_shortcuts.clicked.connect(self.main_window.toggle_dashboard_shortcuts)
+        layout.addWidget(self.btn_shortcuts)
 
         self.btn_theme_toggle = QPushButton()
         self.btn_theme_toggle.setObjectName("HeaderIconButton")
@@ -430,6 +454,7 @@ class AppHeader(QWidget):
         classic = self._is_classic_appearance()
         for widget in (
             self.btn_settings,
+            self.btn_shortcuts,
             self.btn_theme_toggle,
             self.btn_web_sync,
             self.btn_interface_edit,
@@ -472,6 +497,7 @@ class AppHeader(QWidget):
             )
         )
         self.btn_settings.setStyleSheet(self._button_style())
+        self.btn_shortcuts.setStyleSheet(self._button_style())
         self.btn_theme_toggle.setStyleSheet(self._button_style())
         self.btn_web_sync.setStyleSheet(self._button_style())
         self.btn_interface_edit.setStyleSheet(self._action_button_style())

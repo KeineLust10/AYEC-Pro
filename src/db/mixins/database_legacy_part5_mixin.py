@@ -940,30 +940,38 @@ class DatabaseLegacyPart5Mixin:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 customer_id INTEGER,
                 type TEXT, -- 'Note', 'WhatsApp', 'SMS', 'Call'
+                title TEXT,
                 content TEXT,
                 created_at TEXT,
                 FOREIGN KEY(customer_id) REFERENCES customers(id)
             )
         """)
+        self.cursor.execute("PRAGMA table_info(customer_notes)")
+        columns = {row[1] for row in (self.cursor.fetchall() or [])}
+        if "title" not in columns:
+            self.cursor.execute("ALTER TABLE customer_notes ADD COLUMN title TEXT")
         self.conn.commit()
 
 
-    def add_customer_note(self, customer_id, note_type, content):
+    def add_customer_note(self, customer_id, note_type, content, title=""):
         created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.cursor.execute("""
-            INSERT INTO customer_notes (customer_id, type, content, created_at)
-            VALUES (?, ?, ?, ?)
-        """, (customer_id, note_type, content, created_at))
+            INSERT INTO customer_notes (customer_id, type, title, content, created_at)
+            VALUES (?, ?, ?, ?, ?)
+        """, (customer_id, note_type, title, content, created_at))
         self.conn.commit()
 
 
     def get_customer_notes(self, customer_id):
+        self.cursor.execute("PRAGMA table_info(customer_notes)")
+        columns = {row[1] for row in (self.cursor.fetchall() or [])}
+        title_sql = "title" if "title" in columns else "'' AS title"
         self.cursor.execute("""
-            SELECT id, type, content, created_at 
+            SELECT id, type, {title_sql}, content, created_at
             FROM customer_notes 
             WHERE customer_id = ? 
             ORDER BY created_at DESC
-        """, (customer_id,))
+        """.format(title_sql=title_sql), (customer_id,))
         return self.cursor.fetchall()
             
 

@@ -15,6 +15,7 @@ from pathlib import Path
 import json
 import sqlite3
 import threading
+from urllib.parse import urlsplit, urlunsplit
 
 logger = logging.getLogger('CloudBackup')
 
@@ -32,6 +33,7 @@ class CloudBackupManager:
         self.db_path = db_path
         self.config_file = config_file
         self.config = self.load_config()
+        self._apply_database_remote_settings()
         
         # Provider'ları başlat
         self.providers = {}
@@ -48,6 +50,20 @@ class CloudBackupManager:
             return row[0] if row else default
         except Exception:
             return default
+
+    def _apply_database_remote_settings(self):
+        """Apply the Settings screen remote endpoint to the backup provider."""
+        remote = self.config.setdefault("remote_server", {})
+        enabled = self.get_db_setting("remote_enabled", None)
+        if enabled is not None:
+            remote["enabled"] = str(enabled).strip().lower() in {
+                "1", "true", "yes", "on"
+            }
+        logging_enabled = self.get_db_setting("remote_logging", None)
+        if logging_enabled is not None:
+            remote["logging_enabled"] = str(logging_enabled).strip().lower() in {
+                "1", "true", "yes", "on"
+            }
     
     def checkpoint(self):
         """WAL modundaki veritabanını ana dosyaya işle (Flush)"""
@@ -87,7 +103,7 @@ class CloudBackupManager:
                 },
                 'remote_server': {
                     'enabled': True,
-                    'url': 'http://85.117.239.60:8000/api/backup/upload',
+                    'url': 'https://lisans.ayecpro.com/api/support/backups/upload',
                     'auth_token': ''
                 }
             }
@@ -101,7 +117,7 @@ class CloudBackupManager:
     def _init_providers(self):
         """Cloud provider'ları başlat"""
         # AWS S3
-        if self.config['aws_s3']['enabled']:
+        if self.config.get("aws_s3", {}).get("enabled"):
             try:
                 from .cloud_providers.aws_s3 import S3Provider
                 self.providers['s3'] = S3Provider(self.config['aws_s3'])
@@ -112,7 +128,7 @@ class CloudBackupManager:
                 logger.error(f"AWS S3 init error: {e}")
         
         # Google Drive
-        if self.config['google_drive']['enabled']:
+        if self.config.get("google_drive", {}).get("enabled"):
             try:
                 from .cloud_providers.google_drive import GoogleDriveProvider
                 self.providers['gdrive'] = GoogleDriveProvider(self.config['google_drive'])
@@ -123,7 +139,7 @@ class CloudBackupManager:
                 logger.error(f"Google Drive init error: {e}")
         
         # Dropbox
-        if self.config['dropbox']['enabled']:
+        if self.config.get("dropbox", {}).get("enabled"):
             try:
                 from .cloud_providers.dropbox_provider import DropboxProvider
                 self.providers['dropbox'] = DropboxProvider(self.config['dropbox'])
@@ -470,6 +486,29 @@ class RemoteProvider(CloudProvider):
         super().__init__(config)
         self.parent = parent # CloudBackupManager instance
 
+    def _endpoint_url(self, action):
+        configured = ""
+        if self.parent:
+            configured = self.parent.get_db_setting("remote_server_ip", "")
+            if not configured:
+                configured = self.parent.get_db_setting("backup_server_ip", "")
+        base_url = str(configured or self.config.get("url", "") or "").strip()
+        if not base_url:
+            return ""
+        if "://" not in base_url:
+            base_url = "http://" + base_url
+        parsed = urlsplit(base_url)
+        netloc = parsed.netloc
+        port = ""
+        if self.parent:
+            port = str(self.parent.get_db_setting("remote_server_port", "") or "").strip()
+        if port and netloc and ":" not in netloc.rsplit("@", 1)[-1]:
+            netloc = f"{netloc}:{port}"
+        path = parsed.path or ""
+        if f"/api/backup/{action}" not in path:
+            path = path.rstrip("/") + f"/api/backup/{action}"
+        return urlunsplit((parsed.scheme, netloc, path, parsed.query, parsed.fragment))
+
     def upload(self, file_path, customer_name=None):
         import requests
         try:
@@ -514,6 +553,9 @@ class RemoteProvider(CloudProvider):
                  # Fallback to config only if NO IP found
                 url = self.config['url']
             
+            configured_url = self._endpoint_url("upload")
+            if configured_url:
+                url = configured_url
             logger.info(f"Target Upload URL: {url}")
 
             headers = {}
@@ -594,6 +636,9 @@ class RemoteProvider(CloudProvider):
             else:
                 url = self.config.get('url', '').replace('/upload', '/download')
             
+            configured_url = self._endpoint_url("download")
+            if configured_url:
+                url = configured_url
             logger.info(f"Target Download URL: {url}")
 
             # Auth header

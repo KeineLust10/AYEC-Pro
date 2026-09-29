@@ -145,12 +145,18 @@ class TechnicianPanelInventoryMixin:
     def load_parts(self):
         self.combo_parts.clear()
         try:
-            self.db.cursor.execute("""
-                SELECT id, name, stock, price, COALESCE(currency, 'TRY') AS currency
-                FROM parts
-                WHERE (is_deleted = 0 OR is_deleted IS NULL) AND COALESCE(stock, 0) > 0
-                ORDER BY name
-            """)
+            self.db.cursor.execute("PRAGMA table_info(parts)")
+            columns = {str(row[1]) for row in self.db.cursor.fetchall()}
+            currency_expr = "COALESCE(currency, 'TRY')" if "currency" in columns else "'TRY'"
+            deleted_filter = (
+                " AND (is_deleted = 0 OR is_deleted IS NULL)"
+                if "is_deleted" in columns else ""
+            )
+            self.db.cursor.execute(
+                "SELECT id, name, stock, price, " + currency_expr +
+                " AS currency FROM parts WHERE COALESCE(stock, 0) > 0" +
+                deleted_filter + " ORDER BY name"
+            )
             parts = self.db.cursor.fetchall() or []
             for p in parts:
                 cur = str(p[4] or 'TRY').upper()

@@ -45,7 +45,7 @@ Keep the existing `data` and tenant data directories when migrating live data.
 
 ## One-click setup
 
-Extract the ZIP and double-click `AYEC_PRO_TEK_TIK_BASLAT.cmd`. On a new server it
+Extract the ZIP and double-click `AYEC_START.cmd`. On a new server it
 requests administrator permission and runs the Python/IIS installation, scheduled
 task and port 80 proxy configuration automatically. On later runs it starts the
 backend with the server environment, starts IIS when available, and opens

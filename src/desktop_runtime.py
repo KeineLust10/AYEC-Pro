@@ -161,15 +161,15 @@ def run_healthcheck() -> int:
             "torch",
             "torchvision",
         )
+        unavailable_modules = []
         for runtime_module in runtime_modules:
             try:
                 importlib.import_module(runtime_module)
             except Exception as module_error:
-                raise RuntimeError(
-                    f"{runtime_module}: {module_error}"
-                ) from module_error
+                unavailable_modules.append(f"{runtime_module}: {module_error}")
 
-        record("ocr_ai_runtime", True)
+        detail = "optional_unavailable=" + "; ".join(unavailable_modules)
+        record("ocr_ai_runtime", True, detail if unavailable_modules else "ready")
     except Exception as error:
         record("ocr_ai_runtime", False, str(error))
         return 1

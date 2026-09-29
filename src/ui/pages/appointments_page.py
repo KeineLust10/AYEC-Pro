@@ -687,7 +687,7 @@ class CalendarCard(QFrame):
         # Lighter tint for background
         self.setStyleSheet(theme_qss(f"""
             QFrame {{
-                background-color: {color}15; /* %15 opacity */
+                background-color: rgba({QColor(color).red()}, {QColor(color).green()}, {QColor(color).blue()}, 25);
                 border-left: 4px solid {color};
                 border-radius: 6px;
                 border-right: 1px solid @border;
@@ -695,8 +695,8 @@ class CalendarCard(QFrame):
                 border-bottom: 1px solid @border;
             }}
             QFrame:hover {{
-                background-color: {color}25;
-                margin-top: -2px; /* Lift effect */
+                background-color: rgba({QColor(color).red()}, {QColor(color).green()}, {QColor(color).blue()}, 45);
+                margin: 0px;
             }}
         """))
         
@@ -708,11 +708,12 @@ class CalendarCard(QFrame):
         self.setGraphicsEffect(shadow)
         
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 8, 10, 8)
-        layout.setSpacing(4)
+        layout.setContentsMargins(8, 6, 8, 6)
+        layout.setSpacing(2)
         
         # Müşteri İsmi
         lbl_name = QLabel(self.data.get('customer_name', ''))
+        lbl_name.setMinimumHeight(30)
         lbl_name.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
         lbl_name.setStyleSheet(theme_qss("color: @text; border: none; background: transparent;"))
         lbl_name.setWordWrap(True)
@@ -722,7 +723,9 @@ class CalendarCard(QFrame):
         # İşlem Tipi
         desc = self.data.get('description') or ''
         type_text = desc.split(' - ')[0] if ' - ' in desc else desc
-        lbl_type = QLabel(type_text)
+        self.setToolTip("{}\n{}\n{}".format(self.data.get("time", ""), self.data.get("customer_name", ""), desc))
+        lbl_type = QLabel(str(self.data.get("time", "")) + "  " + (type_text[:22] + "..." if len(type_text) > 22 else type_text))
+        lbl_type.setWordWrap(True)
         lbl_type.setStyleSheet(theme_qss(f"color: {color}; font-size: 10px; font-weight: bold; border: none; background: transparent;"))
         layout.addWidget(lbl_type)
 
@@ -783,7 +786,9 @@ class CalendarTable(QTableWidget):
         
         self.apply_theme_styles()
         self.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
+        self.verticalHeader().setDefaultSectionSize(112)
+        self.horizontalHeader().setMinimumSectionSize(80)
         self.verticalHeader().setVisible(False)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.setShowGrid(True)
@@ -1155,7 +1160,7 @@ class AppointmentsPage(QWidget):
         
         # --- ANA EKRAN (SOL: TAKVİM | SAĞ: İŞLEM PANELİ) ---
         main_content = QHBoxLayout()
-        main_content.setSpacing(20)
+        main_content.setSpacing(12)
         
         # TAKVİM (SOL)
         self.table = CalendarTable(self)
@@ -1172,7 +1177,7 @@ class AppointmentsPage(QWidget):
         days = ["Saat", "Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"]
         self.table.setHorizontalHeaderLabels(days)
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
-        self.table.setColumnWidth(0, 80)
+        self.table.setColumnWidth(0, 64)
         
         # Saat sütununu doldur
         for i, h in enumerate(self.hours):
@@ -1190,11 +1195,11 @@ class AppointmentsPage(QWidget):
         
         # SAĞ PANEL (GÜNÜN AKIŞI)
         self.side_panel = QFrame()
-        self.side_panel.setFixedWidth(320)
+        self.side_panel.setFixedWidth(280)
         
         side_layout = QVBoxLayout(self.side_panel)
-        side_layout.setContentsMargins(20, 20, 20, 20)
-        side_layout.setSpacing(15)
+        side_layout.setContentsMargins(14, 14, 14, 14)
+        side_layout.setSpacing(10)
         
         lbl_side_title = QLabel(" Bugünün İşlemleri")
         lbl_side_title.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))

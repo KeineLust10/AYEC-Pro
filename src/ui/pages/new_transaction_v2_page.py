@@ -935,7 +935,14 @@ class NewTransactionV2Page(TransactionPageBehaviorMixin, QWidget):
         if not offer:
             raise RuntimeError("Offer record was not found.")
         status = str(offer["status"] or "").strip().lower()
-        if status in {"accepted", "processed"}:
+        status = (
+            status.replace("\u0131", "i")
+            .replace("\u015f", "s")
+            .replace("\u0130", "i")
+            .replace("\u015e", "s")
+            .replace("\u0307", "")
+        )
+        if status in {"accepted", "processed", "islenmis", "kabul edildi"}:
             raise RuntimeError("Accepted offers cannot be edited.")
 
         rows = self.db.get_offer_items_detailed(int(offer_id)) or []

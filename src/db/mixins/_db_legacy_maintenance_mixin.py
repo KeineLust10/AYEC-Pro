@@ -70,7 +70,8 @@ class DBLegacyMaintenanceMixin:
                     ("last_login_user", "admin"),
                 )
                 self.conn.commit()
-                self.ensure_default_settings()
+                if hasattr(self, "ensure_default_settings"):
+                    self.ensure_default_settings()
                 if hasattr(self, "update_settings_cache_entry"):
                     for key, val in reset_values.items():
                         self.update_settings_cache_entry(

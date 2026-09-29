@@ -322,6 +322,22 @@ class Database(
                 )
                 """
             )
+            self.cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS offer_reversals (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    offer_id INTEGER NOT NULL,
+                    original_tracking_no TEXT NOT NULL,
+                    reversal_tracking_no TEXT NOT NULL UNIQUE,
+                    reason TEXT NOT NULL,
+                    reversed_by TEXT,
+                    payload_json TEXT,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(offer_id, original_tracking_no),
+                    FOREIGN KEY(offer_id) REFERENCES offers(id)
+                )
+                """
+            )
             self.cursor.execute("CREATE INDEX IF NOT EXISTS idx_offers_customer_id ON offers(customer_id)")
             self.cursor.execute("CREATE INDEX IF NOT EXISTS idx_offers_created_at ON offers(created_at)")
             self.conn.commit()
@@ -471,7 +487,20 @@ class Database(
         existing = self.cursor.fetchone()
         if existing:
             existing_status = str(existing[1] or "").strip().lower()
-            if existing_status in {"accepted", "processed"}:
+            existing_status = (
+                existing_status.replace("\u0131", "i")
+                .replace("\u015f", "s")
+                .replace("\u0130", "i")
+                .replace("\u015e", "s")
+                .replace("\u0307", "")
+            )
+            if (
+                existing_status in {
+                    "accepted", "processed", "accepted offer", "islenmis", "kabul edildi",
+                }
+                or "islen" in existing_status
+                or "kabul" in existing_status
+            ):
                 raise ValueError("Accepted offers cannot be edited.")
             offer_id = int(existing[0])
             self.cursor.execute(

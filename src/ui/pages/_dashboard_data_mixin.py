@@ -38,7 +38,12 @@ class DashboardDataMixin:
         }
         total = 0
         try:
-            cols = self._get_devices_columns()
+            # Use a fresh cursor for dashboard reads. The shared UI cursor can
+            # be left on a closed result after navigating between pages.
+            conn = getattr(self.db, "conn", None)
+            read_cursor = conn.cursor() if conn is not None else self.db.cursor
+            read_cursor.execute("PRAGMA table_info(devices)")
+            cols = {row[1] for row in (read_cursor.fetchall() or []) if len(row) > 1}
             selected = ["status"]
             for optional in ("price", "payment_status", "service_source", "delivery_type"):
                 if optional in cols:
@@ -53,19 +58,20 @@ class DashboardDataMixin:
             query = "SELECT {cols} FROM devices".format(cols=", ".join(selected))
             if where:
                 query += " WHERE " + " AND ".join(where)
-            self.db.cursor.execute(query)
-            rows = self.db.cursor.fetchall() or []
+            read_cursor.execute(query)
+            rows = read_cursor.fetchall() or []
             idx = {name: pos for pos, name in enumerate(selected)}
 
             for row in rows:
                 total += 1
-                status = normalize_device_status(row[idx["status"]] if row else None)
+                raw_status = str(row[idx["status"]] or "").strip() if row else ""
+                status = normalize_device_status(raw_status)
                 if status == "Bekliyor": counts["bekliyor"] += 1
                 elif status == "Tamirde": counts["tamirde"] += 1
-                elif status == "Parça Bekliyor": counts["parca"] += 1
-                elif status == "Test Sürecinde": counts["test"] += 1
+                elif status == "Par\u00e7a Bekliyor": counts["parca"] += 1
+                elif status == "Test S\u00fcrecinde": counts["test"] += 1
                 elif status == "Teslim Edildi": counts["teslim"] += 1
-                elif status == "İptal": counts["iptal"] += 1
+                elif status == "\u0130ptal": counts["iptal"] += 1
 
                 price = 0.0
                 if "price" in idx:
@@ -85,13 +91,15 @@ class DashboardDataMixin:
                 if "kargo" in shipment_text:
                     counts["kargo"] += 1
         except Exception as e:
-            logger.debug(f"Dashboard status tile update failed: {e}")
-            total = 0
+            # Keep the last known values when a transient refresh fails.
+            # A failed reconnect must not make valid cards appear as zero.
+            logger.exception("Dashboard status tile update failed: %s", e)
+            return
 
         for key, tile in self._status_tiles.items():
             count = int(counts.get(key, 0))
             if tile.get("count"):
-                tile["count"].setText(f"{count} ADET")
+                tile["count"].setText(str(count))
             if tile.get("pct"):
                 pct = int(round((count / total) * 100)) if total else 0
                 tile["pct"].setText(f"{pct}%")

@@ -349,20 +349,26 @@ class CustomerMixin:
             logger.error(f"Get customer balances error: {e}")
             return []
     
-    def add_customer_note(self, customer_id, note_type, content):
+    def add_customer_note(self, customer_id, note_type, content, title=""):
         """Müşteriye özel not ekle"""
         try:
             created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             self.cursor.execute("PRAGMA table_info(customer_notes)")
             columns = [row[1] for row in self.cursor.fetchall() or []]
             type_column = "note_type" if "note_type" in columns else "type"
-            self.cursor.execute(
-                f"""
-                INSERT INTO customer_notes (customer_id, {type_column}, content, created_at)
-                VALUES (?, ?, ?, ?)
-                """,
-                (customer_id, note_type, content, created_at),
-            )
+            if "title" not in columns:
+                self.cursor.execute("ALTER TABLE customer_notes ADD COLUMN title TEXT")
+                columns.append("title")
+            if "title" in columns:
+                self.cursor.execute(
+                    f"INSERT INTO customer_notes (customer_id, {type_column}, title, content, created_at) VALUES (?, ?, ?, ?, ?)",
+                    (customer_id, note_type, title, content, created_at),
+                )
+            else:
+                self.cursor.execute(
+                    f"INSERT INTO customer_notes (customer_id, {type_column}, content, created_at) VALUES (?, ?, ?, ?)",
+                    (customer_id, note_type, content, created_at),
+                )
             self.conn.commit()
             return True
         except Exception as e:

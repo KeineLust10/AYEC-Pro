@@ -4,20 +4,29 @@ from PyQt6.QtWidgets import QLabel, QLineEdit, QPushButton
 
 from src.ui.widgets.modern_dialog import ModernDialog
 from src.utils.theme_colors import theme_qss
+from src.utils.password_security import verify_password
 from src.utils.toast_notification import show_error
 
 
 class AppLockDialog(ModernDialog):
     """Simple login dialog for the app lock feature."""
 
-    def __init__(self, correct_password, parent=None):
+    def __init__(
+        self,
+        correct_password,
+        parent=None,
+        title_text="Bulut Teknik Servis - Guvenlik",
+        heading_text="Uygulama Kilitli",
+    ):
         super().__init__(
-            title="Bulut Teknik Servis - Guvenlik",
+            title=title_text,
             parent=parent,
             width=400,
             height=300,
         )
         self.correct_password = correct_password
+        self.upgraded_hash = None
+        self.heading_text = heading_text
         self.set_footer_visible(False)
         self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
         self.setWindowFlag(Qt.WindowType.Tool, True)
@@ -33,7 +42,7 @@ class AppLockDialog(ModernDialog):
         self.lbl_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.lbl_icon)
 
-        self.lbl_title = QLabel("Uygulama Kilitli")
+        self.lbl_title = QLabel(self.heading_text)
         self.lbl_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_title.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
         layout.addWidget(self.lbl_title)
@@ -94,7 +103,11 @@ class AppLockDialog(ModernDialog):
         self.apply_theme_styles()
 
     def check_password(self):
-        if self.inp_password.text() == self.correct_password:
+        valid, upgraded = verify_password(
+            self.inp_password.text(), self.correct_password
+        )
+        if valid:
+            self.upgraded_hash = upgraded
             self.accept()
             return
 

@@ -63,7 +63,11 @@ class WhatsAppService:
         return self._open_desktop(target, message)
 
     def _send_cloud(self, phone: str, message: str, template_name: str, template_values: list[Any] | None = None) -> dict[str, Any]:
-        token = str(self.db.get_setting("whatsapp_cloud_token", "") or "").strip()
+        from src.utils.secure_setting_store import SecureSettingStore
+
+        token = str(
+            SecureSettingStore.get(self.db, "whatsapp_cloud_token", "") or ""
+        ).strip()
         phone_id = str(self.db.get_setting("whatsapp_cloud_phone_id", "") or "").strip()
         if not token or not phone_id:
             raise WhatsAppDeliveryError("Cloud API icin telefon kimligi ve erisim belirteci gerekli.")
@@ -101,7 +105,11 @@ class WhatsAppService:
 
     def _send_provider(self, phone: str, message: str, template_name: str) -> dict[str, Any]:
         sid = str(self.db.get_setting("twilio_account_sid", "") or "").strip()
-        token = str(self.db.get_setting("twilio_auth_token", "") or "").strip()
+        from src.utils.secure_setting_store import SecureSettingStore
+
+        token = str(
+            SecureSettingStore.get(self.db, "twilio_auth_token", "") or ""
+        ).strip()
         sender = str(self.db.get_setting("twilio_whatsapp_from", "") or "").strip()
         if not sid or not token or not sender:
             raise WhatsAppDeliveryError("Saglayici API icin hesap, token ve gonderici gerekli.")

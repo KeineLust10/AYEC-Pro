@@ -718,26 +718,13 @@ class ModernPaymentDialog(ModernDialog):
         self._build_currency_cards()
 
     def _load_debt_items(self):
-        """Müşterinin borç kalemlerini yükle"""
+        """Load outstanding amounts from the shared payment allocation query."""
         customer_id = self.customer.get("id")
         if not customer_id:
             return
 
         try:
-            # DEBIT (borç) işlemlerini getir
-            cursor = self.db.cursor
-            cursor.execute(
-                """
-                SELECT id, amount, currency, description, tracking_no, created_at, current_balance
-                FROM currency_transactions
-                WHERE customer_id = ? AND transaction_type = 'DEBIT'
-                  AND (current_balance < 0 OR current_balance IS NULL)
-                ORDER BY created_at DESC
-            """,
-                (customer_id,),
-            )
-
-            raw_items = cursor.fetchall() or []
+            raw_items = self.db.get_unpaid_debts(customer_id) or []
             unique_items = []
             seen_ids = set()
             for debt in raw_items:
@@ -1226,6 +1213,23 @@ class ModernPaymentDialog(ModernDialog):
             amount = 0.0
 
         if amount <= 0:
+            self.inp_amount.setFocus()
+            self.inp_amount.selectAll()
+            return
+
+        selected_ids = [int(value) for value in self.selected_debts if str(value).isdigit()]
+        open_debts = self.db.get_unpaid_debts(self.customer.get("id"), self.selected_currency) or []
+        if selected_ids:
+            open_debts = [row for row in open_debts if row[0] in selected_ids]
+        open_total = round(sum(max(0.0, abs(float(row[6] or 0.0))) for row in open_debts), 2)
+        if open_total <= 0.009:
+            self.inp_amount.setFocus()
+            self.inp_amount.selectAll()
+            return
+        if amount > open_total + 0.009:
+            self.inp_amount.setText(
+                f"{open_total:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+            )
             self.inp_amount.setFocus()
             self.inp_amount.selectAll()
             return

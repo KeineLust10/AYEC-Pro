@@ -102,7 +102,7 @@ class ProductLicense:
             response = self.client.status_for_device(payload)
         except (CentralApiError, OSError, TimeoutError, RuntimeError) as error:
             result = self.status(offline=True)
-            result.update(ok=False, connectivity=classify_error(error))
+            result.update(ok=False, connectivity=classify_error(error), error=str(error))
             return result
         with self.lock:
             try:

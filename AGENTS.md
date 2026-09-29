@@ -10,6 +10,22 @@ Report the connection contract and implement integration as part of new-product 
 Preserve product, customer and device isolation; verify deployed behavior before
 claiming live completion. Existing task authorization remains sufficient.
 
+## Local Ollama Triage Rule
+
+For broad code reviews or scans spanning multiple files, do not load every file
+directly into the working context. First use the locally installed Ollama service
+through an available MCP or API integration to classify candidate files by
+`Risk/Hata` and `Kod Turu`.
+
+- Only bring files classified as `Risk/Hata Var (80%+)` into deep review context.
+- Inspect those files in bounded, symbol-focused ranges and provide concrete
+  fix recommendations and solution code.
+- Keep the Ollama classification evidence with the scan notes when practical.
+- If the local Ollama service or its MCP/API bridge is unavailable, report that
+  limitation and use a narrow `rg`-first scan instead of reading the whole tree.
+- Do not treat an Ollama label as proof of a defect; verify the flagged behavior
+  with source inspection and focused tests before changing code.
+
 ## ASCII Source Rule
 
 All new source code, comments, documentation, test data, and UI literals must be written as ASCII-only text.

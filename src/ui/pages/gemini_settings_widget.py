@@ -13,6 +13,7 @@ except Exception:
     genai = None
 
 from src.utils.message_helper import show_success, show_error, show_info, show_warning
+from src.utils.secure_setting_store import SecureSettingStore
 from src.utils.ai_service import (
     DEFAULT_GEMINI_MODEL,
     RECOMMENDED_GEMINI_MODELS,
@@ -138,7 +139,7 @@ class GeminiSettingsWidget(QWidget):
         self.combo_model.currentIndexChanged.connect(self._on_ui_widget_changed)
 
     def load_settings(self):
-        api_key = self.db.get_setting("gemini_api_key", "")
+        api_key = SecureSettingStore.get(self.db, "gemini_api_key", "")
         model = normalize_gemini_model(
             self.db.get_setting("gemini_model", DEFAULT_GEMINI_MODEL)
         )
@@ -158,7 +159,7 @@ class GeminiSettingsWidget(QWidget):
         temperature = self.slider_temp.value() / 100.0
         
         try:
-            self.db.set_setting("gemini_api_key", api_key)
+            SecureSettingStore.set(self.db, "gemini_api_key", api_key)
             self.db.set_setting("gemini_model", model)
             self.db.set_setting("gemini_temperature", str(temperature))
             

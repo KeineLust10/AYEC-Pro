@@ -12,7 +12,9 @@ class EmailService:
         smtp_server = self.db.get_setting("smtp_server")
         smtp_port = self.db.get_setting("smtp_port")
         smtp_email = self.db.get_setting("smtp_email")
-        smtp_password = self.db.get_setting("smtp_password")
+        from src.utils.secure_setting_store import SecureSettingStore
+
+        smtp_password = SecureSettingStore.get(self.db, "smtp_password", "")
 
         if not all([smtp_server, smtp_port, smtp_email, smtp_password]):
             return False, "SMTP ayarları eksik. Lütfen Ayarlar menüsünden yapılandırın."

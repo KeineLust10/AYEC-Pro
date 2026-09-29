@@ -66,7 +66,7 @@ def make_status_tile(
     frame.setObjectName("StatusTile")
     frame.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
     apply_classic_guard(frame, db=db)
-    frame.setFixedHeight(62 if classic else 72)
+    frame.setFixedHeight(62 if classic else 120)
     frame.setCursor(Qt.CursorShape.PointingHandCursor)
     if classic:
         frame.setStyleSheet(f"""
@@ -98,14 +98,14 @@ def make_status_tile(
     frame.setGraphicsEffect(None)
 
     h = QHBoxLayout(frame)
-    h.setContentsMargins(8 if classic else 10, 0 if classic else 6, 8 if classic else 10, 0 if classic else 6)
+    h.setContentsMargins(8 if classic else 16, 0 if classic else 14, 8 if classic else 16, 0 if classic else 14)
     h.setSpacing(8)
 
     icon_lbl = QLabel()
     icon_lbl.setObjectName("StatusTileIcon")
     icon_lbl.setProperty("dashboardIconKey", key)
     apply_classic_guard(icon_lbl, db=db)
-    icon_lbl.setFixedSize(28 if classic else 32, 28 if classic else 32)
+    icon_lbl.setFixedSize(28 if classic else 56, 28 if classic else 56)
     icon_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
     if classic:
         icon_lbl.setStyleSheet(
@@ -118,15 +118,16 @@ def make_status_tile(
             QLabel#StatusTileIcon {{
                 font-size: 14px;
                 font-weight: 800;
-                background-color: {bg_color}22;
-                color: {bg_color};
-                border-radius: 16px;
+                background-color: {bg_color};
+                color: #FFFFFF;
+                border-radius: 28px;
                 border: 1px solid {bg_color}44;
             }}
             """)
         )
-    icon_size = 16
-    icon_lbl.setPixmap(dashboard_icon(key, bg_color, icon_size).pixmap(icon_size, icon_size))
+    icon_size = 16 if classic else 28
+    icon_color = text_color if classic else "#FFFFFF"
+    icon_lbl.setPixmap(dashboard_icon(key, icon_color, icon_size).pixmap(icon_size, icon_size))
     h.addWidget(icon_lbl)
 
     txt = QVBoxLayout()
@@ -155,7 +156,7 @@ def make_status_tile(
         )
     txt.addWidget(lbl_title)
 
-    lbl_count = QLabel("-")
+    lbl_count = QLabel("0")
     lbl_count.setObjectName("StatusTileCount")
     apply_classic_guard(lbl_count, db=db)
     if classic:
@@ -167,7 +168,7 @@ def make_status_tile(
         lbl_count.setStyleSheet(
             theme_qss("""
             QLabel#StatusTileCount {
-                font-size: 16px;
+                font-size: 30px;
                 font-weight: 800;
                 color: @text;
                 background: transparent;
@@ -189,7 +190,7 @@ def make_status_tile(
         lbl_sub.setStyleSheet(
             theme_qss("""
             QLabel#StatusTileSub {
-                font-size: 9px;
+                font-size: 12px;
                 font-weight: 500;
                 color: @text_muted;
                 background: transparent;
@@ -229,6 +230,36 @@ def make_status_tile(
             palette.setColor(QPalette.ColorRole.Text, QColor(text_color))
             label_widget.setPalette(palette)
     h.addWidget(pct_lbl)
+
+    # Reference layout keeps the percentage implicit and uses a faint
+    # watermark plus a small navigation arrow on the right side.
+    if not classic:
+        pct_lbl.setVisible(False)
+        right_box = QVBoxLayout()
+        right_box.setContentsMargins(0, 0, 0, 0)
+        right_box.setSpacing(4)
+        watermark = QLabel()
+        watermark.setFixedSize(52, 52)
+        watermark.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        watermark.setStyleSheet("background: transparent; border: none;")
+        watermark_color = QColor(bg_color)
+        watermark_color.setAlphaF(0.10)
+        watermark_icon = dashboard_icon(key, watermark_color.name(QColor.NameFormat.HexArgb), 40)
+        watermark.setPixmap(watermark_icon.pixmap(40, 40))
+        right_box.addWidget(watermark, alignment=Qt.AlignmentFlag.AlignRight)
+        arrow = QPushButton("\u2192")
+        arrow.setFixedSize(28, 28)
+        arrow.setCursor(Qt.CursorShape.PointingHandCursor)
+        arrow.setStyleSheet(f"""
+            QPushButton {{ background: {bg_color}16; color: {bg_color};
+                border: 1px solid {bg_color}55; border-radius: 14px;
+                font-size: 16px; font-weight: 800; }}
+            QPushButton:hover {{ background: {bg_color}; color: #FFFFFF; }}
+        """)
+        if parent is not None and hasattr(parent, "main_window"):
+            arrow.clicked.connect(lambda: parent.main_window.open_service_list(key))
+        right_box.addWidget(arrow, alignment=Qt.AlignmentFlag.AlignRight)
+        h.addLayout(right_box)
 
     return {
         "frame": frame,

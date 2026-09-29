@@ -120,7 +120,7 @@ class MainWindowThemeMixin:
                     duration_ms=0 if appearance_mode == AppearanceModeManager.CLASSIC else 320,
                 )
                 self._current_theme_name = normalized
-                self.apply_appearance_mode(appearance_mode, force_tree=True)
+                self.apply_appearance_mode(appearance_mode, force_tree=False)
                 self._apply_shell_theme_styles()
 
             try:

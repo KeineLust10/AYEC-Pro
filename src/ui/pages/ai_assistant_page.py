@@ -302,7 +302,9 @@ class AIAssistantPage(QWidget):
 
     def update_connection_status(self):
         if hasattr(self, "ai_service"):
-            api_key = self.db.get_setting("gemini_api_key", "")
+            from src.utils.secure_setting_store import SecureSettingStore
+
+            api_key = SecureSettingStore.get(self.db, "gemini_api_key", "")
             if api_key:
                 self.ai_service.setup_gemini(api_key)
                 if self.ai_service.is_configured:

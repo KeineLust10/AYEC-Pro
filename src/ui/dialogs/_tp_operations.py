@@ -163,10 +163,32 @@ class _TpOperations:
             if payment_dialog.exec():
                 result = getattr(payment_dialog, "result_data", None) or {}
                 amount = float(result.get("amount") or total_amount)
-                self.db.add_transaction(
+                currency = result.get("currency", "TRY")
+                exchange_rate = float(result.get("exchange_rate", 1.0) or 1.0)
+                tracking_debts = self.db.get_unpaid_debts(customer.get("id"), currency) or []
+                selected_debt_ids = [
+                    row[0] for row in tracking_debts
+                    if str(row[4] or "") == str(self.tracking_no)
+                ]
+                payment_result = self.db.record_customer_payment(
+                    customer_id=customer.get("id"),
+                    amount=amount,
+                    currency=currency,
+                    exchange_rate=exchange_rate,
+                    description=result.get("notes") or f"Servis tahsilati: {self.tracking_no}",
+                    tracking_no=self.tracking_no,
+                    selected_debt_ids=selected_debt_ids or None,
+                    created_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    commit=False,
+                )
+                if not payment_result.get("ok"):
+                    self.db.conn.rollback()
+                    show_error(self, f"Tahsilat cari hesaba kaydedilemedi: {payment_result.get('error', '')}")
+                    return
+                accounting_id = self.db.add_transaction(
                     t_type="Gelir",
                     category="Servis Tahsilati",
-                    amount=amount,
+                    amount=amount * exchange_rate,
                     description=result.get("reference_desc")
                     or f"Servis Tahsilati: {self.tracking_no}",
                     customer_name=customer.get("name"),
@@ -184,13 +206,26 @@ class _TpOperations:
                             "line_total": amount,
                         }
                     ],
-                    currency=result.get("currency", "TRY"),
+                    currency=currency,
                     original_amount=amount,
+                    exchange_rate=exchange_rate,
+                    commit=False,
                 )
+                if not accounting_id:
+                    self.db.conn.rollback()
+                    show_error(self, "Tahsilat muhasebe kaydina yazilamadi.")
+                    return
+                remaining_rows = self.db.get_unpaid_debts(customer.get("id"), currency) or []
+                remaining_for_service = sum(
+                    abs(float(row[6] or 0.0))
+                    for row in remaining_rows
+                    if str(row[4] or "") == str(self.tracking_no)
+                )
+                payment_status = "Odendi" if remaining_for_service <= 0.009 else "K\u0131smi \u00d6dendi"
                 self.db.cursor.execute(
                     "UPDATE devices SET payment_status=?, updated_at=? WHERE tracking_no=?",
                     (
-                        "Odendi",
+                        payment_status,
                         datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                         self.tracking_no,
                     ),
@@ -340,6 +375,12 @@ class _TpOperations:
                     ),
                 )
                 self.db.conn.commit()
+                # Use the canonical status writer as the final write so
+                # technician-panel changes update delivery timestamps,
+                # notifications, and legacy status integrations together.
+                saved_status = self.db.update_status(self.tracking_no, merged_data.get("status"))
+                if not saved_status:
+                    raise RuntimeError("Servis durumu kaydedilemedi")
                 if not self._is_automotive():
                     try:
                         self.db.cursor.execute(
@@ -568,32 +609,56 @@ class _TpOperations:
                                 b_id = getattr(
                                     self._confirm_dlg, "selected_bank_id", None
                                 )
+                                customer_id = self.device_dict.get("customer_id")
+                                if not customer_id and customer_name:
+                                    customer_id = self.db._resolve_customer_id_by_name(customer_name)
+                                if not customer_id:
+                                    show_error(self, "Tahsilat icin cari musteri bulunamadi.")
+                                    return
+                                open_debts = self.db.get_unpaid_debts(customer_id, "TRY") or []
+                                selected_debt_ids = [
+                                    row[0] for row in open_debts
+                                    if str(row[4] or "") == str(self.tracking_no)
+                                ]
+                                payment_result = self.db.record_customer_payment(
+                                    customer_id=customer_id,
+                                    amount=total_amount,
+                                    currency="TRY",
+                                    exchange_rate=1.0,
+                                    description=desc,
+                                    tracking_no=self.tracking_no,
+                                    selected_debt_ids=selected_debt_ids or None,
+                                    created_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                    commit=False,
+                                )
+                                if not payment_result.get("ok"):
+                                    self.db.conn.rollback()
+                                    show_error(self, "Tahsilat cari hesaba kaydedilemedi.")
+                                    return
                                 merged_data["payment_status"] = pm
 
-                                try:
-                                    self.db.add_transaction_extended(
-                                        type="Gelir",
-                                        category="Servis Hizmeti",
-                                        amount=total_amount,
-                                        description=desc,
-                                        date=datetime.now().strftime("%Y-%m-%d"),
-                                        payment_method=pm,
-                                        bank_account_id=b_id,
-                                        tracking_no=self.tracking_no,
-                                        ref_no=self.tracking_no,
-                                        selected_services=[self.tracking_no],
-                                    )
-                                except Exception:
-                                    self.db.add_transaction(
-                                        t_type="Gelir",
-                                        category="Servis Hizmeti",
-                                        amount=total_amount,
-                                        description=desc,
-                                        payment_method=pm,
-                                        tracking_no=self.tracking_no,
-                                        ref_no=self.tracking_no,
-                                        selected_services=[self.tracking_no],
-                                    )
+                                accounting_id = self.db.add_transaction(
+                                    t_type="Gelir",
+                                    category="Servis Hizmeti",
+                                    amount=total_amount,
+                                    description=desc,
+                                    customer_name=customer_name,
+                                    customer_id=customer_id,
+                                    date=datetime.now().strftime("%Y-%m-%d"),
+                                    payment_method=pm,
+                                    bank_account_id=b_id,
+                                    tracking_no=self.tracking_no,
+                                    ref_no=self.tracking_no,
+                                    selected_services=[self.tracking_no],
+                                    currency="TRY",
+                                    original_amount=total_amount,
+                                    exchange_rate=1.0,
+                                    commit=False,
+                                )
+                                if not accounting_id:
+                                    self.db.conn.rollback()
+                                    show_error(self, "Tahsilat muhasebe kaydina yazilamadi.")
+                                    return
                                 show_success(
                                     self,
                                     f"\u00d6deme al\u0131nd\u0131: {self._fmt_try(total_amount)}",

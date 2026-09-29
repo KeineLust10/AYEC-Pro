@@ -12,9 +12,11 @@ from pathlib import Path
 
 DEFAULT_UPDATE_BASE_URL = os.environ.get(
     "AYECPRO_UPDATE_BASE_URL",
-    "http://85.117.239.60/Update",
+    "https://lisans.ayecpro.com/Update",
 ).rstrip("/")
 
+# Legacy release host remains pinned for existing installations. New release
+# manifests still default to HTTPS and every other HTTP host is rejected.
 TRUSTED_HTTP_UPDATE_HOSTS = {"85.117.239.60"}
 
 

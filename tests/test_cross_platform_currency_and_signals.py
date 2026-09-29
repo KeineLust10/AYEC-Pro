@@ -140,7 +140,7 @@ def test_mixed_currency_paid_sale_updates_stock_income_and_cost(
         "SELECT amount,try_equivalent,currency FROM accounting WHERE id=?",
         (result["cost_id"],),
     ).fetchone()
-    assert tuple(income[:3]) == pytest.approx((37.5, 37.5, 1500))
+    assert tuple(income[:3]) == pytest.approx((1500, 37.5, 1500))
     assert income[3] == "USD"
     assert float(income[4]) == pytest.approx(40)
     assert tuple(cost[:2]) == pytest.approx((750, 750))
@@ -220,10 +220,14 @@ def test_web_service_commit_persists_device_and_customer_debt(
         "WHERE customer_id=? AND currency='USD'",
         (customer_id,),
     ).fetchone()
-    db.close()
-
     assert tuple(device) == (customer_id, "WEB-SERVICE-1", "Web Sales Hub")
     assert float(balance[0]) == pytest.approx(-20)
+    income_count = db.cursor.execute(
+        "SELECT COUNT(*) FROM accounting WHERE tracking_no='WEB-SERVICE-1' "
+        "AND type='Gelir'"
+    ).fetchone()[0]
+    assert int(income_count) == 0
+    db.close()
 
 
 def test_accounting_normalizer_recomputes_try_value_on_currency_change():
@@ -244,6 +248,8 @@ def test_accounting_normalizer_recomputes_try_value_on_currency_change():
     )
     assert result["currency"] == "EUR"
     assert result["exchange_rate"] == 50
+    assert result["amount"] == 600
+    assert result["original_amount"] == 12
     assert result["try_equivalent"] == 600
 
 
@@ -315,7 +321,7 @@ def test_customer_payment_preserves_currency_rate_and_open_debt(
     assert result["try_equivalent"] == pytest.approx(expected_try)
     with sqlite3.connect(path) as conn:
         accounting = conn.execute(
-            "SELECT original_amount,currency,exchange_rate,try_equivalent "
+            "SELECT amount,original_amount,currency,exchange_rate,try_equivalent "
             "FROM accounting WHERE id=?",
             (result["finance_id"],),
         ).fetchone()
@@ -324,9 +330,10 @@ def test_customer_payment_preserves_currency_rate_and_open_debt(
             "FROM currency_transactions WHERE id=?",
             (result["currency_transaction_id"],),
         ).fetchone()
-    assert float(accounting[0]) == pytest.approx(payment)
-    assert accounting[1] == currency
-    assert tuple(map(float, accounting[2:])) == pytest.approx((rate, expected_try))
+    assert float(accounting[0]) == pytest.approx(expected_try)
+    assert float(accounting[1]) == pytest.approx(payment)
+    assert accounting[2] == currency
+    assert tuple(map(float, accounting[3:])) == pytest.approx((rate, expected_try))
     assert float(transaction[0]) == pytest.approx(payment)
     assert transaction[1] == currency
     assert tuple(map(float, transaction[2:])) == pytest.approx(

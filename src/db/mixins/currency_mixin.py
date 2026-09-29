@@ -17,6 +17,39 @@ class CurrencyMixin:
         except Exception:
             return None
 
+    def reverse_currency_transaction(self, transaction_id, reason, commit=True):
+        """Append an opposite ledger entry instead of deleting a bad movement."""
+        row = self.cursor.execute(
+            "SELECT customer_id, amount, currency, transaction_type, tracking_no "
+            "FROM currency_transactions WHERE id=?",
+            (int(transaction_id),),
+        ).fetchone()
+        if not row:
+            raise ValueError("Currency transaction not found")
+        customer_id, amount, currency, tx_type, tracking_no = row
+        opposite = "DEBIT" if str(tx_type).upper() == "CREDIT" else "CREDIT"
+        marker = f"REVERSAL-{int(transaction_id)}"
+        exists = self.cursor.execute(
+            "SELECT 1 FROM currency_transactions WHERE tracking_no=? LIMIT 1",
+            (marker,),
+        ).fetchone()
+        if exists:
+            raise ValueError("Currency transaction is already reversed")
+        result = self.add_currency_transaction(
+            customer_id=customer_id,
+            amount=float(amount),
+            currency=str(currency or "TRY").upper(),
+            transaction_type=opposite,
+            description=f"Reversal of {int(transaction_id)}: {reason}",
+            tracking_no=marker,
+            commit=False,
+        )
+        if not result:
+            raise RuntimeError("Currency reversal could not be recorded")
+        if commit:
+            self.conn.commit()
+        return self.get_last_currency_transaction_id()
+
     def add_currency_transaction(
         self,
         customer_id,
@@ -61,6 +94,67 @@ class CurrencyMixin:
             # 3. Tarih belirle
             if not created_at:
                 created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+            # Prevent over-collection: a credit cannot exceed the open
+            # balance in the selected currency.
+            if transaction_type == "CREDIT":
+                # The new credit has not been inserted yet, so there is no
+                # transaction id to exclude from the legacy allocation scan.
+                payment_transaction_id = 0
+                if tracking_no:
+                    mismatched = self.cursor.execute(
+                        """SELECT 1 FROM currency_transactions
+                           WHERE customer_id=? AND tracking_no=?
+                             AND transaction_type='DEBIT' AND UPPER(currency)<>UPPER(?)
+                           LIMIT 1""",
+                        (customer_id, tracking_no, currency),
+                    ).fetchone()
+                    if mismatched:
+                        logger.warning(
+                            "Payment rejected with mismatched currency: customer=%s tracking=%s currency=%s",
+                            customer_id, tracking_no, currency,
+                        )
+                        return False
+                open_row = self.cursor.execute(
+                    """
+                    SELECT COALESCE(SUM(
+                        CASE
+                          WHEN links.paid IS NOT NULL OR legacy.paid IS NOT NULL
+                            THEN MAX(d.amount-COALESCE(links.paid, 0)-COALESCE(legacy.paid, 0), 0)
+                          ELSE MAX(COALESCE(-d.current_balance, 0), 0)
+                        END
+                    ), 0)
+                    FROM currency_transactions d
+                    LEFT JOIN (
+                        SELECT debt_txn_id, SUM(amount) AS paid
+                        FROM payment_debt_links GROUP BY debt_txn_id
+                    ) links ON links.debt_txn_id=d.id
+                    LEFT JOIN (
+                        SELECT d2.id, SUM(c.amount) AS paid
+                        FROM currency_transactions d2
+                        JOIN currency_transactions c
+                          ON c.customer_id=d2.customer_id AND c.currency=d2.currency
+                         AND c.transaction_type='CREDIT'
+                         AND (c.tracking_no=d2.tracking_no OR c.tracking_no=d2.tracking_no || '-PAY')
+                         AND c.id<>?
+                         AND NOT EXISTS (
+                             SELECT 1 FROM payment_debt_links pcl
+                             WHERE pcl.payment_txn_id=c.id
+                         )
+                        WHERE d2.transaction_type='DEBIT'
+                        GROUP BY d2.id
+                    ) legacy ON legacy.id=d.id
+                    WHERE d.customer_id=? AND d.currency=? AND d.transaction_type='DEBIT'
+                    """,
+                    (payment_transaction_id, customer_id, currency),
+                ).fetchone()
+                open_balance = float(open_row[0] or 0.0) if open_row else 0.0
+                if float(amount) > open_balance + 0.009:
+                    logger.warning(
+                        "Payment rejected above open balance: customer=%s currency=%s amount=%s open=%s",
+                        customer_id, currency, amount, open_balance,
+                    )
+                    return False
 
             # 4. Güncel Bakiyeyi Hesapla (Current Balance Engine)
             # Konvansiyon: Negatif bakiye = müşteri bize borçlu (Alacak)
@@ -279,13 +373,25 @@ class CurrencyMixin:
         try:
             result = self.cursor.execute(
                 """
-                SELECT balance FROM customer_currency_balances
+                SELECT COALESCE(SUM(
+                    CASE WHEN transaction_type='CREDIT' THEN amount ELSE -amount END
+                ), 0)
+                FROM currency_transactions
                 WHERE customer_id = ? AND currency = ?
             """,
                 (customer_id, currency),
             ).fetchone()
-
-            return result[0] if result else 0.0
+            has_transactions = self.cursor.execute(
+                "SELECT 1 FROM currency_transactions WHERE customer_id=? AND currency=? LIMIT 1",
+                (customer_id, currency),
+            ).fetchone()
+            if has_transactions:
+                return float(result[0] or 0.0) if result else 0.0
+            yedek = self.cursor.execute(
+                "SELECT balance FROM customer_currency_balances WHERE customer_id=? AND currency=?",
+                (customer_id, currency),
+            ).fetchone()
+            return float(yedek[0] or 0.0) if yedek else 0.0
         except Exception as e:
             logger.error(f"Error getting customer currency balance: {e}")
             return 0.0
@@ -298,11 +404,19 @@ class CurrencyMixin:
         try:
             results = self.cursor.execute(
                 """
-                SELECT currency, balance FROM customer_currency_balances
+                SELECT currency,
+                       SUM(CASE WHEN transaction_type='CREDIT' THEN amount ELSE -amount END)
+                FROM currency_transactions
                 WHERE customer_id = ?
+                GROUP BY currency
             """,
                 (customer_id,),
             ).fetchall()
+            if not results:
+                results = self.cursor.execute(
+                    "SELECT currency, balance FROM customer_currency_balances WHERE customer_id=?",
+                    (customer_id,),
+                ).fetchall()
 
             balances = {}
             for row in results:
@@ -322,8 +436,23 @@ class CurrencyMixin:
         try:
             from src.utils.exchange_rate_manager import ExchangeRateManager
 
-            # 1. New Multi-Currency Balances
-            balances = self.get_customer_all_balances(customer_id)
+            # The immutable currency ledger is the canonical source. Do not
+            # add device/part totals on top of ledger movements.
+            ledger_rows = self.cursor.execute(
+                """
+                SELECT currency,
+                       COALESCE(SUM(CASE WHEN transaction_type='CREDIT' THEN amount ELSE 0 END), 0)
+                       - COALESCE(SUM(CASE WHEN transaction_type='DEBIT' THEN amount ELSE 0 END), 0)
+                FROM currency_transactions
+                WHERE customer_id=?
+                GROUP BY currency
+                """,
+                (customer_id,),
+            ).fetchall()
+            if ledger_rows:
+                balances = {str(row[0] or "TRY").upper(): float(row[1] or 0.0) for row in ledger_rows}
+            else:
+                balances = {}
             total_try = 0.0
 
             for currency, amount in balances.items():
@@ -339,9 +468,10 @@ class CurrencyMixin:
                     else:
                         logger.warning(f"No exchange rate found for {currency}")
 
-            # 2. Legacy 'devices' table debts (price - payments in accounting)
-            # COALESCE(paid_amount, 0) was causing crash as column doesn't exist
-            # We must sum labor_cost + used_parts and subtract accounting payments
+            if ledger_rows:
+                return round(total_try, 2)
+
+            # Legacy yedek is used only for customers with no ledger rows.
             self.cursor.execute(
                 """
                 SELECT tracking_no, labor_cost, cargo_fee
@@ -353,12 +483,17 @@ class CurrencyMixin:
             devices = self.cursor.fetchall()
 
             legacy_debt = 0.0
+            self.cursor.execute("PRAGMA table_info(used_parts)")
+            used_part_columns = {row[1] for row in (self.cursor.fetchall() or [])}
+            quantity_expr = "COALESCE(quantity, 1)" if "quantity" in used_part_columns else "1"
+            deleted_clause = " AND (is_deleted IS NULL OR is_deleted=0)" if "is_deleted" in used_part_columns else ""
             for tno, labor, cargo_fee in devices:
                 legacy_debt += labor or 0.0
                 legacy_debt += cargo_fee or 0.0
                 # Add used parts for this device
                 self.cursor.execute(
-                    "SELECT SUM(price) FROM used_parts WHERE tracking_no = ?", (tno,)
+                    f"SELECT SUM(COALESCE(price, 0) * {quantity_expr}) FROM used_parts WHERE tracking_no = ?{deleted_clause}",
+                    (tno,),
                 )
                 part_sum = self.cursor.fetchone()[0] or 0.0
                 legacy_debt += part_sum
@@ -488,18 +623,34 @@ class CurrencyMixin:
                     SELECT
                         ct.id,
                         ct.amount,
-                        COALESCE(SUM(pdl.amount), 0) AS linked_amount
+                        COALESCE(SUM(pdl.amount), 0) + COALESCE(legacy.total, 0)
+                        AS paid_amount
                     FROM currency_transactions ct
                     LEFT JOIN payment_debt_links pdl
                       ON pdl.debt_txn_id=ct.id
+                    LEFT JOIN (
+                        SELECT d2.id, SUM(c.amount) AS total
+                        FROM currency_transactions d2
+                        JOIN currency_transactions c
+                          ON c.customer_id=d2.customer_id AND c.currency=d2.currency
+                         AND c.transaction_type='CREDIT'
+                         AND (c.tracking_no=d2.tracking_no OR c.tracking_no=d2.tracking_no || '-PAY')
+                         AND c.id<>?
+                         AND NOT EXISTS (
+                             SELECT 1 FROM payment_debt_links pcl
+                             WHERE pcl.payment_txn_id=c.id
+                         )
+                        WHERE d2.transaction_type='DEBIT'
+                        GROUP BY d2.id
+                    ) legacy ON legacy.id=ct.id
                     WHERE ct.customer_id=? AND ct.currency=?
                       AND ct.transaction_type='DEBIT'
                     GROUP BY ct.id, ct.amount, ct.created_at
                     HAVING COALESCE(ct.amount, 0) -
-                           COALESCE(SUM(pdl.amount), 0) > 0.009
+                           (COALESCE(SUM(pdl.amount), 0) + COALESCE(legacy.total, 0)) > 0.009
                     ORDER BY ct.created_at ASC, ct.id ASC
                     """,
-                    (customer_id, currency),
+                    (payment_transaction_id, customer_id, currency),
                 ).fetchall()
             else:
                 debt_ids = [
@@ -516,20 +667,36 @@ class CurrencyMixin:
                         SELECT
                             ct.id,
                             ct.amount,
-                            COALESCE(SUM(pdl.amount), 0) AS linked_amount
+                            COALESCE(SUM(pdl.amount), 0) + COALESCE(legacy.total, 0)
+                            AS paid_amount
                         FROM currency_transactions ct
                         LEFT JOIN payment_debt_links pdl
                           ON pdl.debt_txn_id=ct.id
+                        LEFT JOIN (
+                            SELECT d2.id, SUM(c.amount) AS total
+                            FROM currency_transactions d2
+                            JOIN currency_transactions c
+                              ON c.customer_id=d2.customer_id AND c.currency=d2.currency
+                             AND c.transaction_type='CREDIT'
+                             AND (c.tracking_no=d2.tracking_no OR c.tracking_no=d2.tracking_no || '-PAY')
+                             AND c.id<>?
+                             AND NOT EXISTS (
+                                 SELECT 1 FROM payment_debt_links pcl
+                                 WHERE pcl.payment_txn_id=c.id
+                             )
+                            WHERE d2.transaction_type='DEBIT'
+                            GROUP BY d2.id
+                        ) legacy ON legacy.id=ct.id
                         WHERE ct.id IN ({placeholders})
                           AND ct.customer_id=?
                           AND ct.currency=?
                           AND ct.transaction_type='DEBIT'
                         GROUP BY ct.id, ct.amount, ct.created_at
                         HAVING COALESCE(ct.amount, 0) -
-                               COALESCE(SUM(pdl.amount), 0) > 0.009
+                               (COALESCE(SUM(pdl.amount), 0) + COALESCE(legacy.total, 0)) > 0.009
                         ORDER BY ct.created_at ASC, ct.id ASC
                         """.format(placeholders=placeholders),
-                        tuple(debt_ids) + (customer_id, currency),
+                        (payment_transaction_id,) + tuple(debt_ids) + (customer_id, currency),
                     ).fetchall()
 
             for debt_id, debt_amount, linked_amount in debts:
@@ -618,27 +785,97 @@ class CurrencyMixin:
                 "linked_debts": [],
             }
 
-    def get_unpaid_debts(self, customer_id, currency=None):
-        """
-        Müşterinin ödenmemiş borç kalemlerini getir.
+    def record_customer_payment(
+        self,
+        customer_id,
+        amount,
+        currency="TRY",
+        exchange_rate=1.0,
+        description="",
+        tracking_no="",
+        selected_debt_ids=None,
+        created_at=None,
+        commit=True,
+    ):
+        """Atomically create a CREDIT and allocate it to open debt items."""
+        try:
+            if not self.create_payment_debt_links_table(commit=False):
+                raise RuntimeError("Payment allocation schema is unavailable")
+            saved = self.add_currency_transaction(
+                customer_id=customer_id,
+                amount=amount,
+                currency=currency,
+                transaction_type="CREDIT",
+                exchange_rate=exchange_rate,
+                description=description,
+                tracking_no=tracking_no,
+                created_at=created_at,
+                commit=False,
+            )
+            if not saved:
+                raise RuntimeError("Payment movement was rejected")
+            payment_id = self.get_last_currency_transaction_id()
+            allocation = self.apply_payment_to_debts(
+                customer_id=customer_id,
+                payment_amount=amount,
+                currency=currency,
+                payment_transaction_id=payment_id,
+                selected_debt_ids=selected_debt_ids,
+                commit=False,
+            )
+            if not allocation.get("ok"):
+                raise RuntimeError(allocation.get("error") or "Payment allocation failed")
+            if float(allocation.get("remaining") or 0.0) > 0.009:
+                raise RuntimeError("Payment could not be fully allocated to open debt")
+            if commit:
+                self.conn.commit()
+            return {"ok": True, "payment_transaction_id": payment_id, **allocation}
+        except Exception as exc:
+            # The helper owns the CREDIT plus link transaction. Roll back on
+            # every failure, including callers that defer the final commit.
+            self.conn.rollback()
+            logger.error("Atomic customer payment failed: %s", exc)
+            return {"ok": False, "error": str(exc), "payment_transaction_id": None}
 
-        Returns:
-            list: [(id, amount, currency, description, tracking_no, created_at, current_balance), ...]
-        """
+    def get_unpaid_debts(self, customer_id, currency=None):
+        """Return each debt's unpaid amount, never its running account balance."""
         try:
             query = """
-                SELECT id, amount, currency, description, tracking_no, created_at, current_balance
-                FROM currency_transactions 
-                WHERE customer_id = ? AND transaction_type = 'DEBIT'
-                AND (current_balance < 0 OR current_balance IS NULL)
+                SELECT ct.id, ct.amount, ct.currency, ct.description,
+                       ct.tracking_no, ct.created_at,
+                       -ROUND(
+                            CASE WHEN paid.total IS NOT NULL OR legacy.total IS NOT NULL
+                                THEN MAX(ct.amount - COALESCE(paid.total, 0) - COALESCE(legacy.total, 0), 0)
+                                ELSE MIN(MAX(ct.amount, 0), MAX(COALESCE(-ct.current_balance, 0), 0))
+                           END, 2)
+                FROM currency_transactions ct
+                LEFT JOIN (
+                    SELECT debt_txn_id, SUM(amount) AS total
+                    FROM payment_debt_links GROUP BY debt_txn_id
+                ) paid ON paid.debt_txn_id = ct.id
+                LEFT JOIN (
+                    SELECT d.id, SUM(c.amount) AS total
+                    FROM currency_transactions d
+                    JOIN currency_transactions c
+                      ON c.customer_id=d.customer_id AND c.currency=d.currency
+                     AND c.transaction_type='CREDIT'
+                     AND (c.tracking_no=d.tracking_no OR c.tracking_no=d.tracking_no || '-PAY')
+                     AND NOT EXISTS (SELECT 1 FROM payment_debt_links pcl WHERE pcl.payment_txn_id=c.id)
+                    WHERE d.transaction_type='DEBIT'
+                    GROUP BY d.id
+                ) legacy ON legacy.id=ct.id
+                WHERE ct.customer_id = ? AND ct.transaction_type = 'DEBIT'
+                  AND ROUND(CASE WHEN paid.total IS NOT NULL OR legacy.total IS NOT NULL
+                                 THEN MAX(ct.amount - COALESCE(paid.total, 0) - COALESCE(legacy.total, 0), 0)
+                                 ELSE MIN(MAX(ct.amount, 0), MAX(COALESCE(-ct.current_balance, 0), 0)) END, 2) > 0.009
             """
             params = [customer_id]
 
             if currency:
-                query += " AND currency = ?"
+                query += " AND ct.currency = ?"
                 params.append(currency)
 
-            query += " ORDER BY created_at DESC"
+            query += " ORDER BY ct.created_at DESC, ct.id DESC"
 
             return self.cursor.execute(query, params).fetchall()
         except Exception as e:

@@ -26,7 +26,9 @@ class SMSService:
         """Load Twilio credentials from database settings."""
         try:
             account_sid = self.db.get_setting("twilio_account_sid", "")
-            auth_token = self.db.get_setting("twilio_auth_token", "")
+            from src.utils.secure_setting_store import SecureSettingStore
+
+            auth_token = SecureSettingStore.get(self.db, "twilio_auth_token", "")
             from_number = self.db.get_setting("twilio_from_number", "")
             
             if account_sid and auth_token and from_number:

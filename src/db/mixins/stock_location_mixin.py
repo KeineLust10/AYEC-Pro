@@ -9,7 +9,7 @@ class StockLocationMixin:
     def ensure_stock_location_schema(self, commit=True):
         try:
             cur = self.conn.cursor()
-            cur.executescript(
+            schema_statements = (
                 """
                 CREATE TABLE IF NOT EXISTS stock_locations (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -81,8 +81,16 @@ class StockLocationMixin:
                     ON stock_location_balances(location_id);
                 CREATE INDEX IF NOT EXISTS idx_transfer_created
                     ON stock_transfers(created_at DESC);
-                """
+                """,
             )
+            # Do not use executescript here: sqlite3 implicitly commits an
+            # active transaction before executescript(), which breaks the
+            # stock/finance rollback boundary.
+            for schema_sql in schema_statements:
+                for statement in schema_sql.split(";"):
+                    statement = statement.strip()
+                    if statement:
+                        cur.execute(statement)
             now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             cur.execute(
                 """

@@ -86,3 +86,45 @@ def test_operator_download_uses_selected_tenant_not_operator_tenant(monkeypatch,
         web.admin_download_support_backup(actor, "tenant-1", backup["backup_id"])
     with pytest.raises(PermissionError):
         web.admin_download_support_backup(customer, "tenant-2", backup["backup_id"])
+
+
+def test_same_hardware_two_installations_are_isolated(monkeypatch, tmp_path):
+    actor, _ = _setup_tenant(monkeypatch, tmp_path)
+    first_raw = _payload(tmp_path, 11)
+    second_raw = _payload(tmp_path, 12)
+    first = web.support_store_backup(
+        actor, first_raw, product_code="barkod_okuyucu",
+        hardware_id="same-pc", installation_id="install-a",
+    )
+    second = web.support_store_backup(
+        actor, second_raw, product_code="barkod_okuyucu",
+        hardware_id="same-pc", installation_id="install-b",
+    )
+    assert first["backup_id"] != second["backup_id"]
+    assert first["product_backup_path"] != second["product_backup_path"]
+    assert web.support_backup_file(
+        actor, first["backup_id"], "barkod_okuyucu", "same-pc", "install-a"
+    )[0] == first_raw
+    with pytest.raises(LookupError):
+        web.support_backup_file(
+            actor, first["backup_id"], "barkod_okuyucu", "same-pc", "install-b"
+        )
+
+    command = web.control_queue_restore(actor, {
+        "tenant_id": "tenant-1", "backup_id": first["backup_id"]
+    })
+    assert len(web.desktop_pending_commands(
+        actor, "barkod_okuyucu", "same-pc", "install-a"
+    )["commands"]) == 1
+    assert web.desktop_pending_commands(
+        actor, "barkod_okuyucu", "same-pc", "install-b"
+    )["commands"] == []
+    with pytest.raises(LookupError):
+        web.desktop_complete_command(
+            actor, {"command_id": command["command_id"], "success": True},
+            "barkod_okuyucu", "same-pc", "install-b"
+        )
+    assert web.desktop_complete_command(
+        actor, {"command_id": command["command_id"], "success": True},
+        "barkod_okuyucu", "same-pc", "install-a"
+    )["ok"]

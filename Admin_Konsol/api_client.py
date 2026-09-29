@@ -12,6 +12,13 @@ import config
 
 _lock = threading.Lock()
 _session_token: Optional[str] = None
+_product_context = "teknik_servis"
+
+
+def set_product_context(product_code: str) -> None:
+    """Set the product scope used by tenant-list calls in the Admin Console."""
+    global _product_context
+    _product_context = str(product_code or "").strip().lower()
 
 
 def _headers() -> dict:
@@ -82,7 +89,9 @@ def dashboard() -> dict:
 # Companies
 # -------------------------------------------------------
 
-def companies(search: str = "", product_code: str = "") -> list:
+def companies(search: str = "", product_code: Optional[str] = None) -> list:
+    if product_code is None:
+        product_code = _product_context
     params = {}
     if search:
         params["q"] = search
@@ -94,6 +103,16 @@ def companies(search: str = "", product_code: str = "") -> list:
 
 def company_detail(tenant_id: str) -> dict:
     resp = requests.get(_url(f"/api/admin/companies/{tenant_id}"), headers=_headers(), timeout=config.timeout())
+    return _parse(resp)
+
+
+def customer_360(tenant_id: str) -> dict:
+    """Fetch one tenant's isolated support overview."""
+    resp = requests.get(
+        _url(f"/api/admin/customer-360/{tenant_id}"),
+        headers=_headers(),
+        timeout=config.timeout(),
+    )
     return _parse(resp)
 
 
@@ -172,6 +191,16 @@ def reset_user_password(tenant_id: str, user_id: int, new_password: str) -> dict
         _url(f"/api/admin/users/{user_id}/reset-password"),
         headers=_headers(),
         json={"tenant_id": tenant_id, "new_password": new_password},
+        timeout=config.timeout(),
+    )
+    return _parse(resp)
+
+
+def send_temporary_password(tenant_id: str, user_id: int) -> dict:
+    resp = requests.post(
+        _url("/api/admin/users/temporary-password"),
+        headers=_headers(),
+        json={"tenant_id": tenant_id, "user_id": int(user_id)},
         timeout=config.timeout(),
     )
     return _parse(resp)

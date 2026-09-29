@@ -1,2 +1,2 @@
 # Install from the shared release wheel directory with --find-links.
-ayec-core[smart-import]==0.2.0
+ayec-core[smart-import]==0.3.0

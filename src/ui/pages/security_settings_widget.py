@@ -18,6 +18,7 @@ class SecuritySettingsWidget(QWidget):
     def _on_ui_widget_changed(self, *args):
         from src.ui.utils.ui_signal_helpers import on_ui_widget_changed
         on_ui_widget_changed(self, *args)
+
     """
     Yeniden Tasarlanmış Güvenlik Sekmesi:
     - Toggle Switchli Modern Tasarım
@@ -25,6 +26,11 @@ class SecuritySettingsWidget(QWidget):
     - Teknisyen Paneli Koruması
     - Yönetici Şifresi ve Kurtarma (Gizli Soru)
     """
+
+    def _auto_login_username(self):
+        user = getattr(self.main_window, "current_user", {}) or {}
+        return str(user.get("username") or "admin").strip() or "admin"
+
     def __init__(self, db, main_window=None):
         super().__init__()
         self.db = db
@@ -264,8 +270,10 @@ class SecuritySettingsWidget(QWidget):
     def set_auto_login_db(self, enabled):
         """Veritabanında otomatik giriş ayarını güncelle (Genellikle admin kullanıcısı için)"""
         try:
-            # Basitlik için 'admin' kullanıcısının auto_login ayarını güncelliyoruz
-            self.db.cursor.execute("UPDATE users SET auto_login=? WHERE username='admin'", (1 if enabled else 0,))
+            self.db.cursor.execute(
+                "UPDATE users SET auto_login=? WHERE username=?",
+                (1 if enabled else 0, self._auto_login_username()),
+            )
             self.db.conn.commit()
             
             # Eğer kapatılıyorsa token'ı da silebiliriz (opsiyonel ama güvenli)
@@ -320,7 +328,10 @@ class SecuritySettingsWidget(QWidget):
         self.inp_tech_lock_container.setEnabled(is_tech_active)
 
         # Auto Login
-        self.db.cursor.execute("SELECT auto_login FROM users WHERE username = 'admin'")
+        self.db.cursor.execute(
+            "SELECT auto_login FROM users WHERE username=?",
+            (self._auto_login_username(),),
+        )
         row = self.db.cursor.fetchone()
         is_auto_login = row[0] == 1 if row else False
         self.toggle_auto_login.blockSignals(True)
@@ -347,16 +358,21 @@ class SecuritySettingsWidget(QWidget):
         app_pass = self.inp_app_lock_container.text().strip()
         
         current_app_pass = self.db.get_setting("app_password", "")
+        if current_app_pass and not str(current_app_pass).startswith(("$2a$", "$2b$", "$2y$")):
+            self.db.set_setting("app_password", hash_password(current_app_pass))
+            current_app_pass = self.db.get_setting("app_password", "")
         
         if app_active:
             if app_pass:
                 if len(app_pass) < 4:
                     show_error(self.window(), "Uygulama şifresi en az 4 karakter olmalıdır.")
                     return
-                self.db.set_setting("app_password", app_pass)
+                self.db.set_setting("app_password", hash_password(app_pass))
             elif not current_app_pass:
                 show_warning(self.window(), "Aktifleştirmek için lütfen bir Uygulama Şifresi belirleyin.")
                 return
+            elif not str(current_app_pass).startswith(("$2a$", "$2b$", "$2y$")):
+                self.db.set_setting("app_password", hash_password(current_app_pass))
         
         self.db.set_setting("app_lock_active", "1" if app_active else "0")
         
@@ -364,16 +380,21 @@ class SecuritySettingsWidget(QWidget):
         tech_active = self.toggle_tech_lock_container.isChecked()
         tech_pass = self.inp_tech_lock_container.text().strip()
         current_tech_pass = self.db.get_setting("tech_password", "")
+        if current_tech_pass and not str(current_tech_pass).startswith(("$2a$", "$2b$", "$2y$")):
+            self.db.set_setting("tech_password", hash_password(current_tech_pass))
+            current_tech_pass = self.db.get_setting("tech_password", "")
         
         if tech_active:
             if tech_pass:
                 if len(tech_pass) < 4:
                     show_error(self.window(), "Teknisyen şifresi en az 4 karakter olmalıdır.")
                     return
-                self.db.set_setting("tech_password", tech_pass)
+                self.db.set_setting("tech_password", hash_password(tech_pass))
             elif not current_tech_pass:
                 show_warning(self.window(), "Aktifleştirmek için lütfen bir Teknisyen Şifresi belirleyin.")
                 return
+            elif not str(current_tech_pass).startswith(("$2a$", "$2b$", "$2y$")):
+                self.db.set_setting("tech_password", hash_password(current_tech_pass))
                 
         self.db.set_setting("tech_lock_active", "1" if tech_active else "0")
         

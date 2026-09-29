@@ -164,7 +164,7 @@ class AccountingPage(
 
         self.header_frame = QFrame()
         self.header_frame.setStyleSheet(theme_qss(
-            "background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 #0f172a, stop:0.55 #1e293b, stop:1 #334155); border-radius: 18px; border: 1px solid @border;"
+            "background: @surface_alt; border-radius: 18px; border: 1px solid @border;"
         ))
         header_layout = QHBoxLayout(self.header_frame)
         header_layout.setContentsMargins(22, 18, 22, 18)

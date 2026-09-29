@@ -7,7 +7,7 @@ from datetime import datetime
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
                              QTextEdit, QPushButton, QScrollArea, QFrame, QWidget,
                              QListWidget, QListWidgetItem, QAbstractItemView, QComboBox,
-                             QFileDialog)
+                             QFileDialog, QLineEdit, QSplitter)
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QSize
 from src.utils.theme_colors import theme_qss, tc
 from PyQt6.QtGui import QFont, QColor, QIcon, QAction
@@ -61,8 +61,9 @@ class CustomerNoteCard(QWidget):
         self.note_data = tuple(note_data) if note_data is not None else tuple()
         self.note_id = note_data[0]
         self.note_type = note_data[1]
-        self.content = note_data[2]
-        self.date = note_data[3]
+        self.title = note_data[2] if len(note_data) >= 5 else ""
+        self.content = note_data[3] if len(note_data) >= 5 else note_data[2]
+        self.date = note_data[4] if len(note_data) >= 5 else note_data[3]
         self.setup_ui()
 
     def setup_ui(self):
@@ -112,7 +113,8 @@ class CustomerNoteCard(QWidget):
             color = tc("accent")
             bg_color = tc("selection_bg")
 
-        lbl_type = QLabel(f"{icon} {self.note_type}")
+        display_title = self.title or self.date or "Not"
+        lbl_type = QLabel(f"{icon} {display_title}")
         lbl_type.setStyleSheet(theme_qss(f"""
             color: {color}; 
             background-color: {bg_color}; 
@@ -203,8 +205,9 @@ class OfferPreviewDialog(BaseModernDialog):
         self.note_data = note_data
         self.note_id = note_data[0]
         self.note_type = note_data[1]
-        self.content = note_data[2] or ""
-        self.created_at = note_data[3] or ""
+        self.title = note_data[2] if len(note_data) >= 5 else ""
+        self.content = note_data[3] if len(note_data) >= 5 else note_data[2] or ""
+        self.created_at = note_data[4] if len(note_data) >= 5 else note_data[3] or ""
         dialog_title = "Teklif Önizleme" if self.note_type in ("Teklif", "PC Teklif") else "Not Detayı"
         super().__init__(parent, title=dialog_title, width=980, height=760)
         self._build_ui()
@@ -421,10 +424,80 @@ class CustomerNotesDialog(BaseModernDialog):
         self.customer_name = customer_name
         self.current_filter = "Tümü"
         
-        super().__init__(parent, title=f"Protokol ve İletişim Kayıtları - {customer_name}", width=940, height=760)
+        super().__init__(parent, title=f"M\u00fc\u015fteri Notlar\u0131 - {customer_name}", width=1200, height=820)
         
-        self.setup_modern_content()
+        self.setup_modern_content_clean()
         self.load_notes()
+
+    def setup_modern_content_clean(self):
+        """Build the split note-history and document editor layout."""
+        filter_frame = QFrame()
+        filter_lay = QHBoxLayout(filter_frame)
+        filter_lay.setContentsMargins(0, 4, 0, 8)
+        filter_lay.setSpacing(8)
+        self.filter_buttons = []
+        for text, value in (("T\u00fcm\u00fc", "T\u00fcm\u00fc"), ("Genel Not", "Genel Not"),
+                            ("WhatsApp", "WhatsApp Mesaj\u0131"), ("SMS", "SMS"),
+                            ("Telefon", "Telefon G\u00f6r\u00fc\u015fmesi"), ("E-Posta", "E-Posta"),
+                            ("Teklif", "PC Teklif")):
+            button = FilterButton(text, value)
+            button.clicked.connect(lambda _checked, b=button: self.set_filter(b))
+            button.setChecked(text == "T\u00fcm\u00fc")
+            button.update_style(text == "T\u00fcm\u00fc")
+            filter_lay.addWidget(button)
+            self.filter_buttons.append(button)
+        filter_lay.addStretch()
+        self.content_layout.addWidget(filter_frame)
+
+        self.splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.splitter.setChildrenCollapsible(False)
+        self.list_widget = QListWidget()
+        self.list_widget.setObjectName("NotesList")
+        self.list_widget.setMinimumWidth(300)
+        self.list_widget.setStyleSheet(theme_qss("""
+            QListWidget#NotesList { background: @surface_alt; border: 1px solid @border; border-radius: 10px; }
+            QListWidget::item { padding: 12px 14px; border-bottom: 1px solid @border; color: @text; }
+            QListWidget::item:selected { background: @selection_bg; color: @text; border-left: 3px solid @accent; }
+        """))
+        self.list_widget.itemClicked.connect(self._open_selected_note)
+        self.splitter.addWidget(self.list_widget)
+
+        self.editor_panel = QFrame()
+        self.editor_panel.setObjectName("noteEditorPanel")
+        editor_layout = QVBoxLayout(self.editor_panel)
+        editor_layout.setContentsMargins(18, 18, 18, 18)
+        editor_layout.setSpacing(10)
+        self.title_edit = QLineEdit()
+        self.title_edit.setPlaceholderText("Not ba\u015fl\u0131\u011f\u0131")
+        self.title_edit.setMinimumHeight(42)
+        self.title_edit.setStyleSheet(theme_qss("QLineEdit { font-size: 16px; font-weight: 700; padding: 8px 12px; background: @surface; color: @text; border: 1px solid @border; border-radius: 8px; }"))
+        editor_layout.addWidget(self.title_edit)
+        self.date_label = QLabel("Yeni not - tarih kay\u0131tta olu\u015fturulacak")
+        self.date_label.setStyleSheet(theme_qss("color: @text_muted; font-size: 11px;"))
+        editor_layout.addWidget(self.date_label)
+        self.txt_note = QTextEdit()
+        self.txt_note.setAcceptRichText(True)
+        self.txt_note.setPlaceholderText("Not metnini buraya yaz\u0131n\u0131z...")
+        self.txt_note.setStyleSheet(theme_qss("QTextEdit { background: @surface; color: @text; border: 1px solid @border; border-radius: 8px; padding: 12px; font-size: 14px; }"))
+        editor_layout.addWidget(self.txt_note, 1)
+        self.cmb_type = QComboBox()
+        self.cmb_type.addItems(["Genel Not", "WhatsApp Mesaj\u0131", "SMS", "Telefon G\u00f6r\u00fc\u015fmesi", "E-Posta"])
+        self.cmb_type.setFixedWidth(180)
+        actions = QHBoxLayout()
+        actions.addWidget(self.cmb_type)
+        actions.addStretch()
+        self.btn_new = QPushButton("Yeni Not")
+        self.btn_new.clicked.connect(self._new_note)
+        actions.addWidget(self.btn_new)
+        self.btn_save = QPushButton("Kaydet / G\u00fcncelle")
+        self.btn_save.clicked.connect(self.save_note)
+        actions.addWidget(self.btn_save)
+        editor_layout.addLayout(actions)
+        self.splitter.addWidget(self.editor_panel)
+        self.splitter.setSizes([330, 820])
+        self.content_layout.addWidget(self.splitter, 1)
+        self._selected_note_id = None
+        self._new_note()
 
     def setup_modern_content(self):
         # 1. Filter Bar
@@ -457,6 +530,7 @@ class CustomerNotesDialog(BaseModernDialog):
         self.content_layout.addWidget(filter_frame)
 
         # 2. Notes List Area
+        self.splitter = QSplitter(Qt.Orientation.Horizontal)
         self.list_widget = QListWidget()
         self.list_widget.setObjectName("NotesList")
         self.list_widget.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
@@ -469,7 +543,38 @@ class CustomerNotesDialog(BaseModernDialog):
             QListWidget::item { background-color: transparent; padding: 0; }
             QListWidget::item:selected { background-color: transparent; }
         """))
-        self.content_layout.addWidget(self.list_widget, 1)
+        self.splitter.addWidget(self.list_widget)
+
+        self.editor_panel = QFrame()
+        editor_layout = QVBoxLayout(self.editor_panel)
+        self.title_edit = QLineEdit()
+        self.title_edit.setPlaceholderText("Not ba\u015fl\u0131\u011f\u0131")
+        editor_layout.addWidget(self.title_edit)
+        self.txt_note = QTextEdit()
+        self.txt_note.setPlaceholderText("Not metnini buraya yaz\u0131n\u0131z...")
+        editor_layout.addWidget(self.txt_note, 1)
+        editor_buttons = QHBoxLayout()
+        self.btn_new = QPushButton("Yeni Not")
+        self.btn_new.clicked.connect(self._new_note)
+        self.btn_save = QPushButton("Kaydet / G\u00fcncelle")
+        self.btn_save.clicked.connect(self.save_note)
+        editor_buttons.addWidget(self.cmb_type if hasattr(self, "cmb_type") else QLabel(""))
+        editor_buttons.addStretch()
+        editor_buttons.addWidget(self.btn_new)
+        editor_buttons.addWidget(self.btn_save)
+        editor_layout.addLayout(editor_buttons)
+        self.splitter.addWidget(self.editor_panel)
+        self.splitter.setSizes([360, 780])
+        self.content_layout.addWidget(self.splitter, 1)
+
+        # 3. Keep a compact type selector for communication records.
+        self.cmb_type = QComboBox()
+        self.cmb_type.addItems(["Genel Not", "WhatsApp Mesaj\u0131", "SMS", "Telefon G\u00f6r\u00fc\u015fmesi", "E-Posta"])
+        editor_buttons.replaceWidget(editor_buttons.itemAt(0).widget(), self.cmb_type)
+        self._selected_note_id = None
+        self.list_widget.itemClicked.connect(self._open_selected_note)
+        self._new_note()
+        return
 
         # 3. Input Area
         input_frame = QFrame()
@@ -570,33 +675,69 @@ class CustomerNotesDialog(BaseModernDialog):
                     notes = [n for n in notes if n[1] == self.current_filter]
                 
             if not notes:
-                item = QListWidgetItem("Kayıt bulunamadı.")
+                item = QListWidgetItem("Bu m\u00fc\u015fteriye ait not yok.\nYeni Not ile ba\u015flay\u0131n.")
                 item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 item.setFlags(Qt.ItemFlag.NoItemFlags)
-                item.setSizeHint(QSize(0, 100))
                 self.list_widget.addItem(item)
                 return
 
             for n in notes:
-                card = CustomerNoteCard(n)
-                card.deleted.connect(self.delete_note)
-                card.open_requested.connect(self.open_note)
-                card.pdf_requested.connect(self.export_note_pdf)
-                item = QListWidgetItem(self.list_widget)
-                item.setSizeHint(card.sizeHint())
+                title = n[2] or n[4] or "Not"
+                date = n[4] or ""
+                item = QListWidgetItem(f"{title}\n{date}")
+                item.setData(Qt.ItemDataRole.UserRole, n)
                 self.list_widget.addItem(item)
-                self.list_widget.setItemWidget(item, card)
         except Exception as e:
             logger.warning(f"Customer notes load failed for customer {self.customer_id}: {e}")
 
     def save_note(self):
-        content = self.txt_note.toPlainText().strip()
-        if not content: return
-        
+        content = self.txt_note.toHtml().strip()
+        title = self.title_edit.text().strip()
+        if not title:
+            title = "Not " + datetime.now().strftime("%Y-%m-%d %H:%M")
+        if not content or content == "<p></p>": return
         note_type = self.cmb_type.currentText()
-        self.db.add_customer_note(self.customer_id, note_type, content)
-        self.txt_note.clear()
+        try:
+            if self._selected_note_id:
+                self.db.cursor.execute("PRAGMA table_info(customer_notes)")
+                columns = {row[1] for row in (self.db.cursor.fetchall() or [])}
+                if "title" not in columns:
+                    self.db.cursor.execute("ALTER TABLE customer_notes ADD COLUMN title TEXT")
+                    columns.add("title")
+                type_column = "note_type" if "note_type" in columns else "type"
+                self.db.cursor.execute(
+                    f"UPDATE customer_notes SET title=?, content=?, {type_column}=? WHERE id=? AND customer_id=?",
+                    (title, content, note_type, self._selected_note_id, self.customer_id),
+                )
+                if self.db.cursor.rowcount == 0:
+                    raise RuntimeError("Not kaydi bulunamadi veya bu musteriye ait degil.")
+                self.db.conn.commit()
+            else:
+                if not self.db.add_customer_note(self.customer_id, note_type, content, title):
+                    raise RuntimeError("Yeni not kaydedilemedi.")
+        except Exception as exc:
+            logger.exception("Customer note save failed")
+            show_error(self, f"Not kaydedilemedi: {exc}")
+            return
+        self._new_note()
         self.load_notes()
+
+    def _new_note(self):
+        self._selected_note_id = None
+        self.title_edit.clear()
+        self.txt_note.clear()
+        self.cmb_type.setCurrentText("Genel Not")
+        self.date_label.setText("Yeni not - tarih kay\u0131tta olu\u015fturulacak")
+
+    def _open_selected_note(self, item, *_args):
+        note = item.data(Qt.ItemDataRole.UserRole)
+        if not note:
+            return
+        self._selected_note_id = note[0]
+        self.cmb_type.setCurrentText(note[1])
+        self.title_edit.setText(note[2] or note[4] or "Not")
+        self.txt_note.setHtml(note[3] or "")
+        self.date_label.setText(f"Kay\u0131t tarihi: {note[4] or '-'}")
         
     def delete_note(self, note_id):
         # Using simple confirm dialog but will be framed

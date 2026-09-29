@@ -6,6 +6,7 @@ from PyQt6.QtGui import QFont
 from PyQt6.QtCore import QTime, Qt
 from src.utils.theme_colors import theme_qss
 from src.utils.design_system import DesignTokens
+from src.utils.secure_setting_store import SecureSettingStore
 
 
 class WhatsAppSettingsWidget(QWidget):
@@ -109,10 +110,14 @@ class WhatsAppSettingsWidget(QWidget):
         index = self.cmb_mode.findData(mode)
         self.cmb_mode.setCurrentIndex(index if index >= 0 else 0)
         self.inp_cloud_phone_id.setText(self.db.get_setting("whatsapp_cloud_phone_id", ""))
-        self.inp_cloud_token.setText(self.db.get_setting("whatsapp_cloud_token", ""))
+        self.inp_cloud_token.setText(
+            SecureSettingStore.get(self.db, "whatsapp_cloud_token", "")
+        )
         self.inp_cloud_template.setText(self.db.get_setting("whatsapp_cloud_template", "payment_reminder_tr"))
         self.inp_provider_sid.setText(self.db.get_setting("twilio_account_sid", ""))
-        self.inp_provider_token.setText(self.db.get_setting("twilio_auth_token", ""))
+        self.inp_provider_token.setText(
+            SecureSettingStore.get(self.db, "twilio_auth_token", "")
+        )
         self.inp_provider_from.setText(self.db.get_setting("twilio_whatsapp_from", ""))
         self.chk_reminder.setChecked(self.db.get_setting("whatsapp_payment_reminder_enabled", "0") == "1")
         day = int(self.db.get_setting("whatsapp_payment_reminder_day", "4") or 4)
@@ -130,10 +135,14 @@ class WhatsAppSettingsWidget(QWidget):
         self.db.set_setting("whatsapp_mode", mode)
         self.db.set_setting("whatsapp_active", "1" if mode != "disabled" else "0")
         self.db.set_setting("whatsapp_cloud_phone_id", self.inp_cloud_phone_id.text().strip())
-        self.db.set_setting("whatsapp_cloud_token", self.inp_cloud_token.text().strip())
+        SecureSettingStore.set(
+            self.db, "whatsapp_cloud_token", self.inp_cloud_token.text().strip()
+        )
         self.db.set_setting("whatsapp_cloud_template", self.inp_cloud_template.text().strip())
         self.db.set_setting("twilio_account_sid", self.inp_provider_sid.text().strip())
-        self.db.set_setting("twilio_auth_token", self.inp_provider_token.text().strip())
+        SecureSettingStore.set(
+            self.db, "twilio_auth_token", self.inp_provider_token.text().strip()
+        )
         self.db.set_setting("twilio_whatsapp_from", self.inp_provider_from.text().strip())
         self.db.set_setting("whatsapp_payment_reminder_enabled", "1" if self.chk_reminder.isChecked() else "0")
         self.db.set_setting("whatsapp_payment_reminder_day", str(self.cmb_day.currentData()))

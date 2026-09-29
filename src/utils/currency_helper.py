@@ -93,10 +93,6 @@ class CurrencyHelper:
     @staticmethod
     def get_symbol(db=None, currency_code=None):
         code = (currency_code or CurrencyHelper.get_code(db)).upper()
-
-    @staticmethod
-    def get_symbol(db=None, currency_code=None):
-        code = (currency_code or CurrencyHelper.get_code(db)).upper()
         if code == "USD":
             return "$"
         if code == "EUR":
@@ -121,13 +117,13 @@ class CurrencyHelper:
                 ExchangeRateManager.get_current_rate(db, code, "selling") or 0.0
             )
             if rate <= 0:
-                fallback = 47.5736 if code == "USD" else (51.50 if code == "EUR" else 1.0)
-                logger.warning("No DB selling rate for %s; using fallback: %s", code, fallback)
+                logger.error("No DB selling rate for %s", code)
+                return 0.0
                 return fallback
             return rate
         except Exception:
-            fallback = 47.5736 if code == "USD" else (51.50 if code == "EUR" else 1.0)
-            logger.exception("Currency rate lookup failed for %s; using fallback %s", code, fallback)
+            logger.exception("Currency rate lookup failed for %s", code)
+            return 0.0
             return fallback
 
     @staticmethod
@@ -135,7 +131,7 @@ class CurrencyHelper:
         code = (currency_code or "TRY").upper()
         rate = float(CurrencyHelper._get_rate(db, code) or 0.0)
         if rate <= 0:
-            return 47.5736 if code == "USD" else (51.50 if code == "EUR" else 1.0)
+            raise ValueError(f"Exchange rate unavailable: {code}")
         return rate
 
     @staticmethod
@@ -208,3 +204,6 @@ class CurrencyHelper:
         primary = CurrencyHelper.format_amount(amount, db=db, currency_code=code)
         try_equivalent = CurrencyHelper.convert_amount(db, amount, code, "TRY")
         return f"{primary} ({CurrencyHelper.format_amount(try_equivalent, db=db, currency_code='TRY')})"
+
+
+

@@ -59,12 +59,12 @@ def test_web_sync_client_has_no_license_operations():
     assert not hasattr(WebSyncClient, "report_license_payment")
 
 
-def test_mail_worker_uses_existing_ayec_mail_fallback():
+def test_mail_worker_uses_official_mailbox_without_embedded_password():
     worker = MailWorker("ayecpro@gmail.com", "Test", "Body")
 
     assert worker.smtp_server
-    assert worker.system_email == "ayecpro@gmail.com"
-    assert worker.app_password
+    assert worker.system_email == "info@ayecpro.com"
+    assert worker.app_password == ""
 
 
 def test_registration_notification_passes_database_to_mail_worker(monkeypatch):
@@ -96,5 +96,5 @@ def test_registration_notification_passes_database_to_mail_worker(monkeypatch):
     )
 
     assert len(created) == 1
-    assert created[0][1]["recipient"] == "ayecpro@gmail.com"
+    assert created[0][1]["recipient"] == "destek@ayecpro.com"
     assert created[0][1]["db"] is fake_db

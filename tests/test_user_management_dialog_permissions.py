@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import QApplication
 from src.ui.pages.settings_widgets.user_management_dialogs import UserDialog
 from src.ui.pages.settings_sidebar import PremiumSettingsSidebar
 from src.ui.pages.settings_widgets.management_center_settings import ManagementCenterSettingsWidget
+from src.utils.desktop_web_sync import configured_sync_url
 
 
 APP = QApplication.instance() or QApplication([])
@@ -133,5 +134,5 @@ def test_management_center_button_opens_control_center(monkeypatch):
     widget.btn_open.click()
 
     assert widget.btn_open.isEnabled()
-    assert opened == ["http://85.117.239.60/?page=control-center"]
+    assert opened == [configured_sync_url().rstrip("/") + "/?page=control-center"]
     widget.close()

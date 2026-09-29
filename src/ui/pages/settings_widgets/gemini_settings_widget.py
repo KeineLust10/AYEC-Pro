@@ -8,6 +8,7 @@ from PyQt6.QtCore import Qt, QThread, QEvent, pyqtSignal, QTimer
 from PyQt6.QtGui import QFont, QColor
 
 from src.utils.theme_colors import theme_qss, tc
+from src.utils.secure_setting_store import SecureSettingStore
 from src.utils.toast_notification import show_success, show_error, show_warning
 from src.ui.widgets.animated_toggle import AnimatedToggle
 from src.utils.ai_service import (
@@ -463,7 +464,7 @@ class GeminiSettingsWidget(QWidget):
 
     def load_data(self):
         # API - Load multiline
-        keys_str = self.db.get_setting("gemini_api_key", "")
+        keys_str = SecureSettingStore.get(self.db, "gemini_api_key", "")
         
         # If no keys are set, ensure it's empty
         if not keys_str:
@@ -542,10 +543,12 @@ class GeminiSettingsWidget(QWidget):
         keys_list = [k.strip() for k in raw_text.replace(',', '\n').split('\n') if k.strip()]
         keys_str = ",".join(keys_list) # Store as comma separated
         
-        self.db.set_setting("gemini_api_key", keys_str)
+        SecureSettingStore.set(self.db, "gemini_api_key", keys_str)
         model = normalize_gemini_model(self.cmb_model.currentText())
         self.db.set_setting("gemini_model", model)
-        self.db.set_setting("whatsapp_api_token", self.inp_wa_token.text().strip())
+        SecureSettingStore.set(
+            self.db, "whatsapp_api_token", self.inp_wa_token.text().strip()
+        )
         self.db.set_setting("whatsapp_admin_phone", self.inp_wa_phone.text().strip())
         
         # Save Toggles

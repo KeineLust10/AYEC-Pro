@@ -14,6 +14,19 @@ import api_client
 from product_catalog import product_code
 
 
+def _flag(value, default=False) -> bool:
+    """Normalize SQLite/API boolean values, including string zero/one."""
+    if isinstance(value, str):
+        text = value.strip().casefold()
+        if text in {"", "0", "false", "no", "off", "pasif"}:
+            return False
+        if text in {"1", "true", "yes", "on", "aktif"}:
+            return True
+    if value is None:
+        return bool(default)
+    return bool(value)
+
+
 class _CompanyButton(QPushButton):
     double_clicked = pyqtSignal()
 
@@ -86,6 +99,22 @@ class _ResetLinkThread(QThread):
             self.error.emit(str(exc))
 
 
+class _TemporaryPasswordThread(QThread):
+    done = pyqtSignal(dict)
+    error = pyqtSignal(str)
+
+    def __init__(self, tenant_id: str, user_id: int):
+        super().__init__()
+        self._tid = tenant_id
+        self._uid = user_id
+
+    def run(self):
+        try:
+            self.done.emit(api_client.send_temporary_password(self._tid, self._uid))
+        except Exception as exc:
+            self.error.emit(str(exc))
+
+
 class _RepairUsersThread(QThread):
     done = pyqtSignal(str, dict)
     error = pyqtSignal(str)
@@ -113,6 +142,22 @@ class _ToggleActiveThread(QThread):
     def run(self):
         try:
             self.done.emit(api_client.update_company(self._tid, {"active": self._active}))
+        except Exception as exc:
+            self.error.emit(str(exc))
+
+
+class _ToggleMutedThread(QThread):
+    done = pyqtSignal(dict)
+    error = pyqtSignal(str)
+
+    def __init__(self, tenant_id: str, muted: bool):
+        super().__init__()
+        self._tid = tenant_id
+        self._muted = muted
+
+    def run(self):
+        try:
+            self.done.emit(api_client.update_company(self._tid, {"muted": self._muted}))
         except Exception as exc:
             self.error.emit(str(exc))
 
@@ -246,6 +291,12 @@ class CompaniesPage(QWidget):
         self._toggle_btn.clicked.connect(self._toggle_active)
         self._toggle_btn.setEnabled(False)
         btn_row.addWidget(self._toggle_btn)
+        self._mute_btn = QPushButton("Firmayi Sustur")
+        self._mute_btn.setObjectName("dangerBtn")
+        self._mute_btn.setFixedHeight(36)
+        self._mute_btn.clicked.connect(self._toggle_muted)
+        self._mute_btn.setEnabled(False)
+        btn_row.addWidget(self._mute_btn)
         self._delete_btn = QPushButton("\U0001f5d1 Firma Sil")
         self._delete_btn.setObjectName("dangerBtn")
         self._delete_btn.setFixedHeight(36)
@@ -284,6 +335,12 @@ class CompaniesPage(QWidget):
         self._reset_btn.clicked.connect(self._reset_password)
         self._reset_btn.setEnabled(False)
         pw_row.addWidget(self._reset_btn)
+        self._email_temp_btn = QPushButton("\ud83d\udce7 E-posta ile Gecici Parola")
+        self._email_temp_btn.setObjectName("primaryBtn")
+        self._email_temp_btn.setFixedHeight(36)
+        self._email_temp_btn.clicked.connect(self._send_temporary_password)
+        self._email_temp_btn.setEnabled(False)
+        pw_row.addWidget(self._email_temp_btn)
         self._reset_link_btn = QPushButton("\ud83d\udd17 S\u0131f\u0131rlama Ba\u011flant\u0131s\u0131")
         self._reset_link_btn.setObjectName("secondaryBtn")
         self._reset_link_btn.setFixedHeight(36)
@@ -329,8 +386,9 @@ class CompaniesPage(QWidget):
             btn = _CompanyButton(c.get("company_name", "?"))
             btn.setObjectName("companyBtn")
             btn.setCheckable(True)
-            is_active = c.get("active", True)
-            status = "[AKTIF]" if is_active else "[PASIF]"
+            is_active = _flag(c.get("active"), True)
+            is_muted = _flag(c.get("muted"))
+            status = "[SUSTURULDU]" if is_muted else "[AKTIF]" if is_active else "[PASIF]"
             contact = str(c.get("contact_name") or "-")
             phone = str(c.get("phone") or "-")
             email = str(c.get("email") or "-")
@@ -350,11 +408,15 @@ class CompaniesPage(QWidget):
         tid = c.get("id", "")
         name = c.get("company_name", "?")
         self._detail_title.setText(f"\ud83c\udfe2 {name}")
-        is_active = c.get("active", True)
+        is_active = _flag(c.get("active"), True)
         self._toggle_btn.setEnabled(True)
+        self._mute_btn.setEnabled(True)
         self._delete_btn.setEnabled(True)
         self._toggle_btn.setText("Pasif Yap" if is_active else "Aktif Yap")
         self._toggle_btn.setObjectName("dangerBtn" if is_active else "successBtn")
+        is_muted = _flag(c.get("muted"))
+        self._mute_btn.setText("Susturmayi Kaldir" if is_muted else "Firmayi Sustur")
+        self._mute_btn.setObjectName("successBtn" if is_muted else "dangerBtn")
         sector = str(c.get("sector") or "teknik_servis")
         sector_index = self._sector_combo.findData(sector)
         self._sector_combo.setCurrentIndex(max(0, sector_index))
@@ -400,6 +462,7 @@ class CompaniesPage(QWidget):
         # Kullanicilari yukle
         self._user_table.setRowCount(0)
         self._reset_btn.setEnabled(False)
+        self._email_temp_btn.setEnabled(False)
         self._reset_link_btn.setEnabled(False)
         self._repair_users_btn.setVisible(False)
         t = _FetchUsers(tid)
@@ -469,7 +532,44 @@ class CompaniesPage(QWidget):
 
     def _on_user_select(self, row: int, col: int):
         self._reset_btn.setEnabled(True)
+        self._email_temp_btn.setEnabled(True)
         self._reset_link_btn.setEnabled(True)
+
+    def _send_temporary_password(self):
+        if not self._selected_tenant:
+            return
+        row = self._user_table.currentRow()
+        if row < 0:
+            self._status_lbl.setText("Lutfen bir kullanici secin.")
+            return
+        user_id = int(self._user_table.item(row, 0).text())
+        username = self._user_table.item(row, 2).text()
+        email = self._user_table.item(row, 3).text()
+        reply = QMessageBox.question(
+            self,
+            "Gecici Parola",
+            f"{username} kullanicisina {email} adresine tek kullanimlik gecici parola gonderilsin mi?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        self._email_temp_btn.setEnabled(False)
+        worker = _TemporaryPasswordThread(str(self._selected_tenant["id"]), user_id)
+        worker.done.connect(self._temporary_password_ready)
+        worker.error.connect(lambda error: self._status_lbl.setText(f"Hata: {error}"))
+        worker.finished.connect(lambda: self._email_temp_btn.setEnabled(True))
+        worker.start()
+        self._thread = worker
+
+    def _temporary_password_ready(self, result: dict):
+        if result.get("mail_sent"):
+            self._status_lbl.setText(
+                f"Gecici parola {result.get('recipient', '-') } adresine gonderildi."
+            )
+        else:
+            self._status_lbl.setText(
+                f"E-posta gonderilemedi: {result.get('mail_message') or 'SMTP hatasi'}"
+            )
 
     def _show_company_details(self, company: dict | None = None):
         company = company or self._selected_tenant
@@ -582,18 +682,56 @@ class CompaniesPage(QWidget):
     def _toggle_active(self):
         if not self._selected_tenant:
             return
-        is_active = self._selected_tenant.get("active", True)
+        is_active = _flag(self._selected_tenant.get("active"), True)
         action = "Pasif Yap" if is_active else "Aktif Yap"
         reply = QMessageBox.question(self, "Onay",
             f"'{self._selected_tenant.get('company_name')}' firmasi {action.lower()} isteniyor. Devam?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         if reply != QMessageBox.StandardButton.Yes:
             return
-        t = _ToggleActiveThread(self._selected_tenant["id"], not is_active)
-        t.done.connect(lambda d: (self._status_lbl.setText("\u2705 Guncellendi."), self._load_companies()))
+        new_active = not is_active
+        t = _ToggleActiveThread(self._selected_tenant["id"], new_active)
+        t.done.connect(lambda d: self._active_updated(new_active, d))
         t.error.connect(lambda e: self._status_lbl.setText(f"Hata: {e}"))
         t.start()
         self._thread = t
+
+    def _active_updated(self, active: bool, _result: dict):
+        if self._selected_tenant:
+            self._selected_tenant["active"] = int(active)
+            for company in self._companies:
+                if company.get("id") == self._selected_tenant.get("id"):
+                    company["active"] = int(active)
+                    break
+            self._toggle_btn.setText("Pasif Yap" if active else "Aktif Yap")
+            self._toggle_btn.setObjectName("dangerBtn" if active else "successBtn")
+            self._toggle_btn.style().unpolish(self._toggle_btn)
+            self._toggle_btn.style().polish(self._toggle_btn)
+        self._status_lbl.setText("Firma durumu guncellendi.")
+        self._load_companies()
+
+    def _toggle_muted(self):
+        if not self._selected_tenant:
+            return
+        is_muted = _flag(self._selected_tenant.get("muted"))
+        action = "susturmayi kaldirmak" if is_muted else "firmayi susturmak"
+        message = (
+            "Susturulan firma programi acamaz, lisans talebi olusturamaz ve "
+            "yonetici ile iletisime gecmesi istenir.\n\n"
+            if not is_muted else "Firma yeniden erisim kontrolune alinacak.\n\n"
+        )
+        reply = QMessageBox.question(
+            self, "Firma Susturma Onayi",
+            message + f"'{self._selected_tenant.get('company_name')}' icin {action} istiyor musunuz?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+        worker = _ToggleMutedThread(self._selected_tenant["id"], not is_muted)
+        worker.done.connect(lambda _data: (self._status_lbl.setText("Firma susturma durumu guncellendi."), self._load_companies()))
+        worker.error.connect(lambda error: self._status_lbl.setText(f"Hata: {error}"))
+        worker.start()
+        self._thread = worker
 
     def _delete_company(self):
         if not self._selected_tenant:
@@ -621,12 +759,14 @@ class CompaniesPage(QWidget):
         self._selected_tenant = None
         self._detail_title.setText("Firma secin")
         self._toggle_btn.setEnabled(False)
+        self._mute_btn.setEnabled(False)
         self._delete_btn.setEnabled(False)
         self._sector_combo.setEnabled(False)
         self._sector_btn.setEnabled(False)
         self._user_table.setRowCount(0)
         self._repair_users_btn.setVisible(False)
         self._reset_btn.setEnabled(False)
+        self._email_temp_btn.setEnabled(False)
         self._reset_link_btn.setEnabled(False)
         self._status_lbl.setText(f"Firma silindi ve arsive tasindi: {archive}")
         self._load_companies()

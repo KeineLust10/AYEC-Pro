@@ -12,10 +12,12 @@ from PyQt6.QtGui import QFont, QIcon
 
 import config
 import api_client
-from product_catalog import product_names
+import logging
+from product_catalog import product_names, product_code
 
 from pages.dashboard import DashboardPage
 from pages.companies import CompaniesPage
+from pages.customer_360 import Customer360Page
 from pages.installation_map import InstallationMapPage
 from pages.licenses import LicensesPage
 from pages.license_requests import LicenseRequestsPage
@@ -35,6 +37,7 @@ from table_interaction import apply_professional_table
 _NAV_ITEMS = [
     ("dashboard",        "\ud83d\udcca", "Dashboard"),
     ("companies",        "\ud83c\udfe2", "Firma Y\u00f6netimi"),
+    ("customer_360",     "\ud83e\udde9", "M\u00fc\u015fteri 360"),
     ("installation_map", "\ud83d\udccd", "Kurulum Haritasi"),
     ("licenses",         "\ud83c\udf9f\ufe0f", "Lisans Y\u00f6netimi"),
     ("license_requests", "\ud83d\udcec", "Lisans Talepleri"),
@@ -272,6 +275,7 @@ class MainWindow(QMainWindow):
         self._nav_btns: dict[str, QPushButton] = {}
         self._current_page = ""
         self._active_product = "AYEC Pro Teknik Servis"
+        api_client.set_product_context(product_code(self._active_product))
         self._build_ui()
         self._navigate("dashboard")
 
@@ -391,17 +395,22 @@ class MainWindow(QMainWindow):
     def _product_changed(self, product_name: str):
         """Keep a single product context for the shared admin shell."""
         self._active_product = str(product_name or "AYEC Pro Teknik Servis")
+        api_client.set_product_context(product_code(self._active_product))
         self._header_title.setToolTip("Urun: " + self._active_product)
-        for page in self._pages.values():
-            setter = getattr(page, 'set_product_filter', None)
-            if setter:
-                setter(self._active_product)
+        # Only refresh the visible page here.  Hidden pages may still have a
+        # running QThread; restarting all of them on every combo-box change
+        # can destroy an active thread and abort the Qt process.
+        page = self._pages.get(self._current_page)
+        setter = getattr(page, 'set_product_filter', None)
+        if setter:
+            setter(self._active_product)
 
     def _get_page(self, page_id: str) -> QWidget:
         if page_id not in self._pages:
             constructors = {
                 "dashboard":       DashboardPage,
                 "companies":       CompaniesPage,
+                "customer_360":    Customer360Page,
                 "installation_map": InstallationMapPage,
                 "licenses":        LicensesPage,
                 "license_requests": LicenseRequestsPage,
@@ -418,10 +427,18 @@ class MainWindow(QMainWindow):
             }
             cls = constructors.get(page_id)
             if cls:
-                page = cls()
+                try:
+                    page = cls()
+                except Exception as exc:
+                    logging.getLogger("ayec_admin").exception("Page initialization failed: %s", page_id)
+                    page = QLabel(f"Sayfa yuklenemedi: {page_id}\\n{type(exc).__name__}: {exc}")
+                    page.setAlignment(Qt.AlignmentFlag.AlignCenter)
                 self._prepare_tables(page)
                 self._pages[page_id] = page
                 self._stack.addWidget(page)
+                setter = getattr(page, 'set_product_filter', None)
+                if setter:
+                    setter(self._active_product)
             else:
                 placeholder = QLabel(f"Sayfa bulunamadi: {page_id}")
                 placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)

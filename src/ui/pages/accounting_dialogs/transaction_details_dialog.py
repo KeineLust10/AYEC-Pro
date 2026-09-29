@@ -63,7 +63,7 @@ class TransactionDetailsDialog(PremiumDialog):
                 
             v = QLabel(display_value)
             v.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-            v.setStyleSheet(theme_qss("color: @selection_text; font-weight: 800;"))
+            v.setStyleSheet(theme_qss("color: @text; font-weight: 800;"))
             v.setWordWrap(True)
             form.addRow(l, v)
 
@@ -201,7 +201,7 @@ class TransactionDetailsDialog(PremiumDialog):
             QTableWidget { border: 1px solid @border; border-radius: 10px; selection-background-color: @selection_bg; selection-color: @selection_text; }
             QHeaderView::section { background: @surface_alt; border: none; border-bottom: 1px solid @border; padding: 10px; font-weight: 900; color: @text; }
             QTableWidget::item { padding: 8px; border-bottom: 1px solid @surface_alt; }
-            QTableWidget::item:selected { background: @selection_bg; color: @selection_text; }
+            QTableWidget::item:selected { background: @selection_bg; color: @text; }
             QTableWidget::item:focus { outline: none; }
         """))
         self.items_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)

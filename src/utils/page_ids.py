@@ -13,13 +13,16 @@ class PageIds:
     # ── Operasyon ──────────────────────────────────────────────────────────
     PC_BUILDER        = 300
     NEW_SERVICE       = 150
+    SERVICE_BOARD     = 41   # Service board / Kanban
     SERVICE_LIST      = 42   # Service list
+    SERVICE_STATUS    = 43   # Service status panel
     TECHNICIAN_PANEL  = 62
     AUTOMOTIVE_STOCK  = 60
     FIELD_MAP         = 61
     AI_ASSISTANT      = 170
     APPOINTMENTS      = 30
     STOCK             = 50
+    STOCK_LOCATIONS   = 51
     DEVICE_BRANDS     = 145
     PRODUCT_GROUPS    = 146
     REPORT_TEMPLATES  = 147
@@ -38,6 +41,7 @@ class PageIds:
 
     # ── Yönetim ───────────────────────────────────────────────────────────
     REPORTS           = 111
+    AUDIT_LOG         = 135
     OP_REPORTS        = 260
     PERSONNEL         = 10
     SERVICE_SETTINGS  = 140
@@ -48,6 +52,10 @@ class PageIds:
     SUPPORT           = 70
     SETTINGS          = 130
     USER_MANUAL       = 261
+    ANNOUNCEMENTS     = 120
+    MOBILE_GUIDE      = 250
+    ALL_OFFERS        = 313
+    OFFER_REPORTS     = 314
 
     # ── Diğer ─────────────────────────────────────────────────────────────
     PROJECTS          = 200

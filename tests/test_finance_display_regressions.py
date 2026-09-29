@@ -25,6 +25,12 @@ class FakeDb:
         return default
 
 
+def test_accounting_dashboard_header_uses_theme_contrast_tokens():
+    source = Path("src/ui/pages/accounting_page.py").read_text(encoding="utf-8")
+    assert '"background: @surface_alt; border-radius: 18px;' in source
+    assert 'color: @text; border: none; background: transparent;' in source
+
+
 def test_stock_detail_uses_line_total_and_currency():
     value = _format_service_item_total(
         FakeDb(),
@@ -183,3 +189,4 @@ def test_collection_detail_restores_all_maintenance_items(tmp_path):
     assert work_rows == labels
     assert all("kalem daha" not in row for row in work_rows)
     db.close()
+from pathlib import Path

@@ -51,7 +51,8 @@ class StockImportParser(
     @classmethod
     def parse_file(cls, path):
         """Verilen dosyayı parse et ve normalize edilmiş satırları döndür."""
-        _ensure_heavy_imports()  # ağır kütüphaneleri lazy yükle
+        # Optional Smart Import dependencies stay lazy. CSV parsing has a
+        # standard-library yedek and works with base ayec-core.
 
         file_path = Path(path)
         ext       = file_path.suffix.lower()

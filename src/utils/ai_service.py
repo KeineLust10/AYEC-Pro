@@ -62,7 +62,9 @@ class AIService:
         # DB veya List destegi (Backward Compatibility)
         if hasattr(db_or_keys, 'get_setting'):
             self.db = db_or_keys
-            key_str = self.db.get_setting("gemini_api_key", "")
+            from src.utils.secure_setting_store import SecureSettingStore
+
+            key_str = SecureSettingStore.get(self.db, "gemini_api_key", "")
             if key_str:
                 self.api_keys = [k.strip() for k in key_str.replace(',', '\n').split('\n') if k.strip()]
             saved_model = (self.db.get_setting("gemini_model", "") or "").strip()

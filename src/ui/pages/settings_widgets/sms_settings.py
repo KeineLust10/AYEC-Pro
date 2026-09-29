@@ -195,7 +195,9 @@ class SMSSettingsWidget(QWidget):
 
     def load_data(self):
         self.inp_user.setText(self.db.get_setting("sms_username", ""))
-        self.inp_pass.setText(self.db.get_setting("sms_password", ""))
+        from src.utils.secure_setting_store import SecureSettingStore
+
+        self.inp_pass.setText(SecureSettingStore.get(self.db, "sms_password", ""))
         self.inp_title.setText(self.db.get_setting("sms_title", ""))
         status = self.db.get_setting("sms_active", "0")
         self.cmb_status.setCurrentIndex(1 if status == "1" else 0)
@@ -208,7 +210,9 @@ class SMSSettingsWidget(QWidget):
 
     def save_credentials(self):
         self.db.set_setting("sms_username", self.inp_user.text())
-        self.db.set_setting("sms_password", self.inp_pass.text())
+        from src.utils.secure_setting_store import SecureSettingStore
+
+        SecureSettingStore.set(self.db, "sms_password", self.inp_pass.text())
         self.db.set_setting("sms_title", self.inp_title.text())
         self.db.set_setting("sms_active", "1" if self.cmb_status.currentIndex() == 1 else "0")
         if self.main_window:

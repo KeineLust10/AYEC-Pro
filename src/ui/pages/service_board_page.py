@@ -890,43 +890,26 @@ class ServiceBoardPage(QWidget):
             )
             return False
 
-        created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        saved = self.db.add_currency_transaction(
+        selected_debt_ids = self._get_tracking_debt_ids(customer_id, tracking_no, currency)
+        payment = self.db.record_customer_payment(
             customer_id=customer_id,
             amount=amount,
             currency=currency,
-            transaction_type="CREDIT",
             exchange_rate=exchange_rate,
             description=desc,
             tracking_no=tracking_no,
-            created_at=created_at,
+            selected_debt_ids=selected_debt_ids or None,
+            created_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            commit=False,
         )
-        if not saved:
-            show_error(self.main_window or self, "Tahsilat cari harekete kaydedilemedi.")
+        if not payment.get("ok"):
+            self.db.conn.rollback()
+            show_error(self.main_window or self, f"Tahsilat cari harekete kaydedilemedi: {payment.get('error', '')}")
             return False
-
-        payment_txn_id = None
-        try:
-            payment_txn_id = self.db.get_last_currency_transaction_id()
-        except Exception:
-            payment_txn_id = None
-
-        selected_debt_ids = self._get_tracking_debt_ids(customer_id, tracking_no, currency)
-        if payment_txn_id:
-            try:
-                self.db.apply_payment_to_debts(
-                    customer_id=customer_id,
-                    payment_amount=amount,
-                    currency=currency,
-                    payment_transaction_id=payment_txn_id,
-                    selected_debt_ids=selected_debt_ids or None,
-                )
-            except Exception as exc:
-                logger.warning("Delivery payment allocation skipped: %s", exc)
 
         try_amount = amount * exchange_rate
         try:
-            self.db.add_transaction(
+            accounting_id = self.db.add_transaction(
                 t_type="Gelir",
                 category="Tahsilat",
                 amount=try_amount,
@@ -939,9 +922,16 @@ class ServiceBoardPage(QWidget):
                 ref_no=tracking_no,
                 currency=currency,
                 original_amount=amount,
+                commit=False,
             )
+            if not accounting_id:
+                raise RuntimeError("Muhasebe kaydi olusturulamadi")
+            self.db.conn.commit()
         except Exception as exc:
-            logger.warning("Delivery payment accounting mirror skipped: %s", exc)
+            self.db.conn.rollback()
+            logger.error("Delivery payment rolled back: %s", exc)
+            show_error(self.main_window or self, "Tahsilat ve muhasebe kaydi birlikte kaydedilemedi.")
+            return False
 
         return True
 

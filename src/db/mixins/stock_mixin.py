@@ -375,7 +375,16 @@ class StockMixin:
             def _to_try(amount, currency):
                 if currency == "TRY":
                     return float(amount)
-                rate = float(CurrencyHelper._get_rate(self, currency) or 0)
+                rate = 0.0
+                try:
+                    from src.utils.exchange_rate_manager import ExchangeRateManager
+                    rate = float(
+                        ExchangeRateManager.get_current_rate(
+                            self, currency, "selling"
+                        ) or 0
+                    )
+                except Exception:
+                    rate = 0.0
                 if rate <= 0:
                     try:
                         result = self.conn.execute(

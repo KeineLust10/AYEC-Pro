@@ -65,12 +65,18 @@ $TenantDirectory = $env:AYEC_TENANT_DIR
 New-Item -ItemType Directory -Path $TenantDirectory -Force | Out-Null
 $env:PYTHONUTF8 = "1"
 $env:PYTHONUNBUFFERED = "1"
+$SigningDirectory = Join-Path $ProjectPath "config"
+$SigningKey = Join-Path $SigningDirectory "license-signing-key.pem"
+if (Test-Path -LiteralPath $SigningKey) {
+    $env:AYEC_LICENSE_SIGNING_KEY_FILE = $SigningKey
+    $env:AYEC_LICENSE_SIGNING_KEY_ID = "ayec-main-2026"
+}
 
 Set-Location $ProjectPath
 while ($true) {
     $stamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     Write-ServerLog -Path $LauncherLog -Message "[$stamp] AYEC Pro Web starting: $HostAddress`:$Port"
-    & $Python "Main.py" --host $HostAddress --port $Port --db $Database --tenant-dir $env:AYEC_TENANT_DIR 1>> $OutLog 2>> $ErrorLog
+    & $Python -X faulthandler "Main.py" --host $HostAddress --port $Port --db $Database --tenant-dir $env:AYEC_TENANT_DIR 1>> $OutLog 2>> $ErrorLog
     $exitCode = $LASTEXITCODE
     $stamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     Write-ServerLog -Path $ErrorLog -Message "[$stamp] Web server stopped (code: $exitCode); restarting in 5 seconds."

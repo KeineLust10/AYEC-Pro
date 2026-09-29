@@ -29,7 +29,7 @@ def test_license_client_uses_dedicated_device_endpoint():
     result = RecordingClient("http://license.test").create_order(payload)
 
     assert result["ok"] is True
-    assert calls == [("/api/license/orders/device", "POST", payload)]
+    assert calls == [("/api/license/orders/device", "POST", {**payload, "product_code": "elek"})]
 
 
 def test_missing_device_company_can_be_provisioned_for_license_order(monkeypatch):
@@ -130,9 +130,9 @@ def test_paid_license_order_is_atomic_and_emails_vendor(tmp_path, monkeypatch):
     assert result["order"]["status"] == "payment_reported"
     assert result["order"]["payment_reported_at"]
     assert result["mail"]["admin_sent"] is True
-    assert result["mail"]["admin_recipient"] == "ayecpro@gmail.com"
+    assert result["mail"]["admin_recipient"] == web_main.SUPPORT_EMAIL
     assert len(sent_messages) == 2
-    assert sent_messages[1][0] == "ayecpro@gmail.com"
+    assert sent_messages[1][0] == web_main.SUPPORT_EMAIL
     assert "Odeme Yapildi" in sent_messages[1][1]
     assert "Tarih/Saat:" in sent_messages[1][2]
 
@@ -200,4 +200,4 @@ def test_license_api_payment_flow_uses_mail_fallback(monkeypatch):
     dialog._submit(True)
 
     assert dialog.fallback_mail_sent is True
-    assert "ayecpro@gmail.com" in dialog.status_label.text()
+    assert web_main.SUPPORT_EMAIL in dialog.status_label.text()

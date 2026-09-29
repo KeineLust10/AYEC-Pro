@@ -9,11 +9,24 @@ from pathlib import Path
 
 CATALOG_PATH = Path(__file__).resolve().parent.parent / "ecosystem" / "products.json"
 
+_BUILTIN_PRODUCTS = (
+    {"code": "teknik_servis", "name": "AYEC Pro Teknik Servis", "active": True},
+    {"code": "barkod_okuyucu", "name": "AYEC Pro Barkod Okuyucu", "active": True},
+    {"code": "elek", "name": "AYEC Pro Elek", "active": True},
+    {"code": "ciro", "name": "AYEC Pro Ciro", "active": True},
+)
+
 
 @lru_cache(maxsize=1)
 def products() -> tuple[dict, ...]:
-    payload = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
-    return tuple(dict(item) for item in payload.get("products", ()) if item.get("active", True))
+    try:
+        payload = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
+        products = tuple(dict(item) for item in payload.get("products", ()) if item.get("active", True))
+        if products:
+            return products
+    except (OSError, ValueError, TypeError):
+        pass
+    return tuple(dict(item) for item in _BUILTIN_PRODUCTS)
 
 
 def product_names() -> tuple[str, ...]:

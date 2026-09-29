@@ -23,7 +23,12 @@ class SecureSettingStore:
         if not value:
             return default
         if not value.startswith(cls.PREFIX):
-            return default
+            # Preserve legacy values and migrate them on the first read.
+            try:
+                cls.set(db, key, value)
+            except Exception:
+                pass
+            return value
         try:
             return cls._fernet().decrypt(value[len(cls.PREFIX):].encode("ascii")).decode("utf-8")
         except (InvalidToken, ValueError, TypeError):
@@ -32,5 +37,11 @@ class SecureSettingStore:
     @classmethod
     def set(cls, db, key, value):
         text = str(value or "")
+        if not text:
+            return db.set_setting(key, "")
         encrypted = cls._fernet().encrypt(text.encode("utf-8")).decode("ascii")
         return db.set_setting(key, cls.PREFIX + encrypted)
+
+    @classmethod
+    def is_encrypted(cls, value):
+        return str(value or "").startswith(cls.PREFIX)
