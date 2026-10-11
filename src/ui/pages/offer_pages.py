@@ -1,11 +1,12 @@
 import csv
 from datetime import datetime
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QTimer, Qt
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QDialog,
     QDialogButtonBox,
+    QComboBox,
     QFileDialog,
     QFrame,
     QGridLayout,
@@ -21,6 +22,7 @@ from PyQt6.QtWidgets import (
 )
 
 from src.services.offer_service import OfferService
+from src.ui.widgets.financial_reference_controls import FinancialMetricGlyph
 from src.utils.design_system import DesignTokens
 from src.utils.theme_colors import theme_qss
 from src.utils.toast_notification import show_error, show_success, show_warning
@@ -43,6 +45,27 @@ def _money(value, currency="TRY"):
     symbols = {"TRY": "\u20ba", "USD": "$", "EUR": "\u20ac", "GBP": "\u00a3"}
     symbol = symbols.get(str(currency or "TRY").upper(), str(currency or "TRY"))
     return f"{float(value or 0):,.2f} {symbol}"
+
+
+def _filter_offer_rows(rows, status_filter="all", currency_filter="all"):
+    status_sets = {
+        "pending": {"draft", "pending", "waiting", "beklemede", "revision_pending", "sent"},
+        "accepted": {"accepted", "approved", "onaylandi", "processed"},
+        "rejected": {"rejected", "declined", "reddedildi", "draft", "created"},
+        "draft": {"draft", "created"},
+    }
+    filtered = []
+    for row in rows:
+        status = str(_row_value(row, "status")).strip().lower()
+        for source, replacement in (("\u0131", "i"), ("\u0130", "i"), ("\u015f", "s"), ("\u00e7", "c"), ("\u00f6", "o"), ("\u00fc", "u"), ("\u011f", "g")):
+            status = status.replace(source, replacement)
+        currency = str(_row_value(row, "currency_code", default="TRY") or "TRY").upper()
+        if status_filter != "all" and status not in status_sets.get(status_filter, set()):
+            continue
+        if currency_filter != "all" and currency != currency_filter:
+            continue
+        filtered.append(row)
+    return filtered
 
 
 def _page_title(title_text, subtitle_text):
@@ -84,7 +107,10 @@ def _table(columns):
 
 def _card():
     frame = QFrame()
-    frame.setStyleSheet(theme_qss(DesignTokens.get_card_qss(hover=False)))
+    frame.setObjectName("OfferCard")
+    frame.setStyleSheet(theme_qss(
+        DesignTokens.get_card_qss(hover=False).replace("QFrame", "QFrame#OfferCard")
+    ))
     return frame
 
 class _ListPageBase(QWidget):
@@ -101,7 +127,8 @@ class _ListPageBase(QWidget):
         self.search.setPlaceholderText(placeholder)
         self.search.setMinimumHeight(38)
         self.search.setStyleSheet(theme_qss(DesignTokens.get_input_qss()))
-        self.search.textChanged.connect(self.refresh_data)
+        search_handler = getattr(self, "_schedule_refresh_data", self.refresh_data)
+        self.search.textChanged.connect(search_handler)
         layout.addWidget(self.search, 1)
         btn_export = _button("Excel \u00c7\u0131kt\u0131")
         btn_export.clicked.connect(self.export_csv)
@@ -186,38 +213,100 @@ class OffersPage(_ListPageBase):
     def __init__(self, db, main_window=None):
         super().__init__(db, main_window)
         self.current_page = 1
-        self.page_size = 100
+        self.page_size = 6
         self._last_search = ""
+        self._search_refresh_timer = QTimer(self)
+        self._search_refresh_timer.setSingleShot(True)
+        self._search_refresh_timer.setInterval(180)
+        self._search_refresh_timer.timeout.connect(self.refresh_data)
         self._build_ui()
         self.refresh_data()
 
+    def _schedule_refresh_data(self, *_args):
+        self._search_refresh_timer.start()
+
     def _build_ui(self):
         root = QVBoxLayout(self)
-        root.setContentsMargins(24, 22, 24, 22)
-        root.setSpacing(14)
+        root.setContentsMargins(8, 8, 8, 8)
+        root.setSpacing(10)
+        self.header_frame = QFrame(self)
+        self.header_frame.setObjectName("OfferReferenceHeader")
+        self.header_frame.setStyleSheet(theme_qss(
+            "QFrame#OfferReferenceHeader { background: @finance_surface; border: none; border-radius: 6px; }"
+        ))
+        heading_box = QVBoxLayout(self.header_frame)
+        heading_box.setContentsMargins(8, 8, 8, 8)
+        heading_box.setSpacing(4)
         header = QHBoxLayout()
-        header.addLayout(
-            _page_title(
-                "T\u00fcm Teklifler",
-                "M\u00fc\u015fterilere verilen teklifleri ve onay durumlar\u0131n\u0131 izleyin.",
-            )
-        )
+        header.setSpacing(6)
+        title = QLabel("Teklif Y\u00f6netimi", self.header_frame)
+        title.setStyleSheet(theme_qss("color: @finance_text; font-size: 18px; font-weight: 700; border: none; background: transparent;"))
+        header.addWidget(title)
+        badge = QLabel("AYEC-QUOTES-v2")
+        badge.setStyleSheet(theme_qss(
+            "background: @finance_surface_high; color: @finance_text_muted; border: none; "
+            "border-radius: 4px; padding: 2px 4px; font-size: 9px; font-weight: 700;"
+        ))
+        header.addWidget(badge, 0, Qt.AlignmentFlag.AlignVCenter)
         header.addStretch()
-        btn_new = _button("Teklif Olu\u015ftur", "success")
+        self.btn_quick_basket = _button("H\u0131zl\u0131 Teklif Sepeti")
+        self.btn_quick_basket.clicked.connect(self._open_sales)
+        header.addWidget(self.btn_quick_basket)
+        self.btn_header_export = _button("Excel \u00c7\u0131kt\u0131")
+        self.btn_header_export.clicked.connect(self.export_csv)
+        header.addWidget(self.btn_header_export)
+        self.btn_reports = _button("Raporlar")
+        self.btn_reports.clicked.connect(lambda: self._navigate_to_page(314))
+        header.addWidget(self.btn_reports)
+        btn_new = _button("+ Yeni Teklif Olu\u015ftur", "success")
         btn_new.clicked.connect(lambda: self._open_sales())
         header.addWidget(btn_new)
-        root.addLayout(header)
+        self.reference_header_actions = [self.btn_quick_basket, self.btn_header_export, self.btn_reports, btn_new]
+        for index, button in enumerate(self.reference_header_actions):
+            button.setFixedHeight(28)
+            button.setAccessibleName(button.text())
+            button.setStyleSheet(theme_qss(
+                "QPushButton { background: @" + ("finance_action_income" if index == 3 else "finance_surface_high")
+                + "; color: @" + ("finance_action_income_text" if index == 3 else "finance_text")
+                + "; border: none; border-radius: 4px; padding: 0 8px; font-size: 11px; font-weight: 600; }"
+                "QPushButton:hover { background: @finance_active_bg; color: @finance_text; }"
+            ))
+        heading_box.addLayout(header)
+        subtitle = QLabel("M\u00fc\u015fterilere sunulan teklifleri haz\u0131rlay\u0131n, durumlar\u0131n\u0131 ve d\u00f6viz bazl\u0131 onay s\u00fcre\u00e7lerini izleyin.")
+        subtitle.setWordWrap(True)
+        subtitle.setStyleSheet(theme_qss("color: @finance_text_muted; font-size: 11px; border: none; background: transparent;"))
+        heading_box.addWidget(subtitle)
+        root.addWidget(self.header_frame)
         stats = QHBoxLayout()
+        stats.setSpacing(8)
         self.cards = [
-            self._offer_card("T\u00fcm Teklifler", "@accent"),
-            self._offer_card("Onay Bekliyor", "@warning"),
-            self._offer_card("Onayland\u0131", "@success"),
-            self._offer_card("Reddedildi", "@danger"),
+            self._offer_card("T\u00fcm Teklifler", "@finance_action_collection", "excel"),
+            self._offer_card("Onay Bekliyor", "@finance_tertiary", "clock"),
+            self._offer_card("Onayland\u0131", "@finance_secondary", "collection"),
+            self._offer_card("Red / Taslak", "@finance_tertiary", "expense"),
+            self._offer_card("Teklif Hacmi", "@finance_text", "bank"),
         ]
         for card in self.cards:
             stats.addWidget(card)
         root.addLayout(stats)
-        root.addLayout(self._toolbar("Teklif no, m\u00fc\u015fteri, firma veya \u00fcr\u00fcn ara..."))
+        toolbar = self._toolbar("Teklif no, m\u00fc\u015fteri, firma veya \u00fcr\u00fcn ara...")
+        self.status_filter = QComboBox()
+        for label, value in (("Durum: T\u00fcm\u00fc", "all"), ("Onay Bekliyor", "pending"), ("Onayland\u0131", "accepted"), ("Red / Taslak", "rejected")):
+            self.status_filter.addItem(label, value)
+        self.currency_filter = QComboBox()
+        for label, value in (("D\u00f6viz: T\u00fcm\u00fc", "all"), ("TRY", "TRY"), ("USD", "USD"), ("EUR", "EUR")):
+            self.currency_filter.addItem(label, value)
+        for combo in (self.status_filter, self.currency_filter):
+            combo.setMinimumHeight(38)
+            combo.setMinimumWidth(126)
+            combo.setStyleSheet(theme_qss(DesignTokens.get_input_qss()))
+            combo.currentIndexChanged.connect(self._on_filters_changed)
+        toolbar.insertWidget(1, self.status_filter)
+        toolbar.insertWidget(2, self.currency_filter)
+        toolbar_export = toolbar.itemAt(3).widget()
+        toolbar.removeWidget(toolbar_export)
+        toolbar_export.deleteLater()
+        root.addLayout(toolbar)
         self.table = _table(
             [
                 "Teklif No",
@@ -232,55 +321,70 @@ class OffersPage(_ListPageBase):
                 "D\u00fczenle",
             ]
         )
+        self.table.itemSelectionChanged.connect(self._on_offer_selection_changed)
         header_view = self.table.horizontalHeader()
-        header_view.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-        header_view.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-        header_view.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
-        header_view.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
-        header_view.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
-        header_view.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
-        header_view.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)
-        header_view.setSectionResizeMode(7, QHeaderView.ResizeMode.Stretch)
-        header_view.setSectionResizeMode(8, QHeaderView.ResizeMode.Fixed)
-        header_view.setSectionResizeMode(9, QHeaderView.ResizeMode.Fixed)
-        self.table.setColumnWidth(8, 66)
-        self.table.setColumnWidth(9, 88)
+        header_view.setFixedHeight(32)
+        header_view.setStretchLastSection(False)
+        fixed_widths = {0: 90, 8: 66, 9: 88}
+        for column in range(self.table.columnCount()):
+            if column in fixed_widths:
+                header_view.setSectionResizeMode(column, QHeaderView.ResizeMode.Fixed)
+                self.table.setColumnWidth(column, fixed_widths[column])
+            else:
+                header_view.setSectionResizeMode(column, QHeaderView.ResizeMode.Stretch)
+            item = self.table.horizontalHeaderItem(column)
+            item.setToolTip(item.text())
+        for column, text in ((4, "TOPLAM\nTUTAR"), (5, "G\u00d6NDEREN\nPERSONEL"), (6, "ONAY\nDURUMU"), (7, "NOT /\nEVRAK")):
+            self.table.horizontalHeaderItem(column).setText(text)
         self.table.setAlternatingRowColors(True)
-        self.table.verticalHeader().setDefaultSectionSize(34)
+        self.table.setWordWrap(True)
+        self.table.setTextElideMode(Qt.TextElideMode.ElideNone)
+        self.table.verticalHeader().setDefaultSectionSize(46)
         self.table.setStyleSheet(
             theme_qss(
                 """
                 QTableWidget {
-                    border-radius: 10px;
-                    border: 1px solid @border;
-                    background: @surface;
+                    border-radius: 4px;
+                    border: 1px solid @finance_outline;
+                    background: @finance_surface;
+                    alternate-background-color: @finance_surface_container;
+                    color: @finance_text;
+                    font-size: 11px;
                 }
                 QTableWidget:focus { outline: none; }
                 QHeaderView::section {
-                    background-color: @surface_alt;
-                    color: @text;
-                    padding: 10px;
+                    background-color: @finance_canvas;
+                    color: @finance_text_muted;
+                    padding: 2px 4px;
+                    font-size: 9px;
                     font-weight: bold;
                     border: none;
                 }
                 QTableWidget::item {
-                    padding: 7px;
-                    color: @text;
-                    border-bottom: 1px solid @surface_alt;
+                    padding: 4px;
+                    color: @finance_text;
+                    border: none;
                 }
                 QTableWidget::item:hover {
                     background-color: @selection_bg;
                     color: @accent_pressed;
                 }
                 QTableWidget::item:selected {
-                    background-color: @accent;
-                    color: @selection_text;
+                    background-color: @finance_active_bg;
+                    color: @finance_text;
                 }
                 QTableWidget::item:focus { outline: none; }
                 """
             )
         )
-        root.addWidget(self.table, 1)
+        content = QHBoxLayout()
+        content.setSpacing(12)
+        self.reference_list_column = QVBoxLayout()
+        self.reference_list_column.setSpacing(4)
+        self.reference_list_column.addWidget(self.table)
+        content.addLayout(self.reference_list_column, 2)
+        content.addWidget(self._build_preview_panel(), 1)
+        root.addLayout(content, 1)
         footer = QHBoxLayout()
         self.page_info = QLabel("")
         self.page_info.setStyleSheet(theme_qss("color: @text_muted; font-weight: 650;"))
@@ -302,26 +406,232 @@ class OffersPage(_ListPageBase):
         footer.addWidget(self.btn_previous)
         footer.addWidget(self.page_number)
         footer.addWidget(self.btn_next)
-        root.addLayout(footer)
+        for control in (self.btn_previous, self.page_number, self.btn_next):
+            control.setFixedHeight(28)
+            control.setStyleSheet(theme_qss(
+                "background: @finance_surface_high; color: @finance_text; border: none; "
+                "border-radius: 4px; padding: 0 6px; font-size: 11px;"
+            ))
+        self.reference_list_column.addLayout(footer)
+        self.reference_list_column.addStretch(1)
 
     @staticmethod
-    def _offer_card(title, accent):
+    def _offer_card(title, accent, glyph="excel"):
         card = _card()
+        card.setFixedHeight(90)
+        card.setStyleSheet(theme_qss("QFrame#OfferCard { background: @finance_surface_container; border: none; border-radius: 4px; }"))
         layout = QVBoxLayout(card)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(6)
         count = QLabel("0")
         count.setObjectName("count")
         count.setStyleSheet(
-            theme_qss(f"font-size: 24px; font-weight: 900; color: {accent};")
+            theme_qss(f"font-size: 24px; font-weight: 700; color: {accent}; border: none; background: transparent;")
         )
-        label = QLabel(title)
-        label.setStyleSheet(theme_qss("font-weight: 750; color: @text_muted;"))
+        label = QLabel(title.replace("i", "\u0130").replace("\u0131", "I").upper())
+        label.setStyleSheet(theme_qss("font-size: 10px; font-weight: 700; color: @finance_text_muted; background: transparent; border: none;"))
+        heading = QHBoxLayout()
+        heading.setSpacing(4)
+        heading.addWidget(label, 1)
+        heading.addWidget(FinancialMetricGlyph(glyph, accent.lstrip("@"), card))
+        layout.addLayout(heading)
         layout.addWidget(count)
-        layout.addWidget(label)
+        accent_line = QFrame()
+        accent_line.setFixedHeight(3)
+        accent_line.setStyleSheet(theme_qss(f"background: {accent}; border: none; border-radius: 1px;"))
+        layout.addWidget(accent_line)
         return card
+
+    def _build_preview_panel(self):
+        panel = QFrame()
+        panel.setObjectName("OfferPreviewPanel")
+        panel.setMinimumWidth(280)
+        panel.setStyleSheet(theme_qss(
+            "QFrame#OfferPreviewPanel { background: @surface_alt; border: 1px solid @border; border-radius: 6px; }"
+        ))
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(14, 14, 14, 14)
+        layout.setSpacing(10)
+
+        title = QLabel("M\u00fc\u015fteri ve \u0130\u015flem")
+        title.setStyleSheet(theme_qss("font-size: 15px; font-weight: 800; color: @text;"))
+        layout.addWidget(title)
+        hint = QLabel("Bir teklif sat\u0131r\u0131n\u0131 a\u00e7\u0131n veya yeni teklif olu\u015fturun.")
+        hint.setWordWrap(True)
+        hint.setStyleSheet(theme_qss("color: @text_muted; font-size: 11px;"))
+        layout.addWidget(hint)
+
+        self.preview_fields = {}
+        for key_name, label, value in (
+            ("customer", "M\u00fc\u015fteri", "-"),
+            ("date", "\u0130\u015flem Tarihi", "-"),
+            ("currency", "Para Birimi", "-"),
+            ("items", "H\u0131zl\u0131 Teklif", "-"),
+        ):
+            row = QFrame()
+            row.setObjectName("OfferPreviewField")
+            row.setStyleSheet(theme_qss(
+                "QFrame#OfferPreviewField { background: @surface; border: 1px solid @border; border-radius: 4px; }"
+            ))
+            row_layout = QVBoxLayout(row)
+            row_layout.setContentsMargins(10, 7, 10, 7)
+            row_layout.setSpacing(2)
+            key = QLabel(label)
+            key.setStyleSheet(theme_qss("color: @text_muted; font-size: 10px; font-weight: 700;"))
+            val = QLabel(value)
+            val.setStyleSheet(theme_qss("color: @text; font-weight: 750;"))
+            self.preview_fields[key_name] = val
+            row_layout.addWidget(key)
+            row_layout.addWidget(val)
+            layout.addWidget(row)
+
+        selection_actions = QHBoxLayout()
+        self.btn_add_to_basket = _button("Sepete Ekle", "success")
+        self.btn_bulk_select = _button("Toplu Se\u00e7im")
+        self.btn_add_to_basket.clicked.connect(self._edit_selected_offer)
+        self.btn_bulk_select.clicked.connect(self._toggle_bulk_selection)
+        selection_actions.setSpacing(8)
+        selection_actions.addWidget(self.btn_add_to_basket, 1)
+        selection_actions.addWidget(self.btn_bulk_select, 1)
+        layout.addLayout(selection_actions)
+
+        summary = QFrame()
+        summary.setObjectName("OfferPreviewSummary")
+        summary.setStyleSheet(theme_qss("QFrame#OfferPreviewSummary { background: @surface; border: 1px solid @border; border-radius: 4px; }"))
+        summary_layout = QGridLayout(summary)
+        summary_layout.setContentsMargins(10, 8, 10, 8)
+        summary_layout.setHorizontalSpacing(12)
+        self.preview_amounts = {}
+        for row_index, (amount_key, caption, color) in enumerate((
+            ("subtotal", "Ara Toplam", "@text"),
+            ("discount", "\u0130ndirim", "@danger"),
+            ("tax", "KDV", "@text"),
+            ("total", "Genel Toplam", "@success"),
+        )):
+            caption_label = QLabel(caption)
+            caption_label.setStyleSheet(theme_qss("color: @text_muted; font-size: 9px; font-weight: 700;"))
+            value_label = QLabel("-")
+            value_label.setStyleSheet(theme_qss(f"color: {color}; font-size: 12px; font-weight: 850;"))
+            self.preview_amounts[amount_key] = value_label
+            summary_layout.addWidget(caption_label, row_index, 0)
+            summary_layout.addWidget(value_label, row_index, 1)
+        layout.addWidget(summary)
+
+        layout.addStretch()
+        self.preview_total = QLabel("Teklif hacmi\n0")
+        self.preview_total.setStyleSheet(theme_qss("color: @success; font-size: 18px; font-weight: 850;"))
+        layout.addWidget(self.preview_total)
+        approve = QPushButton("Teklif Aninda Onaylansin")
+        approve.setCheckable(True)
+        approve.setStyleSheet(theme_qss("QPushButton{background:@surface;color:@text;border:1px solid @border;border-radius:6px;padding:6px;} QPushButton:checked{background:@success_bg;color:@success;}"))
+        layout.addWidget(approve)
+        self.preview_action_buttons = []
+        for action_label in (
+            "Proforma Olu\u015ftur & \u0130let",
+            "\u00d6deme Al ve Kaydet",
+            "Servis Kayd\u0131na D\u00f6n\u00fc\u015ft\u00fcr",
+        ):
+            action_button = _button(action_label, "primary" if action_label.startswith("Proforma") else "secondary")
+            action_button.clicked.connect(self._edit_selected_offer)
+            layout.addWidget(action_button)
+            self.preview_action_buttons.append(action_button)
+        create_offer = _button("Teklif Olu\u015ftur", "success")
+        create_offer.clicked.connect(self._open_sales)
+        layout.addWidget(create_offer)
+        return panel
 
     def _open_sales(self):
         if self.main_window and hasattr(self.main_window, "on_menu_click"):
             self.main_window.on_menu_click(150)
+
+    def _navigate_to_page(self, page_id):
+        if self.main_window and hasattr(self.main_window, "on_menu_click"):
+            self.main_window.on_menu_click(int(page_id))
+
+    def _selected_offer(self):
+        row_index = self.table.currentRow() if hasattr(self, "table") else -1
+        if row_index < 0:
+            return None
+        offer_id_item = self.table.item(row_index, 0)
+        offer_id = offer_id_item.data(Qt.ItemDataRole.UserRole) if offer_id_item else None
+        return next(
+            (row for row in self.current_rows if int(_row_value(row, "id", default=0)) == int(offer_id or 0)),
+            None,
+        )
+
+    def _on_offer_selection_changed(self):
+        offer = self._selected_offer()
+        if not offer:
+            for field in self.preview_fields.values():
+                field.setText("-")
+            for value_label in self.preview_amounts.values():
+                value_label.setText("-")
+            self.preview_total.setText("Teklif Toplam\n-")
+            for button in [self.btn_add_to_basket, *self.preview_action_buttons]:
+                button.setEnabled(False)
+            return
+        currency = str(_row_value(offer, "currency_code", default="TRY") or "TRY").upper()
+        customer = str(_row_value(offer, "customer_name", default="-") or "-")
+        company = str(_row_value(offer, "company_name", default="") or "").strip()
+        if company:
+            customer = "{} | {}".format(customer, company)
+        created = str(_row_value(offer, "created_at", default="") or "")[:10]
+        self.preview_fields["customer"].setText(customer)
+        self.preview_fields["date"].setText(created or "-")
+        self.preview_fields["currency"].setText(currency)
+        self.preview_fields["items"].setText(str(_row_value(offer, "items", default="-") or "-"))
+        amounts = {
+            "subtotal": _row_value(offer, "subtotal", default=_row_value(offer, "total", default=0)),
+            "discount": _row_value(offer, "discount", default=0),
+            "tax": _row_value(offer, "tax_amount", default=_row_value(offer, "tax_total", default=0)),
+            "total": _row_value(offer, "total", default=0),
+        }
+        for key, value in amounts.items():
+            self.preview_amounts[key].setText(_money(value, currency))
+        try:
+            calculated_total = (
+                float(amounts["subtotal"] or 0)
+                - float(amounts["discount"] or 0)
+                + float(amounts["tax"] or 0)
+            )
+            stored_total = float(amounts["total"] or 0)
+        except (TypeError, ValueError):
+            calculated_total = stored_total = 0.0
+        total_label = self.preview_amounts["total"]
+        if abs(calculated_total - stored_total) > 0.01:
+            delta = stored_total - calculated_total
+            total_label.setText(_money(amounts["total"], currency) + " !")
+            total_label.setStyleSheet(theme_qss(
+                "color: @danger; font-size: 12px; font-weight: 850;"
+            ))
+            total_label.setToolTip(
+                "Ara toplam - indirim + KDV ile kay\u0131tl\u0131 toplam e\u015fle\u015fmiyor. "
+                "Fark: {}".format(_money(delta, currency))
+            )
+        else:
+            total_label.setStyleSheet(theme_qss(
+                "color: @success; font-size: 12px; font-weight: 850;"
+            ))
+            total_label.setToolTip("")
+        self.preview_total.setText("Teklif Toplam\n{}".format(_money(amounts["total"], currency)))
+        offer_id = int(_row_value(offer, "id", default=0) or 0)
+        for button in [self.btn_add_to_basket, *self.preview_action_buttons]:
+            button.setEnabled(offer_id > 0)
+
+    def _edit_selected_offer(self):
+        offer = self._selected_offer()
+        if offer:
+            self._edit_offer(int(_row_value(offer, "id", default=0)))
+        else:
+            self._open_sales()
+
+    def _toggle_bulk_selection(self):
+        multi = self.table.selectionMode() != QAbstractItemView.SelectionMode.MultiSelection
+        self.table.setSelectionMode(
+            QAbstractItemView.SelectionMode.MultiSelection
+            if multi else QAbstractItemView.SelectionMode.SingleSelection
+        )
+        self.btn_bulk_select.setText("Tekli Se\u00e7im" if multi else "Toplu Se\u00e7im")
 
     def _edit_offer(self, offer_id):
         self._open_sales()
@@ -346,19 +656,40 @@ class OffersPage(_ListPageBase):
         self.current_page = max(1, self.current_page + int(delta))
         self.refresh_data()
 
+    def _on_filters_changed(self, *_args):
+        self.current_page = 1
+        self.refresh_data()
+
     def refresh_data(self, *_args):
         search = self.search.text().strip() if hasattr(self, "search") else ""
         if search != self._last_search:
             self.current_page = 1
             self._last_search = search
-        rows = self.store.offers(search)
-        self.current_rows = rows
-        total_pages = max(1, (len(rows) + self.page_size - 1) // self.page_size)
+        status_filter = self.status_filter.currentData() if hasattr(self, "status_filter") else "all"
+        currency_filter = self.currency_filter.currentData() if hasattr(self, "currency_filter") else "all"
+        total_rows, page_rows = self.store.offers_page(
+            search,
+            status_filter,
+            currency_filter,
+            self.page_size,
+            (self.current_page - 1) * self.page_size,
+        )
+        total_pages = max(1, (total_rows + self.page_size - 1) // self.page_size)
+        requested_page = self.current_page
         self.current_page = min(max(1, self.current_page), total_pages)
+        if self.current_page != requested_page:
+            total_rows, page_rows = self.store.offers_page(
+                search,
+                status_filter,
+                currency_filter,
+                self.page_size,
+                (self.current_page - 1) * self.page_size,
+            )
+        self.current_rows = page_rows
         start = (self.current_page - 1) * self.page_size
-        page_rows = rows[start : start + self.page_size]
         self.table.setRowCount(len(page_rows))
         for row_index, row in enumerate(page_rows):
+            offer_id = int(_row_value(row, "id", default=0))
             currency = _row_value(row, "currency_code", default="TRY")
             values = [
                 _row_value(row, "offer_no"),
@@ -372,11 +703,17 @@ class OffersPage(_ListPageBase):
             ]
             for column, value in enumerate(values):
                 item = QTableWidgetItem(str(value))
+                item.setToolTip(str(value))
+                if column == 0 and "-" in str(value):
+                    prefix, suffix = str(value).rsplit("-", 1)
+                    item.setText(prefix + "-\n" + suffix)
+                elif column == 1 and len(str(value)) == 10:
+                    item.setText(str(value)[:5] + "\n" + str(value)[5:])
                 item.setTextAlignment(
                     Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
                 )
                 self.table.setItem(row_index, column, item)
-            offer_id = int(_row_value(row, "id", default=0))
+            self.table.item(row_index, 0).setData(Qt.ItemDataRole.UserRole, offer_id)
             btn_open = QPushButton("A\u00e7")
             btn_edit = QPushButton("D\u00fczenle")
             for button in (btn_open, btn_edit):
@@ -424,19 +761,30 @@ class OffersPage(_ListPageBase):
             )
             self.table.setCellWidget(row_index, 8, btn_open)
             self.table.setCellWidget(row_index, 9, btn_edit)
+            for button in (btn_open, btn_edit):
+                button.setStyleSheet(theme_qss(
+                    "QPushButton { background: @finance_surface_high; color: @finance_text; "
+                    "border: none; border-radius: 4px; padding: 0 4px; font-size: 10px; font-weight: 600; }"
+                    "QPushButton:hover { background: @finance_active_bg; }"
+                ))
+        self.table.setFixedHeight(34 + max(1, len(page_rows)) * 46)
         shown_start = start + 1 if page_rows else 0
         shown_end = start + len(page_rows)
         self.page_info.setText(
-            f"{len(rows)} kay\u0131ttan {shown_start}-{shown_end} aras\u0131 g\u00f6steriliyor."
+            f"{total_rows} kay\u0131ttan {shown_start}-{shown_end} aras\u0131 g\u00f6steriliyor."
         )
         self.page_number.setText(f"{self.current_page} / {total_pages}")
         self.btn_previous.setEnabled(self.current_page > 1)
         self.btn_next.setEnabled(self.current_page < total_pages)
         total, pending, accepted, rejected, _amount = self.store.offer_summary()
-        for card, value in zip(self.cards, [total, pending, accepted, rejected]):
+        for card, value in zip(self.cards, [total, pending, accepted, rejected, _money(_amount, "TRY")]):
             label = card.findChild(QLabel, "count")
             if label:
                 label.setText(str(value or 0))
+        if page_rows:
+            self.table.selectRow(0)
+        else:
+            self._on_offer_selection_changed()
 
 
 class OfferDetailsDialog(QDialog):

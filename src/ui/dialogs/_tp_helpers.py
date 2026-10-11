@@ -3,6 +3,7 @@
 
 from PyQt6.QtWidgets import QApplication, QWidget, QComboBox, QLabel
 from PyQt6.QtCore import Qt, QSettings
+import os
 from src.utils.appearance_mode import AppearanceModeManager
 from src.utils.system_config import SystemConfig
 from src.utils.logger import logger
@@ -200,6 +201,8 @@ class _TpHelpers:
         return f"technician_panel.checklist_status.{self.tracking_no}"
 
     def _load_cached_checklist_status(self):
+        if os.environ.get("AYEC_VISUAL_ACCEPTANCE") == "1":
+            return str(getattr(self, "_visual_checklist_cache", self.device_dict.get("checklist_status") or ""))
         key = self._toggle_cache_key()
         cache_owner = type(self)
         if key in cache_owner._session_toggle_cache:
@@ -209,6 +212,9 @@ class _TpHelpers:
         return str(value) if value is not None else ""
 
     def _save_cached_checklist_status(self, value):
+        if os.environ.get("AYEC_VISUAL_ACCEPTANCE") == "1":
+            self._visual_checklist_cache = value or ""
+            return
         key = self._toggle_cache_key()
         type(self)._session_toggle_cache[key] = value or ""
         settings = QSettings("AYEC", "AYECPro")
@@ -232,6 +238,8 @@ class _TpHelpers:
         return normalized
 
     def _persist_toggle_state(self, checklist_status, accessories=None):
+        if getattr(self, "read_only", False):
+            return
         value = checklist_status or ""
         self.checklist_status = value
         self.device_dict["checklist_status"] = value

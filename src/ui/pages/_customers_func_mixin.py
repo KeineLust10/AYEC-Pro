@@ -5,7 +5,7 @@ import csv
 import webbrowser
 import logging
 from datetime import datetime
-from PyQt6.QtWidgets import QFileDialog, QApplication, QWidget, QVBoxLayout, QTextBrowser
+from PyQt6.QtWidgets import QFileDialog, QApplication, QWidget, QVBoxLayout, QTextBrowser, QDialog
 from PyQt6.QtCore import Qt, QTimer, QDate
 
 from src.utils.logger import logger
@@ -44,11 +44,55 @@ class CustomersFuncMixin:
         except Exception as e:
             show_error(self, f"Müşteri 360 açılamadı: {str(e)}")
 
+    def _selected_customer_records(self):
+        records = []
+        checked = []
+        for row in range(self.table.rowCount()):
+            checkbox = self.table.item(row, 0)
+            if checkbox and checkbox.checkState() == Qt.CheckState.Checked:
+                checked.append(row)
+        row_indexes = checked or ([self.table.currentRow()] if self.table.currentRow() >= 0 else [])
+        for row in row_indexes:
+            item = self.table.item(row, 1)
+            customer = item.data(Qt.ItemDataRole.UserRole) if item else None
+            if customer:
+                records.append(customer)
+        return records
+
+    def _open_selected_customer_history(self):
+        customers = self._selected_customer_records()
+        if not customers:
+            show_info(self, "Cari ekstresini a\u00e7mak i\u00e7in tablodan bir m\u00fc\u015fteri se\u00e7in.")
+            return
+        for customer in customers:
+            self.show_history(customer)
+
+    def _open_selected_customer_sms(self):
+        customers = self._selected_customer_records()
+        if not customers:
+            show_info(self, "SMS g\u00f6ndermek i\u00e7in tablodan m\u00fc\u015fteri se\u00e7in.")
+            return
+        from src.ui.dialogs.send_sms_dialog import SendSMSDialog
+
+        for customer in customers:
+            phone = str(customer["phone"] or "").strip()
+            if not phone:
+                show_warning(self, "{} i\u00e7in telefon numaras\u0131 kay\u0131tl\u0131 de\u011fil.".format(customer["name"]))
+                continue
+            dialog = SendSMSDialog(
+                self.db,
+                self,
+                customer_name=str(customer["name"]),
+                phone=phone,
+            )
+            if dialog.exec() != QDialog.DialogCode.Accepted:
+                break
+
     def on_table_double_click(self, row, column):
         if row < 0: return
-        customer = self.table.item(row, 0).data(Qt.ItemDataRole.UserRole)
+        customer = self.table.item(row, 1).data(Qt.ItemDataRole.UserRole)
         if not customer: return
-        if column == 5:
+        if column == 6:
             self.show_history(customer)
         else:
             self.open_customer_360(customer)
@@ -233,8 +277,13 @@ class CustomersFuncMixin:
             from src.ui.dialogs.automotive_new_service_dialog import AutomotiveNewServiceDialog as dialog_cls
             dialog_cls(self.db, self, customer_name=c["name"], sector_manager=sector_manager).exec()
         else:
-            from src.ui.dialogs.add_device_dialog import AddDeviceDialog
-            AddDeviceDialog(self.db, self, customer_name=c["name"]).exec()
+            from src.ui.dialogs.technical_service_new_service_dialog import TechnicalServiceNewServiceDialog
+            TechnicalServiceNewServiceDialog(
+                self.db,
+                self,
+                customer_name=c["name"],
+                sector_manager=sector_manager,
+            ).exec()
 
     def create_invoice(self, c):
         if ServiceInvoiceDialog(self.db, c["id"], self).exec():
@@ -397,7 +446,7 @@ class CustomersFuncMixin:
         if not rows: show_warning(self, "Dışa aktarmak için en az bir müşteri seçin."); return
         customers = []
         for row in rows:
-            item = self.table.item(row, 0)
+            item = self.table.item(row, 1)
             if item:
                 customer = item.data(Qt.ItemDataRole.UserRole)
                 if customer: customers.append(customer)

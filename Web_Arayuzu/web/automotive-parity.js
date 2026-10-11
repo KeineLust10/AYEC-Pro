@@ -16,11 +16,48 @@
 
   function tr(value){
     const replacements=[
+      ["Yeni Musteri Kaydi","Yeni M\u00fc\u015fteri Kayd\u0131"],
+      ["Kayitli Musteri Sec","Kay\u0131tl\u0131 M\u00fc\u015fteri Se\u00e7"],
+      ["Kayitli Musteri","Kay\u0131tl\u0131 M\u00fc\u015fteri"],
+      ["Musteri Adi / Firma Unvani","M\u00fc\u015fteri Ad\u0131 / Firma \u00dcnvan\u0131"],
+      ["Ad Soyad veya Kurumsal Firma Adi","Ad Soyad veya Kurumsal Firma Ad\u0131"],
+      ["TCKN veya Vergi No","TCKN veya Vergi No"],
+      ["Farkli ise teslim eden sahis","Farkl\u0131 ise teslim eden \u015fah\u0131s"],
+      ["Irtibat GSM Numarasi","\u0130rtibat GSM Numaras\u0131"],["Envanter Eslesmesi","Envanter E\u015fle\u015fmesi"],["Teslim Alinan Aksesuar & Donanimlar","Teslim Al\u0131nan Aksesuar & Donan\u0131mlar"],["Ek Alanlari Gizle","Ek Alanlar\u0131 Gizle"],["Ek Servis Alanlari","Ek Servis Alanlar\u0131"],["Ek Servis Alanlarini Gizle","Ek Servis Alanlar\u0131n\u0131 Gizle"],
+      ["Musteri Adi / Firma Unvani","M\u00fc\u015fteri Ad\u0131 / Firma \u00dcnvan\u0131"],
+      ["Cihaz Turu","Cihaz T\u00fcr\u00fc"],
+      ["Model Adi / Kodu","Model Ad\u0131 / Kodu"],
+      ["Seri Numarasi veya IMEI girin","Seri Numaras\u0131 veya IMEI girin"],
+      ["Tahmini Tutar (KDV Dahil)","Tahmini Tutar (KDV Dahil)"],
       ["Yeni Arac Servis Kaydi","Yeni Ara\u00e7 Servis Kayd\u0131"],
       ["Model Yili","Model Y\u0131l\u0131"],
       ["Sikayet / Yapilacak Is","\u015eikayet / Yap\u0131lacak \u0130\u015f"],
       ["Musteriye Acik Not","M\u00fc\u015fteriye A\u00e7\u0131k Not"],
       ["Aksesuarlar / Teslim Alinanlar","Aksesuarlar / Teslim Al\u0131nanlar"],
+      ["Musteri Adi / Unvan","M\u00fc\u015fteri Ad\u0131 / Unvan"],
+      ["Kimlik / Vergi No","Kimlik / Vergi No"],
+      ["Iletisim Telefonu","\u0130leti\u015fim Telefonu"],
+      ["Teslim Eden Kisi","Teslim Eden Ki\u015fi"],
+      ["Teslim Eden Tel","Teslim Eden Tel"],
+      ["Ariza Tanimi ve Musteri Sikayeti","Ar\u0131za Tan\u0131m\u0131 ve M\u00fc\u015fteri \u015eikayeti"],
+      ["Musterinin bildirdigi arizalari ayrintili sekilde buraya yazin veya sesli dikte edin","M\u00fc\u015fterinin bildirdi\u011fi ar\u0131zalar\u0131 ayr\u0131nt\u0131l\u0131 \u015fekilde buraya yaz\u0131n veya sesli dikte edin"],
+      ["Kaydi Tamamla ve Fis Olustur","Kayd\u0131 Tamamla ve Fi\u015f Olu\u015ftur"],
+      ["Tahmini Tutar (KDV Dahil)","Tahmini Tutar (KDV Dahil)"],
+      ["Kilit Deseni ve Guvenlik Sifresi","Kilit Deseni ve G\u00fcvenlik \u015eifresi"],
+      ["Cihaz / Windows Acilis Sifresi","Cihaz / Windows A\u00e7\u0131l\u0131\u015f \u015eifresi"],
+      ["BIOS / Supervisor Parolasi","BIOS / Supervisor Parolas\u0131"],
+      ["Cihaz Gorseli ve Ekspertiz Fotograflari","Cihaz G\u00f6rseli ve Ekspertiz Foto\u011fraflar\u0131"],
+      ["Fotograf yuklemek icin tiklayin veya surukleyin","Foto\u011fraf y\u00fcklemek i\u00e7in t\u0131klay\u0131n veya s\u00fcr\u00fckleyin"],
+      ["En fazla 5 fotograf","En fazla 5 foto\u011fraf"],
+      ["Deseni Sifirla","Deseni S\u0131f\u0131rla"],
+      ["Orijinal Adapter","Orijinal Adapt\u00f6r"],
+      ["Cihaz Cantasi","Cihaz \u00c7antas\u0131"],
+      ["Kablo / Donusturucu","Kablo / D\u00f6n\u00fc\u015ft\u00fcr\u00fcc\u00fc"],
+      ["Harici Disk / Flash","Harici Disk / Flash"],
+      ["Goruntu Gelmiyor","G\u00f6r\u00fcnt\u00fc Gelmiyor"],
+      ["Sivi Temasi","S\u0131v\u0131 Temas\u0131"],
+      ["Asiri Isinma / Fan","A\u015f\u0131r\u0131 Is\u0131nma / Fan"],
+      ["Format & Bakim","Format & Bak\u0131m"],
       ["Kaydettikten sonra servis formunu ac","Kaydettikten sonra servis formunu a\u00e7"],
       ["OTOMOTIV","OTOMOT\u0130V"],
       ["Secin","Se\u00e7in"],["Sasi","\u015easi"],["Acik","A\u00e7\u0131k"],
@@ -246,23 +283,55 @@
   serviceDialog=function(customerId=""){
     const automotive=automotiveMode();
     const technicians=desktopPersonnel.filter(person=>!person.role||/tekn|servis|usta|yonet/i.test(`${person.role} ${person.department||""}`));
+    const selectedCustomer=db.customers.find(customer=>String(customer.id)===String(customerId));
     const assetFields=automotive
       ?`<div class="field"><label>Plaka *</label><input name="plate" required></div><div class="field"><label>${tr("Sasi / VIN")}</label><input name="vin"></div><div class="field"><label>Marka *</label><input name="brand" required></div><div class="field"><label>Model *</label><input name="model" required></div><div class="field"><label>${tr("Model Yili")}</label><input name="year" type="number" min="1950" max="2200"></div><div class="field"><label>${tr("Arac Tipi")}</label><input name="vehicle_type" placeholder="Binek, SUV, Ticari"></div><div class="field"><label>${tr("Motor Tipi")}</label><input name="engine_type"></div><div class="field"><label>${tr("Yakit Turu")}</label><select name="fuel_type"><option>Benzin</option><option>Dizel</option><option>Hibrit</option><option>Elektrik</option><option>LPG</option></select></div><div class="field"><label>Kilometre</label><input name="odometer" type="number" min="0"></div>`
-      :`<div class="field"><label>${tr("Cihaz Turu")} *</label><input name="device_type" required></div><div class="field"><label>Marka</label><input name="brand"></div><div class="field"><label>Model *</label><input name="model" required></div><div class="field"><label>Seri No / IMEI</label><input name="serial"></div>`;
+      :`<div class="field"><label>${tr("Cihaz Turu")} *</label><select name="device_type" required><option value="Laptop / Notebook" selected>Laptop / Notebook</option><option value="Masa\u00fcst\u00fc Bilgisayar (PC)">Masa\u00fcst\u00fc Bilgisayar (PC)</option><option value="All-in-One PC">All-in-One PC</option><option value="Ak\u0131ll\u0131 Telefon / Tablet">Ak\u0131ll\u0131 Telefon / Tablet</option><option value="Sunucu / Server &amp; Storage">Sunucu / Server &amp; Storage</option><option value="Yaz\u0131c\u0131 / \u00c7evre Birimi">Yaz\u0131c\u0131 / \u00c7evre Birimi</option><option value="Di\u011fer">Di\u011fer</option></select></div><div class="field"><label>Marka *</label><input name="brand" list="serviceBrandOptions" value="Acer" required><datalist id="serviceBrandOptions"><option>Acer</option><option>Apple</option><option>Asus</option><option>Dell</option><option>HP</option><option>Lenovo</option><option>MSI</option><option>Monster</option><option>Di\u011fer / \u00d6zel Uretim</option></datalist></div><div class="field"><label>Model Adi / Kodu</label><input name="model" placeholder="\u00d6rn: Aspire 7 A715-42G"></div><div class="field"><label>Seri No / IMEI</label><input name="serial" placeholder="Seri Numaras\u0131 veya IMEI girin"></div>`;
     openDialog(
-      automotive?tr("Yeni Arac Servis Kaydi"):tr("Yeni Servis Kaydi"),
-      automotive?"OTOMOTIV SERVIS KABUL FORMU":"TEKNIK SERVIS KABUL FORMU",
-      `<div class="form-grid"><div class="field full"><label>${tr("Musteri")} *</label><select name="customerId" required><option value="">${tr("Secin")}</option>${db.customers.map(customer=>`<option value="${customer.id}" ${String(customer.id)===String(customerId)?"selected":""}>${esc(customer.name)}</option>`).join("")}</select></div>${assetFields}<div class="field"><label>Aciliyet</label><select name="priority"><option>Normal</option><option>${tr("Yuksek")}</option><option>Acil</option><option>${tr("Dusuk")}</option></select></div><div class="field"><label>Teknisyen</label><select name="technician"><option value="">${tr("Atanmadi")}</option>${technicians.map(person=>`<option>${esc(person.name)}</option>`).join("")}</select></div><div class="field full"><label>${automotive?tr("Sikayet / Yapilacak Is"):tr("Ariza / Talep")} *</label><textarea name="fault" required></textarea></div><div class="field full"><label>${tr("Musteriye Acik Not")}</label><textarea name="repair_details"></textarea></div><div class="field full"><label>${tr("Teknik Ic Not")}</label><textarea name="internal_notes"></textarea></div><div class="field"><label>${tr("Aksesuarlar / Teslim Alinanlar")}</label><input name="accessories"></div><div class="field"><label>${tr("Tahmini Teslim")}</label><input name="estimated_date" type="date"></div><div class="field"><label>Garanti</label><select name="warranty_status"><option>Yok</option><option>Var</option><option>${tr("Firma Garantisi")}</option></select></div><div class="field"><label>Durum</label><select name="status"><option>Bekliyor</option><option>${tr("Onay Bekliyor")}</option><option>${tr("Islemde")}</option><option>${tr("Parca Bekliyor")}</option></select></div><label class="setting field full"><span>${tr("Kaydettikten sonra servis formunu ac")}</span><input class="switch" type="checkbox" name="open_form" checked></label></div>`,
+      automotive?tr("Yeni Arac Servis Kaydi"):tr("Yeni Servis Kayd\u0131 Olu\u015ftur"),
+      automotive?"OTOMOTIV SERVIS KABUL FORMU":"M\u00fc\u015fteri kabul, cihaz donan\u0131m te\u015fhisi ve dijital servis kabul fi\u015fi olu\u015fturma sihirbaz\u0131",
+      `<div class="service-accept-form">
+        <div class="service-form-column service-form-left">
+        <section class="service-form-card service-form-customer"><header class="service-form-card-head"><div><span class="service-form-icon">\u2659</span><div><h3>${tr("Musteri Bilgileri")}</h3><p class="service-form-state">${selectedCustomer?tr("Kayitli Musteri"):tr("Yeni Musteri Kaydi")}</p></div></div><select class="service-customer-picker" name="customerId" aria-label="${tr("Kayitli Musteri Sec")}"><option value="">${tr("Kayitli Musteri Sec")}</option>${db.customers.map(customer=>`<option value="${customer.id}" ${String(customer.id)===String(customerId)?"selected":""}>${esc(customer.name)}</option>`).join("")}</select></header>
+          <div class="field full"><label>${tr("Musteri Adi / Firma Unvani")} *</label><input name="customer_name" required value="${esc(selectedCustomer?.name||"")}" placeholder="${tr("Ad Soyad veya Kurumsal Firma Adi")}"></div>
+          <div class="field"><label>${tr("Kimlik / Vergi No (TCKN / VKN)")}</label><input name="customer_identity" value="${esc(selectedCustomer?.tc_no||selectedCustomer?.tax_no||"")}" autocomplete="off" placeholder="${tr("TCKN veya Vergi No")}"></div><div class="field"><label>${tr("Iletisim Telefonu")} *</label><input name="customer_phone_input" value="${esc(selectedCustomer?.phone||"")}" inputmode="tel" placeholder="+90 (5XX) XXX XX XX" required></div>
+          <div class="field"><label>${tr("Teslim Eden Kisi")}</label><input name="delivered_by_name" autocomplete="name" placeholder="${tr("Farkli ise teslim eden sahis")}"></div><div class="field"><label>${tr("Teslim Eden Tel")}</label><input name="delivered_by_phone" inputmode="tel" placeholder="${tr("Irtibat GSM Numarasi")}"></div>
+        </section>
+        <section class="service-form-card service-form-device"><header class="service-form-card-head"><div><span class="service-form-icon">\u25a3</span><h3>${tr("Cihaz Bilgileri")}</h3></div><div class="service-device-meta"><small>${tr("Envanter Eslesmesi: Otomatik")}</small></div></header><div class="form-grid service-device-fields">${assetFields}</div><div class="service-accessories"><span><span>${tr("Teslim Alinan Aksesuar & Donanimlar")}</span><button class="service-device-extra-toggle" type="button" aria-expanded="false" title="Teknisyen, tahmini teslim, garanti ve not alanlarini acar.">${tr("Ek Servis Alanlari")}</button></span><label><input type="checkbox" name="accessory_option" value="Orijinal Adapter" checked><span>${tr("Orijinal Adapter")}</span></label><label><input type="checkbox" name="accessory_option" value="Cihaz Cantasi"><span>${tr("Cihaz Cantasi")}</span></label><label><input type="checkbox" name="accessory_option" value="Kablo / Donusturucu"><span>${tr("Kablo / Donusturucu")}</span></label><label><input type="checkbox" name="accessory_option" value="Harici Disk / Flash"><span>${tr("Harici Disk / Flash")}</span></label>
+          <details class="service-extra-fields"><summary>${tr("Ek servis ve teslim bilgileri")}</summary><div class="service-extra-grid"><div class="field"><label>${tr("Teknisyen")}</label><select name="technician"><option value="">${tr("Atanmadi")}</option>${technicians.map(person=>`<option>${esc(person.name)}</option>`).join("")}</select></div><div class="field"><label>${tr("Tahmini Teslim")}</label><input name="estimated_date" type="date"></div><div class="field"><label>${tr("Aksesuarlar / Teslim Alinanlar")}</label><input name="accessories"></div><div class="field"><label>${tr("Garanti")}</label><select name="warranty_status"><option>Yok</option><option>Var</option><option>${tr("Firma Garantisi")}</option></select></div><div class="field"><label>${tr("Durum")}</label><select name="status"><option>Bekliyor</option><option>${tr("Onay Bekliyor")}</option><option>${tr("Islemde")}</option><option>${tr("Parca Bekliyor")}</option></select></div><div class="field full"><label>${tr("Musteriye Acik Not")}</label><textarea name="repair_details"></textarea></div><div class="field full"><label>${tr("Teknik Ic Not")}</label><textarea name="internal_notes"></textarea></div><label class="setting field full service-open-form"><span>${tr("Kaydettikten sonra servis formunu ac")}</span><input class="switch" type="checkbox" name="open_form" checked></label></div></details>
+        </section>
+        </div>
+        <div class="service-form-column service-form-right">
+        <section class="service-form-card service-form-fault"><header class="service-form-card-head"><div><span class="service-form-icon warning">\u26a0</span><h3>${tr("Ariza ve Servis Detaylari")}</h3></div><small class="service-ai-label">\u2728 ${tr("AI Destekli")}</small></header>
+          <div class="field full"><div class="service-fault-label"><label>${automotive?tr("Sikayet / Yapilacak Is"):tr("Ariza Tanimi ve Musteri Sikayeti")} *</label><button type="button" class="service-speech-button">&#127908; ${tr("Sesle Yazdir")}</button></div><textarea name="fault" required placeholder="${tr("Musterinin bildirdigi arizalari ayrintili sekilde buraya yazin veya sesli dikte edin")}"></textarea></div>
+          <div class="service-quick-issues field full">${["Goruntu Gelmiyor","Sivi Temasi","Asiri Isinma / Fan","Format & Bakim"].map(label=>`<button type="button" data-fault-shortcut="${tr(label)}">${tr(label)}</button>`).join("")}</div>
+          <div class="field"><label>${tr("Oncelik Derecesi")}</label><select name="priority"><option>Normal</option><option>${tr("Yuksek")}</option><option>Acil</option><option>${tr("Dusuk")}</option></select></div><div class="field"><div class="service-price-label"><label>${tr("Tahmini Tutar (KDV Dahil)")}</label><div class="service-currency-select" role="group" aria-label="${tr("Para Birimi")}"><button type="button" data-service-currency="TRY">&#8378;</button><button type="button" data-service-currency="USD">$</button><button type="button" data-service-currency="EUR">&euro;</button></div></div><div class="service-price-field"><input name="price" type="number" min="0" step="0.01" placeholder=""><select class="service-currency-native" name="currency" aria-label="${tr("Para Birimi")}"><option>TRY</option><option selected>USD</option><option>EUR</option></select></div></div>
+        </section>
+        <section class="service-form-card service-form-security">
+          <div class="service-security-head"><h3>${tr("Kilit Deseni ve Guvenlik Sifresi")}</h3><span>${tr("Opsiyonel")}</span></div>
+          <div class="service-pattern-box"><span>${tr("Desen Kilidi")}</span><div class="service-pattern-lock" role="group" aria-label="${tr("Desen Kilidi")}">${Array.from({length:9},(_,index)=>`<button type="button" class="service-pattern-dot" data-pattern-index="${index}" aria-label="${index+1}"></button>`).join("")}</div><button type="button" class="service-pattern-reset">${tr("Deseni Sifirla")}</button><input type="hidden" name="pattern_lock"></div>
+          <div class="service-password-fields"><div class="field"><label>${tr("Cihaz / Windows Acilis Sifresi")}</label><input name="device_password" autocomplete="off"></div><div class="field"><label>BIOS / Supervisor ${tr("Parolasi")}</label><input name="bios_password" autocomplete="off"></div></div>
+        </section>
+        <section class="service-form-card service-form-photo"><header class="service-form-card-head"><div><span class="service-form-icon">\u25c6</span><h3>${tr("Cihaz Gorseli ve Ekspertiz Fotograflari")}</h3></div><small>${tr("En fazla 5 fotograf")}</small></header><label class="service-photo-drop"><span class="service-photo-upload-icon">\u2601</span><span>${tr("Fotograf yuklemek icin tiklayin veya surukleyin")}</span><small>${tr("Kasa cizigi, kirik mentese ve teslim ani durum tespitleri (PNG, JPG)")}</small><input name="device_photo" type="file" accept="image/png,image/jpeg" multiple></label><div class="service-photo-preview"><button type="button" aria-label="On Kasa">\u25a3<br>${tr("On Kasa")}</button><button type="button" aria-label="Fotograf Ekle">+</button><em>${tr("Teslim aninda cihazin fiziksel kusurlarini belgelemek musteri ihtilaflarini onler")}</em></div></section>
+       </div></div>`,
       async formData=>{
         const values=Object.fromEntries(formData);
-        const customer=db.customers.find(item=>String(item.id)===String(values.customerId));
-        if(!customer)throw Error(tr("Musteri secin"));
+        let customer=db.customers.find(item=>String(item.id)===String(values.customerId));
+        if(!customer){
+          const name=String(values.customer_name||"").trim();
+          if(!name)throw Error(tr("Musteri adi girin"));
+          const customerPayload={name,phone:values.customer_phone_input||"",email:"",type:values.customer_identity?"Kurumsal":"Bireysel",tc_no:values.customer_identity||"",tax_id:values.customer_identity||""};
+          const savedCustomer=await apiFetch("/api/desktop/table/customers",{method:"POST",body:JSON.stringify(customerPayload)});
+          if(!savedCustomer?.id)throw Error(tr("Musteri kaydi olusturulamadi"));
+          customer={id:String(savedCustomer.id),desktopId:Number(savedCustomer.id),name,phone:customerPayload.phone,email:"",type:customerPayload.type,services:[],quotes:[],balances:{TRY:0,USD:0,EUR:0}};
+          db.customers.push(customer);
+        }
         const no=`SRV-${new Date().getFullYear()}${String(Date.now()).slice(-7)}`;
         const payload={
           tracking_no:no,
-          customer_id:+customer.id,
-          customer_name:customer.name,
-          customer_phone:customer.phone||"",
+          customer_id:Number.isInteger(+customer.id)?+customer.id:null,
+          customer_name:values.customer_name||customer.name,
+          customer_phone:values.customer_phone_input||customer.phone||"",
           device_type:automotive?tr("Arac"):values.device_type,
           device_brand:values.brand||"",
           device_model:values.model,
@@ -278,7 +347,14 @@
           fault_description:values.fault,
           repair_details:values.repair_details,
           internal_notes:values.internal_notes,
-          accessories:values.accessories,
+          accessories:[...formData.getAll("accessory_option"),values.accessories].filter(Boolean).join(", "),
+          device_password:values.device_password||"",
+          bios_password:values.bios_password||"",
+          pattern_lock:values.pattern_lock||"",
+          delivered_by_name:values.delivered_by_name||"",
+          delivered_by_phone:values.delivered_by_phone||"",
+          price:+values.price||0,
+          currency:values.currency||"USD",
           urgency:values.priority,
           priority:values.priority,
           technician:values.technician,
@@ -302,8 +378,87 @@
         if(values.open_form&&service)setTimeout(()=>serviceDetailDialog(serviceOwner,service),80);
         return Boolean(source);
       },
-      automotive?tr("Arac Servisini Kaydet"):tr("Servis Kaydet")
+      automotive?tr("Arac Servisini Kaydet"):tr("Kaydi Tamamla ve Fis Olustur")
     );
+    const serviceDialogElement=$("#appDialog");
+    serviceDialogElement.classList.add("service-accept-dialog");
+    if(!serviceDialogElement.querySelector("#serviceVersionBadge")){
+      const versionBadge=document.createElement("span");
+      versionBadge.id="serviceVersionBadge";
+      versionBadge.textContent="v2.0.4 Enterprise";
+      $("#dialogTitle",serviceDialogElement).after(versionBadge);
+    }
+    if(!serviceDialogElement.querySelector("#serviceEscHint")){
+      const escHint=document.createElement("span");
+      escHint.id="serviceEscHint";
+      escHint.textContent="ESC ile kapat";
+      $("#dialogClose",serviceDialogElement).before(escHint);
+    }
+    $("#dialogEyebrow",serviceDialogElement).textContent=tr("M\u00fc\u015fteri kabul, cihaz donan\u0131m te\u015fhisi ve dijital servis kabul fi\u015fi olu\u015fturma sihirbaz\u0131");
+    const serviceForm=$("#dialogForm",serviceDialogElement);
+    const installServiceCombo=input=>{
+      if(!input||input.tagName!=="INPUT"||input.dataset.serviceComboBound)return;
+      const dataList=document.getElementById(input.getAttribute("list"));if(!dataList)return;
+      const shell=document.createElement("div");shell.className="service-combo-shell";
+      input.parentNode.insertBefore(shell,input);shell.appendChild(input);input.dataset.serviceComboBound="true";
+      const toggle=document.createElement("button");toggle.type="button";toggle.className="service-combo-toggle";toggle.setAttribute("aria-label",tr("Se\u00e7enekleri a\u00e7"));toggle.tabIndex=-1;toggle.textContent="\u2304";
+      const menu=document.createElement("div");menu.className="service-combo-options";menu.setAttribute("role","listbox");menu.hidden=true;
+      Array.from(dataList.options).forEach(source=>{const option=document.createElement("button");option.type="button";option.setAttribute("role","option");option.dataset.value=source.value||source.textContent;option.textContent=source.value||source.textContent;option.addEventListener("click",()=>{input.value=option.dataset.value;input.dispatchEvent(new Event("input",{bubbles:true}));input.dispatchEvent(new Event("change",{bubbles:true}));close();input.focus();});menu.appendChild(option);});
+      shell.append(toggle,menu);input.setAttribute("role","combobox");input.setAttribute("aria-autocomplete","list");input.setAttribute("aria-haspopup","listbox");input.setAttribute("aria-expanded","false");
+      const close=()=>{menu.hidden=true;input.setAttribute("aria-expanded","false");};
+      const open=()=>{menu.hidden=false;input.setAttribute("aria-expanded","true");};
+      toggle.addEventListener("click",()=>{if(menu.hidden){open();input.focus();}else close();});
+      input.addEventListener("keydown",event=>{if(event.key==="ArrowDown"){event.preventDefault();open();}else if(event.key==="Escape")close();});
+      document.addEventListener("pointerdown",event=>{if(!shell.contains(event.target))close();});
+    };
+    if(!automotive){installServiceCombo($("[name=\"brand\"]",serviceForm));}
+    const customerInput=$("[name='customerId']",serviceForm);
+    const nameInput=$("[name='customer_name']",serviceForm);
+    const phoneInput=$("[name='customer_phone_input']",serviceForm);
+    const identityInput=$("[name='customer_identity']",serviceForm);
+    const customerState=$(".service-form-state",serviceForm);
+    const syncCustomerFields=()=>{
+      const customer=db.customers.find(item=>String(item.id)===String(customerInput.value));
+      if(customer){nameInput.value=customer.name||"";phoneInput.value=customer.phone||"";identityInput.value=customer.tc_no||customer.tax_no||customer.tax_id||"";customerState.textContent=tr("Kayitli Musteri");}
+      else{customerState.textContent=tr("Yeni Musteri Kaydi");}
+    };
+    customerInput.addEventListener("change",syncCustomerFields);
+    if(customerId)syncCustomerFields();
+    const patternInput=$("[name='pattern_lock']",serviceForm);
+    const currencySelect=$("[name='currency']",serviceForm);
+    const currencyButtons=$("[data-service-currency]",serviceForm) ? $$("[data-service-currency]",serviceForm) : [];
+    const syncCurrencyButtons=()=>currencyButtons.forEach(button=>button.classList.toggle("active",button.dataset.serviceCurrency===currencySelect.value));
+    currencyButtons.forEach(button=>button.onclick=()=>{currencySelect.value=button.dataset.serviceCurrency;currencySelect.dispatchEvent(new Event("change",{bubbles:true}));syncCurrencyButtons();});
+    currencySelect.addEventListener("change",syncCurrencyButtons);syncCurrencyButtons();
+    const extraDetails=$(".service-extra-fields",serviceForm);
+    const extraToggle=$(".service-device-extra-toggle",serviceForm);
+    extraToggle.onclick=()=>{extraDetails.open=!extraDetails.open;extraToggle.setAttribute("aria-expanded",String(extraDetails.open));extraToggle.textContent=extraDetails.open?tr("Ek Servis Alanlarini Gizle"):tr("Ek Servis Alanlari");};
+    const photoInput=$("[name='device_photo']",serviceForm);
+    $$(".service-photo-preview button",serviceForm).forEach(button=>button.onclick=()=>photoInput.click());
+    const pattern=[];
+    serviceForm.addEventListener("service-form-reset",()=>{pattern.length=0;patternInput.value="";$$((".service-pattern-dot"),serviceForm).forEach(dot=>dot.classList.remove("selected"));});
+    $$(".service-pattern-dot",serviceForm).forEach(dot=>dot.addEventListener("click",()=>{
+      const point=dot.dataset.patternIndex;
+      if(!pattern.includes(point))pattern.push(point);
+      dot.classList.add("selected");
+      patternInput.value=pattern.join("-");
+    }));
+    $(".service-pattern-reset",serviceForm).onclick=()=>{pattern.length=0;patternInput.value="";$$((".service-pattern-dot"),serviceForm).forEach(dot=>dot.classList.remove("selected"));};
+    $$("[data-fault-shortcut]",serviceForm).forEach(button=>button.addEventListener("click",()=>{
+      const faultInput=$("[name='fault']",serviceForm);
+      const shortcut=button.dataset.faultShortcut;
+      faultInput.value=faultInput.value?`${faultInput.value}, ${shortcut}`:shortcut;
+      faultInput.dispatchEvent(new Event("input",{bubbles:true}));
+      faultInput.focus();
+    }));
+    $(".service-speech-button",serviceForm).onclick=()=>{
+      const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+      if(!SpeechRecognition){toast(tr("Tarayici sesle yazmayi desteklemiyor"),"warning");return;}
+      const recognition=new SpeechRecognition();recognition.lang="tr-TR";recognition.interimResults=false;
+      recognition.onresult=event=>{const transcript=event.results?.[0]?.[0]?.transcript||"";const faultInput=$("[name='fault']",serviceForm);faultInput.value=[faultInput.value,transcript].filter(Boolean).join(" ");};
+      recognition.onerror=()=>toast(tr("Ses kaydi baslatilamadi"),"error");
+      try{recognition.start();toast(tr("Dinleniyor"),"info");}catch(error){toast(tr("Ses kaydi baslatilamadi"),"error");}
+    };
   };
 
   financeDialog=function(type,item){

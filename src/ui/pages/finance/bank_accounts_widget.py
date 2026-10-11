@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import csv
+from datetime import datetime
 from typing import Any
 
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QButtonGroup,
@@ -16,12 +18,15 @@ from PyQt6.QtWidgets import (
     QFrame,
     QGridLayout,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLineEdit,
     QMenu,
     QMessageBox,
     QPushButton,
     QRadioButton,
+    QScrollArea,
+    QStyledItemDelegate,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -31,6 +36,8 @@ from PyQt6.QtWidgets import (
 
 from src.ui.dialogs.base_modern_dialog import BaseModernDialog
 from src.ui.widgets.empty_state import EmptyState
+from src.ui.widgets.financial_reference_controls import ReferenceMetricValueLabel, FinancialReferenceIconButton
+from src.utils.design_system import DesignTokens
 from src.utils.theme_colors import qc, theme_qss
 from src.utils.toast_notification import show_error, show_success
 from src.utils.currency_helper import CurrencyHelper
@@ -61,6 +68,55 @@ def _to_float(value: Any, default: float = 0.0) -> float:
     except (TypeError, ValueError):
         return default
 
+
+
+class _LedgerDetailDelegate(QStyledItemDelegate):
+    def initStyleOption(self, option, index):
+        super().initStyleOption(option, index)
+        option.text = ""
+
+
+class _LedgerDetailLabel(QLabel):
+    def __init__(self, text):
+        super().__init__(text)
+        self._detail_text = text
+        self.setToolTip(text)
+        self.setWordWrap(False)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        available = max(0, self.width() - 2 * self.margin())
+        self.setText("\n".join(self.fontMetrics().elidedText(line, Qt.TextElideMode.ElideRight, available) for line in self._detail_text.splitlines()))
+
+
+def _account_field(row, columns, names, fallback):
+    if columns:
+        for name in names:
+            if name in columns:
+                index = columns.index(name)
+                value = row[index] if row and index < len(row) else None
+                if value is not None and str(value).strip():
+                    return str(value)
+        return ""
+    value = row[fallback] if row and fallback < len(row) else None
+    return "" if value is None else str(value)
+
+
+def _account_fields(row, columns):
+    return tuple(_account_field(row, columns, names, index) for names, index in (
+        (("bank_name", "bank"), 1),
+        (("branch_name", "branch_code", "branch"), 2),
+        (("account_name", "account_holder", "name"), 3),
+        (("account_no", "account_number"), 4),
+        (("iban",), 5),
+    ))
+
+
+def _account_edit_value(row, columns, names, fallback, entered):
+    if entered != _account_field(row, columns, names, fallback).strip():
+        return entered
+    index = next((columns.index(name) for name in names if name in columns), fallback) if columns else fallback
+    return row[index] if row and index < len(row) else None
 
 
 class AddBankAccountDialog(BaseModernDialog):
@@ -235,11 +291,12 @@ class EditBankAccountDialog(BaseModernDialog):
         form.setHorizontalSpacing(12)
         form.setVerticalSpacing(12)
 
-        self.inp_bank = QLineEdit(str(self._v(self.account_row, 1, "")))
-        self.inp_branch = QLineEdit(str(self._v(self.account_row, 2, "")))
-        self.inp_name = QLineEdit(str(self._v(self.account_row, 3, "")))
-        self.inp_no = QLineEdit(str(self._v(self.account_row, 4, "")))
-        self.inp_iban = QLineEdit(str(self._v(self.account_row, 5, "")))
+        bank, branch, name, number, iban = _account_fields(self.account_row, self._cols)
+        self.inp_bank = QLineEdit(bank)
+        self.inp_branch = QLineEdit(branch)
+        self.inp_name = QLineEdit(name)
+        self.inp_no = QLineEdit(number)
+        self.inp_iban = QLineEdit(iban)
 
         self.inp_balance = QDoubleSpinBox()
         self.inp_balance.setMaximum(999999999999.99)
@@ -281,21 +338,25 @@ class EditBankAccountDialog(BaseModernDialog):
             if not ok_iban:
                 show_error(self, iban_message)
                 return
+        fields = (
+            (("bank_name", "bank"), 1, self.inp_bank),
+            (("branch_name", "branch_code", "branch"), 2, self.inp_branch),
+            (("account_name", "account_holder", "name"), 3, self.inp_name),
+            (("account_no", "account_number"), 4, self.inp_no),
+            (("iban",), 5, self.inp_iban),
+        )
+        values = [_account_edit_value(self.account_row, self._cols, names, index, widget.text().strip()) for names, index, widget in fields]
         ok = self.db.update_bank_account(
             account_id,
-            self.inp_bank.text().strip(),
-            self.inp_branch.text().strip(),
-            self.inp_name.text().strip(),
-            self.inp_no.text().strip(),
-            self.inp_iban.text().strip(),
-            self.inp_balance.value(),
-            self._row_currency(),
+            *values,
+            self.inp_balance.value() if self.inp_balance.value() != self._row_balance() else None,
+            None,
         )
         if not ok:
             show_error(self, "Hesap güncellenemedi.")
             return
 
-        if hasattr(self.db, "set_bank_account_active"):
+        if hasattr(self.db, "set_bank_account_active") and self.chk_active.isChecked() != self._row_active():
             self.db.set_bank_account_active(account_id, self.chk_active.isChecked())
         self.accept()
 
@@ -338,13 +399,14 @@ class AccountDetailDialog(BaseModernDialog):
         form.setHorizontalSpacing(16)
         form.setVerticalSpacing(10)
 
+        bank, branch, name, number, iban = _account_fields(self.account_row, self._cols)
         fields = [
             ("Hesap ID:", str(self._v(self.account_row, 0, "-"))),
-            ("Banka:", str(self._v(self.account_row, 1, "-"))),
-            ("Şube:", str(self._v(self.account_row, 2, "-"))),
-            ("Hesap Adı:", str(self._v(self.account_row, 3, "-"))),
-            ("Hesap No:", str(self._v(self.account_row, 4, "-"))),
-            ("IBAN:", str(self._v(self.account_row, 5, "-"))),
+            ("Banka:", bank or "-"),
+            ("\u015eube:", branch or "-"),
+            ("Hesap Ad\u0131:", name or "-"),
+            ("Hesap No:", number or "-"),
+            ("IBAN:", iban or "-"),
             ("Para Birimi:", self._row_currency()),
             ("Bakiye:", CurrencyHelper.format_amount(self._row_balance(), db=self.db, currency_code=self._row_currency())),
             ("Durum:", "Aktif" if self._row_active() else "Pasif"),
@@ -420,10 +482,15 @@ class AccountDetailDialog(BaseModernDialog):
             if "bank_account_id" not in cols:
                 return
             amount_col = "try_equivalent" if "try_equivalent" in cols else "amount"
-            curr_col = "currency" if "currency" in cols else "NULL"
+            curr_col = "COALESCE(currency, 'TRY')" if "currency" in cols else "'TRY'"
+            if "try_equivalent" in cols:
+                curr_col = f"CASE WHEN try_equivalent IS NOT NULL THEN 'TRY' ELSE {curr_col} END"
+            where = "bank_account_id=?"
+            if "is_deleted" in cols:
+                where += " AND COALESCE(is_deleted,0)=0"
             query = (
-                f"SELECT date, type, category, COALESCE({amount_col}, amount), description, COALESCE({curr_col}, 'TRY') "
-                "FROM accounting WHERE bank_account_id=? ORDER BY date DESC, id DESC LIMIT 50"
+                f"SELECT date,type,category,COALESCE({amount_col},amount),description,{curr_col} "
+                f"FROM accounting WHERE {where} ORDER BY date DESC,id DESC LIMIT 50"
             )
             cur.execute(query, (account_id,))
             rows = cur.fetchall() or []
@@ -466,7 +533,8 @@ class TransferDialog(BaseModernDialog):
         form.setVerticalSpacing(14)
 
         from_id = _to_int(self._v(self.from_row, 0, 0), 0)
-        from_name = str(self._v(self.from_row, 1, "")) + " - " + str(self._v(self.from_row, 3, ""))
+        bank, _, name, _, _ = _account_fields(self.from_row, self._cols)
+        from_name = bank + " - " + name
         from_balance = self._row_balance(self.from_row)
         from_currency = self._row_currency(self.from_row)
 
@@ -486,7 +554,8 @@ class TransferDialog(BaseModernDialog):
             is_active = 1 if self._row_active(acc) else 0
             if acc_id == from_id or is_active != 1:
                 continue
-            display = f"{self._v(acc, 1, '')} - {self._v(acc, 3, '')} ({self._v(acc, 5, '')}) [{self._row_currency(acc)}]"
+            bank, _, name, _, iban = _account_fields(acc, self._cols)
+            display = f"{bank} - {name} ({iban}) [{self._row_currency(acc)}]"
             self.cmb_target.addItem(display)
             self._target_ids.append(acc_id)
         form.addRow("Hedef Hesap:", self.cmb_target)
@@ -562,6 +631,49 @@ class TransferDialog(BaseModernDialog):
             show_error(self, f"Transfer başarısız: {msg}")
 
 
+class StatementPreviewDialog(BaseModernDialog):
+    def __init__(self, rows, parent=None):
+        super().__init__(
+            parent=parent, title="Banka Ekstresi \u00d6nizleme", width=850, height=560
+        )
+        self.rows = rows
+        summary = QLabel(f"{len(rows)} hareket okundu. Kay\u0131tlar otomatik i\u015flenmedi.")
+        summary.setStyleSheet(theme_qss("color:@finance_text_muted;font-size:12px;"))
+        self.content_layout.addWidget(summary)
+        table = QTableWidget(len(rows), 4)
+        table.setHorizontalHeaderLabels([
+            "Tarih", "Tutar", "Referans", "A\u00e7\u0131klama"
+        ])
+        table.verticalHeader().hide()
+        table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        for index, row in enumerate(rows):
+            for column, value in enumerate((
+                row["date"], str(row["amount"]), row["reference"], row["description"]
+            )):
+                table.setItem(index, column, QTableWidgetItem(value))
+        self.content_layout.addWidget(table)
+        self.add_button("CSV D\u0131\u015fa Aktar", "secondary", self._export_csv)
+        self.add_button("Kapat", "default", self.accept)
+
+    def _export_csv(self):
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Ekstreyi D\u0131\u015fa Aktar", "banka_ekstresi.csv", "CSV (*.csv)"
+        )
+        if not path:
+            return
+        try:
+            with open(path, "w", newline="", encoding="utf-8-sig") as handle:
+                output = csv.writer(handle)
+                output.writerow(("Date", "Amount", "Reference", "Description"))
+                for row in self.rows:
+                    output.writerow((
+                        row["date"], row["amount"], row["reference"], row["description"]
+                    ))
+        except OSError as exc:
+            show_error(self, f"CSV yaz\u0131lamad\u0131: {exc}")
+
+
 class BankAccountsWidget(QWidget):
     def __init__(self, db, parent=None, auth_manager=None):
         super().__init__(parent)
@@ -569,6 +681,7 @@ class BankAccountsWidget(QWidget):
         self._auth = auth_manager
         self._all_rows = []
         self._bank_cols = []
+        self._history_kind = "all"
         self._build_ui()
         self._apply_rbac()
         self.load_data()
@@ -616,89 +729,263 @@ class BankAccountsWidget(QWidget):
         idx = self._col_idx("is_active", 7 if len(row) > 7 else 1)
         return _to_int(self._val(row, idx, 1), 1)
 
+    def _account_text(self, row, names, fallback):
+        return _account_field(row, self._bank_cols, names, fallback)
+
+    def _account_display_fields(self, row):
+        return _account_fields(row, self._bank_cols)
+
+    def _set_account_view(self, table_view):
+        self.account_cards_scroll.setVisible(not table_view)
+        self.account_summary.setVisible(table_view)
+        self.table.setVisible(table_view and self.table.rowCount() > 0)
+
+    def _rebuild_account_cards(self, rows):
+        while self.account_cards_layout.count():
+            item = self.account_cards_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        self.account_card_buttons = {}
+        def card_order(row):
+            bank, _, name, number, _ = self._account_display_fields(row)
+            identity = f"{bank} {name} {number}".casefold()
+            kind = 2 if "pos" in identity else 1 if "kasa" in identity or "cash" in identity else 0
+            return kind, _to_int(self._val(row, 0, 0))
+
+        for row in sorted(rows, key=card_order):
+            account_id = _to_int(self._val(row, 0, 0))
+            bank, branch, name, number, iban = self._account_display_fields(row)
+            button = QPushButton()
+            button.setCheckable(True)
+            button.setProperty("account_id", account_id)
+            button.setObjectName("BankAccountCard")
+            button.setAccessibleName(bank)
+            button.setFixedHeight(96)
+            button.setStyleSheet(theme_qss(
+                "QPushButton#BankAccountCard{background:@finance_surface;border:1px solid transparent;border-radius:4px;}"
+                "QPushButton#BankAccountCard:checked{border:1px solid @finance_primary;}"
+                "QPushButton#BankAccountCard:hover{background:@finance_surface_alt;}"
+                "QPushButton#BankAccountCard QLabel{background:transparent;border:none;color:@finance_text;}"
+            ))
+            layout = QGridLayout(button)
+            layout.setContentsMargins(10, 8, 10, 8)
+            layout.setVerticalSpacing(3)
+            heading = QLabel(bank)
+            heading.setTextFormat(Qt.TextFormat.PlainText)
+            heading.setToolTip(bank)
+            heading.setStyleSheet(theme_qss("font-size:13px;font-weight:700;color:@finance_text;"))
+            status = QLabel("Aktif" if self._row_active(row) else "Pasif")
+            status.setAlignment(Qt.AlignmentFlag.AlignRight)
+            status.setStyleSheet(theme_qss("font-size:10px;color:@success;" if self._row_active(row) else "font-size:10px;color:@finance_text_muted;"))
+            identity = QLabel(iban or name or number or "-")
+            identity.setTextFormat(Qt.TextFormat.PlainText)
+            identity.setToolTip(identity.text())
+            identity.setStyleSheet(theme_qss("font-family:'JetBrains Mono','DejaVu Sans';font-size:10px;color:@finance_text_muted;"))
+            caption = QLabel("Kullan\u0131labilir Bakiye")
+            caption.setStyleSheet(theme_qss("font-size:10px;color:@finance_text_muted;"))
+            kind = card_order(row)[0]
+            amount = ReferenceMetricValueLabel(
+                CurrencyHelper.format_amount(self._row_balance(row), db=self.db, currency_code=self._row_currency(row)),
+                primary_size=20, primary_token="finance_tertiary" if kind == 2 else "finance_text",
+            )
+            if kind == 2:
+                caption.setText("Blokajdaki Net Tutar")
+            elif kind == 1:
+                caption.setText("Kasa Mevcudu")
+            layout.addWidget(heading, 0, 0)
+            layout.addWidget(status, 0, 1)
+            layout.addWidget(identity, 1, 0, 1, 2)
+            layout.addWidget(caption, 2, 0, 1, 2)
+            layout.addWidget(amount, 3, 0, 1, 2)
+            button.setToolTip("\n".join((bank, branch, name, number, iban)))
+            for label in button.findChildren(QLabel):
+                label.setTextFormat(Qt.TextFormat.PlainText)
+                label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+            button.clicked.connect(lambda checked=False, rid=account_id: self._select_card_account(rid))
+            self.account_cards_layout.addWidget(button)
+            self.account_card_buttons[account_id] = button
+        distribution = QFrame()
+        distribution.setObjectName("BankFundDistribution")
+        distribution.setStyleSheet(theme_qss("QFrame#BankFundDistribution{background:@finance_surface;border:none;border-radius:4px;}"))
+        distribution_layout = QVBoxLayout(distribution)
+        distribution_layout.setContentsMargins(8, 8, 8, 8)
+        distribution_layout.setSpacing(4)
+        heading = QLabel("FON DAGILIMI")
+        heading.setStyleSheet(theme_qss("font-size:10px;font-weight:700;color:@finance_text_muted;"))
+        distribution_layout.addWidget(heading)
+        bar = QHBoxLayout()
+        bar.setSpacing(0)
+        legend = QHBoxLayout()
+        legend.setSpacing(4)
+        self.fund_distribution = {}
+        display_currency = CurrencyHelper.get_code(self.db)
+        for index, row in enumerate(sorted(rows, key=card_order)):
+            amount = CurrencyHelper.convert_amount(self.db, self._row_balance(row), self._row_currency(row), display_currency)
+            if amount <= 0:
+                continue
+            bank = self._account_display_fields(row)[0]
+            account_id = _to_int(row[0])
+            self.fund_distribution[account_id] = amount
+            color = ("@finance_secondary", "@finance_primary", "@finance_text", "@finance_text_muted", "@finance_tertiary")[index % 5]
+            segment = QFrame()
+            segment.setFixedHeight(6)
+            segment.setStyleSheet(theme_qss(f"background:{color};border:none;"))
+            segment.setToolTip(bank + ": " + CurrencyHelper.format_amount(amount, db=self.db, currency_code=display_currency))
+            bar.addWidget(segment, max(1, round(amount)))
+            label = QLabel(bank.split()[0] if bank else "-")
+            label.setToolTip(bank)
+            label.setStyleSheet(theme_qss(f"font-size:9px;color:{color};"))
+            legend.addWidget(label, 1)
+        distribution_layout.addLayout(bar)
+        distribution_layout.addLayout(legend)
+        distribution.setToolTip("Pozitif hesap bakiyelerinin dagilimi")
+        distribution.setVisible(bool(self.fund_distribution))
+        self.account_cards_layout.addWidget(distribution)
+        self.account_cards_layout.addStretch(1)
+
+    def _select_card_account(self, account_id):
+        for row in range(self.table.rowCount()):
+            if _to_int(self.table.item(row, 0).text()) == account_id:
+                self.table.selectRow(row)
+                self._sync_summary()
+                return
+
     def _build_ui(self):
+        self.setObjectName("BankAccountsWidget")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setStyleSheet(theme_qss(
+            "QWidget#BankAccountsWidget{background:@finance_canvas;}"
+            "QLabel{background:transparent;border:none;}"
+        ))
         root = QVBoxLayout(self)
-        root.setContentsMargins(14, 14, 14, 14)
-        root.setSpacing(12)
+        root.setContentsMargins(8, 8, 8, 8)
+        root.setSpacing(8)
 
         top_card = QFrame()
         top_card.setObjectName("BankAccountsTopCard")
-        top_card.setStyleSheet(theme_qss("QFrame#BankAccountsTopCard{background:@surface; border:1px solid @border; border-radius:12px;}"))
+        top_card.setStyleSheet(theme_qss("QFrame#BankAccountsTopCard{background:@finance_canvas;border:none;border-radius:4px;}"))
         top_layout = QHBoxLayout(top_card)
-        top_layout.setContentsMargins(16, 16, 16, 16)
+        top_layout.setContentsMargins(0, 0, 0, 0)
 
         left = QVBoxLayout()
-        title = QLabel("Banka Hesapları")
-        title.setStyleSheet(theme_qss("font-size:28px; font-weight:800; color:@text;"))
-        subtitle = QLabel("Hesapları yönetin, bakiyeleri ve işlemleri tek ekranda takip edin.")
-        subtitle.setStyleSheet(theme_qss("font-size:13px; color:@text_muted;"))
+        title = QLabel("Hazine & Nakit Ak\u0131\u015f Kontrol\u00fc")
+        title.setWordWrap(True)
+        title.setStyleSheet(theme_qss("font-size:18px;font-weight:800;color:@finance_text;"))
+        subtitle = QLabel("\u00c7oklu banka hesap bakiyeleri, fiziki kasalar, sanal POS blokajlar\u0131 ve virman mutabakat paneli")
+        subtitle.setWordWrap(True)
+        subtitle.setStyleSheet(theme_qss("font-size:11px;color:@finance_text_muted;"))
         left.addWidget(title)
         left.addWidget(subtitle)
         top_layout.addLayout(left, 1)
 
-        actions = QHBoxLayout()
-        self.btn_add = QPushButton("Yeni Hesap")
+        actions = QGridLayout()
+        actions.setSpacing(4)
+        self.btn_add = QPushButton("Yeni Hesap / Kasa")
+        self.btn_statement = QPushButton("Banka Ekstresi (OFX/MT940)")
+        self.btn_transfer = QPushButton("Virman & Transfer")
         self.btn_refresh = QPushButton("Yenile")
         self.btn_import = QPushButton("İçe Aktar")
         self.btn_export = QPushButton("Dışa Aktar")
         self.btn_add.setStyleSheet(
             theme_qss(
-                "QPushButton{background:@accent;color:@selection_text;border:none;border-radius:9px;padding:10px 16px;font-weight:700;}"
+                "QPushButton{background:@accent;color:@selection_text;border:1px solid @finance_outline;border-radius:4px;padding:2px 6px;font-size:10px;font-weight:700;min-height:24px;}"
                 "QPushButton:hover{background:@accent_hover;}"
             )
         )
-        for b in (self.btn_refresh, self.btn_import, self.btn_export):
+        for b in (self.btn_statement, self.btn_transfer, self.btn_refresh, self.btn_import, self.btn_export):
             b.setStyleSheet(
                 theme_qss(
-                    "QPushButton{background:@surface_alt;color:@text;border:1px solid @border;border-radius:9px;padding:10px 16px;font-weight:700;}"
+                    "QPushButton{background:@finance_surface;color:@finance_text;border:1px solid @finance_outline;border-radius:4px;padding:2px 6px;font-size:10px;font-weight:700;min-height:24px;}"
                     "QPushButton:hover{background:@surface;}"
                 )
             )
-        for b in (self.btn_add, self.btn_refresh, self.btn_import, self.btn_export):
-            actions.addWidget(b)
+        for index, button in enumerate((self.btn_statement, self.btn_transfer, self.btn_add)):
+            actions.addWidget(button, 0, index)
+        more = QPushButton("Diger")
+        more.setFixedWidth(52)
+        more.setStyleSheet(theme_qss(
+            "QPushButton{background:@finance_surface;color:@finance_text;"
+            "border:1px solid @finance_outline;border-radius:4px;font-size:10px;min-height:24px;}"
+        ))
+        more_menu = QMenu(more)
+        for label, button in (
+            ("Yenile", self.btn_refresh),
+            ("I\u00e7e Aktar", self.btn_import),
+            ("D\u0131\u015fa Aktar", self.btn_export),
+        ):
+            more_menu.addAction(label, button.click)
+        more.setMenu(more_menu)
+        actions.addWidget(more, 0, 3)
         top_layout.addLayout(actions)
         root.addWidget(top_card)
 
         kpi_row = QHBoxLayout()
         self.lbl_total_accounts = QLabel("0")
         self.lbl_active_accounts = QLabel("0")
-        self.lbl_total_balance = QLabel(CurrencyHelper.format_amount(0, db=self.db, currency_code=CurrencyHelper.get_code(self.db)))
+        self.lbl_total_balance = ReferenceMetricValueLabel(CurrencyHelper.format_amount(0, db=self.db, currency_code=CurrencyHelper.get_code(self.db)), primary_size=24, primary_token="finance_secondary")
+        self.lbl_pos_balance = ReferenceMetricValueLabel(CurrencyHelper.format_amount(0, db=self.db, currency_code=CurrencyHelper.get_code(self.db)), primary_size=24, primary_token="finance_tertiary")
+        self.lbl_bank_balance = ReferenceMetricValueLabel("-", primary_size=24)
+        self.lbl_cash_balance = ReferenceMetricValueLabel("-", primary_size=24)
 
-        def make_kpi(title_text, value_lbl):
+        def make_kpi(title_text, value_lbl, color="@finance_text"):
             card = QFrame()
             card.setObjectName("BankAccountsKpiCard")
-            card.setStyleSheet(theme_qss("QFrame#BankAccountsKpiCard{background:@surface; border:1px solid @border; border-radius:12px;}"))
+            card.setStyleSheet(theme_qss("QFrame#BankAccountsKpiCard{background:@finance_surface;border:none;border-radius:4px;}"))
             lay = QVBoxLayout(card)
+            lay.setContentsMargins(10, 10, 10, 10)
+            lay.setSpacing(8)
             cap = QLabel(title_text)
-            cap.setStyleSheet(theme_qss("font-size:12px; color:@text_muted;"))
-            value_lbl.setStyleSheet(theme_qss("font-size:26px; font-weight:800; color:@text;"))
+            cap.setStyleSheet(theme_qss("font-size:10px;font-weight:700;color:@finance_text_muted;"))
+            value_lbl.setStyleSheet(theme_qss(f"font-family:'JetBrains Mono','DejaVu Sans';font-size:24px;font-weight:800;color:{color};"))
             lay.addWidget(cap)
             lay.addWidget(value_lbl)
+            card.setFixedHeight(94)
             return card
 
-        kpi_row.addWidget(make_kpi("Toplam Hesap", self.lbl_total_accounts))
-        kpi_row.addWidget(make_kpi("Aktif Hesap", self.lbl_active_accounts))
-        kpi_row.addWidget(make_kpi("Toplam Bakiye", self.lbl_total_balance))
+        kpi_row.addWidget(make_kpi("TOPLAM LIKIDITE & SICAK NAKIT", self.lbl_total_balance, "@finance_secondary"))
+        kpi_row.addWidget(make_kpi("BANKA HESAP BAKIYELERI", self.lbl_bank_balance))
+        kpi_row.addWidget(make_kpi("FIZIKI ATOLYE & SAHA KASALARI", self.lbl_cash_balance))
+        kpi_row.addWidget(make_kpi("POS BLOKAJ & BEKLEYEN", self.lbl_pos_balance, "@finance_tertiary"))
         root.addLayout(kpi_row)
 
         list_card = QFrame()
         list_card.setObjectName("BankAccountsListCard")
-        list_card.setStyleSheet(theme_qss("QFrame#BankAccountsListCard{background:@surface; border:1px solid @border; border-radius:12px;}"))
+        list_card.setStyleSheet(theme_qss("QFrame#BankAccountsListCard{background:@finance_canvas;border:none;}"))
         list_layout = QVBoxLayout(list_card)
-        list_layout.setContentsMargins(12, 12, 12, 12)
+        list_layout.setContentsMargins(0, 0, 0, 0)
 
-        list_title = QLabel("Hesap Listesi")
-        list_title.setStyleSheet(theme_qss("font-size:18px; font-weight:800; color:@text;"))
-        list_layout.addWidget(list_title)
+        list_title = QLabel("Tan\u0131ml\u0131 Hesaplar & Kasalar")
+        list_title.setStyleSheet(theme_qss("font-size:14px;font-weight:800;color:@finance_text;"))
+        list_heading = QHBoxLayout()
+        list_heading.addWidget(list_title, 1)
+        self.btn_loans = QPushButton("Krediler")
+        self.btn_loans.setFixedHeight(26)
+        self.btn_loans.setStyleSheet(theme_qss(
+            "QPushButton{background:@finance_surface;color:@finance_text;"
+            "border:1px solid @finance_outline;border-radius:4px;padding:2px 8px;}"
+        ))
+        list_heading.addWidget(self.btn_loans)
+        self.btn_account_table = QPushButton("Tablo")
+        self.btn_account_table.setToolTip("Tablo / Toplu Se\u00e7im")
+        self.btn_account_table.setCheckable(True)
+        self.btn_account_table.setFixedHeight(26)
+        self.btn_account_table.toggled.connect(self._set_account_view)
+        list_heading.addWidget(self.btn_account_table)
+        self.btn_account_filters = QPushButton("Filtre")
+        self.btn_account_filters.setCheckable(True)
+        self.btn_account_filters.setFixedHeight(26)
+        list_heading.addWidget(self.btn_account_filters)
 
-        filters = QHBoxLayout()
+        self.account_filter_panel = QFrame()
+        filters = QGridLayout(self.account_filter_panel)
+        filters.setContentsMargins(0, 0, 0, 0)
         self.search = QLineEdit()
         self.search.setPlaceholderText("Banka, şube, hesap adı, hesap no, IBAN")
-        self.search.setMinimumHeight(38)
+        self.search.setMinimumHeight(26)
         self.search.setStyleSheet(theme_qss("background:@surface_alt; color:@text; border:1px solid @border; border-radius:8px; padding:6px 10px;"))
         self.filter_status = QComboBox()
         self.filter_status.addItems(["Tümü", "Aktif", "Pasif"])
-        self.filter_status.setMinimumHeight(38)
+        self.filter_status.setMinimumHeight(26)
         self.lbl_count = QLabel("0 sonuç")
         self.btn_bulk_toggle = QPushButton("Seçileni Pasifleştir/Aktifleştir")
         self.btn_bulk_delete = QPushButton("Seçileni Sil")
@@ -708,12 +995,19 @@ class BankAccountsWidget(QWidget):
         self.btn_bulk_delete.setStyleSheet(
             theme_qss("QPushButton{background:@danger;color:@selection_text;border:none;border-radius:8px;padding:8px 12px;font-weight:700;}")
         )
-        filters.addWidget(self.search, 1)
-        filters.addWidget(self.filter_status)
-        filters.addWidget(self.btn_bulk_toggle)
-        filters.addWidget(self.btn_bulk_delete)
-        filters.addWidget(self.lbl_count)
-        list_layout.addLayout(filters)
+        filters.addWidget(self.search, 0, 0, 1, 2)
+        filters.addWidget(self.filter_status, 0, 2)
+        filters.addWidget(self.btn_bulk_toggle, 1, 0, 1, 2)
+        filters.addWidget(self.btn_bulk_delete, 1, 2)
+        counts = QHBoxLayout()
+        counts.addWidget(self.lbl_count)
+        counts.addWidget(QLabel("Hesap:"))
+        counts.addWidget(self.lbl_total_accounts)
+        counts.addWidget(QLabel("Aktif:"))
+        counts.addWidget(self.lbl_active_accounts)
+        filters.addLayout(counts, 2, 0, 1, 3)
+        self.account_filter_panel.hide()
+        self.btn_account_filters.toggled.connect(self.account_filter_panel.setVisible)
 
         summary = QFrame()
         summary.setObjectName("BankAccountsSummary")
@@ -734,7 +1028,30 @@ class BankAccountsWidget(QWidget):
             val_lbl.setStyleSheet(theme_qss("color:@text;"))
             sg.addWidget(k_lbl, i, 0)
             sg.addWidget(val_lbl, i, 1)
-        list_layout.addWidget(summary)
+        accounts_panel = QFrame()
+        accounts_panel.setObjectName("BankAccountsColumn")
+        accounts_panel.setStyleSheet(theme_qss(
+            "QFrame#BankAccountsColumn{background:@finance_canvas;border:none;}"
+        ))
+        accounts_layout = QVBoxLayout(accounts_panel)
+        accounts_layout.setContentsMargins(0, 0, 0, 0)
+        accounts_layout.setSpacing(8)
+        accounts_layout.addLayout(list_heading)
+        accounts_layout.addWidget(self.account_filter_panel)
+        accounts_layout.addWidget(summary)
+        self.account_summary = summary
+        summary.hide()
+        self.account_cards_scroll = QScrollArea()
+        self.account_cards_scroll.setWidgetResizable(True)
+        self.account_cards_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.account_cards_scroll.setStyleSheet(theme_qss("QScrollArea{background:@finance_canvas;border:none;}"))
+        self.account_cards_container = QWidget()
+        self.account_cards_container.setStyleSheet(theme_qss("background:@finance_canvas;"))
+        self.account_cards_layout = QVBoxLayout(self.account_cards_container)
+        self.account_cards_layout.setContentsMargins(0, 0, 0, 0)
+        self.account_cards_layout.setSpacing(8)
+        self.account_cards_scroll.setWidget(self.account_cards_container)
+        accounts_layout.addWidget(self.account_cards_scroll, 1)
 
         self.table = QTableWidget()
         self.table.setColumnCount(7)
@@ -746,38 +1063,122 @@ class BankAccountsWidget(QWidget):
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setColumnHidden(0, True)
         self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        list_layout.addWidget(self.table)
+        accounts_layout.addWidget(self.table, 1)
+        self.table.hide()
         self.accounts_empty_state = EmptyState(
             "Henüz banka hesabı yok",
             "Bu filtrede gösterilecek banka hesabı bulunamadı.",
             parent=self,
         )
         self.accounts_empty_state.hide()
-        list_layout.addWidget(self.accounts_empty_state)
+        accounts_layout.addWidget(self.accounts_empty_state)
 
-        history_title = QLabel("Bakiye Hareket Geçmişi")
-        history_title.setStyleSheet(theme_qss("font-size:16px; font-weight:800; color:@text; margin-top:8px;"))
-        list_layout.addWidget(history_title)
+        movements_panel = QFrame()
+        movements_panel.setObjectName("BankMovementsColumn")
+        movements_panel.setStyleSheet(theme_qss(
+            "QFrame#BankMovementsColumn{background:@finance_canvas;border:none;}"
+        ))
+        movements_layout = QVBoxLayout(movements_panel)
+        movements_layout.setContentsMargins(0, 0, 0, 0)
+        movements_layout.setSpacing(8)
+        movement_filters = QGridLayout()
+        movement_filters.setSpacing(4)
+        self.history_filter_group = QButtonGroup(self)
+        self.history_filter_buttons = {}
+        for index, (kind, title) in enumerate((("all", "T\u00dcM HAREKETLER"), ("income", "GELEN HAVALE"), ("expense", "GIDEN GIDER"), ("cash", "KASA NAKIT"), ("pos", "POS BLOKE"))):
+            button = QPushButton(title)
+            button.setCheckable(True)
+            button.setFixedHeight(26)
+            button.setStyleSheet(theme_qss(
+                "QPushButton{background:@finance_surface;color:@finance_text_muted;border:none;border-radius:4px;padding:2px;font-size:9px;font-weight:700;}"
+                "QPushButton:checked{background:@finance_primary;color:@selection_text;}"
+            ))
+            button.clicked.connect(lambda checked=False, key=kind: self._set_history_kind(key))
+            self.history_filter_group.addButton(button)
+            self.history_filter_buttons[kind] = button
+            movement_filters.addWidget(button, 0, index)
+        self.history_filter_buttons["all"].setChecked(True)
+        self.history_search = QLineEdit()
+        self.history_search.setPlaceholderText("Fi\u015f, a\u00e7\u0131klama, hesap ara...")
+        self.history_search.setFixedHeight(26)
+        self.history_search.textChanged.connect(lambda: self._load_history(self._selected_account_id()))
+        movement_filters.addWidget(self.history_search, 1, 0, 1, 3)
+        self.history_selected_account = QCheckBox("Se\u00e7ili hesap")
+        self.history_selected_account.toggled.connect(lambda: self._load_history(self._selected_account_id()))
+        movement_filters.addWidget(self.history_selected_account, 1, 3, 1, 2)
+        movements_layout.addLayout(movement_filters)
 
         self.history_table = QTableWidget()
-        self.history_table.setColumnCount(5)
-        self.history_table.setHorizontalHeaderLabels(["Tarih", "Tür", "Kategori", "Tutar", "Açıklama"])
-        self.history_table.horizontalHeader().setStretchLastSection(True)
+        self.history_table.setColumnCount(8)
+        self.history_table.setItemDelegateForColumn(4, _LedgerDetailDelegate(self.history_table))
+        self.history_table.setHorizontalHeaderLabels(["ZAMAN / FIS", "T\u00dcR", "KATEGORI", "TUTAR & Y\u00d6N", "ISLEM DETAYI & HESAP", "HESAP ID", "FIS ID", "AKSIYON"])
+        self.history_table.horizontalHeader().moveSection(4, 1)
+        self.history_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
+        self.history_table.setColumnWidth(0, 100)
+        self.history_table.setColumnWidth(3, 145)
+        self.history_table.setColumnWidth(7, 62)
+        for column in (1, 2, 5, 6):
+            self.history_table.setColumnHidden(column, True)
         self.history_table.verticalHeader().setVisible(False)
         self.history_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.history_table.setMinimumHeight(180)
-        list_layout.addWidget(self.history_table)
+        self.history_table.setStyleSheet(theme_qss(
+            "QTableWidget{background:@finance_surface;color:@finance_text;alternate-background-color:@finance_surface_high;border:none;gridline-color:@finance_surface;}"
+            "QTableWidget::item{padding:4px;border:none;border-bottom:1px solid @finance_surface_high;}"
+            "QHeaderView::section{background:@finance_canvas;color:@finance_text_muted;border:none;padding:4px;font-size:9px;font-weight:700;}"
+        ))
+        self.history_table.setShowGrid(False)
+        self.history_table.setAlternatingRowColors(False)
+        self.history_table.horizontalHeader().setFixedHeight(30)
+        self.history_table.verticalHeader().setDefaultSectionSize(48)
+        movements_layout.addWidget(self.history_table)
         self.history_empty_state = EmptyState(
             "Hareket geçmişi yok",
             "Seçili hesaba ait hareket kaydı bulunamadı.",
             parent=self,
         )
         self.history_empty_state.hide()
-        list_layout.addWidget(self.history_empty_state)
+        movements_layout.addWidget(self.history_empty_state)
+        movements_layout.addStretch(1)
+
+        body = QHBoxLayout()
+        body.setSpacing(10)
+        body.addWidget(accounts_panel, 41)
+        body.addWidget(movements_panel, 59)
+        list_layout.addLayout(body, 1)
 
         root.addWidget(list_card, 1)
 
+        footer = QHBoxLayout()
+        footer.setSpacing(8)
+        status_footer = QHBoxLayout()
+        for index, (title_text, detail_text, accent) in enumerate((
+            ("Gunluk Mutabakat Durumu", "Ekstre eslestirme sonucu dogrulanmadi", "@finance_outline"),
+            ("Otomatik Cari Tanima", "Otomatik eslestirme sonucu dogrulanmadi", "@finance_outline"),
+            ("TCMB Doviz Durumu", "Kur zaman damgasi dogrulanmadi", "@finance_outline"),
+        )):
+            card = QFrame()
+            card.setStyleSheet(theme_qss(
+                f"QFrame {{ background: @finance_surface; border: 1px solid @finance_outline; "
+                f"border-top: 2px solid {accent}; border-radius: 4px; }}"
+            ))
+            card_layout = QVBoxLayout(card)
+            card_layout.setContentsMargins(10, 6, 10, 6)
+            heading = QLabel(title_text)
+            heading.setStyleSheet(theme_qss("color: @finance_text; font-weight: 800; border: none;"))
+            detail = QLabel(detail_text)
+            detail.setStyleSheet(theme_qss("color: @finance_text_muted; font-size: 10px; border: none;"))
+            card_layout.addWidget(heading)
+            card_layout.addWidget(detail)
+            if index < 2:
+                status_footer.addWidget(card, 1)
+            else:
+                footer.addWidget(card, 1)
+        movements_layout.insertLayout(movements_layout.count() - 1, status_footer)
+        root.addLayout(footer)
+
         self.btn_add.clicked.connect(self.open_add_dialog)
+        self.btn_statement.clicked.connect(self.import_statement)
+        self.btn_transfer.clicked.connect(self._open_transfer_dialog)
         self.btn_refresh.clicked.connect(self.load_data)
         self.btn_import.clicked.connect(self.import_accounts)
         self.btn_export.clicked.connect(self.export_accounts)
@@ -829,11 +1230,7 @@ class BankAccountsWidget(QWidget):
 
         visible = []
         for row in self._all_rows:
-            bank = str(self._val(row, 1, ""))
-            branch = str(self._val(row, 2, ""))
-            acc_name = str(self._val(row, 3, ""))
-            acc_no = str(self._val(row, 4, ""))
-            iban = str(self._val(row, 5, ""))
+            bank, branch, acc_name, acc_no, iban = self._account_display_fields(row)
             status = self._row_active(row)
 
             if status_filter == "Aktif" and status != 1:
@@ -848,6 +1245,9 @@ class BankAccountsWidget(QWidget):
 
         self.table.setRowCount(0)
         total_balance = 0.0
+        pos_balance = 0.0
+        bank_balance = 0.0
+        cash_balance = 0.0
         display_currency = CurrencyHelper.get_code(self.db)
         active_count = 0
 
@@ -856,16 +1256,19 @@ class BankAccountsWidget(QWidget):
             self.table.insertRow(r)
 
             rid = self._val(row, 0, "")
-            bank = str(self._val(row, 1, ""))
-            branch = str(self._val(row, 2, ""))
-            acc_name = str(self._val(row, 3, ""))
-            acc_no = str(self._val(row, 4, ""))
-            iban = str(self._val(row, 5, ""))
+            bank, branch, acc_name, acc_no, iban = self._account_display_fields(row)
             bal = self._row_balance(row)
             row_currency = self._row_currency(row)
             is_active = self._row_active(row)
 
             total_balance += CurrencyHelper.convert_amount(self.db, bal, row_currency, display_currency)
+            account_kind = f"{bank} {acc_name} {acc_no}".casefold()
+            if "pos" in account_kind:
+                pos_balance += CurrencyHelper.convert_amount(self.db, bal, row_currency, display_currency)
+            elif "kasa" in account_kind or "cash" in account_kind:
+                cash_balance += CurrencyHelper.convert_amount(self.db, bal, row_currency, display_currency)
+            else:
+                bank_balance += CurrencyHelper.convert_amount(self.db, bal, row_currency, display_currency)
             if is_active == 1:
                 active_count += 1
 
@@ -876,6 +1279,13 @@ class BankAccountsWidget(QWidget):
             self.table.setItem(r, 4, QTableWidgetItem(acc_no))
             self.table.setItem(r, 5, QTableWidgetItem(iban))
             self.table.setItem(r, 6, QTableWidgetItem(CurrencyHelper.format_amount(bal, db=self.db, currency_code=row_currency)))
+            for column in (0, 4, 5, 6):
+                item = self.table.item(r, column)
+                numeric_font = QFont(DesignTokens.MONO_FONT_NAME)
+                numeric_font.setPixelSize(11)
+                numeric_font.setBold(column == 6)
+                item.setFont(numeric_font)
+                item.setToolTip(item.text())
 
             if is_active != 1:
                 for c in range(7):
@@ -887,8 +1297,12 @@ class BankAccountsWidget(QWidget):
         self.lbl_total_accounts.setText(str(len(visible)))
         self.lbl_active_accounts.setText(str(active_count))
         self.lbl_total_balance.setText(CurrencyHelper.format_amount(total_balance, db=self.db, currency_code=display_currency))
+        self.lbl_pos_balance.setText(CurrencyHelper.format_amount(pos_balance, db=self.db, currency_code=display_currency))
+        self.lbl_bank_balance.setText(CurrencyHelper.format_amount(bank_balance, db=self.db, currency_code=display_currency))
+        self.lbl_cash_balance.setText(CurrencyHelper.format_amount(cash_balance, db=self.db, currency_code=display_currency))
+        self._rebuild_account_cards(visible)
         has_rows = self.table.rowCount() > 0
-        self.table.setVisible(has_rows)
+        self._set_account_view(self.btn_account_table.isChecked())
         self.accounts_empty_state.setVisible(not has_rows)
 
         if self.table.rowCount() > 0:
@@ -898,6 +1312,9 @@ class BankAccountsWidget(QWidget):
 
     def _sync_summary(self):
         row = self.table.currentRow()
+        selected_id = self._selected_account_id()
+        for account_id, button in getattr(self, "account_card_buttons", {}).items():
+            button.setChecked(account_id == selected_id)
         if row < 0:
             self.sum_bank.setText("-")
             self.sum_name.setText("-")
@@ -929,36 +1346,120 @@ class BankAccountsWidget(QWidget):
         self.sum_status.setText(status_text)
         self._load_history(rid)
 
+    def _set_history_kind(self, kind):
+        self._history_kind = kind
+        self._load_history(self._selected_account_id())
+
+    def _show_ledger_account(self, account_id):
+        self._select_card_account(account_id)
+        self._show_account_detail()
+
+    def _filter_ledger_account(self, account_id):
+        self._select_card_account(account_id)
+        self.history_selected_account.setChecked(True)
+
     def _load_history(self, account_id):
         self.history_table.setRowCount(0)
-        if account_id is None:
-            return
-
         cur = self.db.conn.cursor()
         cols = self.db._get_table_columns("accounting") if hasattr(self.db, "_get_table_columns") else []
         if "bank_account_id" not in cols:
+            self.history_table.hide()
+            self.history_empty_state.show()
             return
-
         amount_col = "try_equivalent" if "try_equivalent" in cols else "amount"
-        curr_col = "currency" if "currency" in cols else "NULL"
+        curr_col = "COALESCE(currency, 'TRY')" if "currency" in cols else "'TRY'"
+        if "try_equivalent" in cols:
+            curr_col = f"CASE WHEN try_equivalent IS NOT NULL THEN 'TRY' ELSE {curr_col} END"
+        account_rows = {_to_int(row[0]): row for row in self._all_rows}
+        params = list(account_rows)
+        if self.history_selected_account.isChecked():
+            params = [account_id] if account_id in account_rows else []
+        if not params:
+            self.history_table.hide()
+            self.history_empty_state.show()
+            return
+        where = "bank_account_id IN (" + ",".join("?" for _ in params) + ")"
+        if "is_deleted" in cols:
+            where += " AND COALESCE(is_deleted, 0)=0"
         query = (
-            f"SELECT date, type, category, COALESCE({amount_col}, amount), description, COALESCE({curr_col}, 'TRY') "
-            "FROM accounting WHERE bank_account_id=? ORDER BY date DESC, id DESC LIMIT 200"
+            f"SELECT date,type,category,COALESCE({amount_col},amount),description,{curr_col},bank_account_id,id "
+            f"FROM accounting WHERE {where} ORDER BY date DESC,id DESC LIMIT 200"
         )
-        cur.execute(query, (account_id,))
-        rows = cur.fetchall() or []
-        for row in rows:
+        cur.execute(query, params)
+        search = self.history_search.text().strip().casefold()
+        for row in cur.fetchall() or []:
+            bank, _, name, number, _ = self._account_display_fields(account_rows[_to_int(row[6])])
+            identity = f"{bank} {name} {number}".casefold()
+            direction = str(row[1] or "").casefold()
+            income = direction in ("gelir", "income", "credit", "tahsilat")
+            expense = direction in ("gider", "expense", "debit")
+            if self._history_kind == "income" and not income:
+                continue
+            if self._history_kind == "expense" and not expense:
+                continue
+            if self._history_kind == "cash" and not ("kasa" in identity or "cash" in identity):
+                continue
+            if self._history_kind == "pos" and "pos" not in identity:
+                continue
+            if search and search not in " ".join(str(value or "") for value in (*row, bank, name)).casefold():
+                continue
             r = self.history_table.rowCount()
             self.history_table.insertRow(r)
-            self.history_table.setItem(r, 0, QTableWidgetItem(str(row[0] or "")))
+            stamp = str(row[0] or "-")
+            try:
+                date = datetime.fromisoformat(stamp)
+                display_stamp = date.strftime("%d.%m %H:%M" if "T" in stamp or " " in stamp else "%d.%m.%Y")
+            except ValueError:
+                display_stamp = stamp
+            date_item = QTableWidgetItem(display_stamp + f"\n#{row[7]}")
+            date_item.setData(Qt.ItemDataRole.UserRole, stamp)
+            date_item.setToolTip(stamp)
+            date_font = QFont(DesignTokens.MONO_FONT_NAME)
+            date_font.setPixelSize(11)
+            date_item.setFont(date_font)
+            self.history_table.setItem(r, 0, date_item)
             self.history_table.setItem(r, 1, QTableWidgetItem(str(row[1] or "")))
             self.history_table.setItem(r, 2, QTableWidgetItem(str(row[2] or "")))
             amt = _to_float(row[3], 0.0)
-            row_curr = str(row[5]) if len(row) > 5 else CurrencyHelper.get_code(self.db)
-            amount_text = CurrencyHelper.format_amount(amt, db=self.db, currency_code=row_curr)
-            self.history_table.setItem(r, 3, QTableWidgetItem(amount_text))
+            signed = -abs(amt) if expense else abs(amt) if income else amt
+            amount_text = CurrencyHelper.format_amount(signed, db=self.db, currency_code=str(row[5]))
+            amount_item = QTableWidgetItem(("+" if income else "") + amount_text)
+            amount_item.setForeground(qc("finance_secondary" if income else "finance_tertiary" if expense else "finance_text"))
+            amount_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            amount_font = QFont(date_font)
+            amount_font.setBold(True)
+            amount_item.setFont(amount_font)
+            amount_item.setToolTip(amount_item.text())
+            self.history_table.setItem(r, 3, amount_item)
             self.history_table.setItem(r, 4, QTableWidgetItem(str(row[4] or "")))
+            detail = _LedgerDetailLabel(str(row[4] or "-") + "\n" + " | ".join(str(value) for value in (row[1], row[2], bank) if value))
+            detail.setTextFormat(Qt.TextFormat.PlainText)
+            detail.setMargin(4)
+            detail.setStyleSheet(theme_qss("font-size:11px;color:@finance_text;background:transparent;"))
+            self.history_table.setCellWidget(r, 4, detail)
+            self.history_table.setItem(r, 5, QTableWidgetItem(str(row[6])))
+            self.history_table.setItem(r, 6, QTableWidgetItem(str(row[7])))
+            actions = QWidget()
+            action_layout = QHBoxLayout(actions)
+            action_layout.setContentsMargins(2, 0, 2, 0)
+            action_layout.setSpacing(2)
+            for title, tooltip, callback in (
+                ("?", "Hesap detay\u0131", self._show_ledger_account),
+                (">", "Hesab\u0131n hareketlerini g\u00f6ster", self._filter_ledger_account),
+            ):
+                button = FinancialReferenceIconButton(
+                    "ledger_account_detail" if title == "?" else "ledger_account_movements",
+                    "document" if title == "?" else "transfer",
+                )
+                button.setFixedSize(24, 24)
+                button.setToolTip(tooltip)
+                button.setAccessibleName("ledger_account_detail" if title == "?" else "ledger_account_movements")
+                button.setStyleSheet(theme_qss("QPushButton{background:transparent;color:@finance_text_muted;border:none;border-radius:4px;}QPushButton:hover{background:@finance_surface_alt;color:@finance_primary;}"))
+                button.clicked.connect(lambda checked=False, rid=_to_int(row[6]), handler=callback: handler(rid))
+                action_layout.addWidget(button)
+            self.history_table.setCellWidget(r, 7, actions)
         has_rows = self.history_table.rowCount() > 0
+        self.history_table.setFixedHeight(30 + min(8, self.history_table.rowCount()) * 48 + 2)
         self.history_table.setVisible(has_rows)
         self.history_empty_state.setVisible(not has_rows)
 
@@ -1111,6 +1612,32 @@ class BankAccountsWidget(QWidget):
             self.load_data()
         else:
             show_error(self, "Seçili hesaplar silinemedi.")
+
+    def import_statement(self):
+        from pathlib import Path
+        from src.utils.bank_statement_parser import parse_bank_statement
+
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Banka Ekstresi", "", "Statements (*.ofx *.mt940 *.sta *.txt)"
+        )
+        if not path:
+            return
+        try:
+            source = Path(path)
+            if source.stat().st_size > 10 * 1024 * 1024:
+                raise ValueError("Ekstre dosyas\u0131 10 MB s\u0131n\u0131r\u0131n\u0131 a\u015f\u0131yor.")
+            raw = source.read_bytes()
+            for encoding in ("utf-8-sig", "cp1254", "latin-1"):
+                try:
+                    content = raw.decode(encoding)
+                    break
+                except UnicodeDecodeError:
+                    continue
+            rows = parse_bank_statement(content, source.suffix)
+        except (OSError, ValueError) as exc:
+            show_error(self, f"Ekstre okunamad\u0131: {exc}")
+            return
+        StatementPreviewDialog(rows, self).exec()
 
     def import_accounts(self):
         try:

@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import QApplication
 from Web_Arayuzu import Main as web_main
 from src.ui.dialogs.license_lock_screen import LicenseRequestDialog
 from src.utils.license_api_client import LicenseApiClient
+from src.utils.theme_manager import ThemeManager
 
 _QT_APP = None
 
@@ -158,6 +159,21 @@ def test_smtp_environment_aliases_are_supported(monkeypatch):
     assert settings["password"] == "secret"
 
 
+def test_license_payment_details_are_visible_in_dark_theme(monkeypatch):
+    app = _app()
+    previous_theme = ThemeManager._current_theme
+    ThemeManager.apply_theme(app, "Koyu Mavi", animate=False)
+    monkeypatch.setattr(LicenseRequestDialog, "_load_catalog", lambda _self: None)
+    dialog = LicenseRequestDialog("1234567890123456")
+    try:
+        assert "Engin ASLAN" in dialog.payment_holder.text()
+        assert "Vak\u0131fBank" in dialog.payment_bank.text()
+        assert "TR66 0001 5001 5800 7321 0690 01" in dialog.payment_iban.text()
+        assert "color: #e2e8f0" in dialog.payment_holder.parentWidget().styleSheet()
+    finally:
+        dialog.close()
+        ThemeManager.apply_theme(app, previous_theme, animate=False)
+
 def test_license_buttons_stay_enabled_when_catalog_is_offline(monkeypatch):
     _app()
     monkeypatch.setattr(
@@ -179,6 +195,7 @@ def test_license_api_payment_flow_uses_mail_fallback(monkeypatch):
     dialog = LicenseRequestDialog("1234567890123456")
     class LicenseClient:
         def create_order(self, payload):
+            assert payload["product_code"] == "teknik_servis"
             assert payload["payment_reported"] is True
             return {
                 "order": {

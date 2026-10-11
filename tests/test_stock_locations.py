@@ -143,6 +143,22 @@ def test_vehicle_consumption_and_count_update_total(location_db):
     ).fetchone()[0] == 8.0
 
 
+def test_stock_kit_saves_active_part_lines(location_db):
+    first = location_db.add_part(name="Camera", stock=3)
+    second = location_db.add_part(name="Switch", stock=4)
+
+    kit_id = location_db.save_stock_kit(
+        "Field service kit",
+        [{"part_id": first, "quantity": 2}, {"part_id": second, "quantity": 1}],
+    )
+
+    assert kit_id > 0
+    assert location_db.get_stock_kits() == [
+        {"id": kit_id, "name": "Field service kit", "active": 1}
+    ]
+    assert len(location_db.get_stock_kit_lines(kit_id)) == 2
+
+
 def test_insufficient_transfer_rolls_back(location_db):
     part_id = location_db.add_part(stock=2)
     location_db.ensure_stock_location_schema()

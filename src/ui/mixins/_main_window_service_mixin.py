@@ -66,7 +66,7 @@ class MainWindowServiceMixin:
         self.schedule_ui_task("soon", self.refresh_notification_bell, "startup.refresh_notification_bell")
         self.schedule_ui_task("soon", self._prewarm_theme_cache, "startup.prewarm_theme_cache")
         self.schedule_ui_task("soon", self._ensure_assistant_manager, "startup.assistant_manager")
-        self.schedule_ui_task("idle", self._start_assistant_services, "startup.assistant_services")
+        self.schedule_ui_task("immediate", self._start_assistant_services, "startup.assistant_services")
         self.schedule_ui_task("idle", self.fiscal_service.run_startup_check, "startup.fiscal_check")
         self.schedule_ui_task("idle", self.refresh_gemini_models_once, "startup.gemini_models")
         self.schedule_ui_task("idle", self.update_manager.check_for_updates, "startup.update_check")

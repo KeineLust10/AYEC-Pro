@@ -37,21 +37,24 @@ class AccountingBaseMixin:
     def _modern_table_qss(self):
         return theme_qss(
             """
-            QTableWidget { border: none; font-size: 13px; selection-background-color: @border; selection-color: @selection_text; }
-            QHeaderView::section { background-color: @surface_alt; color: @text_muted; border: none; border-bottom: 1px solid @border; padding: 12px; font-weight: 800; }
-            QTableWidget::item { border-bottom: 1px solid @border; padding: 8px; color: @text; }
-            QTableWidget::item:selected { background-color: @accent; color: @selection_text; border: none; outline: none; }
+            QTableWidget { background:@finance_surface;alternate-background-color:@finance_canvas;border:none;font-size:11px;selection-background-color:@finance_active_bg;selection-color:@finance_text; }
+            QHeaderView::section { background-color:@finance_canvas;color:@finance_text_muted;border:none;border-bottom:1px solid @finance_outline;padding:4px;font-size:10px;font-weight:700; }
+            QTableWidget::item { background:@finance_surface;border:none;padding:6px 4px;color:@finance_text; }
+            QTableWidget::item:alternate { background:@finance_surface_alt;color:@finance_text; }
+            QTableWidget::item:hover { background:@finance_surface_high; }
+            QTableWidget::item:selected { background-color:@finance_active_bg;color:@finance_text;border:none;outline:none; }
         """
         )
 
     def apply_theme_styles(self):
         classic = self._is_classic_appearance()
-        self.setStyleSheet("background: #F3F4F6; color: #111827;" if classic else theme_qss("background: @window; color: @text;"))
+        self.setObjectName("AccountingPage")
+        self.setStyleSheet("background: #F3F4F6; color: #111827;" if classic else theme_qss("QWidget#AccountingPage{background:@finance_canvas;color:@finance_text;}QLabel{border:none;background:transparent;}"))
         if hasattr(self, "tabs"):
             self.tabs.setStyleSheet(
                 AppearanceModeManager.classic_tab_qss()
                 if classic
-                else theme_qss("QTabWidget::pane { background: @window; border: none; } QTabBar::tab { padding: 8px 14px; }")
+                else theme_qss("QTabWidget::pane{background:@finance_canvas;border:none;}QTabBar::tab{padding:4px 8px;}")
             )
         if hasattr(self, "table"):
             self.table.setProperty("skipThemeTransform", False)
@@ -87,7 +90,7 @@ class AccountingBaseMixin:
         self._right_panel_anim.setStartValue(panel.width())
         self._right_panel_anim.setEndValue(target_width)
         self._right_panel_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
-        panel.setMinimumWidth(64 if target_width <= 80 else 390)
+        panel.setMinimumWidth(64 if target_width <= 80 else 262)
         self._right_panel_anim.start()
 
     def _expand_right_panel(self):
@@ -95,7 +98,7 @@ class AccountingBaseMixin:
             return
         self._right_panel_collapsed = False
         self._set_right_panel_content_visible(True)
-        self._animate_right_panel_width(390)
+        self._animate_right_panel_width(262)
 
     def _collapse_right_panel(self):
         if not getattr(self, "right_panel", None):
@@ -138,8 +141,9 @@ class AccountingBaseMixin:
             width = int(self.cards_container.width() or 0)
         except Exception:
             width = 0
-        # The expanded panel is wide enough for a compact two-column summary.
-        cols = 2 if width >= 360 else 1
+        if width <= 0:
+            width = int(self.width() or 0)
+        cols = 5 if width >= 1400 else (4 if width >= 1100 else (2 if width >= 360 else 1))
         self._last_cols_cards = cols
 
         for card in self.card_widgets:

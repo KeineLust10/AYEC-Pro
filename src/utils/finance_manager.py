@@ -9,25 +9,33 @@ from src.utils.income_tax_tariff_service import IncomeTaxTariffService
 class FinanceManager:
     def _repair_accounting_currency_values(self):
         """Keep accounting amount and TRY equivalent canonical for foreign rows."""
+        owns_transaction = False
         try:
             columns = set(self.db._get_table_columns("accounting"))
             required = {"amount", "original_amount", "try_equivalent", "currency", "exchange_rate"}
             if not required.issubset(columns):
                 return
+            predicate = (
+                "UPPER(COALESCE(currency, 'TRY')) IN ('USD', 'EUR') "
+                "AND COALESCE(original_amount, 0) > 0 "
+                "AND COALESCE(exchange_rate, 0) > 1 "
+                "AND ABS(COALESCE(try_equivalent, 0) - (original_amount * exchange_rate)) > 0.01"
+            )
+            if self.db.cursor.execute("SELECT 1 FROM accounting WHERE " + predicate + " LIMIT 1").fetchone() is None:
+                return
+            owns_transaction = not self.db.conn.in_transaction
             self.db.cursor.execute(
                 """
                 UPDATE accounting
                    SET amount = ROUND(original_amount * exchange_rate, 4),
                        try_equivalent = ROUND(original_amount * exchange_rate, 4)
-                 WHERE UPPER(COALESCE(currency, 'TRY')) IN ('USD', 'EUR')
-                   AND COALESCE(original_amount, 0) > 0
-                   AND COALESCE(exchange_rate, 0) > 1
-                   AND ABS(COALESCE(try_equivalent, 0) - (original_amount * exchange_rate)) > 0.01
-                """
+                 WHERE """ + predicate
             )
-            if self.db.cursor.rowcount:
+            if owns_transaction:
                 self.db.conn.commit()
         except Exception as exc:
+            if owns_transaction:
+                self.db.conn.rollback()
             logger.warning("Accounting currency repair skipped: %s", exc)
 
     """
@@ -194,6 +202,9 @@ class FinanceManager:
 
         if period == "today":
             start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            end = now.replace(hour=23, minute=59, second=59, microsecond=0)
+        elif period == "last7":
+            start = (now - timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0)
             end = now.replace(hour=23, minute=59, second=59, microsecond=0)
         elif period == "week":
             start = (now - timedelta(days=now.weekday())).replace(
@@ -485,11 +496,24 @@ class FinanceManager:
             logger.error(f"Service revenue calc error (accounting): {exc}")
         return total
 
-    def get_unified_ledger(self, limit=1000, offset=0):
+    @staticmethod
+    def _ledger_search_matches(query, *values):
+        def normalize(value):
+            return str(value or "").casefold().replace("\u0307", "").replace("\u0131", "i")
+        needle = normalize(query)
+        return int(any(needle in normalize(value) for value in values))
+
+    def get_unified_ledger(self, limit=1000, offset=0, period="fiscal", search=""):
         """
         Returns a merged list of latest transactions from all sources.
         Sorted by date DESC.
         """
+        period = str(period or "fiscal").strip().lower()
+        if period not in {"fiscal", "today", "last7", "week", "month", "year"}:
+            raise ValueError("Unsupported ledger period")
+        search = str(search or "").strip()
+        if len(search) > 200:
+            raise ValueError("Ledger search is limited to 200 characters")
         self._repair_accounting_currency_values()
         limit = max(1, int(limit or 1000))
         offset = max(0, int(offset or 0))
@@ -504,8 +528,12 @@ class FinanceManager:
         except Exception:
             accounting_cols = set()
 
-        start_date, end_date = self._get_date_range("fiscal")
+        start_date, end_date = self._get_date_range(period)
         cur = self.db.conn.cursor()
+        start_day = start_date[:10]
+        end_exclusive = (datetime.strptime(end_date[:10], "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
+        if search:
+            self.db.conn.create_function("ayec_ledger_match", -1, self._ledger_search_matches, deterministic=True)
 
         optional_accounting_fields = [
             "customer_id",
@@ -534,9 +562,19 @@ class FinanceManager:
         accounting_select_parts.extend(
             [field for field in optional_accounting_fields if field in accounting_cols]
         )
+        accounting_search = ""
+        accounting_params = [start_day, end_exclusive]
+        if search:
+            fields = ["description", "category", "type", "id"]
+            fields.extend(field for field in ("customer_name", "tracking_no", "ref_no") if field in accounting_cols)
+            if "customer_id" in accounting_cols:
+                fields.append("(SELECT name FROM customers WHERE id=accounting.customer_id)")
+            accounting_search = " AND ayec_ledger_match(?, " + ", ".join(fields) + ")"
+            accounting_params.append(search)
+        accounting_params.append(source_limit)
         cursor = cur.execute(
-            f"SELECT {', '.join(accounting_select_parts)} FROM accounting WHERE date >= SUBSTR(?, 1, 10) AND date <= SUBSTR(?, 1, 10) ORDER BY date DESC LIMIT ?",
-            (start_date, end_date, source_limit),
+            f"SELECT {', '.join(accounting_select_parts)} FROM accounting WHERE date >= ? AND date < ?{accounting_search} ORDER BY date DESC LIMIT ?",
+            accounting_params,
         )
 
         for row in cursor.fetchall():
@@ -612,6 +650,7 @@ class FinanceManager:
                 {
                     "id": rid,
                     "source": "accounting",
+                    "category": cat,
                     "date": date,
                     "description": final_desc,
                     "amount": amount_foreign,
@@ -638,18 +677,24 @@ class FinanceManager:
 
         # --- Merge currency_transactions (payments, collections) ---
         try:
+            currency_search = ""
+            currency_params = [start_day, end_exclusive]
+            if search:
+                currency_search = " AND ayec_ledger_match(?, ct.description, ct.tracking_no, c.name, ct.id, ct.currency)"
+                currency_params.append(search)
+            currency_params.append(source_limit)
             ct_cursor = cur.execute(
-                """
+                f"""
                 SELECT ct.id, ct.created_at, ct.description, ct.amount,
                        ct.currency, ct.transaction_type, ct.exchange_rate,
                        ct.try_equivalent, ct.current_balance, ct.customer_id,
                        ct.tracking_no, c.name AS customer_name
                 FROM currency_transactions ct
                 LEFT JOIN customers c ON c.id=ct.customer_id
-                WHERE ct.created_at >= ? AND ct.created_at <= ?
+                WHERE ct.created_at >= ? AND ct.created_at < ?{currency_search}
                 ORDER BY ct.created_at DESC LIMIT ?
                 """,
-                (start_date, end_date, source_limit),
+                currency_params,
             )
             for row in ct_cursor.fetchall():
                 (

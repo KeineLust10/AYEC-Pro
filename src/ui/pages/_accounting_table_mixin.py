@@ -16,6 +16,7 @@ class AccountingTableMixin:
         with fast_render_context(self.table):
             try:
                 grouped = defaultdict(list)
+                self.table.clearSpans()
                 self.table.setRowCount(0)
 
                 for row in self.ledger_data:
@@ -44,11 +45,13 @@ class AccountingTableMixin:
                         is_income = type_label in {"Satış", "Gelir", "Tahsilat", "Açılış"}
                         icon = "A" if type_label == "Açılış" else ("S" if type_label == "Satış" else ("T" if is_income else "G"))
                         amt_try, bal_val = float(row.get("amount_try") or 0), row.get("balance_value")
+                        display_amount = -abs(amt_try) if type_label == "Gider" else amt_try
                         bal_float = float(bal_val or 0) if bal_val is not None else None
-                        values = [row.get("time") or "--", f"{icon} {type_label}", self._clean_ledger_text(row.get("description") or "-"), row.get("amount_original_str") or "--", row.get("exchange_rate_str") or "--", CurrencyHelper.format_try_for_display(amt_try, db=self.db, include_try_reference=False), self._clean_ledger_text(row.get("status_text") or "-"), "--" if bal_val is None else CurrencyHelper.format_try_for_display(bal_float, db=self.db, include_try_reference=False)]
+                        values = [row.get("time") or "--", f"{icon} {type_label}", self._ledger_description_text(row), row.get("amount_original_str") or "--", row.get("exchange_rate_str") or "--", CurrencyHelper.format_try_for_display(display_amount, db=self.db, include_try_reference=False), self._clean_ledger_text(row.get("status_text") or "-"), "--" if bal_val is None else CurrencyHelper.format_try_for_display(bal_float, db=self.db, include_try_reference=False)]
                         for col, val in enumerate(values):
                             item = QTableWidgetItem(str(val))
                             item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
+                            if col == 2: item.setToolTip(str(val))
                             if col in (3, 4, 5, 7): item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
                             if col == 1: item.setForeground(qc("success") if is_income else qc("danger"))
                             elif col == 6:
@@ -56,7 +59,8 @@ class AccountingTableMixin:
                                 if "bekliyor" in st: item.setForeground(qc("warning"))
                                 elif "tamam" in st: item.setForeground(qc("success"))
                             elif col in (5, 7):
-                                if str(val).startswith("-") or (col == 5 and amt_try < 0) or (col == 7 and bal_float is not None and bal_float < 0): item.setForeground(qc("danger"))
+                                if str(val).strip() in ("", "-", "--"): item.setForeground(qc("finance_text_muted"))
+                                elif str(val).startswith("-") or (col == 5 and display_amount < 0) or (col == 7 and bal_float is not None and bal_float < 0): item.setForeground(qc("danger"))
                                 else: item.setForeground(qc("text"))
                             self.table.setItem(data_row, col, item); self.table.item(data_row, col).setData(Qt.ItemDataRole.UserRole, row)
 
@@ -65,7 +69,14 @@ class AccountingTableMixin:
                     self.table.setVisible(has_rows); self.ledger_empty_state.setVisible(not has_rows)
                 if hasattr(self, "update_footer"): self.update_footer()
                 if self._is_classic_appearance(): self.table.verticalHeader().setDefaultSectionSize(30)
-                else: self.table.resizeRowsToContents()
+                else:
+                    self.table.resizeRowsToContents()
+                    for index in range(self.table.rowCount()):
+                        payload = self.table.item(index, 0).data(Qt.ItemDataRole.UserRole) if self.table.item(index, 0) else None
+                        if isinstance(payload, dict) and payload.get("kind") == "date_group":
+                            self.table.setRowHeight(index, 30)
+                        else:
+                            self.table.setRowHeight(index, max(55, self.table.rowHeight(index)))
             except Exception as e: import traceback; print(f"apply_filter error: {e}\n{traceback.format_exc()}")
 
 
@@ -73,9 +84,16 @@ class AccountingTableMixin:
         net_total = income_total - expense_total
         arrow = "v" if expanded else ">"
         summary = f"Ciro: {CurrencyHelper.format_try_for_display(income_total, db=self.db, include_try_reference=False)}   Gider: {CurrencyHelper.format_try_for_display(expense_total, db=self.db, include_try_reference=False)}   Net: {CurrencyHelper.format_try_for_display(net_total, db=self.db, include_try_reference=False)}"
-        values = [f"{arrow} {display_date}", f"{len(rows)} i\u015flem", summary, "", "", CurrencyHelper.format_try_for_display(net_total, db=self.db, include_try_reference=False), "A\u00e7\u0131k" if expanded else "Kapalı", ""]
-        payload = {"kind": "date_group", "display_date": str(display_date or "-")}
-        bg, fg = (QColor("#DCEBFF") if expanded else QColor("#EFF6FF")), QColor("#111827")
+        values = [f"{arrow} {display_date}", f"{len(rows)} i\u015flem", summary, "", "", CurrencyHelper.format_try_for_display(net_total, db=self.db, include_try_reference=False), "A\u00e7\u0131k" if expanded else "Kapal\u0131", ""]
+        payload = {
+            "kind": "date_group", "display_date": str(display_date or "-"),
+            "expanded": expanded, "count": len(rows),
+            "income_text": CurrencyHelper.format_try_for_display(income_total, db=self.db, include_try_reference=False),
+            "expense_text": CurrencyHelper.format_try_for_display(expense_total, db=self.db, include_try_reference=False),
+            "net_text": CurrencyHelper.format_try_for_display(net_total, db=self.db, include_try_reference=False),
+            "net_negative": net_total < 0,
+        }
+        bg, fg = qc("finance_active_bg" if expanded else "finance_surface_high"), qc("finance_text")
         for col, val in enumerate(values):
             item = QTableWidgetItem(str(val))
             item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
@@ -83,6 +101,13 @@ class AccountingTableMixin:
             f = item.font(); f.setBold(True); item.setFont(f)
             item.setTextAlignment((Qt.AlignmentFlag.AlignRight if col in (5, 7) else Qt.AlignmentFlag.AlignLeft) | Qt.AlignmentFlag.AlignVCenter)
             self.table.setItem(row_idx, col, item)
+        self.table.setSpan(row_idx, 0, 1, 8)
+        primary = self.table.item(row_idx, 0)
+        primary.setText(f"{arrow} {display_date}   {len(rows)} i\u015flem    {summary}")
+        primary.setToolTip(primary.text())
+        font = primary.font()
+        font.setPixelSize(10)
+        primary.setFont(font)
         self.table.setRowHeight(row_idx, 34 if self._is_classic_appearance() else 38)
 
     def _toggle_ledger_date_group(self, display_date):
@@ -90,6 +115,15 @@ class AccountingTableMixin:
         if key in self._expanded_ledger_dates: self._expanded_ledger_dates.remove(key)
         else: self._expanded_ledger_dates.add(key)
         self.apply_filter(getattr(self, "_current_filter_key", "ALL"))
+
+    def _ledger_description_text(self, row):
+        description = self._clean_ledger_text(row.get("description") or "-")
+        details = []
+        for key, label in (("ref_no", "Ref"), ("customer_name", "M\u00fc\u015fteri")):
+            value = str(row.get(key) or "").strip()
+            if value and value.casefold() not in description.casefold():
+                details.append(label + ": " + self._clean_ledger_text(value))
+        return description + ("\n" + " | ".join(details) if details else "")
 
     def _clean_ledger_text(self, value):
         text = str(value or "")

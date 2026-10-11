@@ -176,6 +176,9 @@ class TechnicianWizardPage2(QWidget):
         # Header with Edit button
         self.header_layout = self.create_header_with_edit_button()
         main_layout.addLayout(self.header_layout)
+
+        self.workflow_strip = self.create_workflow_strip()
+        main_layout.addWidget(self.workflow_strip)
         
         self.fault_group = self.create_fault_notes_section()
         self.fault_group.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
@@ -188,6 +191,48 @@ class TechnicianWizardPage2(QWidget):
         self.private_group = self.create_private_notes_section()
         self.private_group.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         main_layout.addWidget(self.private_group)
+
+    def create_workflow_strip(self):
+        """Create a compact workbench status strip for the technician flow."""
+        strip = QFrame()
+        strip.setObjectName("TechnicianWorkflowStrip")
+        strip.setStyleSheet(theme_qss(f"""
+            QFrame#TechnicianWorkflowStrip {{
+                background: @finance_surface_alt;
+                border: 1px solid {DesignTokens.BORDER};
+                border-radius: 8px;
+            }}
+            QLabel {{
+                background: transparent;
+                border: none;
+                color: @text_muted;
+            }}
+            QLabel#WorkflowValue {{
+                color: @text;
+                font-weight: bold;
+            }}
+        """))
+        layout = QHBoxLayout(strip)
+        layout.setContentsMargins(12, 8, 12, 8)
+        layout.setSpacing(24)
+        values = [
+            ("SERVIS KAYDI", str(self.tracking_no or "-")),
+            ("DURUM", "INCELEME"),
+            ("NOTLAR", "3 BOLUM"),
+        ]
+        for caption, value in values:
+            block = QVBoxLayout()
+            block.setSpacing(2)
+            caption_label = QLabel(caption)
+            caption_label.setFont(QFont(DesignTokens.FONT_FAMILY, 8, QFont.Weight.Bold))
+            value_label = QLabel(value)
+            value_label.setObjectName("WorkflowValue")
+            value_label.setFont(QFont(DesignTokens.FONT_FAMILY, 10, QFont.Weight.Bold))
+            block.addWidget(caption_label)
+            block.addWidget(value_label)
+            layout.addLayout(block)
+        layout.addStretch()
+        return strip
     
     def _wire_ui_signals(self):
         self.btn_private_eye.clicked.connect(self._on_ui_widget_changed)
@@ -633,7 +678,7 @@ class TechnicianWizardPage2(QWidget):
             else theme_qss(f"color: {DesignTokens.FOREGROUND}; background: transparent; border: none; margin-left: 8px;")
         )
         label.setCursor(Qt.CursorShape.PointingHandCursor)
-        label.mousePressEvent = lambda event, t=toggle: t.toggle()
+        label.mousePressEvent = lambda event, t=toggle: t.toggle() if t.isEnabled() else None
         label.setAccessibleName(f"etiket_{text.lower().replace(' ', '_')}")
         
         h_layout.addWidget(toggle)

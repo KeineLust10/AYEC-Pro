@@ -41,8 +41,13 @@ class StockSmartImportDialog(ModernDialog):
         self._build_ui()
 
     @classmethod
-    def get_import_request(cls, parent=None):
+    def get_import_request(cls, parent=None, initial_mode=""):
         dialog = cls(parent)
+        mode_indexes = {"pdf": 0, "document": 1, "image": 2}
+        if initial_mode in mode_indexes:
+            dialog.findChild(QTabWidget, "StockSmartImportTabs").setCurrentIndex(
+                mode_indexes[initial_mode]
+            )
         if dialog.exec() == dialog.DialogCode.Accepted and dialog.selected_path:
             return dialog.selected_path, dialog.selected_mode
         return "", ""

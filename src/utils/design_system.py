@@ -131,28 +131,39 @@ class _DesignTokensMeta(type):
 
 
 class DesignTokens(metaclass=_DesignTokensMeta):
-    # Dark Mode Tokens (legacy compat – static)
-    DARK_BACKGROUND = "#0F172A"
-    DARK_FOREGROUND = "#F8FAFC"
-    DARK_CARD = "#1E293B"
+    # Midnight Enterprise Slate foundation tokens.
+    DARK_BACKGROUND = "#0B1326"
+    DARK_FOREGROUND = "#DAE2FD"
+    DARK_CARD = "#131B2E"
     DARK_BORDER = "#334155"
-    DARK_INPUT = "#334155"
+    DARK_INPUT = "#1E293B"
 
     # Shadows (QSS simulation via borders/gradients)
     SHADOW_SM = "1px 1px 2px rgba(0,0,0,0.05)"
+    ELEVATION_1 = "0 2px 6px rgba(0,0,0,0.18)"
+    ELEVATION_2 = "0 8px 24px rgba(0,0,0,0.24)"
     
     # Border Radius
     RADIUS_SM = "4px"
+    RADIUS_CONTROL = "6px"
     RADIUS_MD = "8px"
     RADIUS_LG = "12px"
     RADIUS_XL = "16px"
     
     # Typography
     FONT_FAMILY = "'Inter', 'Segoe UI', system-ui, sans-serif"
+    FONT_NAME = "Inter"
+    MONO_FONT_FAMILY = "'JetBrains Mono', 'Cascadia Mono', Consolas, monospace"
+    MONO_FONT_NAME = "JetBrains Mono"
     FONT_SIZE_BASE = "10pt"
     FONT_SIZE_SM = "9pt"
     FONT_SIZE_LG = "12pt"
     FONT_SIZE_XL = "14pt"
+    SPACING_1 = "4px"
+    SPACING_2 = "8px"
+    SPACING_3 = "12px"
+    SPACING_4 = "16px"
+    HAIRLINE_BORDER = "1px"
 
     # Status Colors - use tc() at runtime for theme awareness
     @staticmethod
@@ -342,24 +353,24 @@ class DesignTokens(metaclass=_DesignTokensMeta):
 
         # Variant mapping - use theme tokens
         if variant == "primary":
-            bg, fg = "@accent", "@selection_text"
-            hover_bg, hover_fg, hover_border, pressed_bg = "@accent_hover", "@selection_text", "@accent_hover", "@accent_pressed"
+            bg, fg = "@accent", "@accent_foreground"
+            hover_bg, hover_fg, hover_border, pressed_bg = "@accent_hover", "@accent_foreground", "@accent_hover", "@accent_pressed"
             outline = "border: 1px solid @accent;"
         elif variant == "secondary":
             bg, fg = "@surface_alt", "@text"
             hover_bg, hover_fg, hover_border, pressed_bg = "@surface", "@text", "@accent", "@surface_alt"
             outline = "border: 1px solid @border;"
         elif variant == "destructive":
-            bg, fg = "@danger", "@selection_text"
-            hover_bg, hover_fg, hover_border, pressed_bg = "@danger", "@selection_text", "@danger", "@danger_bg"
+            bg, fg = "@danger", "@danger_foreground"
+            hover_bg, hover_fg, hover_border, pressed_bg = "@danger", "@danger_foreground", "@danger", "@danger"
             outline = "border: 1px solid @danger;"
         elif variant == "success":
-            bg, fg = "@success", "@selection_text"
-            hover_bg, hover_fg, hover_border, pressed_bg = "@success", "@selection_text", "@success", "@success"
+            bg, fg = "@success", "@success_foreground"
+            hover_bg, hover_fg, hover_border, pressed_bg = "@success", "@success_foreground", "@success", "@success"
             outline = "border: 1px solid @success;"
         elif variant == "warning":
-            bg, fg = "@warning", "@selection_text"
-            hover_bg, hover_fg, hover_border, pressed_bg = "@warning", "@selection_text", "@warning", "@warning_bg"
+            bg, fg = "@warning", "@warning_foreground"
+            hover_bg, hover_fg, hover_border, pressed_bg = "@warning", "@warning_foreground", "@warning", "@warning"
             outline = "border: 1px solid @warning;"
         elif variant == "ghost":
             bg, fg = "transparent", "@text"
@@ -370,8 +381,8 @@ class DesignTokens(metaclass=_DesignTokensMeta):
             hover_bg, hover_fg, hover_border, pressed_bg = "@surface_alt", "@text", "@accent", "@surface_alt"
             outline = "border: 1px solid @border;"
         else:
-            bg, fg = "@accent", "@selection_text"
-            hover_bg, hover_fg, hover_border, pressed_bg = "@accent_hover", "@selection_text", "@accent_hover", "@accent_pressed"
+            bg, fg = "@accent", "@accent_foreground"
+            hover_bg, hover_fg, hover_border, pressed_bg = "@accent_hover", "@accent_foreground", "@accent_hover", "@accent_pressed"
             outline = "border: 1px solid @accent;"
         
         return f"""
@@ -418,7 +429,7 @@ class DesignTokens(metaclass=_DesignTokensMeta):
             QHeaderView::section {{
                 background-color: @surface_alt;
                 color: @text;
-                font-family: 'Segoe UI';
+                font-family: {cls.FONT_FAMILY};
                 padding: 12px 10px;
                 border: none;
                 border-bottom: 2px solid @border;

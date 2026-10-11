@@ -15,12 +15,18 @@ def main():
 
     if os.path.exists(bin_exe):
         args = [bin_exe] + sys.argv[1:]
+        env = os.environ.copy()
+        runtime_bin = os.path.join(base_dir, "bin")
+        existing_pythonpath = env.get("PYTHONPATH", "")
+        env["PYTHONPATH"] = os.pathsep.join(
+            path for path in (runtime_bin, existing_pythonpath) if path
+        )
         startupinfo = None
         if os.name == "nt":
             startupinfo = subprocess.STARTUPINFO()
             startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
             startupinfo.wShowWindow = 5  # SW_SHOW
-        subprocess.Popen(args, cwd=base_dir, startupinfo=startupinfo)
+        subprocess.Popen(args, cwd=base_dir, startupinfo=startupinfo, env=env)
     else:
         import ctypes
         ctypes.windll.user32.MessageBoxW(

@@ -79,7 +79,7 @@ class SupportPage(QWidget):
         title.setFont(QFont("Segoe UI", 28, QFont.Weight.Bold))
         title.setStyleSheet(theme_qss("border: none; color: @text; background: transparent;"))
         
-        desc = QLabel("Cozum ortaginiz olarak her zaman yaninizdayiz.\\nAsagidaki kanallardan bize 7/24 ulasabilirsiniz.")
+        desc = QLabel("Cozum ortaginiz olarak her zaman yaninizdayiz.\nAsagidaki kanallardan bize 7/24 ulasabilirsiniz.")
         desc.setFont(QFont("Segoe UI", 13, QFont.Weight.Medium))
         desc.setStyleSheet(theme_qss("color: @text_muted; border: none; background: transparent;"))
         
@@ -106,6 +106,7 @@ class SupportPage(QWidget):
         def create_action_card(title, desc, color, icon_text, func):
             # Revert to QFrame approach for card
             f = QFrame()
+            f.setMinimumHeight(164)
             f.setObjectName("ActionCard")
             f.setCursor(Qt.CursorShape.PointingHandCursor)
             def click_handler(event):
@@ -141,6 +142,7 @@ class SupportPage(QWidget):
             
             d_lbl = QLabel(desc)
             d_lbl.setFont(QFont("Segoe UI", 12, QFont.Weight.Medium))
+            d_lbl.setWordWrap(True)
             d_lbl.setStyleSheet(theme_qss("color: @text_muted; background: transparent; border: none;"))
             
             l.addWidget(icon_lbl)
@@ -152,7 +154,7 @@ class SupportPage(QWidget):
         # WhatsApp Card
         grid_layout.addWidget(create_action_card(
             "WhatsApp Destek", 
-            "Canlı sohbete bağlanın ve\\nhızlı yanıt alın.",
+            "Canl\u0131 sohbete ba\u011flan\u0131n ve\nh\u0131zl\u0131 yan\u0131t al\u0131n.",
             "#25D366", "💬",
             lambda: QDesktopServices.openUrl(QUrl("https://wa.me/905348781047"))
         ), 0, 0)
@@ -167,7 +169,7 @@ class SupportPage(QWidget):
 
         grid_layout.addWidget(create_action_card(
             "E-Posta Gönder",
-            "Detaylı sorun bildirimleri\\niçin mail atın.",
+            "Detayl\u0131 sorun bildirimleri\ni\u00e7in mail at\u0131n.",
             "#3b82f6", "📧",
             lambda: QDesktopServices.openUrl(QUrl("mailto:destek@ayecpro.com"))
         ), 0, 1)
@@ -175,7 +177,7 @@ class SupportPage(QWidget):
         # AnyDesk Card
         grid_layout.addWidget(create_action_card(
             "AnyDesk İndir",
-            "Uzaktan bağlantı için\\ngereklidir.",
+            "Uzaktan ba\u011flant\u0131 i\u00e7in\ngereklidir.",
             "#ef4444", "🔴",
             lambda: QDesktopServices.openUrl(QUrl("https://anydesk.com"))
         ), 1, 0)
@@ -183,7 +185,7 @@ class SupportPage(QWidget):
         # TeamViewer Card
         grid_layout.addWidget(create_action_card(
             "TeamViewer İndir",
-            "Alternatif uzaktan\\nbağlantı aracı.",
+            "Alternatif uzaktan\nba\u011flant\u0131 arac\u0131.",
             "#0284c7", "🔵",
             lambda: QDesktopServices.openUrl(QUrl("https://www.teamviewer.com"))
         ), 1, 1)

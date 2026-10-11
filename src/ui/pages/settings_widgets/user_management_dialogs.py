@@ -22,6 +22,7 @@ from src.ui.widgets.toast_notification import show_toast
 from src.ui.widgets.animated_toggle import AnimatedToggle
 from src.utils.password_security import hash_password, validate_new_password
 from src.utils.role_utils import is_admin_role, normalize_role
+from src.utils.user_permission_catalog import USER_PERMISSION_SECTIONS, parse_saved_page_permissions
 import hashlib
 
 logger = logging.getLogger("AYECProLogger")
@@ -653,56 +654,7 @@ class UserDialog(QtDialog):
         perm_items_layout.setContentsMargins(14, 14, 14, 14)
         perm_items_layout.setSpacing(12)
 
-        self.menu_structure = [
-            ("GENEL", [(40, "Genel Bakış")]),
-            ("SERVİS OPERASYON", [
-                (41, "Durum Paneli"),
-                (62, "Teknisyen Paneli"),
-                (61, "Saha Haritası"),
-                (30, "Randevular"),
-                (65, "Lojistik & Garanti Yönetimi"),
-                (201, "İş/Servis Takibi Raporları"),
-                (170, "AI Asistan"),
-            ]),
-            ("MÜŞTERİ", [
-                (21, "Müşteri Listesi"),
-                (26, "Çalışma Ortakları"),
-                (25, "Sözleşmeler"),
-                (90, "Hatırlatıcılar"),
-                (120, "Duyurular"),
-            ]),
-            ("TİCARİ", [
-                (200, "Proje Yönetimi"),
-                (202, "Proje Arşivi"),
-                (50, "Stok Y\u00f6netimi"),
-                (60, "Ara\u00e7 Par\u00e7a Sto\u011fu"),
-                (150, "Sales Hub"),
-                (140, "Hizmet Tanımları"),
-                (146, "\u00dcr\u00fcn Grubu Y\u00f6netimi"),
-                (147, "Rapor C\u00fcmle Kal\u0131plar\u0131"),
-                (145, "Cihaz Bilgisi & Markalar"),
-                (66, "Emanet (Konsinye) Cihazlar"),
-                (250, "Mobil Stok"),
-                (300, "PC Builder"),
-            ]),
-            ("FİNANS", [
-                (101, "Gelir / Gider"),
-                (105, "Banka Hesapları"),
-                (106, "Çek / Senet"),
-                (115, "E-Fatura"),
-            ]),
-            ("PERSONEL", [
-                (10, "Personel"),
-            ]),
-            ("SİSTEM", [
-                (160, "Bilgi Bankası"),
-                (130, "Ayarlar"),
-                (135, "Log Kayıtları"),
-                (180, "Yedekleme"),
-                (261, "Kullanım Kılavuzu"),
-                (70, "Destek"),
-            ]),
-        ]
+        self.menu_structure = USER_PERMISSION_SECTIONS
 
         self.perm_toggles = {}
         for section, items in self.menu_structure:
@@ -786,34 +738,10 @@ class UserDialog(QtDialog):
             tgl.setEnabled(not is_admin_role(normalized_role))
 
     def _apply_saved_permissions(self, raw_permissions):
-        if not raw_permissions:
+        allowed = parse_saved_page_permissions(raw_permissions)
+        if allowed is None:
             return False
         try:
-            saved = json.loads(raw_permissions)
-            if isinstance(saved, dict) and saved.get("mode") == "all":
-                allowed = set(self.perm_toggles.keys())
-            elif isinstance(saved, dict) and isinstance(saved.get("pages"), list):
-                allowed = {int(value) for value in saved.get("pages", [])}
-            elif isinstance(saved, list):
-                allowed = {int(value) for value in saved}
-            elif isinstance(saved, dict):
-                legacy_map = {
-                    "dashboard": {40},
-                    "customers": {21, 25, 90, 120},
-                    "services": {41, 60, 61, 30},
-                    "stock": {50, 140, 146, 147},
-                    "financial": {101},
-                    "backup": {180},
-                    "settings": {130},
-                    "logs": {135},
-                }
-                allowed = set()
-                for key, enabled in saved.items():
-                    if enabled and key in legacy_map:
-                        allowed |= legacy_map[key]
-            else:
-                return False
-
             for page_id, toggle in self.perm_toggles.items():
                 toggle.blockSignals(True)
                 toggle.setChecked(page_id in allowed)

@@ -8,12 +8,16 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
     QTabWidget,
+    QFrame,
+    QLabel,
+    QPushButton,
 )
 from PyQt6.QtCore import Qt, QTimer
 from src.utils.theme_colors import theme_qss, tc
 from src.utils.currency_helper import CurrencyHelper
 from src.utils.logger import logger
 from src.utils.system_config import SystemConfig
+from src.utils.page_ids import PageIds
 from src.ui.widgets.loading_overlay import LoadingOverlay
 from src.ui.widgets.empty_state import EmptyState
 from src.ui.dialogs.add_stock_dialog import AddStockDialog
@@ -114,14 +118,46 @@ class StockPage(
     def init_ui(self):
         self.setStyleSheet(theme_qss("background-color: @surface_alt;"))
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(30, 30, 30, 30)
-        layout.setSpacing(20)
+        layout.setContentsMargins(24, 15, 0, 14)
+        layout.setSpacing(21)
 
         self._setup_hero(layout)
 
+        header = QFrame()
+        header.setFixedHeight(83)
+        header.setStyleSheet(theme_qss("QFrame { background: @finance_surface; border: 1px solid @finance_outline; border-radius: 8px; }"))
+        header_layout = QHBoxLayout(header)
+        header_layout.setContentsMargins(14, 7, 14, 7)
+        title_block = QVBoxLayout()
+        title_row = QHBoxLayout()
+        title_row.setSpacing(10)
+        title = QLabel("Stok & Envanter Takibi")
+        title.setStyleSheet(theme_qss("color: @finance_text; font-size: 19px; font-weight: 800; border: none;"))
+        title_row.addWidget(title)
+        self.lbl_active_stock = QLabel("0 Kalem Aktif")
+        self.lbl_active_stock.setStyleSheet(theme_qss("color: @finance_primary; background: @finance_surface_high; border: 1px solid @finance_outline; border-radius: 12px; padding: 4px 10px; font-size: 11px; font-weight: 700;"))
+        title_row.addWidget(self.lbl_active_stock)
+        title_row.addStretch()
+        title_block.addLayout(title_row)
+        subtitle = QLabel("Urun ve parca stoklarini, kategori dagilimini, kritik seviyeleri ve maliyetleri takip edin.")
+        subtitle.setStyleSheet(theme_qss("color: @finance_text_muted; font-size: 11px; border: none;"))
+        title_block.addWidget(subtitle)
+        header_layout.addLayout(title_block, 1)
+        btn_refresh = QPushButton("Envanteri Yenile")
+        btn_refresh.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_refresh.setStyleSheet(theme_qss("QPushButton { background: @finance_primary; color: @selection_text; border-radius: 6px; padding: 9px 14px; font-weight: 700; } QPushButton:hover { background: @accent_hover; }"))
+        btn_refresh.clicked.connect(self.refresh_data)
+        header_layout.addWidget(btn_refresh)
+        btn_add_header = QPushButton("+ Yeni \u00dcr\u00fcn Ekle")
+        btn_add_header.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_add_header.setStyleSheet(theme_qss("QPushButton { background: @finance_primary; color: @selection_text; border-radius: 6px; padding: 9px 14px; font-weight: 700; } QPushButton:hover { background: @accent_hover; }"))
+        btn_add_header.clicked.connect(lambda: self.open_add_stock_dialog(None))
+        header_layout.addWidget(btn_add_header)
+        layout.addWidget(header)
+
         # Stats area
         self.stats_layout = QHBoxLayout()
-        self.stats_layout.setSpacing(15)
+        self.stats_layout.setSpacing(8)
         layout.addLayout(self.stats_layout)
 
         # Tabs
@@ -141,6 +177,38 @@ class StockPage(
             self.tabs.addTab(self.tab_guide, "❓ Nasıl Kullanılır?")
 
         layout.addWidget(self.tabs)
+        summary = QHBoxLayout()
+        summary.setSpacing(10)
+        for title_text, body_text, accent, page_id in (
+            ("Son Fiziksel Depo Sayimi", "Sayim detaylarini ac", "@finance_primary", PageIds.STOCK_LOCATIONS),
+            ("Santiye / Servis Konsinye Cikisi", "Konsinye islemlerini ac", "@finance_secondary", PageIds.CONSIGNMENT),
+            ("Muhasebe Entegrasyonu", "Entegrasyon durumunu ac", "@finance_tertiary", PageIds.INCOME_EXPENSE),
+        ):
+            card = QPushButton()
+            card.setCursor(Qt.CursorShape.PointingHandCursor)
+            card.setMinimumHeight(50)
+            card.clicked.connect(
+                lambda _checked=False, target=page_id: self.main_window.on_menu_click(target)
+                if self.main_window and hasattr(self.main_window, "on_menu_click") else None
+            )
+            card.setStyleSheet(theme_qss(
+                f"QPushButton {{ text-align: left; background: @finance_surface; border: 1px solid @finance_outline; "
+                f"border-top: 2px solid {accent}; border-radius: 7px; }}"
+                f"QPushButton:hover {{ background: @finance_surface_alt; }}"
+            ))
+            card_layout = QVBoxLayout(card)
+            card_layout.setContentsMargins(12, 8, 12, 8)
+            heading = QLabel(title_text)
+            heading.setStyleSheet(theme_qss("color: @finance_text; font-weight: 800; border: none;"))
+            heading.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+            detail = QLabel(body_text)
+            detail.setStyleSheet(theme_qss("color: @finance_text_muted; font-size: 10px; border: none;"))
+            detail.setWordWrap(True)
+            detail.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+            card_layout.addWidget(heading)
+            card_layout.addWidget(detail)
+            summary.addWidget(card, 1)
+        layout.addLayout(summary)
         self._normalize_ui_texts()
 
     def _setup_hero(self, parent_layout):
@@ -151,8 +219,12 @@ class StockPage(
         self.hero_badge = QLabel()
 
     def _normalize_ui_texts(self):
-        self.tabs.setTabText(0, "📦 Stok Durumu")
-        self.tabs.setTabText(1, "📋 Stok Hareketleri")
+        if self.is_automotive:
+            self.tabs.setTabText(0, "Yedek Parca Durumu")
+            self.tabs.setTabText(1, "Parca Hareketleri")
+        else:
+            self.tabs.setTabText(0, "Stok Durumu")
+            self.tabs.setTabText(1, "Stok Hareketleri")
         if hasattr(self, "tab_guide"):
             self.tabs.setTabText(
                 self.tabs.indexOf(self.tab_guide), "❓ Nasıl Kullanılır?"
@@ -193,6 +265,7 @@ class StockPage(
 
     def on_data_loaded(self, parts, total_count, stats):
         self.total_count = total_count
+        self.lbl_active_stock.setText(f"{int(total_count)} Kalem Aktif")
         self._update_stats_ui(stats)
 
         if self.cat_layout.count() <= 1:
@@ -241,10 +314,20 @@ class StockPage(
             ("Kritik Stok", stats.get("critical_count", 0), "⚠️", tc("danger"), "critical"),
             ("Potansiyel Kazan\u00e7", potential_profit, "P", tc("warning"), "profit"),
         ]
+        variants = {
+            'all': ('finance_text', 'inventory'),
+            'value': ('finance_secondary', 'wallet'),
+            'critical': (
+                'finance_text' if not stats.get('critical_count') else 'finance_expense',
+                'collection' if not stats.get('critical_count') else 'warning',
+            ),
+            'profit': ('finance_primary', 'tax'),
+        }
         for title, value, icon, color, metric in cards:
-            card = StockStatCard(title, value, icon, color)
+            token, glyph = variants[metric]
+            card = StockStatCard(title, value, icon, color, token=token, glyph=glyph)
             card.clicked.connect(lambda metric=metric: self.toggle_metric_filter(metric))
-            self.stats_layout.addWidget(card)
+            self.stats_layout.addWidget(card, 1)
 
     def load_history(self):
         if self.history_worker and self.history_worker.isRunning():

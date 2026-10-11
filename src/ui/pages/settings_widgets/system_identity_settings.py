@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QComboBox,
     QCheckBox,
@@ -9,13 +10,16 @@ from PyQt6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QPushButton,
+    QSizePolicy,
     QScrollArea,
     QVBoxLayout,
     QWidget,
 )
 
 from src.ui.widgets.animated_toggle import AnimatedToggle as ToggleSwitch
+from src.ui.widgets.modern_inputs import ModernComboBox
 from src.utils.design_system import DesignTokens
 from src.utils.language_manager import LanguageManager
 from src.utils.path_helper import PathHelper
@@ -40,10 +44,11 @@ class SystemIdentitySettingsWidget(QWidget):
 
     def init_ui(self):
         self.setObjectName("SystemIdentitySettingsRoot")
+        self.setFont(QFont("Segoe UI", 9))
         self.setStyleSheet(
             theme_qss(
                 """
-                QWidget#SystemIdentitySettingsRoot { color: @text; background: transparent; }
+                QWidget#SystemIdentitySettingsRoot { color: @text; background: @bg; }
                 QWidget#SystemIdentitySettingsRoot QGroupBox { color: @text; }
                 QWidget#SystemIdentitySettingsRoot QGroupBox::title { color: @text; subcontrol-origin: margin; left: 12px; padding: 0 4px; }
                 QWidget#SystemIdentitySettingsRoot QLabel { color: @text; background: transparent; }
@@ -59,20 +64,47 @@ class SystemIdentitySettingsWidget(QWidget):
         )
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(30, 30, 30, 30)
-        layout.setSpacing(20)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(8)
 
         title = QLabel("⚙️ Sistem Kimliği & Modüler Yapı")
-        title.setStyleSheet(theme_qss("font-size: 20px; font-weight: bold; color: @text;"))
-        layout.addWidget(title)
+        title.setStyleSheet(theme_qss("font-size: 24px; font-weight: bold; color: @text;"))
+        title_row = QHBoxLayout()
+        title_row.setContentsMargins(6, 2, 6, 2)
+        title_column = QVBoxLayout()
+        title_column.setContentsMargins(0, 0, 0, 0)
+        title_column.setSpacing(1)
+        title_column.addWidget(title)
+        subtitle = QLabel("Y\u00f6netim Konsolu  \u2022  Dinamik Konfig\u00fcrasyon ve Mod\u00fcl Durumu")
+        subtitle.setStyleSheet(theme_qss("font-size: 9px; color: @text_muted;"))
+        title_column.addWidget(subtitle)
+        title_row.addLayout(title_column)
+        edition = QLabel("ENTERPRISE PRO")
+        edition.setStyleSheet(theme_qss(
+            "color: @accent; background: @surface_alt; border: 1px solid @border; "
+            "border-radius: 5px; padding: 5px 9px; font-size: 10px; font-weight: 800;"
+        ))
+        title_row.addWidget(edition)
+        title_row.addStretch(1)
+        self.db_status = QLabel("\u25cf Veritaban\u0131: Ba\u011fl\u0131")
+        self.db_status.setStyleSheet(theme_qss("color: @success; font-size: 11px; font-weight: 700;"))
+        title_row.addWidget(self.db_status)
+        self.refresh_button = QPushButton("\u27f3 Yenile")
+        self.refresh_button.clicked.connect(self.refresh_system_info)
+        title_row.addWidget(self.refresh_button)
+        layout.addLayout(title_row)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
 
         container = QWidget()
-        self.container_layout = QVBoxLayout(container)
-        self.container_layout.setSpacing(20)
+        self.container_layout = QGridLayout(container)
+        self.container_layout.setContentsMargins(4, 9, 4, 4)
+        self.container_layout.setHorizontalSpacing(10)
+        self.container_layout.setVerticalSpacing(20)
+        self.container_layout.setColumnStretch(0, 1)
+        self.container_layout.setColumnStretch(1, 0)
 
         self._build_sector_group()
         self._build_modules_group()
@@ -84,18 +116,34 @@ class SystemIdentitySettingsWidget(QWidget):
         layout.addWidget(scroll)
 
         btn_save = QPushButton("💾 Değişiklikleri Uygula ve Kaydet")
-        btn_save.setStyleSheet(theme_qss(DesignTokens.get_button_qss("success")))
-        btn_save.setFixedHeight(45)
+        btn_save.setObjectName("system_identity_save")
+        btn_save.setStyleSheet(theme_qss(DesignTokens.get_button_qss("primary")))
+        btn_save.setFixedHeight(50)
+        btn_save.setStyleSheet(
+            "QPushButton { background: qlineargradient(x1:0,y1:0,x2:1,y2:0, "
+            "stop:0 #10b981, stop:1 #14b8a6); color: #04131d; border: none; "
+            "border-radius: 10px; font-size: 15px; font-weight: 700; } "
+            "QPushButton:hover { background: #34d399; }"
+        )
         btn_save.clicked.connect(self.save_settings)
         layout.addWidget(btn_save)
 
     def _build_sector_group(self):
         group_sector = QGroupBox("1. Sektörel Kimlik (Master Switch)")
-        group_sector.setStyleSheet(theme_qss("font-weight: bold; padding-top: 20px;"))
+        group_sector.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+        group_sector.setStyleSheet(theme_qss(
+            "QGroupBox { font-size: 14px; font-weight: 700; padding-top: 14px; "
+            "border: 1px solid @border; border-radius: 8px; background: @surface; } "
+            "QGroupBox::title { subcontrol-origin: margin; left: 16px; top: 34px; padding: 0 6px; }"
+        ))
         sector_layout = QVBoxLayout(group_sector)
+        sector_layout.setContentsMargins(22, 56, 22, 41)
+        sector_layout.setSpacing(14)
 
-        self.cmb_sector = QComboBox()
+        self.cmb_sector = ModernComboBox()
+        self.cmb_sector.setProperty("referenceGlyph", "chevron_down")
         self.cmb_sector.setStyleSheet(theme_qss(DesignTokens.get_combobox_qss()))
+        self.cmb_sector.setMaximumWidth(840)
         for key, mode in SYSTEM_MODES.items():
             self.cmb_sector.addItem(f"{mode['icon']} {mode['display_name']}", key)
         self.cmb_sector.currentIndexChanged.connect(self.on_sector_changed)
@@ -105,23 +153,36 @@ class SystemIdentitySettingsWidget(QWidget):
                 "Sekt\u00f6r de\u011fi\u015fikli\u011fi i\u00e7in firma y\u00f6neticisi yetkisi gerekir."
             )
 
-        sector_layout.addWidget(QLabel("Ana çalışma modu:"))
+        sector_label = QLabel("Ana \u00e7al\u0131\u015fma modu:")
+        sector_label.setStyleSheet(theme_qss("font-size: 14px; color: @text;"))
+        sector_layout.addWidget(sector_label)
         sector_layout.addWidget(self.cmb_sector)
 
         self.lbl_warning = QLabel("⚠️ Dikkat: Sektör değişikliği menü yapısını ve etiketleri yeniden düzenler.")
-        self.lbl_warning.setStyleSheet(theme_qss("color: @warning; font-style: italic; font-size: 11px;"))
+        self.lbl_warning.setStyleSheet(theme_qss(
+            "color: @warning; background: rgba(245, 158, 11, 0.12); "
+            "border: 1px solid @warning; border-radius: 8px; padding: 12px; "
+            "font-weight: 600; font-size: 12px;"
+        ))
+        self.lbl_warning.setMaximumWidth(840)
         sector_layout.addWidget(self.lbl_warning)
+        sector_layout.addSpacing(8)
 
-        sector_layout.addWidget(QLabel("Cihaz katalog is kollari:"))
+        sector_layout.addWidget(QLabel("Cihaz katalog i\u015f kollar\u0131:"))
         self.device_profile_checks = {}
         profile_row = QHBoxLayout()
+        profile_row.setSpacing(12)
         for profile_id, label in (
             ("bilgisayar", "Bilgisayar"),
             ("cep_telefonu", "Cep Telefonu"),
-            ("akilli_ev", "Akilli Ev"),
+            ("akilli_ev", "Ak\u0131ll\u0131 Ev"),
         ):
             checkbox = QCheckBox(label)
             checkbox.setChecked(profile_id == "bilgisayar")
+            checkbox.setStyleSheet(theme_qss(
+                "QCheckBox { background: @surface_alt; color: @text; border: 1px solid @border; "
+                "border-radius: 8px; padding: 6px 10px; font-size: 12px; }"
+            ))
             self.device_profile_checks[profile_id] = checkbox
             profile_row.addWidget(checkbox)
         profile_row.addStretch()
@@ -130,15 +191,25 @@ class SystemIdentitySettingsWidget(QWidget):
         profile_hint = QLabel(
             "Secilen kataloglar Yeni Servis Kaydi ve Yeni Cihaz Ekle alanlarini filtreler."
         )
-        profile_hint.setStyleSheet(theme_qss("color: @text_muted; font-size: 11px;"))
+        profile_hint.setStyleSheet(theme_qss("color: @text_muted; font-size: 13px;"))
         sector_layout.addWidget(profile_hint)
 
-        self.container_layout.addWidget(group_sector)
+        self.container_layout.addWidget(group_sector, 0, 0)
 
     def _build_modules_group(self):
         group_modules = QGroupBox("2. Modül Paketleri (Toggle Switch)")
-        group_modules.setStyleSheet(theme_qss("font-weight: bold; padding-top: 20px;"))
+        group_modules.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+        group_modules.setStyleSheet(theme_qss(
+            "QGroupBox { font-size: 14px; font-weight: 700; padding-top: 14px; "
+            "border: 1px solid @border; border-radius: 8px; background: @surface; } "
+            "QGroupBox::title { subcontrol-origin: margin; left: 16px; top: 34px; padding: 0 6px; }"
+        ))
         self.module_layout = QGridLayout(group_modules)
+        self.module_layout.setContentsMargins(22, 56, 22, 25)
+        self.module_layout.setHorizontalSpacing(8)
+        self.module_layout.setVerticalSpacing(16)
+        self.module_layout.setColumnStretch(0, 1)
+        self.module_layout.setColumnStretch(2, 1)
 
         self.module_toggles = {}
         modules = [
@@ -153,23 +224,42 @@ class SystemIdentitySettingsWidget(QWidget):
 
         for i, (key, label) in enumerate(modules):
             row, col = divmod(i, 2)
-            toggle = ToggleSwitch(active_color=tc("success"))
+            toggle = ToggleSwitch(active_color="#10b981")
+            toggle.setFixedSize(58, 30)
             self.module_toggles[key] = toggle
             lbl = QLabel(label)
-            lbl.setStyleSheet(theme_qss("font-weight: normal;"))
+            lbl.setStyleSheet(theme_qss("font-size: 14px; font-weight: 500; color: @text;"))
 
-            line = QHBoxLayout()
+            card = QFrame()
+            card.setObjectName("SystemIdentityOptionCard")
+            card.setStyleSheet(theme_qss(
+                "QFrame#SystemIdentityOptionCard { background: @surface_alt; "
+                "border: 1px solid @border; border-radius: 10px; }"
+            ))
+            card.setFixedHeight(62)
+            line = QHBoxLayout(card)
+            line.setContentsMargins(10, 4, 10, 4)
             line.addWidget(lbl)
             line.addStretch()
             line.addWidget(toggle)
-            self.module_layout.addLayout(line, row, col)
+            self.module_layout.addWidget(card, row, col * 2)
 
-        self.container_layout.addWidget(group_modules)
+        self.container_layout.addWidget(group_modules, 1, 0)
 
     def _build_features_group(self):
         group_features = QGroupBox("3. Özellik Bazlı Kontroller")
-        group_features.setStyleSheet(theme_qss("font-weight: bold; padding-top: 20px;"))
+        group_features.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+        group_features.setStyleSheet(theme_qss(
+            "QGroupBox { font-size: 14px; font-weight: 700; padding-top: 14px; "
+            "border: 1px solid @border; border-radius: 8px; background: @surface; } "
+            "QGroupBox::title { subcontrol-origin: margin; left: 16px; top: 34px; padding: 0 6px; }"
+        ))
         self.feature_layout = QGridLayout(group_features)
+        self.feature_layout.setContentsMargins(22, 55, 22, 20)
+        self.feature_layout.setHorizontalSpacing(8)
+        self.feature_layout.setVerticalSpacing(14)
+        self.feature_layout.setColumnStretch(0, 1)
+        self.feature_layout.setColumnStretch(2, 1)
 
         self.feature_toggles = {}
         features = [
@@ -182,18 +272,27 @@ class SystemIdentitySettingsWidget(QWidget):
 
         for i, (key, label) in enumerate(features):
             row, col = divmod(i, 2)
-            toggle = ToggleSwitch(active_color=tc("accent"))
+            toggle = ToggleSwitch(active_color="#3b82f6")
+            toggle.setFixedSize(54, 28)
             self.feature_toggles[key] = toggle
             lbl = QLabel(label)
-            lbl.setStyleSheet(theme_qss("font-weight: normal;"))
+            lbl.setStyleSheet(theme_qss("font-size: 13px; font-weight: 500; color: @text;"))
 
-            line = QHBoxLayout()
+            card = QFrame()
+            card.setObjectName("SystemIdentityOptionCard")
+            card.setStyleSheet(theme_qss(
+                "QFrame#SystemIdentityOptionCard { background: @surface_alt; "
+                "border: 1px solid @border; border-radius: 10px; }"
+            ))
+            card.setFixedHeight(58)
+            line = QHBoxLayout(card)
+            line.setContentsMargins(10, 4, 10, 4)
             line.addWidget(lbl)
             line.addStretch()
             line.addWidget(toggle)
-            self.feature_layout.addLayout(line, row, col)
+            self.feature_layout.addWidget(card, row, col * 2)
 
-        self.container_layout.addWidget(group_features)
+        self.container_layout.addWidget(group_features, 2, 0)
 
     def _table_has_column(self, table_name, column_name):
         try:
@@ -210,10 +309,51 @@ class SystemIdentitySettingsWidget(QWidget):
         except Exception:
             return default
 
+    def refresh_system_info(self):
+        import os
+
+        db_path = PathHelper.get_db_path()
+        db_exists = os.path.exists(db_path)
+        db_size = os.path.getsize(db_path) / (1024 * 1024) if db_exists else 0
+        parts_where = "WHERE COALESCE(is_deleted, 0)=0" if self._table_has_column("parts", "is_deleted") else ""
+        parts_count = self._safe_scalar(f"SELECT COUNT(*) FROM parts {parts_where}", default=0)
+        movement_count = self._safe_scalar("SELECT COUNT(*) FROM stock_movements", default=0)
+        accounting_count = self._safe_scalar(
+            "SELECT COUNT(*) FROM accounting WHERE COALESCE(description, '') LIKE '%Stok%'",
+            default=0,
+        )
+        self.lbl_db_path.setText(str(db_path))
+        values = {
+            "Dosya Boyutu": f"{db_size:.2f} MB",
+            "Toplam \u00dcr\u00fcn": f"{int(parts_count or 0)} Adet",
+            "Stok Hareketi": f"{int(movement_count or 0)} Kay\u0131t",
+        }
+        for key, value in values.items():
+            if key in self.system_metric_values:
+                self.system_metric_values[key].setText(value)
+        self.lbl_accounting_stock_count.setText(
+            f"\U0001f4b0 Stok muhasebe kay\u0131tlar\u0131: <b>{int(accounting_count or 0)}</b>"
+        )
+        self.lbl_database_status.setText(
+            f"{'\U00002705' if db_exists else '\U0000274c'} Durum: "
+            f"{'Mevcut' if db_exists else 'Bulunamad\u0131'}"
+        )
+        self.db_status.setText(
+            "\u25cf Veritaban\u0131: Ba\u011fl\u0131" if db_exists else "\u25cf Veritaban\u0131: Bulunamad\u0131"
+        )
+
     def _build_system_info_group(self):
         group_system_info = QGroupBox("4. Sistem ve Veritabani Bilgileri")
-        group_system_info.setStyleSheet(theme_qss("font-weight: bold; padding-top: 20px;"))
+        group_system_info.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Expanding)
+        group_system_info.setMinimumHeight(650)
+        group_system_info.setStyleSheet(theme_qss(
+            "QGroupBox { font-size: 14px; font-weight: 700; padding-top: 14px; "
+            "border: 1px solid @border; border-radius: 8px; background: @surface; } "
+            "QGroupBox::title { subcontrol-origin: margin; left: 12px; top: 34px; padding: 0 5px; }"
+        ))
         system_info_layout = QVBoxLayout(group_system_info)
+        system_info_layout.setContentsMargins(10, 18, 10, 10)
+        system_info_layout.setSpacing(5)
 
         import os
         db_path = PathHelper.get_db_path()
@@ -238,25 +378,73 @@ class SystemIdentitySettingsWidget(QWidget):
             pass
 
         info_style = (
-            "font-weight: normal; color: @text_muted; font-size: 12px; "
-            "padding: 5px; background: @surface_alt; border-radius: 4px; margin: 2px 0;"
+            "font-weight: normal; color: @text_muted; font-size: 10px; "
+            "padding: 5px 7px; background: @surface_alt; border-radius: 4px;"
         )
+        path_heading = QLabel("\U0001f4c2 Veritaban\u0131 yolu:")
+        path_heading.setStyleSheet(theme_qss("color: @text; font-size: 10px;"))
+        system_info_layout.addWidget(path_heading)
+        path_row = QHBoxLayout()
+        self.lbl_db_path = QLineEdit(str(db_path))
+        self.lbl_db_path.setReadOnly(True)
+        self.lbl_db_path.setMinimumWidth(0)
+        self.lbl_db_path.setStyleSheet(theme_qss(
+            "QLineEdit { background: @surface_alt; color: @text; border: 1px solid @border; "
+            "border-radius: 5px; padding: 5px 7px; font-family: Consolas, 'Segoe UI', Arial; font-size: 10px; }"
+        ))
+        path_row.addWidget(self.lbl_db_path, 1)
+        btn_copy_inline = QPushButton("Kopyala")
+        btn_copy_inline.setFixedHeight(28)
+        btn_copy_inline.clicked.connect(lambda: self.copy_db_path(self.lbl_db_path.text()))
+        path_row.addWidget(btn_copy_inline)
+        system_info_layout.addLayout(path_row)
 
-        entries = [
-            f"📂 Veritabanı yolu: <b>{db_path}</b>",
-            f"{'✅' if db_exists else '❌'} Durum: {'Mevcut' if db_exists else 'Bulunamadı'}",
-            f"💾 Dosya boyutu: <b>{db_size:.2f} MB</b>",
-            f"📦 Toplam ürün/parça: <b>{parts_count}</b>",
-            f"📊 Stok hareketleri: <b>{movements_count}</b>",
-            f"💰 Stok muhasebe kayıtları: <b>{accounting_stock_count}</b>",
-        ]
+        metric_grid = QGridLayout()
+        metric_grid.setSpacing(6)
+        for index, (name, value, color) in enumerate((
+            ("Dosya Boyutu", f"{db_size:.2f} MB", "@text"),
+            ("Toplam \u00dcr\u00fcn", f"{parts_count} Adet", "@success"),
+            ("Stok Hareketi", f"{movements_count} Kay\u0131t", "@info"),
+        )):
+            card = QFrame()
+            card.setObjectName("SystemIdentityMetric")
+            card.setStyleSheet(theme_qss(
+                "QFrame#SystemIdentityMetric { background: @surface_alt; "
+                "border: 1px solid @border; border-radius: 5px; }"
+            ))
+            card_layout = QVBoxLayout(card)
+            card_layout.setContentsMargins(6, 5, 6, 5)
+            card_layout.setSpacing(2)
+            name_label = QLabel(name)
+            name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            name_label.setStyleSheet(theme_qss("color: @text_muted; font-size: 9px;"))
+            value_label = QLabel(value)
+            value_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            value_label.setStyleSheet(theme_qss(f"color: {color}; font-size: 12px; font-weight: 800;"))
+            card_layout.addWidget(name_label)
+            card_layout.addWidget(value_label)
+            if not hasattr(self, "system_metric_values"):
+                self.system_metric_values = {}
+            self.system_metric_values[name] = value_label
+            metric_grid.addWidget(card, 0, index)
+        system_info_layout.addLayout(metric_grid)
 
-        for text in entries:
-            lbl = QLabel(text)
-            lbl.setTextFormat(Qt.TextFormat.RichText)
-            lbl.setWordWrap(True)
-            lbl.setStyleSheet(theme_qss(info_style))
-            system_info_layout.addWidget(lbl)
+        stock_row = QLabel(
+            f"\U0001f4b0 Stok muhasebe kay\u0131tlar\u0131: <b>{accounting_stock_count}</b>"
+        )
+        stock_row.setTextFormat(Qt.TextFormat.RichText)
+        stock_row.setStyleSheet(theme_qss(info_style))
+        system_info_layout.addWidget(stock_row)
+        self.lbl_accounting_stock_count = stock_row
+        status_row = QLabel(
+            f"{'\U00002705' if db_exists else '\U0000274c'} Durum: "
+            f"{'Mevcut' if db_exists else 'Bulunamad\u0131'}"
+        )
+        status_row.setStyleSheet(theme_qss(info_style))
+        system_info_layout.addWidget(status_row)
+        self.lbl_database_status = status_row
+
+        system_info_layout.addStretch(1)
 
         btn_copy_path = QPushButton("📋 Veritabanı yolunu kopyala")
         btn_copy_path.setStyleSheet(
@@ -265,10 +453,12 @@ class SystemIdentitySettingsWidget(QWidget):
                 "border-radius: 4px; font-weight: 600; font-size: 12px; border: none;"
             )
         )
-        btn_copy_path.setFixedHeight(36)
+        btn_copy_path.setFixedHeight(30)
         btn_copy_path.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_copy_path.clicked.connect(lambda: self.copy_db_path(db_path))
-        system_info_layout.addWidget(btn_copy_path)
+        btn_copy_path.clicked.connect(lambda: self.copy_db_path(self.lbl_db_path.text()))
+        system_action_row = QHBoxLayout()
+        system_action_row.setSpacing(8)
+        system_action_row.addWidget(btn_copy_path)
 
         btn_open_folder = QPushButton("📁 Veritabanı klasörünü aç")
         btn_open_folder.setStyleSheet(
@@ -277,10 +467,11 @@ class SystemIdentitySettingsWidget(QWidget):
                 "border-radius: 4px; font-weight: 600; font-size: 12px; border: none;"
             )
         )
-        btn_open_folder.setFixedHeight(36)
+        btn_open_folder.setFixedHeight(30)
         btn_open_folder.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_open_folder.clicked.connect(lambda: self.open_db_folder(db_path))
-        system_info_layout.addWidget(btn_open_folder)
+        system_action_row.addWidget(btn_open_folder)
+        system_info_layout.addLayout(system_action_row)
 
         is_frozen_fn = getattr(PathHelper, "_is_frozen", None)
         is_frozen = bool(is_frozen_fn()) if callable(is_frozen_fn) else False
@@ -290,17 +481,25 @@ class SystemIdentitySettingsWidget(QWidget):
         lbl_mode.setStyleSheet(theme_qss(info_style))
         system_info_layout.addWidget(lbl_mode)
 
-        self.container_layout.addWidget(group_system_info)
+        self.container_layout.addWidget(group_system_info, 3, 0)
 
     def _build_startup_group(self):
         group_startup = QGroupBox("5. Başlangıç ve Kısayol Ayarları")
-        group_startup.setStyleSheet(theme_qss("font-weight: bold; padding-top: 20px;"))
+        group_startup.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+        group_startup.setStyleSheet(theme_qss(
+            "QGroupBox { font-size: 14px; font-weight: 700; padding-top: 14px; "
+            "border: 1px solid @border; border-radius: 8px; background: @surface; } "
+            "QGroupBox::title { subcontrol-origin: margin; left: 12px; top: 34px; padding: 0 5px; }"
+        ))
         startup_layout = QVBoxLayout(group_startup)
+        startup_layout.setContentsMargins(10, 18, 10, 10)
+        startup_layout.setSpacing(6)
 
         line = QHBoxLayout()
         lbl_startup = QLabel("Windows başlangıcında otomatik çalıştır")
         lbl_startup.setStyleSheet(theme_qss("font-weight: normal;"))
         self.toggle_startup = ToggleSwitch(active_color=tc("primary"))
+        self.toggle_startup.setObjectName("windowsStartupToggle")
 
         if self.main_window and hasattr(self.main_window, "is_in_windows_startup"):
             self.toggle_startup.setChecked(self.main_window.is_in_windows_startup())
@@ -323,11 +522,7 @@ class SystemIdentitySettingsWidget(QWidget):
         )
         btn_desktop.setCursor(Qt.CursorShape.PointingHandCursor)
         if self.main_window and hasattr(self.main_window, "create_desktop_shortcut"):
-            btn_desktop.clicked.connect(
-                lambda: show_success(self, "Başarılı", "Masaüstü kısayolu oluşturuldu.")
-                if self.main_window.create_desktop_shortcut()
-                else None
-            )
+            btn_desktop.clicked.connect(self.main_window.create_desktop_shortcut)
 
         btn_start_menu = QPushButton("Başlangıç menüsü kısayolu oluştur")
         btn_start_menu.setStyleSheet(
@@ -338,18 +533,14 @@ class SystemIdentitySettingsWidget(QWidget):
         )
         btn_start_menu.setCursor(Qt.CursorShape.PointingHandCursor)
         if self.main_window and hasattr(self.main_window, "create_start_menu_shortcut"):
-            btn_start_menu.clicked.connect(
-                lambda: show_success(self, "Başarılı", "Başlangıç menüsü kısayolu oluşturuldu.")
-                if self.main_window.create_start_menu_shortcut()
-                else None
-            )
+            btn_start_menu.clicked.connect(self.main_window.create_start_menu_shortcut)
 
         buttons.addWidget(btn_desktop)
         buttons.addWidget(btn_start_menu)
         buttons.addStretch()
         startup_layout.addLayout(buttons)
 
-        self.container_layout.addWidget(group_startup)
+        self.container_layout.addWidget(group_startup, 4, 0)
 
     def on_sector_changed(self, index):
         sector_key = self.cmb_sector.currentData()

@@ -19,6 +19,7 @@ class ExchangeRateManager:
     
     _rates_cache = {}  # Önbellek: {'USD': 30.56, 'EUR': 33.12}
     _last_cache_update = None
+    _cache_db_identity = None
     
     @staticmethod
     def fetch_tcmb_rates():
@@ -79,6 +80,7 @@ class ExchangeRateManager:
             db.conn.commit()
             ExchangeRateManager._rates_cache.clear()
             ExchangeRateManager._last_cache_update = None
+            ExchangeRateManager._cache_db_identity = None
             logger.info("Exchange rates saved to database")
             return True
         except Exception as e:
@@ -117,7 +119,11 @@ class ExchangeRateManager:
         """
         # 1. Önbelleği kontrol et (Bugün güncellendiyse)
         today = datetime.now().strftime("%Y-%m-%d")
-        if ExchangeRateManager._last_cache_update == today:
+        db_identity = getattr(db, "_db_name", None) or str(id(db))
+        if (
+            ExchangeRateManager._last_cache_update == today
+            and ExchangeRateManager._cache_db_identity == db_identity
+        ):
             if currency in ExchangeRateManager._rates_cache:
                 return ExchangeRateManager._rates_cache[currency]
         
@@ -150,6 +156,7 @@ class ExchangeRateManager:
             if rate:
                 ExchangeRateManager._rates_cache[currency] = rate
                 ExchangeRateManager._last_cache_update = today
+                ExchangeRateManager._cache_db_identity = db_identity
                 
             return rate
             

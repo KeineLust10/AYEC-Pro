@@ -67,7 +67,7 @@ class UpdateWorker(QThread):
                 )
                 
         except Exception as e:
-            logger.error("Update check failed: %s", e)
+            logger.warning("Update check unavailable or manifest invalid: %s", e)
             self.finished.emit(False, "", "", "", "")
 
     @staticmethod

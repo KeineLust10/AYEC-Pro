@@ -54,7 +54,7 @@ class VoiceScenarioEditorDialog(ModernDialog):
 
         hero_text = QVBoxLayout()
         title = QLabel("Sesli Komut Senaryolari")
-        title.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
+        title.setFont(QFont(DesignTokens.FONT_NAME, 16, QFont.Weight.Bold))
         title.setStyleSheet(theme_qss("color: @text;"))
         desc = QLabel("Senaryo adi, tetikleyici kelimeler ve bagli islemleri tek pencerede yonetin.")
         desc.setStyleSheet(theme_qss("color: @text_muted; font-size: 11px; font-weight: 600;"))
@@ -134,7 +134,7 @@ class VoiceScenarioEditorDialog(ModernDialog):
         right_layout.setSpacing(12)
 
         self.lbl_editor_title = QLabel("Senaryo detaylari")
-        self.lbl_editor_title.setFont(QFont("Segoe UI", 13, QFont.Weight.Bold))
+        self.lbl_editor_title.setFont(QFont(DesignTokens.FONT_NAME, 13, QFont.Weight.Bold))
         self.lbl_editor_title.setStyleSheet(theme_qss("color: @text;"))
         right_layout.addWidget(self.lbl_editor_title)
 

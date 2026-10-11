@@ -15,6 +15,7 @@ from src.utils.logger import logger
 
 class SecurityManager:
     _master_mode = False
+    _hwid_cache = None
 
     @classmethod
     def set_master_mode(cls, enabled):
@@ -53,6 +54,8 @@ class SecurityManager:
     @classmethod
     def get_hwid(cls):
         """Generate a stable hardware identifier."""
+        if cls._hwid_cache:
+            return cls._hwid_cache
         uuid_raw = ""
         try:
             if platform.system() == "Windows":
@@ -88,11 +91,13 @@ class SecurityManager:
             if not uuid_raw:
                 uuid_raw = f"{platform.processor()}_{platform.node()}_{os.getlogin()}"
 
-            return hashlib.sha256(uuid_raw.encode()).hexdigest()
+            cls._hwid_cache = hashlib.sha256(uuid_raw.encode()).hexdigest()
+            return cls._hwid_cache
         except Exception as e:
             logger.warning("get_hwid fallback path used: %s", e)
             fallback = f"{platform.processor()}_{platform.node()}_{os.getlogin()}"
-            return hashlib.sha256(fallback.encode()).hexdigest()
+            cls._hwid_cache = hashlib.sha256(fallback.encode()).hexdigest()
+            return cls._hwid_cache
 
     @staticmethod
     def generate_key_from_hwid(hwid):

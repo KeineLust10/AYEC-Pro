@@ -55,7 +55,7 @@ class LanguageSettingsWidget(QWidget):
         group_layout.setSpacing(20)
         group_layout.setContentsMargins(20, 30, 20, 20)
 
-        label_font = QFont("Segoe UI", 10)
+        label_font = QFont(DesignTokens.FONT_NAME, 10)
 
         self.cmb_lang = QComboBox()
         self.cmb_lang.addItems(["Türkçe (TR)", "English (EN)", "Deutsch (DE)", "Français (FR)"])

@@ -57,7 +57,7 @@ class RemindersPage(QWidget):
     def _field_label(self, text):
         lbl = QLabel(text)
         lbl.setFont(QFont('Segoe UI', 10, QFont.Weight.Bold))
-        lbl.setStyleSheet(theme_qss('color: @text;'))
+        lbl.setStyleSheet(theme_qss('color: @text; background: transparent;'))
         return lbl
 
     def _input_style(self):

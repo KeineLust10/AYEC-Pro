@@ -103,7 +103,20 @@ def verify(require_ocr: bool = False) -> dict:
                 raise RuntimeError(f"Tesseract çalıştırılamadı: {error}") from error
             report["tesseract"] = f"bulundu fakat doğrulanamadı: {error}"
     elif require_ocr:
-        raise RuntimeError("Tesseract bulunamadı; TESSERACT_CMD tanımlayın.")
+        report["tesseract"] = ""
+
+    optional = report["optional_packages"]
+    image_backends = []
+    if optional.get("easyocr"):
+        image_backends.append("easyocr")
+    if optional.get("paddleocr") and optional.get("paddlepaddle"):
+        image_backends.append("paddleocr")
+    if report["tesseract"]:
+        image_backends.append("tesseract")
+    report["image_ocr_backends"] = image_backends
+    report["image_ocr"] = bool(image_backends)
+    if require_ocr and not report["image_ocr"]:
+        raise RuntimeError("Gorsel OCR icin EasyOCR, PaddleOCR veya Tesseract kurulmalidir.")
 
     with tempfile.TemporaryDirectory(prefix="ayec-runtime-") as temp_dir:
         temp = Path(temp_dir)
@@ -160,7 +173,7 @@ def verify(require_ocr: bool = False) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--require-ocr", action="store_true", help="Tesseract eksikse testi başarısız say")
+    parser.add_argument("--require-ocr", action="store_true", help="Gorsel OCR arka ucu yoksa testi basarisiz say")
     args = parser.parse_args()
     try:
         result = verify(require_ocr=args.require_ocr)
@@ -169,8 +182,8 @@ def main() -> int:
         return 1
     print(json.dumps(result, ensure_ascii=False, indent=2))
     print("AYEC PDF ve akıllı içe aktarma çalışma zamanı doğrulandı.")
-    if not result.get("tesseract"):
-        print("UYARI: Görsel OCR için Tesseract ve Türkçe dil paketi ayrıca kurulmalıdır.")
+    if not result.get("image_ocr"):
+        print("UYARI: Gorsel OCR arka ucu bulunamadi.")
     return 0
 
 

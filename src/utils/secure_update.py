@@ -58,6 +58,7 @@ def validate_update_url(url: str, *, expected_host: str | None = None) -> str:
             for item in os.environ.get("AYECPRO_UPDATE_ALLOWED_HOSTS", "").split(",")
             if item.strip()
         }
+        allowed.update(host.lower() for host in TRUSTED_HTTP_UPDATE_HOSTS)
         if parsed.hostname.lower() not in allowed:
             raise UpdateSecurityError("Update download host is not trusted.")
     return value

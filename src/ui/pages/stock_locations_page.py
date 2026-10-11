@@ -28,6 +28,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtGui import QColor, QDoubleValidator, QFont
 from src.ui.widgets.modern_dialog import ModernDialog
+from src.utils.design_system import DesignTokens
 from src.utils.theme_colors import theme_qss, tc
 
 
@@ -439,12 +440,14 @@ class StockLocationsPage(QWidget):
         self.main_window = main_window
         self.transfer_lines = []
         self.kit_lines = []
+        self.inventory_page = 0
+        self.inventory_page_size = 5
         self._build_ui()
         self.refresh_data()
 
     def _button(self, text, primary=False):
         button = QPushButton(text)
-        button.setMinimumHeight(38)
+        button.setMinimumHeight(32)
         button.setCursor(Qt.CursorShape.PointingHandCursor)
         if primary:
             button.setStyleSheet(theme_qss("""
@@ -452,8 +455,8 @@ class StockLocationsPage(QWidget):
                     background: @accent;
                     color: @selection_text;
                     border: none;
-                    border-radius: 8px;
-                    padding: 8px 20px;
+                    border-radius: 4px;
+                    padding: 4px 12px;
                     font-weight: 700;
                     font-size: 13px;
                 }
@@ -462,11 +465,11 @@ class StockLocationsPage(QWidget):
         else:
             button.setStyleSheet(theme_qss("""
                 QPushButton {
-                    background: @surface;
+                    background: @surface_alt;
                     color: @text;
                     border: 1px solid @border;
-                    border-radius: 8px;
-                    padding: 8px 18px;
+                    border-radius: 4px;
+                    padding: 4px 12px;
                     font-weight: 600;
                     font-size: 13px;
                 }
@@ -486,70 +489,107 @@ class StockLocationsPage(QWidget):
         spinbox.setStyleSheet(theme_qss("QSpinBox { background: @surface; border: 2px solid @border; border-radius: 8px; padding: 4px 8px; color: @text; font-size: 13px; font-weight: bold; } QSpinBox:focus { border-color: @accent; }"))
         return spinbox
 
-    def _card(self, title_text, value_text, click_handler=None):
+    def _card(self, title_text, value_text, click_handler=None, accent_token="@accent", detail_text=""):
         card = QFrame()
-        card.setFixedHeight(44)
+        card.setFixedHeight(100)
         if click_handler:
             card.setCursor(Qt.CursorShape.PointingHandCursor)
             card.mousePressEvent = lambda event: click_handler(card)
-        card.setStyleSheet(theme_qss("""
-            QFrame {
+        card.setStyleSheet(theme_qss(f"""
+            QFrame {{
                 background: @surface;
-                border: 1px solid @border;
+                border: 1px solid @surface;
                 border-radius: 8px;
-                padding: 2px 10px;
-            }
-            QFrame:hover {
+                padding: 0;
+            }}
+            QLabel {{ background: transparent; border: none; }}
+            QFrame:hover {{
                 border-color: @accent;
-            }
+            }}
         """))
-        lay = QHBoxLayout(card)
-        lay.setContentsMargins(10, 2, 10, 2)
+        lay = QVBoxLayout(card)
+        lay.setContentsMargins(12, 10, 12, 10)
         lay.setSpacing(6)
 
         lbl_t = QLabel(title_text)
-        lbl_t.setStyleSheet(theme_qss("color: @text_muted; font-size: 11px; font-weight: 800;"))
+        lbl_t.setStyleSheet(theme_qss(f"color: {accent_token}; font-family: Inter; font-size: 11px; font-weight: 600;"))
 
         lbl_v = QLabel(str(value_text))
-        lbl_v.setStyleSheet(theme_qss("color: @accent; font-size: 16px; font-weight: 900;"))
+        lbl_v.setStyleSheet(theme_qss(f"color: {accent_token}; font-family: 'JetBrains Mono'; font-size: 24px; font-weight: 700;"))
 
         lay.addWidget(lbl_t)
-        lay.addStretch()
         lay.addWidget(lbl_v)
+        if detail_text:
+            lbl_d = QLabel(detail_text)
+            lbl_d.setWordWrap(True)
+            lbl_d.setStyleSheet(theme_qss("color: @text_muted; font-size: 11px; font-weight: 700;"))
+            lay.addWidget(lbl_d)
         return card
 
     def _build_ui(self):
+        self.setObjectName("StockLocationsPage")
+        self.setStyleSheet(theme_qss(
+            "QWidget#StockLocationsPage { background: @window; font-family: Inter; }"
+        ))
         root = QVBoxLayout(self)
-        root.setContentsMargins(16, 12, 16, 12)
-        root.setSpacing(8)
+        root.setContentsMargins(12, 12, 12, 12)
+        root.setSpacing(12)
 
         # 1. Compact Header Bar: Title + Stat Cards + Action Button (Single Compact Row)
         header = QHBoxLayout()
         header.setSpacing(10)
 
-        title = QLabel("Depo ve Araç Stokları")
-        title.setStyleSheet(theme_qss("font-size: 20px; font-weight: 900; color: @text;"))
-        header.addWidget(title)
+        heading = QVBoxLayout()
+        heading.setSpacing(2)
+        title = QLabel("Depo ve Ara\u00e7 Stoklar\u0131 & Transfer Y\u00f6netimi")
+        title.setWordWrap(True)
+        title.setStyleSheet(theme_qss("font-family: Inter; font-size: 24px; font-weight: 700; color: @text;"))
+        subtitle = QLabel(
+            "Merkez depo, \u015fantiye konsinye alanlar\u0131 ve servis ara\u00e7lar\u0131ndaki mobil envanter hareketleri."
+        )
+        subtitle.setStyleSheet(theme_qss("font-size: 12px; color: @text_muted;"))
+        heading.addWidget(title)
+        heading.addWidget(subtitle)
+        header.addLayout(heading)
+
+        system_badge = QLabel("LOKASYON BAZLI ERP")
+        system_badge.setStyleSheet(theme_qss(
+            "background: @surface_alt; color: @success; border: 1px solid @border; "
+            "border-radius: 4px; padding: 3px 7px; font-size: 10px; "
+            "font-weight: 800; letter-spacing: 1px;"
+        ))
+        header.addWidget(system_badge, 0, Qt.AlignmentFlag.AlignVCenter)
 
         # Compact Stat Pills
-        self.card_depo = self._card("🏢 DEPO:", "0", self._show_depot_filter)
-        self.card_arac = self._card("🚚 ARAÇ:", "0", self._show_vehicle_filter)
-        self.card_urun = self._card("📦 ÜRÜN ÇEŞİDİ:", "0", self._show_inventory_filter)
-        self.card_hareket = self._card("🔄 TRANSFER:", "0", self._show_transfer_filter)
-
-        header.addWidget(self.card_depo)
-        header.addWidget(self.card_arac)
-        header.addWidget(self.card_urun)
-        header.addWidget(self.card_hareket)
+        self.card_depo = self._card("\u25cf MERKEZ DEPO / LOKASYON", "0", self._show_depot_filter, "@success")
+        self.card_arac = self._card("\u25cf SERV\u0130S ARA\u00c7LARI (MOB\u0130L)", "0", self._show_vehicle_filter, "@finance_action_collection")
+        self.card_urun = self._card("\u25cf KONUMDAK\u0130 \u00dcR\u00dcN \u00c7E\u015e\u0130D\u0130", "0", self._show_inventory_filter, "@finance_text")
+        self.card_hareket = self._card("\u25cf STOK TRANSFERLER\u0130", "0", self._show_transfer_filter, "@accent")
 
         header.addStretch()
 
-        add_location = self._button("+ Yeni Depo / Araç Ekle", True)
+        add_location = self._button("+ Yeni Depo / Ara\u00e7 Ekle")
         add_location.setFixedHeight(36)
         add_location.clicked.connect(self.add_location)
         header.addWidget(add_location)
 
+        start_transfer = self._button("+ Stok Transferi Ba\u015flat", True)
+        start_transfer.setFixedHeight(36)
+        start_transfer.setStyleSheet(theme_qss(
+            "QPushButton { background: @finance_secondary; color: @finance_action_income_text; "
+            "border: none; border-radius: 4px; padding: 4px 12px; font-weight: 600; } "
+            "QPushButton:hover { background: @finance_action_income; }"
+        ))
+        start_transfer.clicked.connect(lambda: self.tabs.setCurrentIndex(1))
+        header.addWidget(start_transfer)
+
         root.addLayout(header)
+
+        stats = QHBoxLayout()
+        stats.setSpacing(10)
+        for card in (self.card_depo, self.card_arac, self.card_urun, self.card_hareket):
+            stats.addWidget(card, 1)
+        root.addLayout(stats)
 
         # 2. Compact 1-Line Info Strip
         info_card = QFrame()
@@ -571,30 +611,30 @@ class StockLocationsPage(QWidget):
             "<b>Transfer Sekmesi:</b> Depolar Arası Sevk"
         )
         info_lay.addWidget(info_txt)
-        root.addWidget(info_card)
 
         # 3. Main Segmented Tabs
         self.tabs = QTabWidget()
         self.tabs.setStyleSheet(theme_qss("""
             QTabWidget::pane {
                 border: 1px solid @border;
-                border-radius: 12px;
+                border-radius: 6px;
                 background: @surface;
-                padding: 12px;
+                padding: 0px;
             }
             QTabBar::tab {
-                background: @surface_alt;
+                background: @surface;
                 color: @text_muted;
-                padding: 11px 22px;
-                border-top-left-radius: 10px;
-                border-top-right-radius: 10px;
-                font-weight: 700;
-                font-size: 13px;
-                margin-right: 6px;
+                padding: 10px 12px;
+                border-top-left-radius: 4px;
+                border-top-right-radius: 4px;
+                font-weight: 600;
+                font-size: 12px;
+                margin-right: 2px;
             }
             QTabBar::tab:selected {
-                background: @accent;
-                color: @selection_text;
+                background: @finance_surface_lowest;
+                color: @finance_action_collection;
+                border-bottom: 2px solid @accent;
             }
             QTabBar::tab:hover:!selected {
                 background: @surface;
@@ -608,42 +648,79 @@ class StockLocationsPage(QWidget):
         self.tabs.addTab(self._build_kit_tab(), "🧰 Hazır Kitler")
         self.tabs.addTab(self._build_history_tab(), "📜 Hareket Geçmişi")
         root.addWidget(self.tabs, 1)
+        root.addWidget(info_card)
+        root.addWidget(self._build_reference_footer())
+
+    def _build_reference_footer(self):
+        footer = QWidget()
+        footer.setObjectName("StockReferenceFooter")
+        grid = QHBoxLayout(footer)
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setSpacing(10)
+        cards = (
+            ("Mobil Stok Guvence Protokolu", "Arac bagaj kapak sensoru ve RFID donanim kasasi aktif. Cihazlar mobil teknisyen terminaliyle eslenir.", "@success"),
+            ("Ikmal Talebi: TR-2024-884", "Eren Depo -> 34 AY 001 icin 2 adet NVR hazirlik asamasinda. Beklenen varis: 16:30.", "@accent"),
+            ("El Terminali ve Kamera Tarama", "Barkod okuyucu hazir. Klavye kisayolu: F2 ile aninda seri numarasi okutun.", "@finance_secondary"),
+        )
+        for title_text, body_text, accent in cards:
+            card = QFrame()
+            card.setMinimumHeight(78)
+            card.setStyleSheet(theme_qss(
+                "QFrame { background: @surface; border: 1px solid @surface; "
+                "border-radius: 8px; } QLabel { background: transparent; border: none; }"
+            ))
+            box = QVBoxLayout(card)
+            box.setContentsMargins(12, 8, 12, 8)
+            box.setSpacing(3)
+            title_label = QLabel(title_text)
+            title_label.setStyleSheet(theme_qss(f"color: {accent}; font-weight: 600; font-size: 12px;"))
+            body_label = QLabel(body_text)
+            body_label.setWordWrap(True)
+            body_label.setStyleSheet(theme_qss("color: @text_muted; font-size: 10px;"))
+            box.addWidget(title_label)
+            box.addWidget(body_label)
+            grid.addWidget(card, 1)
+        return footer
 
     def _configure_table(self, table):
         table.setAlternatingRowColors(True)
         table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         table.verticalHeader().setVisible(False)
-        table.verticalHeader().setDefaultSectionSize(42)
+        table.verticalHeader().setDefaultSectionSize(40)
+        table.setShowGrid(False)
+        table.horizontalHeader().setFixedHeight(32)
         table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         table.setStyleSheet(theme_qss("""
             QTableWidget {
-                background: @surface;
+                background: @finance_surface_lowest;
+                alternate-background-color: @window;
                 color: @text;
                 gridline-color: @border;
-                border: 1px solid @border;
-                border-radius: 10px;
-                font-size: 13px;
+                border: none;
+                border-radius: 4px;
+                font-family: Inter;
+                font-size: 12px;
             }
             QTableWidget::item {
-                padding: 8px 12px;
-                border-bottom: 1px solid @border;
+                padding: 4px 8px;
+                border-bottom: 1px solid @surface;
             }
             QTableWidget::item:hover {
                 background-color: @surface_alt;
                 color: @accent;
             }
             QTableWidget::item:selected {
-                background-color: @accent;
-                color: @selection_text;
+                background-color: @finance_active_bg;
+                color: @text;
             }
             QHeaderView::section {
-                background-color: @surface_alt;
-                color: @text;
-                padding: 10px;
-                font-weight: 800;
-                font-size: 12px;
-                border: 1px solid @border;
+                background-color: @surface_high;
+                color: @text_muted;
+                padding: 4px 8px;
+                font-weight: 700;
+                font-size: 10px;
+                border: none;
                 text-transform: uppercase;
             }
         """))
@@ -651,31 +728,32 @@ class StockLocationsPage(QWidget):
     def _build_inventory_tab(self):
         page = QWidget()
         layout = QVBoxLayout(page)
-        layout.setSpacing(12)
+        layout.setContentsMargins(8, 10, 8, 8)
+        layout.setSpacing(8)
 
         tools = QHBoxLayout()
         self.inventory_location = QComboBox()
         self.inventory_location.setStyleSheet(theme_qss("""
             QComboBox {
-                background: @surface; border: 2px solid @border;
-                border-radius: 8px; padding: 8px 14px; color: @text;
-                font-size: 13px; font-weight: bold;
+                background: @surface_alt; border: 1px solid @border;
+                border-radius: 4px; padding: 5px 10px; color: @text;
+                font-size: 12px;
             }
             QComboBox:focus { border-color: @accent; }
         """))
-        self.inventory_location.currentIndexChanged.connect(self.load_inventory)
+        self.inventory_location.currentIndexChanged.connect(self._inventory_query_changed)
 
         self.inventory_search = QLineEdit()
         self.inventory_search.setPlaceholderText("🔍 Ürün adı, stok kodu veya barkod ile arayın...")
         self.inventory_search.setStyleSheet(theme_qss("""
             QLineEdit {
-                background: @surface; border: 2px solid @border;
-                border-radius: 8px; padding: 8px 14px; color: @text;
-                font-size: 13px;
+                background: @finance_surface_lowest; border: 1px solid @border;
+                border-radius: 4px; padding: 5px 10px; color: @text;
+                font-size: 12px;
             }
             QLineEdit:focus { border-color: @accent; }
         """))
-        self.inventory_search.textChanged.connect(self.load_inventory)
+        self.inventory_search.textChanged.connect(self._inventory_query_changed)
 
         lbl_loc = QLabel("Konum Filtresi:")
         lbl_loc.setStyleSheet(theme_qss("font-weight: 700; color: @text; font-size: 13px;"))
@@ -685,11 +763,15 @@ class StockLocationsPage(QWidget):
         tools.addWidget(self.inventory_search, 2)
         layout.addLayout(tools)
 
-        self.inventory_table = QTableWidget(0, 7)
+        self.inventory_table = QTableWidget(0, 9)
         self.inventory_table.setHorizontalHeaderLabels(
-            ["Ürün Adı", "Stok Kodu", "Barkod", "Birim", "Miktar", "Rezerve", "Kullanılabilir"]
+            ["\u00dcr\u00fcn Tan\u0131m\u0131", "Stok Kodu", "Barkod", "Birim", "Mevcut Miktar", "Rezerve", "Kullan\u0131labilir", "Min. E\u015fik", "H\u0131zl\u0131 \u0130\u015flemler"]
         )
         self._configure_table(self.inventory_table)
+        for column in (1, 2, 3, 4, 5, 6, 7):
+            self.inventory_table.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
+        self.inventory_table.horizontalHeader().setSectionResizeMode(8, QHeaderView.ResizeMode.Fixed)
+        self.inventory_table.setColumnWidth(8, 164)
 
         self.inventory_table.itemDoubleClicked.connect(self._on_inventory_double_clicked)
         self.inventory_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -699,8 +781,31 @@ class StockLocationsPage(QWidget):
 
         self.inventory_summary = QLabel()
         self.inventory_summary.setStyleSheet(theme_qss("color: @text_muted; font-weight: 700; font-size: 13px;"))
-        layout.addWidget(self.inventory_summary)
+        inventory_footer = QHBoxLayout()
+        inventory_footer.addWidget(self.inventory_summary, 1)
+        self.inventory_previous = QPushButton("<")
+        self.inventory_page_label = QLabel("1 / 1")
+        self.inventory_page_label.setMinimumWidth(54)
+        self.inventory_page_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.inventory_next = QPushButton(">")
+        for button in (self.inventory_previous, self.inventory_next):
+            button.setFixedSize(34, 30)
+            button.setStyleSheet(theme_qss(DesignTokens.get_button_qss("secondary", size="sm")))
+        self.inventory_previous.clicked.connect(lambda: self._change_inventory_page(-1))
+        self.inventory_next.clicked.connect(lambda: self._change_inventory_page(1))
+        inventory_footer.addWidget(self.inventory_previous)
+        inventory_footer.addWidget(self.inventory_page_label)
+        inventory_footer.addWidget(self.inventory_next)
+        layout.addLayout(inventory_footer)
         return page
+
+    def _inventory_query_changed(self, *_args):
+        self.inventory_page = 0
+        self.load_inventory()
+
+    def _change_inventory_page(self, delta):
+        self.inventory_page += delta
+        self.load_inventory()
 
     def _on_inventory_double_clicked(self, item):
         row = item.row()
@@ -1083,35 +1188,91 @@ class StockLocationsPage(QWidget):
             return
         rows = self.db.get_location_inventory(location_id, self.inventory_search.text())
         visible = [row for row in rows if abs(float(row["quantity"])) > 0.000001]
-        self.inventory_table.setRowCount(len(visible))
+        total_pages = max(1, (len(visible) + self.inventory_page_size - 1) // self.inventory_page_size)
+        self.inventory_page = max(0, min(self.inventory_page, total_pages - 1))
+        start = self.inventory_page * self.inventory_page_size
+        page_rows = visible[start:start + self.inventory_page_size]
+        self.inventory_table.setRowCount(len(page_rows))
 
         if hasattr(self, "card_urun"):
             lbl = self.card_urun.findChildren(QLabel)[-1]
             lbl.setText(str(len(visible)))
 
-        for row_index, row in enumerate(visible):
+        for row_index, row in enumerate(page_rows):
             available = float(row["quantity"]) - float(row["reserved_quantity"])
             unit = row.get("unit") or "Adet"
             values = [
                 row["name"], row.get("code") or "-", row.get("barcode") or "-",
                 unit, f"{float(row['quantity']):g}",
                 f"{float(row['reserved_quantity']):g}", f"{available:g}",
+                f"{float(row.get('min_quantity') or 0):g}",
             ]
             for column, value in enumerate(values):
                 if column == 3: # Unit Badge
-                    self.inventory_table.setItem(row_index, column, _badge_item(value, "#E0E7FF", "#3730A3"))
+                    self.inventory_table.setItem(row_index, column, _badge_item(value, tc("surface_alt"), tc("text")))
                 elif column == 4: # Total Qty
                     self.inventory_table.setItem(row_index, column, _item(value, row["part_id"], Qt.AlignmentFlag.AlignCenter))
                 elif column == 6: # Available Qty
-                    bg = "#DCFCE7" if available > 0 else "#FEE2E2"
-                    fg = "#166534" if available > 0 else "#991B1B"
+                    bg = tc("finance_success_bg") if available > 0 else tc("finance_warning_bg")
+                    fg = tc("success") if available > 0 else tc("danger")
                     self.inventory_table.setItem(row_index, column, _badge_item(value, bg, fg))
+                elif column == 7:
+                    minimum = float(row.get("min_quantity") or 0)
+                    quantity = float(row.get("quantity") or 0)
+                    if minimum > 0 and quantity <= minimum:
+                        self.inventory_table.setItem(row_index, column, _badge_item(value, tc("finance_warning_bg"), tc("danger")))
+                    else:
+                        self.inventory_table.setItem(row_index, column, _item(value, row["part_id"], Qt.AlignmentFlag.AlignCenter))
                 else:
                     self.inventory_table.setItem(row_index, column, _item(value, row["part_id"]))
+
+            row_data = {
+                "part_id": row["part_id"],
+                "name": row["name"],
+                "code": row.get("code") or "",
+                "unit": unit,
+                "quantity": available,
+            }
+            actions = QWidget()
+            actions_layout = QHBoxLayout(actions)
+            actions_layout.setContentsMargins(3, 2, 3, 2)
+            actions_layout.setSpacing(4)
+            transfer = QPushButton("\u21c4")
+            use_part = QPushButton("\u2295")
+            edit = QPushButton("\u270e")
+            transfer.setToolTip("Stok transferi baslat")
+            use_part.setToolTip("Musteri veya servis kaydina stok dus")
+            edit.setToolTip("Stok kartini duzenle")
+            for button in (transfer, use_part, edit):
+                button.setFixedHeight(26)
+                button.setStyleSheet(theme_qss(
+                    DesignTokens.get_button_qss("secondary", size="sm")
+                    + " QPushButton { padding: 0 2px; font-size: 10px; }"
+                ))
+                actions_layout.addWidget(button)
+            transfer.setFixedWidth(42)
+            use_part.setFixedWidth(34)
+            edit.setFixedWidth(34)
+            transfer.clicked.connect(lambda _checked=False: self.tabs.setCurrentIndex(1))
+            use_part.clicked.connect(
+                lambda _checked=False, data=row_data: self._use_inventory_part(data)
+            )
+            edit.clicked.connect(
+                lambda _checked=False, item=self.inventory_table.item(row_index, 0): self._on_inventory_double_clicked(item)
+            )
+            self.inventory_table.setCellWidget(row_index, 8, actions)
 
         self.inventory_summary.setText(
             f"📊 Bu konumda toplam {len(visible)} farklı kalem ürün kayıtlı."
         )
+        self.inventory_page_label.setText(f"{self.inventory_page + 1} / {total_pages}")
+        self.inventory_previous.setEnabled(self.inventory_page > 0)
+        self.inventory_next.setEnabled(self.inventory_page + 1 < total_pages)
+
+    def _use_inventory_part(self, row_data):
+        dialog = UsePartOnCustomerDialog(self.db, row_data, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self.refresh_data()
 
     def load_transfer_products(self):
         location_id = self.source_combo.currentData()

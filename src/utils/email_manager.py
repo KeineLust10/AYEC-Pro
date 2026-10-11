@@ -5,6 +5,7 @@ import os
 import ssl
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.utils import formataddr
 import threading
 import logging
 from src.utils.theme_colors import tc
@@ -32,6 +33,12 @@ class EmailManager:
         self.smtp_user = os.getenv("AYECPRO_SMTP_EMAIL", "")
         self.smtp_pass = os.getenv("AYECPRO_SMTP_APP_PASSWORD", "")
         self.use_tls = True
+        self.smtp_security = "ssl" if self.smtp_port == 465 else "starttls"
+        self.smtp_timeout = 15
+        self.smtp_sender_name = ""
+        self.smtp_auth_required = True
+        self.smtp_auto_bcc = False
+        self.smtp_archive_email = ""
 
         if self.db:
             self._load_config()
@@ -48,9 +55,22 @@ class EmailManager:
 
             db_pass = SecureSettingStore.get(self.db, "smtp_password", "").strip()
             db_tls = self.db.get_setting("smtp_use_tls", "1").strip()
+            configured_security = self.db.get_setting("smtp_security", "").strip().lower()
+            configured_timeout = self.db.get_setting("smtp_timeout", "15").strip()
+            configured_auth = self.db.get_setting("smtp_auth_required", "1").strip()
+            configured_bcc = self.db.get_setting("smtp_auto_bcc", "0").strip()
+            self.smtp_sender_name = self.db.get_setting("smtp_sender_name", "").strip()
+            self.smtp_archive_email = self.db.get_setting("smtp_archive_email", "").strip() or self.db.get_setting("company_email", "").strip()
+            try:
+                self.smtp_timeout = max(5, min(60, int(configured_timeout or 15)))
+            except (TypeError, ValueError):
+                self.smtp_timeout = 15
+            self.smtp_auth_required = configured_auth.lower() not in ("0", "false", "no")
+            self.smtp_auto_bcc = configured_bcc.lower() in ("1", "true", "yes")
 
             if db_server: self.smtp_server = db_server
             if db_port: self.smtp_port = int(db_port)
+            self.smtp_security = configured_security or ("ssl" if self.smtp_port == 465 else ("starttls" if db_tls == "1" else "none"))
             if db_user and db_user.lower() != LEGACY_PLATFORM_EMAIL: self.smtp_user = db_user
             if db_pass and db_user.lower() != LEGACY_PLATFORM_EMAIL: self.smtp_pass = db_pass
             if db_tls: self.use_tls = db_tls == "1"
@@ -67,12 +87,12 @@ class EmailManager:
 
     def _send_email_thread(self, to_email, subject, body, is_html):
         try:
-            if not self.smtp_user or not self.smtp_pass:
+            if self.smtp_auth_required and (not self.smtp_user or not self.smtp_pass):
                 logger.warning("SMTP credentials missing. Email not sent.")
                 return
 
             msg = MIMEMultipart()
-            msg['From'] = self.smtp_user
+            msg['From'] = formataddr((self.smtp_sender_name, self.smtp_user)) if self.smtp_sender_name else self.smtp_user
             msg['To'] = to_email
             msg['Subject'] = subject
             if self.smtp_user.lower() == OFFICIAL_EMAIL:
@@ -80,15 +100,19 @@ class EmailManager:
 
             msg.attach(MIMEText(body, 'html' if is_html else 'plain'))
 
-            if self.smtp_port == 465:
-                server = smtplib.SMTP_SSL(self.smtp_server, self.smtp_port, timeout=20, context=ssl.create_default_context())
+            if self.smtp_security == "ssl":
+                server = smtplib.SMTP_SSL(self.smtp_server, self.smtp_port, timeout=self.smtp_timeout, context=ssl.create_default_context())
             else:
-                server = smtplib.SMTP(self.smtp_server, self.smtp_port, timeout=20)
-                if self.use_tls:
+                server = smtplib.SMTP(self.smtp_server, self.smtp_port, timeout=self.smtp_timeout)
+                if self.smtp_security == "starttls":
                     server.starttls(context=ssl.create_default_context())
 
-            server.login(self.smtp_user, self.smtp_pass)
-            server.sendmail(self.smtp_user, to_email, msg.as_string())
+            if self.smtp_auth_required:
+                server.login(self.smtp_user, self.smtp_pass)
+            recipients = [to_email]
+            if self.smtp_auto_bcc and self.smtp_archive_email and self.smtp_archive_email.lower() != str(to_email).lower():
+                recipients.append(self.smtp_archive_email)
+            server.sendmail(self.smtp_user, recipients, msg.as_string())
             server.quit()
 
             logger.info(f"Email sent successfully to {to_email}")

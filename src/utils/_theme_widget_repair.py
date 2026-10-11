@@ -41,7 +41,8 @@ def _fix_mojibake_text(text):
 
     for enc in ("cp1254", "cp1252", "latin-1"):
         try:
-            cand = best.encode(enc, errors="ignore").decode("utf-8", errors="ignore")
+            # Repair only reversible encodings; never discard valid UI characters.
+            cand = best.encode(enc).decode("utf-8")
         except Exception:
             continue
         score = len(MOJIBAKE_HINT_RE.findall(cand))

@@ -4,16 +4,19 @@ import os
 from datetime import datetime
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QPixmap
+from PyQt6.QtGui import QFont, QPixmap
 from PyQt6.QtWidgets import (
     QApplication,
+    QComboBox,
     QDialog,
     QFileDialog,
     QFrame,
     QHBoxLayout,
+    QGridLayout,
     QLabel,
     QLineEdit,
     QPushButton,
+    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -26,6 +29,99 @@ from src.utils.toast_notification import ToastManager
 
 
 class NewServiceDialogMediaMixin:
+    def _apply_reference_dark_skin(self):
+        """Apply the service-accept reference palette only inside this dialog."""
+        token_map = {
+            "@finance_surface_high": "#182238",
+            "@finance_surface_alt": "#131b2c",
+            "@finance_surface": "#0e1320",
+            "@finance_canvas": "#06090e",
+            "@finance_outline": "#222f4c",
+            "@finance_text_muted": "#94a3b8",
+            "@finance_text": "#e2e8f0",
+            "@finance_primary_text": "#ffffff",
+            "@finance_primary": "#2563eb",
+            "@finance_secondary": "#10b981",
+            "@finance_tertiary": "#f472b6",
+            "@finance_success_bg": "#052e2b",
+            "@finance_warning_bg": "#4c1d32",
+            "@finance_active_bg": "#1e3a5f",
+            "@surface_high": "#182238",
+            "@surface_alt": "#131b2c",
+            "@surface": "#0e1320",
+            "@window": "#06090e",
+            "@text_muted": "#94a3b8",
+            "@text": "#e2e8f0",
+            "@border": "#222f4c",
+            "@selection_bg": "#1d4ed8",
+            "@selection_text": "#ffffff",
+            "@accent_soft": "#1e293b",
+            "@accent_hover": "#1d4ed8",
+            "@accent_pressed": "#1e40af",
+            "@accent": "#3b82f6",
+            "@success": "#10b981",
+            "@warning_bg": "#4c1d32",
+            "@warning": "#f59e0b",
+            "@danger": "#fb7185",
+            "@disabled_bg": "#182238",
+            "@disabled_text": "#64748b",
+            "@primary": "#3b82f6",
+        }
+        color_map = (
+            ("#EEF3F9", "#06090e"),
+            ("#F4F6FB", "#06090e"),
+            ("#F7F8FC", "#0a0e17"),
+            ("#E3EBF5", "#131b2c"),
+            ("#F8F9FD", "#131b2c"),
+            ("#D4E0EE", "#182238"),
+            ("#EEF2F7", "#182238"),
+            ("#DCE6F1", "#182238"),
+            ("#C6D3E2", "#222f4c"),
+            ("#D8E0EB", "#222f4c"),
+            ("#E5EAF2", "#222f4c"),
+            ("#607189", "#94a3b8"),
+            ("#172033", "#e2e8f0"),
+            ("#1F2937", "#e2e8f0"),
+            ("#111827", "#e2e8f0"),
+            ("#0F172A", "#cbd5e1"),
+            ("#DCE8FB", "#1e293b"),
+            ("#CFE0FB", "#1d4ed8"),
+            ("#D7F6E7", "#052e2b"),
+            ("#FCE1E7", "#4c1d32"),
+            ("#F3F4F8", "#131b2c"),
+            ("#ECEFF5", "#182238"),
+            ("#F8FAFC", "#131b2c"),
+            ("#E1E6F0", "#222f4c"),
+            ("#D6DDE9", "#182238"),
+            ("#9AA4B2", "#64748b"),
+        )
+        widgets = [self, *self.findChildren(QWidget)]
+        for widget in widgets:
+            stylesheet = widget.styleSheet()
+            if not stylesheet:
+                continue
+            if isinstance(widget, (QLabel, QLineEdit, QTextEdit, QComboBox, QPushButton)):
+                widget_font = widget.font()
+                widget_font.setFamily("Segoe UI")
+                widget.setFont(widget_font)
+            updated = stylesheet
+            for token in sorted(token_map, key=len, reverse=True):
+                updated = updated.replace(token, token_map[token])
+            for light, dark in color_map:
+                updated = updated.replace(light, dark).replace(light.lower(), dark.lower())
+            if isinstance(widget, QLineEdit):
+                updated += "QLineEdit{background:rgb(248,250,252);color:rgb(51,65,85);}"
+            elif isinstance(widget, QTextEdit):
+                updated += "QTextEdit{background:rgb(248,250,252);color:rgb(51,65,85);}"
+            elif isinstance(widget, QComboBox):
+                updated += (
+                    "QComboBox{background:rgb(248,250,252);color:rgb(51,65,85);"
+                    "selection-background-color:rgb(37,99,235);selection-color:rgb(248,251,255);}"
+                )
+            if updated != stylesheet:
+                widget.setProperty("skipThemeTransform", True)
+                widget.setStyleSheet(updated)
+
     def _apply_dialog_contrast_guard(self):
         self.setStyleSheet(
             theme_qss(
@@ -51,6 +147,76 @@ class NewServiceDialogMediaMixin:
                 self.btn_photo_count.setVisible(True)
             else:
                 self.btn_photo_count.setVisible(False)
+        self._update_reference_photo_preview()
+
+    def _update_reference_photo_preview(self):
+        layout = getattr(self, "reference_photo_preview_layout", None)
+        if layout is None:
+            return
+        while layout.count():
+            item = layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+        if not self.photo_paths:
+            empty_slot = QPushButton("\u25a7\n\u00d6n Kasa")
+            empty_slot.setAccessibleName("\u00d6n Kasa foto\u011fraf\u0131 ekle")
+            empty_slot.setFixedSize(70, 70)
+            empty_slot.setStyleSheet(theme_qss(
+                "QPushButton { background: @surface; color: @text_muted; border: 1px solid @border; "
+                "border-radius: 8px; font-size: 10px; } QPushButton:hover { border-color: @accent; }"
+            ))
+            empty_slot.clicked.connect(self.upload_photo)
+            layout.addWidget(empty_slot)
+        for index, path in enumerate(self.photo_paths[:5]):
+            tile = QFrame()
+            tile.setFixedSize(60, 60)
+            tile.setStyleSheet(theme_qss(
+                "QFrame { background: @surface; border: 1px solid @border; border-radius: 7px; }"
+            ))
+            tile_layout = QGridLayout(tile)
+            tile_layout.setContentsMargins(2, 2, 2, 2)
+            preview = QLabel()
+            preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            pixmap = QPixmap(path)
+            if not pixmap.isNull():
+                preview.setPixmap(pixmap.scaled(
+                    54, 54, Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation,
+                ))
+            else:
+                preview.setText("IMG")
+                preview.setStyleSheet(theme_qss("color: @text_muted; border: none; background: transparent;"))
+            tile_layout.addWidget(preview, 0, 0)
+            remove_button = QPushButton("x")
+            remove_button.setFixedSize(16, 16)
+            remove_button.setStyleSheet(
+                "QPushButton { background: #0b1220; color: #fb7185; border: 1px solid #334155; "
+                "border-radius: 8px; padding: 0; font-size: 9px; font-weight: 700; }"
+            )
+            remove_button.clicked.connect(lambda _checked=False, i=index: self._remove_photo(i))
+            tile_layout.addWidget(remove_button, 0, 0, Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
+            layout.addWidget(tile)
+        if len(self.photo_paths) < 5:
+            add_button = QPushButton("+\nEkle")
+            add_button.setFixedSize(70, 70)
+            add_button.setStyleSheet(theme_qss(
+                "QPushButton { background: @surface; color: @text_muted; border: 1px dashed @border; "
+                "border-radius: 7px; font-size: 10px; } QPushButton:hover { border-color: @accent; color: @text; }"
+            ))
+            add_button.clicked.connect(self.upload_photo)
+            layout.addWidget(add_button)
+        if not self.photo_paths:
+            hint = QLabel(
+                "Teslim an\u0131nda cihaz\u0131n fiziksel kusurlar\u0131n\u0131 belgelemek "
+                "m\u00fc\u015fteri ihtilaflar\u0131n\u0131 \u00f6nler."
+            )
+            hint.setWordWrap(True)
+            hint.setStyleSheet(theme_qss(
+                "color: @text_muted; font-size: 11px; font-style: italic; border: none; background: transparent;"
+            ))
+            layout.addWidget(hint, 1)
+        layout.addStretch(1)
     
     def _create_photo_item_widget(self, idx, path):
         card = QFrame()
@@ -201,6 +367,18 @@ class NewServiceDialogMediaMixin:
 
     def _update_photo_button(self):
         count = len(self.photo_paths)
+        if not self.is_automotive:
+            summary = (
+                f"{count} g\u00f6rsel se\u00e7ildi\nEklemek veya kald\u0131rmak i\u00e7in a\u015fa\u011f\u0131daki \u00f6nizlemeleri kullan\u0131n"
+                if count
+                else "Hen\u00fcz g\u00f6rsel se\u00e7ilmedi \u00b7 PNG, JPG"
+            )
+            title = "Foto\u011fraf Y\u00fcklemek \u0130\u00e7in T\u0131klay\u0131n veya S\u00fcr\u00fckleyin"
+            self.btn_photo.setText(title + "\n" + summary)
+            self.btn_photo.setStyleSheet(theme_qss(
+                "QPushButton { background: @finance_surface; color: @text; border: 1px dashed @finance_outline; border-radius: 6px; font-size: 11px; padding: 8px; }"
+                "QPushButton:hover { background: @finance_surface_alt; border-color: @finance_primary; }"))
+            return
         label = "Dosya" if count == 1 else "Dosya"
         if count:
             self.btn_photo.setText(f"📸 {count} {label} Seçildi (Görmek için Tıkla)")
@@ -268,14 +446,30 @@ class NewServiceDialogMediaMixin:
     def upload_photo(self):
         file_paths, _ = QFileDialog.getOpenFileNames(self, 'Fotoğraf Seç', '', "Resim Dosyaları (*.jpg *.png *.jpeg)")
         if file_paths:
-            self._snapshot_photo_state()
-            prev_labels = {p: self.photo_labels[i] for i, p in enumerate(self.photo_paths) if i < len(self.photo_labels)}
-            self.photo_paths = list(file_paths)
-            self.photo_labels = [prev_labels.get(p, "") for p in self.photo_paths]
-            self.photo_path = self.photo_paths[0] if self.photo_paths else ""
-            self._refresh_photo_table()
-            self._update_photo_button()
-            ToastManager.success(self, f"{len(self.photo_paths)} görsel başarıyla eklendi. 📸")
+            self._add_selected_photos(file_paths)
+
+    def _add_selected_photos(self, file_paths):
+        accepted = [
+            path for path in file_paths
+            if str(path).lower().endswith((".jpg", ".jpeg", ".png"))
+        ]
+        merged_paths = list(self.photo_paths)
+        for path in accepted:
+            if path not in merged_paths:
+                merged_paths.append(path)
+        if len(merged_paths) > 5:
+            ToastManager.warning(self, "En fazla 5 fotograf ekleyebilirsiniz.")
+        merged_paths = merged_paths[:5]
+        if merged_paths == self.photo_paths:
+            return
+        self._snapshot_photo_state()
+        prev_labels = {p: self.photo_labels[i] for i, p in enumerate(self.photo_paths) if i < len(self.photo_labels)}
+        self.photo_paths = merged_paths
+        self.photo_labels = [prev_labels.get(p, "") for p in self.photo_paths]
+        self.photo_path = self.photo_paths[0] if self.photo_paths else ""
+        self._refresh_photo_table()
+        self._update_photo_button()
+        ToastManager.success(self, f"{len(self.photo_paths)} g\u00f6rsel ba\u015far\u0131yla eklendi.")
 
     def _collect_selected_accessories(self):
         acc_list = []
@@ -295,6 +489,8 @@ class NewServiceDialogMediaMixin:
             logger.warning(f"Accessory sync error: {e}")
 
     def _handle_accessory_toggle_changed(self, checked):
+        if getattr(self, "_restoring_reference_form", False):
+            return
         self._sync_accessories_for_existing()
 
     def _refresh_customer_list_if_loaded(self):

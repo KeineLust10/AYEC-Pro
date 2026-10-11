@@ -1,38 +1,37 @@
-# -*- coding: utf-8 -*-
+"""Lazy exports for settings widgets."""
 
-"""
-Settings Widgets Package
-Ayarlar sayfası widget'larının modüler yapısı
-"""
+from importlib import import_module
 
-# Aktif widget'lar (taşınmış ve implement edilmiş)
-from .company_settings import CompanySettingsWidget
-from .sms_settings import SMSSettingsWidget, SMSTemplatesWidget, TemplateEditDialog
-from .background_settings import BackgroundSettingsWidget
-from .license_settings import LicenseManagementWidget
-from .smtp_settings import SMTPSettingsWidget
-from .backup_settings import BackupSettingsWidget
 
-# Placeholder widget'lar (basit placeholder implementation)
-from .bank_settings import BankSettingsWidget
-from .cargo_settings import CargoSettingsWidget
-from .stock_settings import StockSettingsWidget
-from .language_settings import LanguageSettingsWidget
+_EXPORTS = {
+    "CompanySettingsWidget": "company_settings",
+    "SMSSettingsWidget": "sms_settings",
+    "SMSTemplatesWidget": "sms_settings",
+    "TemplateEditDialog": "sms_settings",
+    "BackgroundSettingsWidget": "background_settings",
+    "LicenseManagementWidget": "license_settings",
+    "SMTPSettingsWidget": "smtp_settings",
+    "BackupSettingsWidget": "backup_settings",
+    "BankSettingsWidget": "bank_settings",
+    "CargoSettingsWidget": "cargo_settings",
+    "StockSettingsWidget": "stock_settings",
+    "LanguageSettingsWidget": "language_settings",
+}
 
-__all__ = [
-    # Tam implement edilmiş widget'lar
-    'CompanySettingsWidget',
-    'SMSSettingsWidget',
-    'SMSTemplatesWidget',
-    'TemplateEditDialog',
-    'BackgroundSettingsWidget',
-    'LicenseManagementWidget',
-    'SMTPSettingsWidget',
-    'BackupSettingsWidget',
-    
-    # Placeholder widget'lar
-    'BankSettingsWidget',
-    'CargoSettingsWidget',
-    'StockSettingsWidget',
-    'LanguageSettingsWidget',
-]
+__all__ = tuple(_EXPORTS)
+
+
+def __getattr__(name):
+    module_name = _EXPORTS.get(name)
+    if module_name is None:
+        raise AttributeError(name)
+    value = getattr(
+        import_module(f"{__name__}.{module_name}"),
+        name,
+    )
+    globals()[name] = value
+    return value
+
+
+def __dir__():
+    return sorted(set(globals()) | set(__all__))

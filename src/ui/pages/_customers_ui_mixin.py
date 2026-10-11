@@ -1,45 +1,107 @@
 # -*- coding: utf-8 -*-
 
 from PyQt6.QtWidgets import (
-    QMenu, QWidget, QHBoxLayout, QPushButton, QAbstractItemView
+    QMenu, QWidget, QHBoxLayout, QPushButton, QAbstractItemView, QSizePolicy
 )
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, QItemSelectionModel
 
 from src.utils.theme_colors import theme_qss
 from src.utils.context_menu_settings import is_context_menu_enabled
 from src.utils.performance_monitor import perf_span
 from src.ui.dialogs.customer_notes_dialog import CustomerNotesDialog
+from src.ui.widgets.navigation_glyph import navigation_icon
 
 class CustomersUIMixin:
     """UI styles, context menus and row actions for CustomersPage."""
 
     def _create_action_widget(self, row, data):
-        btn = QPushButton("İşlem Yap ▼")
-        btn.setMinimumWidth(160)
-        btn.setFixedHeight(34)
-        btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn.setStyleSheet(
-            theme_qss("""
-            QPushButton { background: @accent; color: @selection_text; border-radius: 15px; font-weight: bold; font-size: 11px; border: 1px solid @accent; }
-            QPushButton:hover { background: @accent_hover; color: @selection_text; border-color: @accent_hover; }
-        """)
-        )
-        btn.clicked.connect(lambda checked, r=row: self.show_row_menu(r))
-
         container = QWidget()
         container.setStyleSheet(theme_qss("background: transparent; border: none;"))
         lay = QHBoxLayout(container)
         lay.setContentsMargins(0, 0, 0, 0)
-        lay.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lay.addWidget(btn)
+        lay.setSpacing(2)
+        lay.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+
+        def add_action(label, width, callback, tone="neutral", icon=None):
+            button = QPushButton(label)
+            button.setFixedHeight(30)
+            button.setMinimumWidth(max(22, width - 8))
+            button.setMaximumWidth(width)
+            button.setSizePolicy(
+                QSizePolicy.Policy.Preferred,
+                QSizePolicy.Policy.Fixed,
+            )
+            button.setCursor(Qt.CursorShape.PointingHandCursor)
+            button.setStyleSheet(theme_qss(
+                "QPushButton { background: @surface_alt; color: @text; border: 1px solid @border; "
+                "border-radius: 7px; padding: 0 4px; font-size: 9px; font-weight: 700; } "
+                "QPushButton:hover { background: @surface_high; border-color: @accent; }"
+            ))
+            if tone == "primary":
+                button.setStyleSheet(theme_qss(
+                    "QPushButton { background: @accent; color: @selection_text; border: 1px solid @accent; "
+                    "border-radius: 7px; padding: 0 4px; font-size: 9px; font-weight: 700; } "
+                    "QPushButton:hover { background: @accent; border-color: @accent; }"
+                ))
+            elif tone == "warning":
+                button.setStyleSheet(theme_qss(
+                    "QPushButton { background: @danger; color: @selection_text; border: 1px solid @danger; "
+                    "border-radius: 7px; padding: 0 4px; font-size: 9px; font-weight: 700; } "
+                    "QPushButton:hover { background: @danger; }"
+                ))
+            if icon:
+                button.setIcon(navigation_icon(icon, 14, "selection_text" if tone == "primary" else "text_muted"))
+            button.clicked.connect(callback)
+            lay.addWidget(button)
+            return button
+
+        def add_more_button():
+            more = QPushButton()
+            more.setFixedHeight(30)
+            more.setMinimumWidth(20)
+            more.setMaximumWidth(22)
+            more.setSizePolicy(
+                QSizePolicy.Policy.Preferred,
+                QSizePolicy.Policy.Fixed,
+            )
+            more.setIcon(navigation_icon("more_vertical", 14, "text_muted"))
+            more.setToolTip("Di\u011fer m\u00fc\u015fteri i\u015flemleri")
+            more.setAccessibleName("Di\u011fer m\u00fc\u015fteri i\u015flemleri")
+            more.setStyleSheet(theme_qss(
+                "QPushButton { background: @surface_alt; color: @text_muted; border: 1px solid @border; "
+                "border-radius: 7px; font-size: 16px; font-weight: 700; } "
+                "QPushButton:hover { background: @surface_high; color: @text; }"
+            ))
+            more.clicked.connect(lambda _checked=False, r=row: self.show_row_menu(r))
+            lay.addWidget(more)
+
+        customer_type = str(data.get("type") or "").casefold()
+        contract_type = str(data.get("contract_type") or "").upper()
+        is_vip = "VIP" in contract_type or customer_type == "vip"
+        service_count = int(data.get("open_service_count", 0) or 0)
+        balance = float(data.get("balance_try", 0) or 0)
+        if is_vip:
+            add_action("Cari Kart", 76, lambda _checked=False, c=data: self.open_customer_360(c), "primary", "chevron_right")
+            add_more_button()
+        elif balance < 0:
+            add_action("Hat\u0131rlat", 72, lambda _checked=False, c=data: self.send_debt_reminder(c), "warning", "send")
+            add_more_button()
+        elif service_count > 0:
+            add_action("Servis A\u00e7", 72, lambda _checked=False, c=data: self.create_service(c), "neutral", "tool")
+            if str(data.get("phone") or "").strip():
+                add_action("", 22, lambda _checked=False, c=data: self.send_whatsapp(c), "neutral", "message")
+            add_more_button()
+        else:
+            menu_button = add_action("\u0130\u015flem Yap  \u2304", 92, lambda _checked=False, r=row: self.show_row_menu(r))
+            menu_button.setToolTip("M\u00fc\u015fteri i\u015flemleri")
         return container
 
     def show_row_menu(self, row):
         if row < 0 or row >= self.table.rowCount():
             return
-        customer = self.table.item(row, 0).data(Qt.ItemDataRole.UserRole)
+        customer = self.table.item(row, 1).data(Qt.ItemDataRole.UserRole)
         self.open_customer_menu(
-            customer, self.table.cellWidget(row, 6).findChild(QPushButton)
+            customer, self.table.cellWidget(row, 8).findChild(QPushButton)
         )
 
     def show_context_menu(self, position):
@@ -51,7 +113,7 @@ class CustomersUIMixin:
         row = item.row()
         if self.table.selectionMode() == QAbstractItemView.SelectionMode.SingleSelection:
             self.table.selectRow(row)
-        customer = self.table.item(row, 0).data(Qt.ItemDataRole.UserRole)
+        customer = self.table.item(row, 1).data(Qt.ItemDataRole.UserRole)
 
         menu = QMenu(self)
         self.populate_customer_menu(menu, customer)
@@ -94,6 +156,30 @@ class CustomersUIMixin:
     def _on_table_cell_entered(self, row, _column):
         if row >= 0:
             self.table.selectRow(row)
+
+    def _on_customer_checkbox_changed(self, item):
+        if item.column() != 0:
+            return
+        if item.checkState() == Qt.CheckState.Checked:
+            self.table.selectRow(item.row())
+        else:
+            self.table.selectionModel().select(
+                self.table.model().index(item.row(), 0),
+                QItemSelectionModel.SelectionFlag.Deselect | QItemSelectionModel.SelectionFlag.Rows,
+            )
+
+    def _toggle_customer_select_all(self, column):
+        if column != 0:
+            return
+        select_all = any(
+            self.table.item(row, 0)
+            and self.table.item(row, 0).checkState() != Qt.CheckState.Checked
+            for row in range(self.table.rowCount())
+        )
+        state = Qt.CheckState.Checked if select_all else Qt.CheckState.Unchecked
+        for row in range(self.table.rowCount()):
+            if self.table.item(row, 0):
+                self.table.item(row, 0).setCheckState(state)
 
     def toggle_multiselect(self, checked: bool):
         self.table.clearSelection()

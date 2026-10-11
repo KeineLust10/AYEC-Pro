@@ -773,6 +773,7 @@ class DatabaseLegacyPart2Mixin:
                 fault_description TEXT,
                 photo_path TEXT,
                 device_password TEXT,
+                bios_password TEXT,
                 approval_status TEXT DEFAULT 'Bekleme'
             )
         """)

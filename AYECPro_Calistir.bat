@@ -1,4 +1,10 @@
 @echo off
+setlocal
 cd /d "%~dp0"
-"C:\Users\yedek\AppData\Local\Programs\Python\Python312\python.exe" Main.py
+if not exist ".venv_active\Scripts\python.exe" (
+    echo Workspace Python environment is missing.
+    pause
+    exit /b 1
+)
+"%~dp0.venv_active\Scripts\python.exe" "%~dp0Main.py"
 pause

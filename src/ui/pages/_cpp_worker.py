@@ -32,6 +32,23 @@ class CustomerWorker(QThread):
                 where_parts.append("(COALESCE(c.is_partner, 0) = 1)")
             else:
                 where_parts.append("(COALESCE(c.is_partner, 0) = 0)")
+            if self.filter_type == "VIP":
+                where_parts.append(
+                    "UPPER(TRIM(COALESCE(c.type, ''))) IN ('KURUMSAL', 'VIP')"
+                )
+            if self.filter_type == "OPEN_SERVICES":
+                where_parts.append("""
+                    EXISTS (
+                        SELECT 1 FROM devices d
+                        WHERE (d.customer_id = c.id OR (d.customer_id IS NULL AND d.customer_name = c.name))
+                          AND COALESCE(d.is_deleted, 0) = 0
+                          AND COALESCE(d.is_archived, 0) = 0
+                          AND COALESCE(d.status, '') NOT LIKE '%Teslim%'
+                          AND COALESCE(d.status, '') NOT LIKE '%Tamamland%'
+                          AND COALESCE(d.status, '') NOT LIKE '%Iptal%'
+                          AND COALESCE(d.status, '') NOT LIKE '%\u0130ptal%'
+                    )
+                """)
             if self.search_query:
                 where_parts.append(
                     "(c.name LIKE ? OR c.phone LIKE ? OR c.email LIKE ? OR c.company_name LIKE ?)"
@@ -72,7 +89,48 @@ class CustomerWorker(QThread):
                 SELECT c.*,
                     COALESCE(b.balance_try, 0) AS balance_try,
                     COALESCE(b.balance_usd, 0) AS balance_usd,
-                    COALESCE(b.balance_eur, 0) AS balance_eur
+                    COALESCE(b.balance_eur, 0) AS balance_eur,
+                    COALESCE((
+                        SELECT COUNT(*)
+                        FROM devices d
+                        WHERE (d.customer_id = c.id OR (d.customer_id IS NULL AND d.customer_name = c.name))
+                          AND COALESCE(d.is_deleted, 0) = 0
+                          AND COALESCE(d.is_archived, 0) = 0
+                          AND COALESCE(d.status, '') NOT LIKE '%Teslim%'
+                          AND COALESCE(d.status, '') NOT LIKE '%Iptal%'
+                          AND COALESCE(d.status, '') NOT LIKE '%\u0130ptal%'
+                          AND COALESCE(d.status, '') NOT LIKE '%Tamamland%'
+                    ), 0) AS open_service_count
+                    , COALESCE((
+                        SELECT SUM(CASE WHEN LOWER(COALESCE(d.status, '')) LIKE '%test%' THEN 1 ELSE 0 END)
+                        FROM devices d
+                        WHERE (d.customer_id = c.id OR (d.customer_id IS NULL AND d.customer_name = c.name))
+                          AND COALESCE(d.is_deleted, 0) = 0
+                          AND COALESCE(d.is_archived, 0) = 0
+                          AND COALESCE(d.status, '') NOT LIKE '%Teslim%'
+                          AND COALESCE(d.status, '') NOT LIKE '%Iptal%'
+                          AND COALESCE(d.status, '') NOT LIKE '%\u0130ptal%'
+                          AND COALESCE(d.status, '') NOT LIKE '%Tamamland%'
+                    ), 0) AS open_test_count,
+                    COALESCE((
+                        SELECT SUM(CASE WHEN LOWER(COALESCE(d.status, '')) LIKE '%tamir%' OR LOWER(COALESCE(d.status, '')) LIKE '%onar%' THEN 1 ELSE 0 END)
+                        FROM devices d
+                        WHERE (d.customer_id = c.id OR (d.customer_id IS NULL AND d.customer_name = c.name))
+                          AND COALESCE(d.is_deleted, 0) = 0
+                          AND COALESCE(d.is_archived, 0) = 0
+                          AND COALESCE(d.status, '') NOT LIKE '%Teslim%'
+                          AND COALESCE(d.status, '') NOT LIKE '%Iptal%'
+                          AND COALESCE(d.status, '') NOT LIKE '%\u0130ptal%'
+                          AND COALESCE(d.status, '') NOT LIKE '%Tamamland%'
+                    ), 0) AS open_repair_count,
+                    COALESCE((
+                        SELECT COUNT(*)
+                        FROM devices d
+                        WHERE (d.customer_id = c.id OR (d.customer_id IS NULL AND d.customer_name = c.name))
+                          AND COALESCE(d.is_deleted, 0) = 0
+                          AND COALESCE(d.is_archived, 0) = 0
+                          AND (COALESCE(d.status, '') LIKE '%Teslim Edildi%' OR COALESCE(d.status, '') LIKE '%Tamamland%')
+                    ), 0) AS delivered_device_count
                 FROM customers c
                 LEFT JOIN ({balance_sub}) b ON b.customer_id = c.id
                 WHERE {where_sql}

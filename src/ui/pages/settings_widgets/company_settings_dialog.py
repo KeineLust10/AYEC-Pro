@@ -7,9 +7,9 @@ Firma ayarları düzenleme dialog'u
 
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton,
                              QScrollArea, QFrame, QGridLayout, QTextEdit, QComboBox,
-                             QHBoxLayout)
+                             QHBoxLayout, QTabWidget)
 from PyQt6.QtGui import QFont
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QSignalBlocker, Qt
 from PyQt6.QtPrintSupport import QPrinterInfo
 
 from src.utils.theme_manager import ThemeManager
@@ -24,7 +24,27 @@ class CompanySettingsDialog(BaseModernDialog):
     """Firma Ayarlarını Gir - Detaylı Düzenleme Dialog'u"""
 
     def __init__(self, db, main_window=None, parent=None):
-        super().__init__(parent=parent, title="Firma Ayarlarını Gir", width=980, height=760)
+        super().__init__(parent=parent, title="Firma Ayarlar\u0131n\u0131", width=865, height=558)
+        self.setFont(QFont("Segoe UI", 9))
+        header_layout = self.header.layout()
+        header_layout.removeWidget(self.lbl_title)
+        title_block = QWidget(self.header)
+        title_block_layout = QVBoxLayout(title_block)
+        title_block_layout.setContentsMargins(0, 0, 0, 0)
+        title_block_layout.setSpacing(1)
+        title_row = QHBoxLayout()
+        title_row.setContentsMargins(0, 0, 0, 0)
+        title_row.setSpacing(10)
+        title_row.addWidget(self.lbl_title)
+        system_badge = QLabel("SISTEM PARAMETRELERI")
+        system_badge.setStyleSheet("color: #38BDF8; background: #10243A; border: 1px solid #1E3A5F; border-radius: 4px; padding: 3px 7px; font-size: 8px; font-weight: 700;")
+        title_row.addWidget(system_badge)
+        title_row.addStretch(1)
+        title_block_layout.addLayout(title_row)
+        subtitle = QLabel("Kurumsal kimlik, yazdirma donanimi, baglanti tercihleri ve mali parametreleri yonetin.")
+        subtitle.setStyleSheet("color: #94A3B8; font-size: 8px;")
+        title_block_layout.addWidget(subtitle)
+        header_layout.insertWidget(2, title_block, 1)
         self.db = db
         self.main_window = main_window
         self.set_wheel_scroll_enabled(True)
@@ -33,21 +53,38 @@ class CompanySettingsDialog(BaseModernDialog):
         self.load_data()
 
     def setup_ui(self):
-        title = QLabel("Firma Ayarlarını Gir")
-        title.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
-        title.setStyleSheet(theme_qss("color: @text; margin-bottom: 10px;"))
-        self.content_layout.addWidget(title)
-
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         content_widget = QWidget()
-        form_layout = QGridLayout(content_widget)
-        form_layout.setSpacing(20)
+        content_layout = QVBoxLayout(content_widget)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(6)
+        section_heading = QWidget()
+        section_heading_layout = QHBoxLayout(section_heading)
+        section_heading_layout.setContentsMargins(0, 0, 0, 5)
+        section_title = QLabel("TEMEL F\u0130RMA B\u0130LG\u0130LER\u0130 & SOSYAL MEDYA")
+        section_title.setFont(QFont("Segoe UI", 8, QFont.Weight.Bold))
+        section_note = QLabel("G\u00f6r\u00fcnt\u00fclenen Ekran: IMAGE_9")
+        section_note.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        section_note.setStyleSheet(theme_qss("color: @text_muted; font-size: 8px;"))
+        section_heading_layout.addWidget(section_title)
+        section_heading_layout.addStretch(1)
+        section_heading_layout.addWidget(section_note)
+        content_layout.addWidget(section_heading)
+        form_widget = QWidget()
+        form_layout = QGridLayout(form_widget)
+        form_layout.setContentsMargins(12, 4, 12, 8)
+        form_layout.setHorizontalSpacing(14)
+        form_layout.setVerticalSpacing(4)
 
         def add_field(label, row, col, widget):
             lbl = QLabel(label)
-            lbl.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
+            lbl.setFont(QFont("Segoe UI", 8, QFont.Weight.Bold))
+            if isinstance(widget, (QLineEdit, QComboBox)):
+                widget.setFixedHeight(28)
+                widget.setProperty("skipThemeTransform", True)
+                widget.setStyleSheet("QLineEdit, QComboBox { background: #FFFFFF; color: #243248; border: 1px solid #CBD5E1; border-radius: 5px; padding: 5px 7px; selection-background-color: #2563EB; selection-color: #FFFFFF; } QLineEdit:focus, QComboBox:focus { border: 1px solid #2563EB; }")
             form_layout.addWidget(lbl, row, col)
             form_layout.addWidget(widget, row + 1, col)
 
@@ -178,27 +215,129 @@ class CompanySettingsDialog(BaseModernDialog):
         self.inp_tax_number = QLineEdit()
         add_field("Vergi Numaras\u0131", 34, 0, self.inp_tax_number)
 
-        content_widget.setLayout(form_layout)
-        scroll.setWidget(content_widget)
-        content_widget.setStyleSheet(theme_qss("""
+        field_style = theme_qss("""
             QWidget { background-color: @surface; }
             QLabel { color: @text; }
+            QFrame#ModernDialogCard QLineEdit,
+            QFrame#ModernDialogCard QTextEdit,
+            QFrame#ModernDialogCard QComboBox,
             QLineEdit, QTextEdit, QComboBox {
-                border: 1px solid @border;
-                border-radius: 6px;
-                padding: 8px;
-                background-color: @surface_alt;
-                color: @text;
-                selection-background-color: @selection_bg;
-                selection-color: @selection_text;
+                border: 1px solid #CBD5E1;
+                border-radius: 5px;
+                padding: 6px 8px;
+                background-color: #FFFFFF;
+                color: #243248;
+                selection-background-color: #2563EB;
+                selection-color: #FFFFFF;
             }
             QLineEdit:focus, QTextEdit:focus, QComboBox:focus {
-                border: 1px solid @accent;
+                border: 1px solid #2563EB;
             }
-        """))
-        self.content_layout.addWidget(scroll, 1)
-        self.add_cancel_button("İptal")
-        self.add_button("GUNCELLE", "success", lambda: self.save_data(close_dialog=True))
+        """)
+        content_layout.addWidget(form_widget)
+        content_widget.setStyleSheet(field_style)
+        scroll.setWidget(content_widget)
+
+        tabs = QTabWidget()
+        tabs.setObjectName("companySettingsTabs")
+        tabs.setMaximumHeight(412)
+        tabs.setStyleSheet(theme_qss(
+            "QTabWidget::pane { border: 1px solid @border; border-radius: 8px; background: @surface; } "
+            "QTabBar::tab { padding: 9px 14px; background: @surface_alt; color: @text_muted; border: 1px solid @border; margin-right: 3px; } "
+            "QTabBar::tab:selected { color: @accent; background: @surface; border-bottom: 2px solid @accent; font-weight: 700; }"
+        ))
+        self.settings_tabs = tabs
+        tab_titles = (
+            ("Genel & \u0130leti\u015fim", 0, 12),
+            ("Sistem, Tema & Para Birimi", 12, 18),
+            ("Yaz\u0131c\u0131 & Belge D\u00fczeni", 18, 24),
+            ("Adres, Vergi & S\u00f6zle\u015fmeler", 24, 40),
+        )
+        tab_layouts = []
+        for index, (tab_title, _start, _end) in enumerate(tab_titles):
+            if index == 0:
+                tab_scroll = scroll
+                tab_grid = form_layout
+            else:
+                tab_scroll = QScrollArea()
+                tab_scroll.setWidgetResizable(True)
+                tab_scroll.setFrameShape(QFrame.Shape.NoFrame)
+                tab_content = QWidget()
+                tab_content.setStyleSheet(field_style)
+                tab_grid = QGridLayout(tab_content)
+                tab_grid.setContentsMargins(12, 8, 12, 8)
+                tab_grid.setHorizontalSpacing(14)
+                tab_grid.setVerticalSpacing(4)
+                tab_grid.setColumnStretch(0, 1)
+                tab_grid.setColumnStretch(1, 1)
+                tab_scroll.setWidget(tab_content)
+            tab_layouts.append(tab_grid)
+            tabs.addTab(tab_scroll, tab_title)
+
+        items_by_tab = [[], [], [], []]
+        while form_layout.count():
+            row, col, row_span, col_span = form_layout.getItemPosition(0)
+            item = form_layout.takeAt(0)
+            widget = item.widget()
+            if widget is None:
+                continue
+            if row < 12:
+                tab_index, row_offset = 0, 0
+            elif row < 18:
+                tab_index, row_offset = 1, 12
+            elif row < 24:
+                tab_index, row_offset = 2, 18
+            else:
+                tab_index, row_offset = 3, 24
+            items_by_tab[tab_index].append(
+                (widget, row - row_offset, col, row_span, col_span)
+            )
+
+        for tab_layout, items in zip(tab_layouts, items_by_tab):
+            field_row = 0
+            field_col = 0
+            index = 0
+            while index < len(items):
+                widget = items[index][0]
+                if not isinstance(widget, QLabel) or index + 1 >= len(items):
+                    tab_layout.addWidget(widget, field_row, field_col)
+                    index += 1
+                    continue
+                control = items[index + 1][0]
+                is_long_field = isinstance(control, QTextEdit)
+                span = 2 if is_long_field else 1
+                tab_layout.addWidget(widget, field_row, field_col, 1, span)
+                tab_layout.addWidget(
+                    control,
+                    field_row + 1,
+                    field_col,
+                    1,
+                    span,
+                )
+                if is_long_field:
+                    field_row += 2
+                    field_col = 0
+                elif field_col:
+                    field_row += 2
+                    field_col = 0
+                else:
+                    field_col = 1
+                index += 2
+
+        self.content_layout.setContentsMargins(12, 0, 16, 8)
+        self.content_layout.setSpacing(8)
+        self.content_layout.addWidget(tabs, 1)
+        cancel_button = self.add_cancel_button("\u0130ptal")
+        save_button = self.add_button("G\u00dcNCELLE", "success", lambda: self.save_data(close_dialog=True))
+        self.footer_layout.insertStretch(0, 1)
+        cancel_button.setFixedSize(96, 36)
+        save_button.setFixedSize(132, 36)
+        self.footer.setFixedHeight(56)
+        self.card.setProperty("skipThemeTransform", True)
+        self.card.setStyleSheet(self.card.styleSheet() + "QFrame#ModernDialogCard QLineEdit, QFrame#ModernDialogCard QComboBox { background: #FFFFFF; color: #243248; border: 1px solid #CBD5E1; border-radius: 5px; padding: 5px 7px; } QFrame#ModernDialogCard QLineEdit:focus, QFrame#ModernDialogCard QComboBox:focus { border-color: #2563EB; }")
+        self.card.setProperty("skipThemeTransform", False)
+
+    def _wire_ui_signals(self): QLineEdit, QFrame#ModernDialogCard QComboBox { background: #FFFFFF; color: #243248; border: 1px solid #CBD5E1; border-radius: 5px; padding: 5px 7px; } QFrame#ModernDialogCard QLineEdit:focus, QFrame#ModernDialogCard QComboBox:focus { border-color: #2563EB; }"))
 
     def _wire_ui_signals(self):
         self.cmb_theme.currentIndexChanged.connect(self._preview_theme)
@@ -210,7 +349,7 @@ class CompanySettingsDialog(BaseModernDialog):
         selected = ThemeManager.normalize_theme_name(self.cmb_theme.currentText())
         current = ThemeManager.normalize_theme_name(
             getattr(self.main_window, "_current_theme_name", "")
-            or self.db.get_setting("color_theme_full", "AYEC")
+            or self.db.get_setting("color_theme_full", "Koyu Mavi")
         )
         if selected == current:
             return
@@ -258,6 +397,15 @@ class CompanySettingsDialog(BaseModernDialog):
             return
 
     def load_data(self):
+        blockers = [
+            QSignalBlocker(control)
+            for control in (
+                self.cmb_theme,
+                self.cmb_currency,
+                self.cmb_currency_precision,
+                self.cmb_online_payment,
+            )
+        ]
         self._migrate_setup_company_info()
         self.inp_name.setText(self.db.get_setting("company_name", ""))
         self.inp_email.setText(self.db.get_setting("company_email", ""))
@@ -321,6 +469,7 @@ class CompanySettingsDialog(BaseModernDialog):
         # Online \u00f6deme durumunu y\u00fckle
         online_payment = self.db.get_setting("online_payment_active", "1")
         self.cmb_online_payment.setCurrentIndex(0 if online_payment == "1" else 1)
+        del blockers
 
     def _refresh_main_window_branding(self):
         if not self.main_window:

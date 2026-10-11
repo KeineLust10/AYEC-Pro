@@ -172,7 +172,7 @@ class SmartHomeProductPoolDialog(ModernDialog):
 
     def _row_quantity_spin(self, row_index):
         holder = self.tbl_products.cellWidget(row_index, 8)
-        return holder.findChild(InlineNumberStepper, "productPoolRowQty") if holder is not None else None
+        return holder.findChild(QSpinBox, "productPoolRowQty") if holder is not None else None
 
     def refresh_table(self):
         self.parent_page._refresh_product_table(self.inp_search.text().strip().lower())
@@ -204,7 +204,8 @@ class SmartHomeProductPoolDialog(ModernDialog):
                     elif c in (5, 6, 7):
                         item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                     self.tbl_products.setItem(r, c, item)
-                qty_spin = InlineNumberStepper(value=int(self.spn_qty.value() or 1), decimals=0)
+                qty_spin = QSpinBox()
+                qty_spin.setValue(int(self.spn_qty.value() or 1))
                 qty_spin.setObjectName("productPoolRowQty")
                 qty_spin.setRange(1, 9999)
                 qty_spin.setMinimumHeight(32)

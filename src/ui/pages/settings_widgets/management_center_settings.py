@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import (
 from src.utils.desktop_web_sync import configured_sync_url
 from src.utils.role_utils import is_admin_role
 from src.utils.theme_colors import theme_qss
+from src.utils.design_system import DesignTokens
 
 
 class ManagementCenterSettingsWidget(QWidget):
@@ -46,7 +47,7 @@ class ManagementCenterSettingsWidget(QWidget):
         root.setSpacing(18)
 
         title = QLabel("Y\u00f6netim Merkezi")
-        title.setFont(QFont("Segoe UI", 22, QFont.Weight.Bold))
+        title.setFont(QFont(DesignTokens.FONT_NAME, 22, QFont.Weight.Bold))
         root.addWidget(title)
 
         description = QLabel(
@@ -75,7 +76,7 @@ class ManagementCenterSettingsWidget(QWidget):
         panel_layout.setSpacing(14)
 
         scope_title = QLabel("Yetki Kapsam\u0131")
-        scope_title.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
+        scope_title.setFont(QFont(DesignTokens.FONT_NAME, 12, QFont.Weight.Bold))
         panel_layout.addWidget(scope_title)
 
         if self._is_platform_owner():
@@ -92,7 +93,7 @@ class ManagementCenterSettingsWidget(QWidget):
         panel_layout.addWidget(address)
 
         service_title = QLabel("Masa\u00fcst\u00fc Arka Plan Servisleri")
-        service_title.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
+        service_title.setFont(QFont(DesignTokens.FONT_NAME, 12, QFont.Weight.Bold))
         panel_layout.addWidget(service_title)
 
         self.chk_auto_sync = QCheckBox(

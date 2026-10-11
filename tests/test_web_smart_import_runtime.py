@@ -13,6 +13,20 @@ def test_web_smart_import_runtime_resolves_shared_parser():
     assert status["smart_import"] is True
     assert status["packaged_source"] is True
     assert Path(status["packaged_source_root"]).is_dir()
+    assert str(Path(status["packaged_source_root"]) / "ecosystem" / "src") in sys.path
+
+
+def test_web_source_resolves_shared_parser_without_installed_core_package(tmp_path):
+    script = (
+        "from pathlib import Path; from Web_Arayuzu import Main; "
+        "Main.ensure_packaged_source(); import ayec_core; "
+        "assert Path(ayec_core.__file__).resolve().is_relative_to("
+        "Path('ecosystem/src').resolve())"
+    )
+    env = dict(os.environ)
+    env.pop("PYTHONPATH", None)
+    subprocess.run([sys.executable, "-c", script], cwd=Path.cwd(), env=env,
+                   capture_output=True, text=True, check=True, timeout=45)
 
 
 def test_web_smart_import_parses_csv_rows():
@@ -27,6 +41,55 @@ def test_web_smart_import_parses_csv_rows():
     first = result["rows"][0]
     assert first["brand"] == "IP"
     assert first["name"] == "Kamera"
+
+
+def test_web_smart_import_reads_pdf_text_and_dispatches_image_ocr(monkeypatch):
+    from io import BytesIO
+    from reportlab.pdfgen import canvas
+    from PIL import Image
+    from src.utils.stock_import_parser import StockImportParser
+
+    pdf_data = BytesIO()
+    document = canvas.Canvas(pdf_data)
+    document.drawString(40, 760, "CAM-42 Wireless Camera")
+    document.save()
+    pdf_result = web_main.smart_import("inventory.pdf", pdf_data.getvalue())
+    assert any("CAM-42 Wireless Camera" in row.get("name", "") for row in pdf_result["rows"])
+
+    monkeypatch.setattr(StockImportParser, "_ocr_image_to_text", staticmethod(lambda _image: "CAM-43;Outdoor Camera;1;20;35"))
+    monkeypatch.setattr(
+        StockImportParser,
+        "parse_file",
+        classmethod(lambda _cls, _path: {"rows": [], "metadata": {}, "warnings": []}),
+    )
+    image_data = BytesIO()
+    Image.new("RGB", (32, 32), "white").save(image_data, format="PNG")
+    image_result = web_main.smart_import("inventory.png", image_data.getvalue())
+    assert image_result["text"] == "CAM-43;Outdoor Camera;1;20;35"
+
+
+def test_web_venv_easyocr_recognizes_a_sample_image():
+    root = Path.cwd()
+    venv_python = root / "Web_Arayuzu" / ".venv" / "Scripts" / "python.exe"
+    model_dir = Path.home() / ".EasyOCR" / "model"
+    if not venv_python.is_file() or not (model_dir / "craft_mlt_25k.pth").is_file():
+        import pytest
+        pytest.skip("Web virtual environment or cached EasyOCR models are unavailable")
+
+    script = (
+        "import os, sys; from PIL import Image, ImageDraw, ImageFont; "
+        f"os.environ['EASYOCR_MODULE_PATH'] = {str(model_dir.parent)!r}; "
+        f"sys.path.insert(0, {str(root / 'ecosystem' / 'src')!r}); "
+        "from ayec_core.smart_import import StockImportParser; "
+        "image = Image.new('RGB', (1000, 180), 'white'); "
+        "draw = ImageDraw.Draw(image); "
+        "draw.text((24, 42), 'CAM-42 Wireless Camera 123', fill='black', "
+        "font=ImageFont.truetype('arial.ttf', 62)); "
+        "text = StockImportParser._ocr_image_to_text(image); "
+        "assert 'CAM-42' in text.upper() or 'CAM42' in text.upper(), repr(text)"
+    )
+    subprocess.run([str(venv_python), "-c", script], cwd=root, check=True,
+                   capture_output=True, text=True, timeout=180)
 
 
 def test_web_release_contains_smart_import_engine(tmp_path):

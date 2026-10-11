@@ -5,6 +5,7 @@
 
 # Python caches and local environments
 __pycache__/
+src/ui/widgets/tomtom_vector_map/node_modules/
 *.py[cod]
 *$py.class
 .venv/

@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 
-from PyQt6.QtWidgets import QLineEdit, QComboBox, QCompleter, QHBoxLayout, QLabel, QToolButton, QWidget
+from PyQt6.QtWidgets import QLineEdit, QComboBox, QCompleter, QHBoxLayout, QLabel, QToolButton, QWidget, QStyleOptionComboBox, QStyle
 from PyQt6.QtCore import Qt, pyqtSignal, QEvent, QTimer
-from PyQt6.QtGui import QDoubleValidator
+from PyQt6.QtGui import QDoubleValidator, QPainter, QPen, QPalette
 from src.utils.design_system import DesignTokens
 from src.utils.theme_colors import theme_qss
 
@@ -56,6 +56,33 @@ class InlineNumberStepper(QWidget):
         self.decrease.clicked.connect(lambda: self._adjust(-1))
         self.increase.clicked.connect(lambda: self._adjust(1))
         self.spn_counted.textChanged.connect(self._emit_value_changed)
+
+    def set_reference_style(self):
+        self.setObjectName('ReferenceNumberStepper')
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setFixedHeight(38)
+        self.setStyleSheet(theme_qss(
+            'QWidget#ReferenceNumberStepper { background: @finance_surface_lowest; '
+            'border: 1px solid @finance_outline; border-radius: 4px; }'
+        ))
+        self.spn_counted.setMinimumWidth(36)
+        self.spn_counted.setMaximumWidth(16777215)
+        self.spn_counted.setFixedHeight(36)
+        self.spn_counted.setStyleSheet(theme_qss(
+            'QLineEdit { background: @finance_surface_lowest; color: @finance_text; '
+            'border: none; border-radius: 0; padding: 0 2px; '
+            'font-size: 12px; font-weight: 700; min-height: 36px; }'
+        ))
+        self.layout().setSpacing(0)
+        self.layout().setStretch(1, 1)
+        for button in (self.decrease, self.increase):
+            button.setFixedSize(28, 36)
+            button.setStyleSheet(theme_qss(
+                'QToolButton { background: @finance_surface_high; color: @finance_text; '
+                'border: 1px solid @finance_outline; border-radius: 4px; font-size: 15px; '
+                'padding: 0; min-height: 34px; } '
+                'QToolButton:hover { background: @finance_primary; color: @finance_primary_text; }'
+            ))
 
     @staticmethod
     def _create_button(label):
@@ -159,6 +186,36 @@ class ValidatedLineEdit(QLineEdit):
 
 
 class ModernComboBox(QComboBox):
+    def set_reference_chevron(self):
+        """Replace unsupported CSS border triangles with a native chevron."""
+        if self.property("referenceChevron"):
+            return
+        self.setProperty("referenceChevron", True)
+        self.setStyleSheet(self.styleSheet() + theme_qss(
+            "QComboBox[referenceChevron=\"true\"] { padding-right: 28px; }"
+            "QComboBox[referenceChevron=\"true\"]::drop-down { width: 24px; background: transparent; border: none; }"
+            "QComboBox[referenceChevron=\"true\"]::down-arrow { image: none; width: 0; height: 0; border: none; margin: 0; }"))
+        self.update()
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        if not self.property("referenceChevron"):
+            return
+        option = QStyleOptionComboBox()
+        self.initStyleOption(option)
+        arrow = self.style().subControlRect(
+            QStyle.ComplexControl.CC_ComboBox, option,
+            QStyle.SubControl.SC_ComboBoxArrow, self)
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        group = QPalette.ColorGroup.Active if self.isEnabled() else QPalette.ColorGroup.Disabled
+        pen = QPen(self.palette().color(group, QPalette.ColorRole.Text), 1.4)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        painter.setPen(pen)
+        x, y = arrow.center().x(), arrow.center().y()
+        painter.drawLine(x - 3, y - 1, x, y + 2)
+        painter.drawLine(x, y + 2, x + 3, y - 1)
+
     def __init__(self, parent=None, items=None, editable=False):
         super().__init__(parent)
         self._popup_pending = False

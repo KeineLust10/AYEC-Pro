@@ -32,8 +32,8 @@ class DashboardDialogMixin:
                 from src.ui.dialogs.automotive_new_service_dialog import AutomotiveNewServiceDialog as dialog_cls
                 dlg = dialog_cls(self.db, self, sector_manager=sector_manager)
             else:
-                from src.ui.dialogs.add_device_dialog import AddDeviceDialog
-                dlg = AddDeviceDialog(self.db, self)
+                from src.ui.dialogs.technical_service_new_service_dialog import TechnicalServiceNewServiceDialog as dialog_cls
+                dlg = dialog_cls(self.db, self, sector_manager=sector_manager)
             if dlg.exec():
                 self.refresh_data()
                 self.notify("Yeni servis kaydı oluşturuldu.", "success")

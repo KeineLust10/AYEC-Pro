@@ -13,11 +13,13 @@ class StockImportMixin:
         "document": {".xlsx", ".xls", ".csv", ".xml", ".docx"},
     }
 
-    def open_smart_stock_import(self):
+    def open_smart_stock_import(self, initial_mode=""):
         try:
             from src.ui.dialogs.stock_smart_import_dialog import StockSmartImportDialog
 
-            path, import_mode = StockSmartImportDialog.get_import_request(self)
+            path, import_mode = StockSmartImportDialog.get_import_request(
+                self, initial_mode=initial_mode
+            )
             if not path:
                 return
 

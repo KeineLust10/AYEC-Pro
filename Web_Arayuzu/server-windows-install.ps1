@@ -106,6 +106,13 @@ if (-not (Test-Path -LiteralPath $VenvPython)) {
 }
 & $VenvPython -m pip install --disable-pip-version-check -r (Join-Path $ProjectPath $RequirementsFile)
 if ($LASTEXITCODE -ne 0) { throw "AYEC Python çalışma zamanı kurulamadı." }
+if ($RequirementsFile -ne "requirements.txt") {
+    $env:EASYOCR_MODULE_PATH = Join-Path $ProjectPath "ocr-models\EasyOCR"
+    & $VenvPython (Join-Path $ProjectPath "tools\prepare_ocr_models.py") --module-path $env:EASYOCR_MODULE_PATH
+    if ($LASTEXITCODE -ne 0) { throw "EasyOCR model preparation failed." }
+    & $VenvPython (Join-Path $ProjectPath "tools\verify_runtime.py") --require-ocr
+    if ($LASTEXITCODE -ne 0) { throw "OCR runtime verification failed." }
+}
 
 $Database = Join-Path $ProjectPath "data\ayecpro.db"
 if (-not (Test-Path -LiteralPath $Database)) {

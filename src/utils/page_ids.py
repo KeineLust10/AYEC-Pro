@@ -33,6 +33,7 @@ class PageIds:
     # ── Müşteri & Finans ───────────────────────────────────────────────────
     CUSTOMER_LIST     = 21
     ADD_CUSTOMER      = 22
+    FINANCIAL_DASHBOARD = 100
     INCOME_EXPENSE    = 101
     BANK_ACCOUNTS     = 105
     CHECK_BOND        = 106

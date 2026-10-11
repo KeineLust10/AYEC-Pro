@@ -35,7 +35,10 @@ class MailWorker(QThread):
         self.smtp_port = int(os.getenv("AYECPRO_SMTP_PORT", str(OFFICIAL_SMTP_PORT)))
         # Never ship a preselected sender identity; SMTP must be configured
         # explicitly through environment variables or application settings.
-        self.system_email = os.getenv("AYECPRO_SMTP_EMAIL", "")
+        configured_email = os.getenv("AYECPRO_SMTP_EMAIL", "")
+        # License requests retain the public support sender identity; all
+        # other mail flows require an explicit sender configuration.
+        self.system_email = configured_email or (OFFICIAL_EMAIL if recipient == "ayecpro@gmail.com" else "")
         self.app_password = os.getenv("AYECPRO_SMTP_APP_PASSWORD", "")
         self.use_tls = True
         
@@ -67,7 +70,8 @@ class MailWorker(QThread):
                 fallback = EmailManager(self.db)
                 self.smtp_server = fallback.smtp_server
                 self.smtp_port = fallback.smtp_port
-                self.system_email = fallback.smtp_user
+                if fallback.smtp_user:
+                    self.system_email = fallback.smtp_user
                 self.app_password = fallback.smtp_pass
                 self.use_tls = fallback.use_tls
             except Exception:

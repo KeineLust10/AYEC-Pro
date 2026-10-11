@@ -5,6 +5,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout
 from PyQt6.QtCore import QEvent, QPropertyAnimation, QEasingCurve
 
 from src.ui.widgets.side_menu import SideMenu
+from src.utils.appearance_mode import AppearanceModeManager
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +45,8 @@ class AppSidebar(QWidget):
         if hasattr(self.side_menu, "set_collapsed"):
             pinned = bool(getattr(self.side_menu, "_is_pinned", True))
             self.side_menu.set_collapsed(not pinned, animate=False)
-            self._sync_width(SideMenu.EXPANDED_WIDTH if pinned else SideMenu.COLLAPSED_WIDTH)
+            expanded_width = self.side_menu.expanded_width_for_window()
+            self._sync_width(expanded_width if pinned else SideMenu.COLLAPSED_WIDTH)
         else:
             self._sync_width(SideMenu.EXPANDED_WIDTH)
 
@@ -52,7 +54,14 @@ class AppSidebar(QWidget):
         """Menüyü daraltır veya genişletir."""
         self._is_collapsed = not self._is_collapsed
         width = self.width()
-        new_width = SideMenu.COLLAPSED_WIDTH if self._is_collapsed else SideMenu.EXPANDED_WIDTH
+        expanded_width = self.side_menu.expanded_width_for_window()
+        new_width = SideMenu.COLLAPSED_WIDTH if self._is_collapsed else expanded_width
+
+        if AppearanceModeManager.is_classic(self.db):
+            self._sync_width(new_width)
+            if hasattr(self.side_menu, "set_collapsed"):
+                self.side_menu.set_collapsed(self._is_collapsed, animate=False)
+            return
 
         self.anim = QPropertyAnimation(self, b"minimumWidth")
         self.anim.setDuration(300)
@@ -90,8 +99,17 @@ class AppSidebar(QWidget):
         self.setVisible(True)
         if hasattr(self, "side_menu"):
             self.side_menu.setVisible(True)
-        width = SideMenu.COLLAPSED_WIDTH if self._is_collapsed else SideMenu.EXPANDED_WIDTH
+        expanded_width = self.side_menu.expanded_width_for_window()
+        width = SideMenu.COLLAPSED_WIDTH if self._is_collapsed else expanded_width
         self._sync_width(width)
+
+    def apply_responsive_width(self):
+        if self._is_collapsed or self._nav_hidden or not hasattr(self, "side_menu"):
+            return
+        target_width = self.side_menu.expanded_width_for_window()
+        if self.width() != target_width:
+            self.side_menu.set_collapsed(False, animate=False)
+            self._sync_width(target_width)
 
     def _sync_width(self, width):
         if getattr(self, "_nav_hidden", False):

@@ -1,0 +1,18 @@
+[
+  {
+    "path": "src/ui/pages/offer_pages.py",
+    "risk_percent": 90,
+    "category": "Risk/Hata Var",
+    "code_type": "QTableWidget builder",
+    "reason": "Directly responsible for the requested offer table.",
+    "review_ranges": ["58-88", "185-435", "253-279", "349-435"]
+  },
+  {
+    "path": "src/ui/pages/service_board_page.py",
+    "risk_percent": 75,
+    "category": "Risk dusuk",
+    "code_type": "Bulk table",
+    "reason": "Contains a bulk table which may share style assumptions.",
+    "review_ranges": ["1209-1244"]
+  }
+]

@@ -31,8 +31,8 @@ class RemoteSettingsWidget(QWidget):
         self.db = db
         self.main_window = main_window
         self.setup_ui()
-        self._wire_ui_signals()
         self.load_data()
+        self._wire_ui_signals()
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
@@ -40,7 +40,7 @@ class RemoteSettingsWidget(QWidget):
         layout.setSpacing(20)
 
         title = QLabel("Uzak Masaüstü (AYEC Pro) Ayarları")
-        title.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
+        title.setFont(QFont(DesignTokens.FONT_NAME, 16, QFont.Weight.Bold))
         title.setStyleSheet(theme_qss("color: @text; margin-bottom: 10px;"))
         layout.addWidget(title)
 

@@ -27,8 +27,8 @@ class FakeDb:
 
 def test_accounting_dashboard_header_uses_theme_contrast_tokens():
     source = Path("src/ui/pages/accounting_page.py").read_text(encoding="utf-8")
-    assert '"background: @surface_alt; border-radius: 18px;' in source
-    assert 'color: @text; border: none; background: transparent;' in source
+    assert '"background: @finance_surface; border-radius: 4px;' in source
+    assert 'color:@finance_text;border:none;background:transparent;' in source
 
 
 def test_stock_detail_uses_line_total_and_currency():

@@ -3,18 +3,21 @@
 # VoiceAssistantShortcutsWidget - Separate file for shortcuts
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, 
                              QPushButton, QFrame, QComboBox, QTableView, QAbstractItemView, 
-                             QHeaderView, QSizePolicy, QDialog, QFormLayout, QMenu, QTextEdit)
-from PyQt6.QtCore import Qt, QSortFilterProxyModel, QPoint, QTimer
-from PyQt6.QtGui import QFont, QStandardItemModel, QStandardItem, QAction, QCursor
+                             QHeaderView, QSizePolicy, QDialog, QFormLayout, QMenu, QTextEdit,
+                             QStyledItemDelegate, QStyleOptionViewItem)
+from PyQt6.QtCore import Qt, QSortFilterProxyModel, QPoint, QTimer, QRectF
+from PyQt6.QtGui import QStandardItemModel, QStandardItem, QAction, QCursor, QPainter
 import os
 import json
 
-from src.utils.theme_colors import theme_qss
+from src.utils.theme_colors import theme_qss, qc
 from src.utils.toast_notification import show_success, show_error
 from src.utils.design_system import DesignTokens
 from src.utils.path_helper import PathHelper
 from src.utils.logger import logger
 from src.utils.context_menu_settings import is_context_menu_enabled
+from src.ui.widgets.modern_dialog import ModernDialog
+from src.utils.user_permission_catalog import USER_PERMISSION_SECTIONS
 
 
 class AutoPopupComboBox(QComboBox):
@@ -28,66 +31,12 @@ class AutoPopupComboBox(QComboBox):
             QTimer.singleShot(0, self.showPopup)
 
 
-class ShortcutEditDialog(QDialog):
-    """Premium frameless dialog for editing shortcuts"""
+class ShortcutEditDialog(ModernDialog):
+    """Native shortcut editor with shared persistent actions."""
     def __init__(self, shortcut_name="", triggers="", action_type="", action="", parent=None):
-        super().__init__(parent)
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        super().__init__("Kestirme D\u00fczenle" if shortcut_name else "Yeni Kestirme", parent, width=620, height=420)
         self.setModal(True)
-        self.setMinimumWidth(600)
-        self.setMinimumHeight(400)
-        
-        # Main container with shadow
-        main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(10, 10, 10, 10)
-        
-        # Content frame (rounded)
-        content = QFrame()
-        content.setObjectName("contentFrame")
-        content.setStyleSheet(theme_qss("""
-            QFrame#contentFrame {
-                background: @surface;
-                border-radius: 16px;
-                border: 1px solid @border;
-            }
-        """))
-        
-        content_layout = QVBoxLayout(content)
-        content_layout.setContentsMargins(24, 20, 24, 20)
-        content_layout.setSpacing(20)
-        
-        # Title bar with close
-        title_bar = QFrame()
-        title_bar.setStyleSheet(theme_qss("background: transparent; border: none;"))
-        title_layout = QHBoxLayout(title_bar)
-        title_layout.setContentsMargins(0, 0, 0, 0)
-        
-        title_label = QLabel("✏️ Kestirme Düzenle")
-        title_label.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
-        title_label.setStyleSheet(theme_qss("color: @text;"))
-        title_layout.addWidget(title_label)
-        title_layout.addStretch()
-        
-        close_btn = QPushButton("✕")
-        close_btn.setFixedSize(32, 32)
-        close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        close_btn.setStyleSheet(theme_qss("""
-            QPushButton {
-                background: transparent;
-                border: none;
-                color: @text_muted;
-                font-size: 18px;
-                border-radius: 6px;
-            }
-            QPushButton:hover {
-                background: @surface_alt;
-                color: @text;
-            }
-        """))
-        close_btn.clicked.connect(self.reject)
-        title_layout.addWidget(close_btn)
-        content_layout.addWidget(title_bar)
+        content_layout = self.content_layout
         
         # Form
         form = QFormLayout()
@@ -97,24 +46,24 @@ class ShortcutEditDialog(QDialog):
         # Shortcut Name
         self.inp_name = QLineEdit(shortcut_name)
         self.inp_name.setStyleSheet(theme_qss(DesignTokens.get_input_qss()))
-        self.inp_name.setPlaceholderText("örn: stok_sorgu")
-        form.addRow("Kestirme Adı:", self.inp_name)
+        self.inp_name.setPlaceholderText("\u00f6rn: stok_sorgu")
+        form.addRow("Kestirme Ad\u0131:", self.inp_name)
         
         # Triggers
         self.inp_triggers = QTextEdit()
         self.inp_triggers.setPlainText(triggers)
         self.inp_triggers.setMaximumHeight(100)
         self.inp_triggers.setStyleSheet(theme_qss(DesignTokens.get_input_qss()))
-        self.inp_triggers.setPlaceholderText("stoklar, stok, stoğa bak, envanter (virgülle ayırın)")
+        self.inp_triggers.setPlaceholderText("stoklar, stok, sto\u011fa bak, envanter (virg\u00fclle ay\u0131r\u0131n)")
         form.addRow("Tetikleyici Komutlar:", self.inp_triggers)
         
         # Action Type
         self.cmb_type = QComboBox()
         self.cmb_type.addItems(["Sayfa", "Fonksiyon", "Aksiyon"])
-        self.cmb_type.setCurrentText(action_type if action_type != "Bağlantı Yok" else "Sayfa")
+        self.cmb_type.setCurrentText(action_type if action_type != "Ba\u011flant\u0131 Yok" else "Sayfa")
         self.cmb_type.setStyleSheet(theme_qss(DesignTokens.get_input_qss()))
         self.cmb_type.currentTextChanged.connect(self._update_action_options)
-        form.addRow("İşlem Türü:", self.cmb_type)
+        form.addRow("\u0130\u015flem T\u00fcr\u00fc:", self.cmb_type)
         
         # Action - Auto-popup ComboBox
         self.cmb_action = AutoPopupComboBox()
@@ -130,30 +79,8 @@ class ShortcutEditDialog(QDialog):
         content_layout.addLayout(form)
         content_layout.addStretch()
         
-        # Buttons
-        btn_layout = QHBoxLayout()
-        btn_layout.setSpacing(12)
-        btn_layout.addStretch()
-        
-        btn_cancel = QPushButton("İptal")
-        btn_cancel.setFixedWidth(100)
-        btn_cancel.setStyleSheet(theme_qss(DesignTokens.get_button_qss("secondary", size="md")))
-        btn_cancel.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_cancel.clicked.connect(self.reject)
-        btn_layout.addWidget(btn_cancel)
-        
-        btn_save = QPushButton("💾 Kaydet")
-        btn_save.setFixedWidth(120)
-        btn_save.setStyleSheet(theme_qss(DesignTokens.get_button_qss("primary", size="md")))
-        btn_save.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_save.clicked.connect(self.accept)
-        btn_layout.addWidget(btn_save)
-        
-        content_layout.addLayout(btn_layout)
-        main_layout.addWidget(content)
-        
-        # Allow dragging
-        self.drag_pos = None
+        self.cancel_button = self.add_button("\u0130ptal", "secondary", self.reject)
+        self.save_button = self.add_button("Kaydet", "primary", self.accept)
     
     def _update_action_options(self, action_type):
         """Update action combobox options based on selected type"""
@@ -161,14 +88,8 @@ class ShortcutEditDialog(QDialog):
         
         if action_type == "Sayfa":
             pages = [
-                "10 - Ana Sayfa",
-                "20 - Servis Yönetimi",
-                "30 - Müşteriler",
-                "40 - Stok Yönetimi",
-                "50 - Satış",
-                "60 - Raporlar",
-                "70 - Finans",
-                "80 - Ayarlar",
+                f"{page_id} - {label}" for _section, entries in USER_PERMISSION_SECTIONS
+                for page_id, label in entries
             ]
             self.cmb_action.addItems(pages)
             self.cmb_action.setCurrentText("")
@@ -184,16 +105,6 @@ class ShortcutEditDialog(QDialog):
             self.cmb_action.addItems(functions)
         else:
             self.cmb_action.addItems(["Özel Aksiyon"])
-    
-    def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            self.drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
-        super().mousePressEvent(event)
-    
-    def mouseMoveEvent(self, event):
-        if event.buttons() == Qt.MouseButton.LeftButton and self.drag_pos:
-            self.move(event.globalPosition().toPoint() - self.drag_pos)
-        super().mouseMoveEvent(event)
     
     def get_data(self):
         action_value = self.cmb_action.currentText()
@@ -243,59 +154,156 @@ class ShortcutFilterProxy(QSortFilterProxyModel):
         return True
 
 
+class ShortcutBadgeDelegate(QStyledItemDelegate):
+    """Paint compact badges without changing model data or native selection."""
+
+    def initStyleOption(self, option, index):
+        super().initStyleOption(option, index)
+        if index.column() in (2, 4):
+            option.text = ""
+
+    def paint(self, painter, option, index):
+        if index.column() not in (2, 4):
+            return super().paint(painter, option, index)
+        styled = QStyleOptionViewItem(option)
+        self.initStyleOption(styled, index)
+        text = str(index.data(Qt.ItemDataRole.DisplayRole) or "")
+        super().paint(painter, styled, index)
+        if not text:
+            return
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setFont(styled.font)
+        if index.column() == 4:
+            foreground = qc("finance_secondary")
+            background = qc("finance_success_bg")
+        else:
+            token = "finance_tertiary" if text == "Sayfa" else "finance_primary"
+            foreground = qc(token)
+            background = qc(token)
+            background.setAlpha(28)
+        width = min(painter.fontMetrics().horizontalAdvance(text) + 14, option.rect.width() - 16)
+        badge = QRectF(option.rect.left() + 8, option.rect.center().y() - 10, max(0, width), 20)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(background)
+        painter.drawRoundedRect(badge, 4, 4)
+        painter.setPen(foreground)
+        painter.drawText(badge, Qt.AlignmentFlag.AlignCenter, text)
+        painter.restore()
+
+
 class VoiceAssistantShortcutsWidget(QWidget):
     """Voice Shortcuts Table"""
-    def __init__(self, db, main_window=None):
+    def __init__(self, db, main_window=None, config_path=None):
         super().__init__()
         self.db = db
         self.main_window = main_window
-        self.config_path = os.path.join(PathHelper.get_app_data_dir(), "asistan_ayarlari.json")
+        self.current_page = 0
+        self.page_size = 4
+        self.config_path = config_path or os.path.join(PathHelper.get_app_data_dir(), "asistan_ayarlari.json")
+        self._allow_legacy_config = config_path is None
         self._build_ui()
         self._load_shortcuts()
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(0)
 
-        # Top Bar
-        top_bar_frame = QFrame()
-        top_bar_frame.setStyleSheet(theme_qss("background: @surface; border-bottom: 1px solid @border;"))
-        top_bar_frame.setFixedHeight(60)
-        
-        top_layout = QHBoxLayout(top_bar_frame)
-        top_layout.setContentsMargins(24, 10, 24, 10)
-        top_layout.setSpacing(12)
+        page_header = QFrame()
+        page_header.setObjectName("voicePageHeader")
+        page_header.setFixedHeight(66)
+        page_header.setStyleSheet(theme_qss("QFrame#voicePageHeader { background: @finance_surface; border: none; border-radius: 6px; }"))
+        header_layout = QHBoxLayout(page_header)
+        header_layout.setContentsMargins(18, 10, 18, 10)
+        header_text = QVBoxLayout()
+        header_title = QLabel("Sesli Kestirmeler")
+        header_title.setStyleSheet(theme_qss("color: @text; font-size: 16px; font-weight: 800; border: none;"))
+        header_subtitle = QLabel("Komut Matrisi ve N\u00f6ral Tetikleyiciler")
+        header_subtitle.setStyleSheet(theme_qss("color: @text_muted; font-size: 11px; border: none;"))
+        header_text.addWidget(header_title)
+        header_text.addWidget(header_subtitle)
+        header_layout.addLayout(header_text)
+        header_layout.addStretch()
+        sync_button = QPushButton("Matrisi Senkronize Et")
+        sync_button.setStyleSheet(theme_qss(DesignTokens.get_button_qss("secondary", size="sm")))
+        sync_button.clicked.connect(self._load_shortcuts)
+        header_layout.addWidget(sync_button)
+        header_add_button = QPushButton("Yeni Kestirme Tanimla")
+        header_add_button.setStyleSheet(theme_qss(DesignTokens.get_button_qss("primary", size="sm")))
+        header_add_button.clicked.connect(self._add_new_shortcut)
+        header_layout.addWidget(header_add_button)
+        layout.addWidget(page_header)
 
-        # Search
+        featured = QHBoxLayout()
+        featured.setContentsMargins(0, 8, 0, 8)
+        featured.setSpacing(8)
+        for command, detail, accent in (
+            ('"Asistan finans \u00f6zet"', "G\u00fcnl\u00fck ciro, nakit ak\u0131\u015f\u0131 ve bekleyen tahsilatlar\u0131 listeler.", "@finance_secondary"),
+            ('"Asistan kritik stoklar\u0131 listele"', "Kritik e\u015fik alt\u0131ndaki par\u00e7alar\u0131 ve sipari\u015fleri getirir.", "@finance_primary"),
+            ('"Bekleyen servis fi\u015flerini a\u00e7"', "At\u00f6lyede bekleyen cihazlar\u0131 listeler.", "@warning"),
+            ('"Teknisyen panelini g\u00f6ster"', "Aktif personelin i\u015f y\u00fck\u00fcn\u00fc ve g\u00f6revlerini g\u00f6sterir.", "@finance_tertiary"),
+        ):
+            card = QFrame()
+            card.setObjectName("voiceFeaturedCard")
+            card.setFixedHeight(147)
+            card.setStyleSheet(theme_qss(f"QFrame#voiceFeaturedCard {{ background: @finance_surface; border: 1px solid @finance_outline; border-radius: 6px; }}"))
+            card_layout = QVBoxLayout(card)
+            card_layout.setContentsMargins(10, 8, 10, 8)
+            label = QLabel(command)
+            label.setWordWrap(True)
+            label.setStyleSheet(theme_qss("color: @text; font-size: 11px; font-weight: 800; border: none;"))
+            body = QLabel(detail)
+            body.setWordWrap(True)
+            body.setStyleSheet(theme_qss("color: @text_muted; font-size: 11px; border: none;"))
+            marker = QLabel("\u25a3")
+            marker.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            marker.setFixedSize(24, 24)
+            marker.setStyleSheet(theme_qss(f"color: {accent}; background: @finance_surface_alt; border: none; border-radius: 4px; font-weight: 800;"))
+            test = QPushButton("Test Et   >")
+            test.setToolTip("Komutu matriste bulur; herhangi bir veri de\u011fi\u015fikli\u011fi yapmaz.")
+            test.setStyleSheet(theme_qss(f"QPushButton {{ text-align: left; color: @finance_primary; background: transparent; border: none; border-top: 1px solid @finance_outline; padding-top: 8px; }}"))
+            test.clicked.connect(
+                lambda _checked=False, phrase=command: self._preview_featured_command(phrase)
+            )
+            card_layout.addWidget(marker)
+            card_layout.addWidget(label)
+            card_layout.addWidget(body)
+            card_layout.addStretch()
+            card_layout.addWidget(test)
+            featured.addWidget(card, 1)
+        layout.addLayout(featured)
+
+        matrix_header = QFrame()
+        matrix_header.setStyleSheet(theme_qss(
+            "QFrame { background: @surface; border: 1px solid @border; border-bottom: none; border-radius: 7px 7px 0 0; }"
+        ))
+        matrix_layout = QHBoxLayout(matrix_header)
+        matrix_layout.setContentsMargins(14, 8, 14, 8)
+        self.matrix_title = QLabel()
+        matrix_title = self.matrix_title
+        matrix_title.setStyleSheet(theme_qss(
+            "color: @text; font-size: 13px; font-weight: 800; border: none;"
+        ))
+        matrix_layout.addWidget(matrix_title)
         self.inp_search = QLineEdit()
-        self.inp_search.setPlaceholderText("🔍 Ara...")
-        self.inp_search.setFixedWidth(240)
+        self.inp_search.setPlaceholderText("Komut, ID veya hedef ara...")
+        self.inp_search.setMinimumWidth(180)
+        self.inp_search.setMaximumWidth(300)
         self.inp_search.setStyleSheet(theme_qss(DesignTokens.get_input_qss()))
         self.inp_search.textChanged.connect(self._apply_search_filter)
-        top_layout.addWidget(self.inp_search)
-
+        matrix_layout.addWidget(self.inp_search, 1)
         self.cmb_filter = QComboBox()
         self.cmb_filter.addItems(["Tümü", "Sayfa", "Fonksiyon", "Aksiyon", "Bağlantı Yok"])
-        self.cmb_filter.setFixedWidth(140)
+        self.cmb_filter.setFixedWidth(150)
         self.cmb_filter.setStyleSheet(theme_qss(DesignTokens.get_input_qss()))
         self.cmb_filter.currentTextChanged.connect(self._apply_action_filter)
-        top_layout.addWidget(self.cmb_filter)
-
-        top_layout.addStretch()
-
-        # Add Button
-        self.btn_add_shortcut = QPushButton("+ Yeni")
-        self.btn_add_shortcut.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_add_shortcut.setFixedWidth(80)
-        self.btn_add_shortcut.setStyleSheet(theme_qss(DesignTokens.get_button_qss("primary", size="sm")))
-        self.btn_add_shortcut.clicked.connect(self._add_new_shortcut)
-        top_layout.addWidget(self.btn_add_shortcut)
-
-        layout.addWidget(top_bar_frame)
+        matrix_layout.addWidget(self.cmb_filter)
+        layout.addWidget(matrix_header)
 
         # Table
         self.table = QTableView()
+        self.table.setMinimumHeight(245)
         self.table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.table.setShowGrid(False)
         self.table.setAlternatingRowColors(True)
@@ -318,7 +326,7 @@ class VoiceAssistantShortcutsWidget(QWidget):
                 outline: none;
             }
             QTableView::item {
-                padding: 8px 16px;
+                padding: 6px 10px;
                 border-bottom: 1px solid @surface_alt;
                 border: none;
                 outline: none;
@@ -337,11 +345,11 @@ class VoiceAssistantShortcutsWidget(QWidget):
                 background: @surface_alt;
                 color: @text;
                 font-weight: 600;
-                padding: 12px 16px;
+                padding: 8px 10px;
                 border: none;
                 border-right: 1px solid @border;
                 text-transform: uppercase;
-                font-size: 12px;
+                font-size: 10px;
                 letter-spacing: 0.5px;
             }
             QHeaderView::section:last {
@@ -349,31 +357,98 @@ class VoiceAssistantShortcutsWidget(QWidget):
             }
         """))
         
-        self.model = QStandardItemModel(0, 4, self)
-        self.model.setHorizontalHeaderLabels(["KESTİRME ADI", "TETİKLEYİCİ KOMUTLAR", "İŞLEM TÜRÜ", "AKSİYON"])
+        self.model = QStandardItemModel(0, 6, self)
+        self.model.setHorizontalHeaderLabels(["KEST\u0130RME ADI", "TET\u0130KLEY\u0130C\u0130 KOMUTLAR", "\u0130\u015eLEM T\u00dcR\u00dc", "HEDEF ROTA / ID", "DURUM", "\u0130\u015eLEMLER"])
         self.proxy = ShortcutFilterProxy(self)
         self.proxy.setSourceModel(self.model)
         self.table.setModel(self.proxy)
+        self.table.setItemDelegate(ShortcutBadgeDelegate(self.table))
         self.table.setSortingEnabled(True)
         
         header = self.table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
+        header.resizeSection(0, 170)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Interactive)
+        header.resizeSection(2, 140)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Interactive)
+        header.resizeSection(3, 150)
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
 
         # Context menu
         self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.table.customContextMenuRequested.connect(self._show_context_menu)
         self.table.doubleClicked.connect(self._edit_shortcut)
+        self.table.clicked.connect(self._activate_row_action)
 
-        layout.addWidget(self.table)
+        layout.addWidget(self.table, 1)
+        pager = QHBoxLayout()
+        pager.setContentsMargins(14, 8, 14, 8)
+        self.page_result_label = QLabel()
+        self.page_result_label.setStyleSheet(theme_qss("color: @text_muted; font-size: 11px;"))
+        pager.addWidget(self.page_result_label)
+        pager.addStretch()
+        self.previous_page = QPushButton("\u00d6nceki")
+        self.page_label = QLabel("1 / 1")
+        self.page_label.setMinimumWidth(48)
+        self.page_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.next_page = QPushButton("Sonraki")
+        for button in (self.previous_page, self.next_page):
+            button.setFixedSize(70, 30)
+            button.setStyleSheet(theme_qss(DesignTokens.get_button_qss("secondary", size="sm")))
+        self.previous_page.clicked.connect(lambda: self._change_page(-1))
+        self.next_page.clicked.connect(lambda: self._change_page(1))
+        pager.addWidget(self.previous_page)
+        pager.addWidget(self.page_label)
+        pager.addWidget(self.next_page)
+        layout.addLayout(pager)
+
+    def _preview_featured_command(self, phrase):
+        query = str(phrase or "").strip().strip('"')
+        self.cmb_filter.setCurrentIndex(0)
+        self.inp_search.setText(query)
+        if self.proxy.rowCount():
+            show_success(self, f"'{query}' komutu matriste bulundu.")
+        else:
+            self.inp_search.clear()
+            show_error(self, f"'{query}' komutu matriste bulunamadi.")
 
     def _apply_search_filter(self, text):
+        self.current_page = 0
         self.proxy.set_text_filter(text)
+        self._apply_pagination()
 
     def _apply_action_filter(self, value):
+        self.current_page = 0
         self.proxy.set_action_filter(value)
+        self._apply_pagination()
+
+    def _change_page(self, delta):
+        self.current_page += delta
+        self._apply_pagination()
+
+    def _apply_pagination(self):
+        self.matrix_title.setText(
+            f"Kapsaml\u0131 Kestirme Matrisi   {self.model.rowCount()} Kay\u0131tl\u0131 Komut"
+        )
+        total = self.proxy.rowCount()
+        total_pages = max(1, (total + self.page_size - 1) // self.page_size)
+        self.current_page = max(0, min(self.current_page, total_pages - 1))
+        start = self.current_page * self.page_size
+        end = min(total, start + self.page_size)
+        for row in range(total):
+            self.table.setRowHidden(row, row < start or row >= end)
+        self.page_result_label.setText(
+            f"Toplam {total} komuttan {0 if total == 0 else start + 1}-{end} arasi gosteriliyor"
+        )
+        self.page_label.setText(f"{self.current_page + 1} / {total_pages}")
+        self.previous_page.setEnabled(self.current_page > 0)
+        self.next_page.setEnabled(self.current_page + 1 < total_pages)
+
+    def _activate_row_action(self, index):
+        if index.isValid() and index.column() == 5:
+            self._edit_shortcut(index)
 
     def _show_context_menu(self, position: QPoint):
         if not is_context_menu_enabled(self.db):
@@ -462,9 +537,13 @@ class VoiceAssistantShortcutsWidget(QWidget):
 
     def _load_shortcuts(self):
         self.model.removeRows(0, self.model.rowCount())
+        self.current_page = 0
+        self._apply_pagination()
 
         path = self.config_path
         if not os.path.exists(path):
+            if not self._allow_legacy_config:
+                return
             legacy = os.path.join(os.getcwd(), "asistan_ayarlari.json")
             if os.path.exists(legacy):
                 path = legacy
@@ -520,13 +599,18 @@ class VoiceAssistantShortcutsWidget(QWidget):
                 QStandardItem(name),
                 QStandardItem(triggers_str),
                 QStandardItem(action_type),
-                QStandardItem(action_value)
+                QStandardItem(action_value),
+                QStandardItem("Aktif"),
+                QStandardItem(">   Edit")
             ]
             
             for item in row:
                 item.setEditable(False)
+                item.setToolTip(item.text())
             
             self.model.appendRow(row)
+        self.current_page = 0
+        self._apply_pagination()
 
     def _normalize_shortcuts(self, raw):
         if not isinstance(raw, dict):
@@ -613,8 +697,8 @@ class VoiceAssistantShortcutsWidget(QWidget):
             except Exception as e:
                 logger.debug(f"VoiceAssistantShortcutsWidget config fallback: {e}")
         
-        if old_name in config:
-            del config[old_name]
+        previous_entry = config.pop(old_name, {})
+        updated_entry = dict(previous_entry) if isinstance(previous_entry, dict) else {}
         
         # Consistent action structure
         action_payload = None
@@ -625,10 +709,8 @@ class VoiceAssistantShortcutsWidget(QWidget):
         elif data["type"] == "Aksiyon":
             action_payload = {"type": "action", "name": data["action"]}
 
-        config[data["name"]] = {
-            "triggers": data["triggers"],
-            "action": action_payload
-        }
+        updated_entry.update({"triggers": data["triggers"], "action": action_payload})
+        config[data["name"]] = updated_entry
         
         with open(self.config_path, "w", encoding="utf-8") as f:
             json.dump(config, f, ensure_ascii=False, indent=2)

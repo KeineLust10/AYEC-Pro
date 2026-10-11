@@ -8,6 +8,7 @@ Sol sidebar ile senkronize çalışır.
 import logging
 
 from PyQt6.QtCore import QEvent, QPropertyAnimation, QEasingCurve, QPoint, Qt, QTimer, pyqtSignal
+from src.utils.appearance_mode import AppearanceModeManager
 from PyQt6.QtGui import QCursor
 from PyQt6.QtWidgets import (
     QApplication,
@@ -231,6 +232,9 @@ class FloatingDropdown(QFrame):
         # ToolTip tipi için doğrudan global koordinat kullanılır
         self.move(global_pos)
         self.show()
+        if AppearanceModeManager.is_classic(getattr(self.parent(), "db", None)):
+            self.setMaximumHeight(self.sizeHint().height())
+            return
         # Fade-in animasyonu
         anim = QPropertyAnimation(self, b"maximumHeight", self)
         anim.setDuration(140)

@@ -723,4 +723,47 @@ def migration_017_add_offer_and_activity_indexes(
             columns_sql,
             required_columns,
         )
+
+
+def migration_018_add_fast_note_display_fields(conn: sqlite3.Connection):
+    """Add presentation fields while retaining existing note flow/category fields."""
+    if not _column_exists(conn, "fast_notes", "display_category"):
+        conn.execute(
+            "ALTER TABLE fast_notes ADD COLUMN display_category TEXT DEFAULT ''"
+        )
+    if not _column_exists(conn, "fast_notes", "title"):
+        conn.execute("ALTER TABLE fast_notes ADD COLUMN title TEXT DEFAULT ''")
+    conn.commit()
+    conn.commit()
+
+
+def migration_019_add_labor_service_metadata(conn: sqlite3.Connection):
+    """Persist the category, duration, and tax fields used by labor catalogs."""
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS services (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE,
+            price REAL DEFAULT 0,
+            currency TEXT DEFAULT 'TRY',
+            description TEXT,
+            barcode TEXT,
+            created_at TEXT,
+            is_deleted INTEGER DEFAULT 0,
+            deleted_at TEXT
+        )
+        """
+    )
+    additions = (
+        ("price_try", "REAL DEFAULT 0"),
+        ("price_usd", "REAL DEFAULT 0"),
+        ("price_eur", "REAL DEFAULT 0"),
+        ("is_active", "INTEGER DEFAULT 1"),
+        ("service_category", "TEXT DEFAULT '\u0044onan\u0131m & Lehim'"),
+        ("duration_minutes", "INTEGER DEFAULT 60"),
+        ("vat_rate", "REAL DEFAULT 20"),
+    )
+    for column, declaration in additions:
+        if not _column_exists(conn, "services", column):
+            conn.execute(f"ALTER TABLE services ADD COLUMN {column} {declaration}")
     conn.commit()

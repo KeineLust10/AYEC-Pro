@@ -127,6 +127,39 @@ def test_desktop_technical_service_uses_part_and_updates_debt(
     db.close()
 
 
+def test_service_debt_creation_includes_existing_unlinked_payments(tmp_path):
+    database_path = tmp_path / "service-debt-existing-payment.db"
+    tracking_no = "TECH-OLD-PAYMENT-1"
+    customer_id, device_id, _part_id = _prepare_service_database(
+        database_path, tracking_no=tracking_no, labor_cost=100
+    )
+    db = _open_database(database_path)
+    db.cursor.execute(
+        "UPDATE devices SET status='Tamirde' WHERE id=?", (device_id,)
+    )
+    db.cursor.execute(
+        """
+        INSERT INTO currency_transactions
+            (customer_id, transaction_type, amount, currency, exchange_rate,
+             try_equivalent, description, tracking_no, created_at, current_balance)
+        VALUES (?, 'CREDIT', 25, 'TRY', 1, 25, 'Legacy service payment', ?,
+                '2026-10-11 00:00:00', 25)
+        """,
+        (customer_id, tracking_no),
+    )
+    db.conn.commit()
+
+    assert db._sync_service_debt_from_tracking(tracking_no, create_if_missing=True)
+
+    balance = db.cursor.execute(
+        "SELECT current_balance FROM currency_transactions "
+        "WHERE customer_id=? AND tracking_no=? AND transaction_type='DEBIT'",
+        (customer_id, tracking_no),
+    ).fetchone()[0]
+    assert float(balance) == -75.0
+    db.close()
+
+
 def test_technical_service_part_stock_debt_and_repeat_update(
     tmp_path, monkeypatch
 ):

@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
 )
 
 from src.utils.theme_colors import theme_qss
+from src.utils.design_system import DesignTokens
 from src.utils.currency_helper import CurrencyHelper
 
 
@@ -39,7 +40,7 @@ class BankSettingsWidget(QWidget):
         root.setSpacing(16)
 
         title = QLabel("Banka Hesap Ayarları")
-        title.setFont(QFont("Segoe UI", 18, QFont.Weight.Bold))
+        title.setFont(QFont(DesignTokens.FONT_NAME, 18, QFont.Weight.Bold))
         title.setStyleSheet(theme_qss("color: @text;"))
         root.addWidget(title)
 

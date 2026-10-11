@@ -70,6 +70,8 @@ class DashboardPage(DashboardActionsMixin, QWidget):
         self._actions_hover_widgets = set()
         self._init_error = None
         self._shortcut_overlay = None
+        self._shortcut_grid = None
+        self._shortcut_cards = []
         try:
             self.init_ui()
             self._build_shortcut_screen()
@@ -102,8 +104,8 @@ class DashboardPage(DashboardActionsMixin, QWidget):
                 border: 1px solid @border;
                 border-radius: 16px;
             }
-            QLabel#ShortcutScreenTitle { color: @text; font-size: 24px; font-weight: 800; }
-            QLabel#ShortcutScreenHint { color: @text_muted; font-size: 12px; }
+            QLabel#ShortcutScreenTitle { color: @text; background: transparent; font-family: Inter; font-size: 24px; font-weight: 800; }
+            QLabel#ShortcutScreenHint { color: @text_muted; background: transparent; font-family: Inter; font-size: 12px; }
             QPushButton#ShortcutCard {
                 color: @text;
                 background: @surface;
@@ -170,12 +172,24 @@ class DashboardPage(DashboardActionsMixin, QWidget):
                 QPushButton#ShortcutCard:hover {{ border-left: 7px solid @accent; }}
             """))
             button.clicked.connect(self._shortcut_callback(callback))
-            grid.addWidget(button, index // 4, index % 4)
+            self._shortcut_cards.append(button)
+            grid.addWidget(button, 0, index)
+        self._shortcut_grid = grid
         layout.addLayout(grid)
         layout.addStretch(1)
         overlay.setGeometry(self.rect())
         overlay.hide()
         self._shortcut_overlay = overlay
+        self._layout_shortcut_cards()
+
+    def _layout_shortcut_cards(self):
+        if self._shortcut_grid is None or not self._shortcut_cards:
+            return
+        available_width = max(1, self.width() - 72)
+        columns = max(1, min(4, available_width // 320))
+        for index, button in enumerate(self._shortcut_cards):
+            self._shortcut_grid.removeWidget(button)
+            self._shortcut_grid.addWidget(button, index // columns, index % columns)
 
     def _shortcut_callback(self, callback):
         def run():
@@ -188,8 +202,7 @@ class DashboardPage(DashboardActionsMixin, QWidget):
         super().resizeEvent(event)
         if self._shortcut_overlay is not None:
             self._shortcut_overlay.setGeometry(self.rect())
-            traceback.print_exc()
-            self.show_error_state(e)
+            self._layout_shortcut_cards()
 
     def _dashboard_sector_key(self):
         return "otomotiv" if self._is_automotive() else "teknik_servis"
@@ -1213,8 +1226,6 @@ class DashboardPage(DashboardActionsMixin, QWidget):
         self.main_layout.addWidget(self.tabs)
 
         QTimer.singleShot(0, self.refresh_data)
-        QTimer.singleShot(250, self.refresh_data)
-        QTimer.singleShot(1000, self.refresh_data)
 
     def sync_dashboard_sector_texts(self):
         sector = self._dashboard_sector_key()
@@ -1618,8 +1629,12 @@ class DashboardPage(DashboardActionsMixin, QWidget):
                     self.refresh_data()
                     self.notify("Müşteriye yeni araç başarıyla eklendi.", "success")
         else:
-            from src.ui.dialogs.add_device_dialog import AddDeviceDialog
-            dlg = AddDeviceDialog(self.db, self)
+            from src.ui.dialogs.technical_service_new_service_dialog import TechnicalServiceNewServiceDialog
+            dlg = TechnicalServiceNewServiceDialog(
+                self.db,
+                self,
+                sector_manager=getattr(self, "sector_manager", None),
+            )
             if dlg.exec():
                 self.refresh_data()
                 self.notify("Yeni cihaz/servis kaydı başarıyla eklendi.", "success")

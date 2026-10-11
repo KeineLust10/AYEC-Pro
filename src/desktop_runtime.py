@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -15,7 +16,7 @@ from src.utils.desktop_service_policy import local_api_host
 
 def prepare_external_runtime() -> None:
     executable_name = os.path.basename(sys.executable).lower()
-    if executable_name == "python.exe":
+    if executable_name.startswith("python"):
         return
     runtime_dir = os.path.dirname(os.path.abspath(sys.executable))
     sys.path[:] = [entry for entry in sys.path if isinstance(entry, str)]
@@ -144,9 +145,11 @@ def run_healthcheck() -> int:
         import importlib
 
         runtime_modules = (
+            "av",
+            "ctranslate2",
             "cv2",
             "easyocr",
-            "edge_tts",
+            "faster_whisper",
             "google.protobuf",
             "paddle",
             "paddleocr",
@@ -154,17 +157,37 @@ def run_healthcheck() -> int:
             "pdfplumber",
             "pytesseract",
             "pyaudio",
-            "pyttsx3",
             "scipy",
             "skimage",
             "speech_recognition",
+            "tokenizers",
+            "onnxruntime",
             "torch",
             "torchvision",
         )
         unavailable_modules = []
         for runtime_module in runtime_modules:
             try:
-                importlib.import_module(runtime_module)
+                if runtime_module in {"easyocr", "torch", "torchvision"}:
+                    import_check = subprocess.run(
+                        [
+                            sys.executable,
+                            "-c",
+                            "import importlib; importlib.import_module(%r)"
+                            % runtime_module,
+                        ],
+                        capture_output=True,
+                        text=True,
+                        timeout=60,
+                        check=False,
+                    )
+                    if import_check.returncode:
+                        detail = (import_check.stderr or import_check.stdout).strip()
+                        raise RuntimeError(
+                            detail or "isolated runtime import failed"
+                        )
+                else:
+                    importlib.import_module(runtime_module)
             except Exception as module_error:
                 unavailable_modules.append(f"{runtime_module}: {module_error}")
 

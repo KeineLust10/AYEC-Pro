@@ -1,5 +1,10 @@
 import sqlite3
+import os
+import subprocess
+import sys
 from pathlib import Path
+
+import pytest
 
 from src.database import Database
 from src.utils.currency_helper import CurrencyHelper
@@ -140,3 +145,35 @@ def test_main_window_keeps_assistant_import_lazy():
     source = Path("src/ui/main_window.py").read_text(encoding="utf-8")
 
     assert "from src.services.assistant_manager import AssistantManager" not in source
+
+
+def test_windows_runtime_preload_allows_torch_after_qt_import():
+    if os.name != "nt":
+        pytest.skip("The bundled Windows Qt runtime collision is Windows-specific")
+
+    root = Path(__file__).resolve().parents[1]
+    from src.utils.path_helper import PathHelper
+
+    asr_model = Path(PathHelper.get_app_data_dir()) / "Speech" / "whisper-small"
+    required_files = ("model.bin", "config.json", "tokenizer.json")
+    if any(not (asr_model / name).is_file() for name in required_files):
+        pytest.skip("The local offline speech model is not installed")
+    main_source = (root / "Main.py").read_text(encoding="utf-8")
+    assert main_source.index("preload_windows_cpp_runtime()") < main_source.index(
+        "from PyQt6"
+    )
+    script = (
+        "from src.utils.windows_cpp_runtime import preload_windows_cpp_runtime; "
+        "preload_windows_cpp_runtime(); import PyQt6.QtCore; import torch; "
+        "from src.utils.offline_turkish_asr import OfflineTurkishASR; "
+        "OfflineTurkishASR(); print(torch.__version__)"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "+cpu" in result.stdout

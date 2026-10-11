@@ -5,6 +5,8 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLa
                              QGroupBox, QProgressBar, QTableWidget, QTableWidgetItem,
                              QHeaderView, QFileDialog, QCheckBox, QFrame, QTimeEdit, QMessageBox, QAbstractItemView)
 from src.utils.theme_colors import theme_qss, tc
+from src.utils.design_system import DesignTokens
+from src.ui.widgets.financial_reference_controls import ReferenceMetricValueLabel
 from src.utils.toast_notification import show_success, show_error, show_warning, show_info
 from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal, QTime, QSize
 from PyQt6.QtGui import QFont, QIcon, QColor
@@ -102,16 +104,110 @@ class BackupPage(QWidget):
 
     def init_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(20)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(10)
 
         # Header
-        header = QLabel("Yedekleme ve Geri Yükleme Merkezi")
-        header.setFont(QFont("Segoe UI", 18, QFont.Weight.Bold))
-        layout.addWidget(header)
+        header = QLabel("Yedekleme & Veri G\u00fcvenli\u011fi Merkezi")
+        header.setFont(QFont(DesignTokens.FONT_NAME, 18, QFont.Weight.Bold))
+        header_meta = QLabel("Snapshot, felaket kurtarma ve veri butunlugu merkezi")
+        header_meta.setStyleSheet(theme_qss("color: @text_muted; font-size: 10px;"))
+
+        action_bar = QHBoxLayout()
+        action_bar.setSpacing(8)
+        action_bar.addStretch()
+        manual_backup = QPushButton("[!] Hemen Manuel Yedek Al")
+        manual_backup.setMinimumHeight(32)
+        manual_backup.setStyleSheet(theme_qss("background: @accent; color: @text; border: none; border-radius: 5px; padding: 6px 14px; font-weight: 700;"))
+        manual_backup.clicked.connect(self.start_local_backup)
+        action_bar.addWidget(manual_backup)
+        restore_wizard = QPushButton("[<] Restore Wizard (Geri Yukle)")
+        restore_wizard.setMinimumHeight(32)
+        restore_wizard.setStyleSheet(theme_qss("background: @surface_alt; color: @text; border: 1px solid @border; border-radius: 5px; padding: 6px 14px; font-weight: 700;"))
+        restore_wizard.clicked.connect(self.restore_local_backup)
+        action_bar.addWidget(restore_wizard)
+        action_bar.addWidget(QLabel("[settings]"))
+        status_bar = QHBoxLayout()
+        daily_enabled = self.db.get_setting("backup_daily_enabled", "0") == "1"
+        daily_time = self.db.get_setting("backup_daily_time", "12:00")
+        remote_enabled = self.db.get_setting("remote_enabled", "0") == "1"
+        schedule_text = (
+            f"GUNLUK YEDEK: {daily_time} AKTIF"
+            if daily_enabled else "GUNLUK YEDEKLEME KAPALI"
+        )
+        remote_text = (
+            "UZAK YEDEK: YAPILANDIRILDI / DOGRULANMADI"
+            if remote_enabled else "UZAK YEDEKLEME KAPALI"
+        )
+        for text, color in ((schedule_text, "success"), (remote_text, "accent")):
+            status = QLabel(text)
+            status.setStyleSheet(theme_qss(f"color: @{color}; background: @surface_alt; border: 1px solid @border; border-radius: 4px; padding: 3px 5px; font-size: 9px; font-weight: 700;"))
+            status_bar.addWidget(status)
+        status_bar.addStretch()
+        header_meta_row = QHBoxLayout()
+        header_meta_row.setSpacing(8)
+        header_meta_row.addWidget(header_meta, 1)
+        header_meta_row.addLayout(status_bar)
+        header_column = QVBoxLayout()
+        header_column.setSpacing(2)
+        header_column.addWidget(header)
+        header_column.addLayout(header_meta_row)
+        header_row = QHBoxLayout()
+        header_row.setSpacing(12)
+        header_row.addLayout(header_column, 1)
+        header_row.addLayout(action_bar)
+        layout.addLayout(header_row)
+
+        kpi_layout = QHBoxLayout()
+        self.metric_values = []
+        for title_text, value_text, color_name in (
+            ("SON YEREL AR\u015e\u0130V", "Kay\u0131t aran\u0131yor", "success"),
+            ("UZAK YEDEK DURUMU", "Do\u011frulanmad\u0131", "accent"),
+            ("VER\u0130TABANI B\u00dcT\u00dcNL\u00dc\u011e\u00dc", "Kontrol edilmedi", "success"),
+            ("KURTARMA TEST\u0130", "Test edilmedi", "accent"),
+        ):
+            kpi = QFrame()
+            kpi.setStyleSheet(theme_qss(f"background: @surface_alt; border: 1px solid @border; border-top: 2px solid @{color_name}; border-radius: 6px;"))
+            kpi_box = QVBoxLayout(kpi)
+            kpi_box.setContentsMargins(10, 7, 10, 7)
+            kpi_title = QLabel(title_text)
+            kpi_title.setStyleSheet(theme_qss("color: @text_muted; font-size: 9px; font-weight: 700; border: none;"))
+            kpi_value = ReferenceMetricValueLabel(value_text, primary_token=color_name, primary_size=16)
+            kpi_value.setToolTip(f"{title_text}: {value_text}")
+            kpi_box.addWidget(kpi_title)
+            kpi_box.addWidget(kpi_value)
+            kpi_layout.addWidget(kpi)
+            self.metric_values.append(kpi_value)
+        layout.addLayout(kpi_layout)
+
+        dashboard_layout = QHBoxLayout()
+        dashboard_layout.setSpacing(10)
+        archive_column = QVBoxLayout()
+        archive_column.setSpacing(10)
+        management_column = QVBoxLayout()
+        management_column.setSpacing(10)
+        dashboard_layout.addLayout(archive_column, 9)
+        dashboard_layout.addLayout(management_column, 4)
+
+        archive = QFrame()
+        archive.setStyleSheet(theme_qss("QFrame { background: @surface; border: 1px solid @border; border-radius: 7px; }"))
+        archive_box = QVBoxLayout(archive)
+        archive_box.setContentsMargins(12, 9, 12, 9)
+        self.archive_title = QLabel("Gecmis Yedekleme Arsivi")
+        self.archive_title.setStyleSheet(theme_qss("color: @text; font-size: 13px; font-weight: 800; border: none;"))
+        archive_box.addWidget(self.archive_title)
+        self.table = QTableWidget()
+        self.table.setColumnCount(4)
+        self.table.setHorizontalHeaderLabels(("YEDEK DOSYASI", "BOYUT", "TARIH", "HEDEF KONUM"))
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        archive_box.addWidget(self.table, 1)
+        archive_column.addWidget(archive, 1)
 
         # --- Cards Section ---
-        cards_layout = QHBoxLayout()
+        cards_layout = QVBoxLayout()
+        cards_layout.setSpacing(8)
 
         # Local Backup Card
         card_local = self.create_card(
@@ -123,6 +219,7 @@ class BackupPage(QWidget):
             btn_color=tc("success"),
             extra_btns=[("Sistemi Geri Yükle", self.restore_local_backup, tc("text_muted"))]
         )
+        card_local.setMinimumHeight(150)
         cards_layout.addWidget(card_local)
 
         # Cloud Backup Card (Remote Server)
@@ -135,6 +232,7 @@ class BackupPage(QWidget):
             btn_color=tc("accent"),
             extra_btns=[("Sunucudan Geri Yükle", self.restore_cloud_backup, tc("warning"))]
         )
+        card_cloud.setMinimumHeight(150)
         cards_layout.addWidget(card_cloud)
 
         # NEW: Google Drive Card
@@ -147,13 +245,28 @@ class BackupPage(QWidget):
             btn_color=tc("danger"),
             extra_btns=[("API Dosyası Seç (credentials.json)", self.upload_gdrive_credentials, tc("text_muted"))]
         )
+        card_gdrive.setMinimumHeight(150)
         cards_layout.addWidget(card_gdrive)
 
-        layout.addLayout(cards_layout)
+        management_column.addLayout(cards_layout)
+
+        targets = QFrame()
+        targets.setStyleSheet(theme_qss("QFrame { background: @surface; border: 1px solid @border; border-radius: 8px; }"))
+        target_layout = QVBoxLayout(targets)
+        target_layout.setContentsMargins(10, 6, 10, 6)
+        target_layout.setSpacing(4)
+        target_title = QLabel("Aktif Depolama Hedefleri")
+        target_title.setStyleSheet(theme_qss("color: @text; font-size: 13px; font-weight: 800; border: none;"))
+        target_layout.addWidget(target_title)
+        self.local_archive_status = QLabel()
+        self.local_archive_status.setWordWrap(True)
+        self.local_archive_status.setStyleSheet(theme_qss("color: @text_muted; background: @surface_alt; padding: 5px; border-radius: 5px; border: none; font-size: 10px;"))
+        target_layout.addWidget(self.local_archive_status)
+        management_column.addWidget(targets)
 
         # --- Settings Section ---
         grp_settings = QGroupBox("Otomatik Yedekleme Zamanlayıcı")
-        grp_settings.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+        grp_settings.setFont(QFont(DesignTokens.FONT_NAME, 11, QFont.Weight.Bold))
         sett_layout = QVBoxLayout(grp_settings)
 
         # New options matching BackupSettingsWidget
@@ -163,7 +276,7 @@ class BackupPage(QWidget):
 
         self.time_edit = QTimeEdit()
         self.time_edit.setDisplayFormat("HH:mm")
-        self.time_edit.setFont(QFont("Segoe UI", 12))
+        self.time_edit.setFont(QFont(DesignTokens.MONO_FONT_NAME, 12))
 
         # Initial state setup
         is_daily = self.db.get_setting("backup_daily_enabled", "0") == "1"
@@ -186,22 +299,16 @@ class BackupPage(QWidget):
         btn_save_sett.clicked.connect(self.save_settings)
         btn_save_sett.setStyleSheet(theme_qss("background-color: @accent; color: white; padding: 6px;"))
 
-        sett_layout.addWidget(self.chk_daily)
-        sett_layout.addWidget(self.time_edit)
+        daily_row = QHBoxLayout()
+        daily_row.addWidget(self.chk_daily, 1)
+        daily_row.addWidget(self.time_edit)
+        sett_layout.addLayout(daily_row)
         sett_layout.addWidget(self.chk_on_exit)
         sett_layout.addWidget(btn_save_sett)
 
-        layout.addWidget(grp_settings)
+        management_column.addWidget(grp_settings)
 
-        # --- History Table ---
-        layout.addWidget(QLabel("Son Yedekleme Geçmişi"))
-
-        self.table = QTableWidget()
-        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        layout.addWidget(self.table)
-
+        layout.addLayout(dashboard_layout, 1)
         self.refresh_history()
 
     def start_cloud_backup(self):
@@ -226,31 +333,31 @@ class BackupPage(QWidget):
         frame = QFrame()
         frame.setStyleSheet(theme_qss("""
             QFrame {
-                background-color: white;
+                background-color: @surface_alt;
                 border: 1px solid @border;
-                border-radius: 12px;
-                margin: 5px;
+                border-radius: 8px;
+                margin: 0px;
             }
             QFrame:hover {
                 border: 1px solid @accent;
-                background-color: @surface_alt;
+                background-color: @surface;
             }
         """))
         l = QVBoxLayout(frame)
-        l.setSpacing(15)
-        l.setContentsMargins(20, 20, 20, 20)
+        l.setSpacing(4)
+        l.setContentsMargins(8, 8, 8, 8)
 
         # Icon Area
         icon_lbl = QLabel(icon)
         icon_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        icon_lbl.setFont(QFont("Segoe UI Emoji", 48))
-        icon_lbl.setStyleSheet(theme_qss("border: none; background: transparent;"))
+        icon_lbl.setFont(QFont(DesignTokens.FONT_NAME, 24))
+        icon_lbl.setStyleSheet(theme_qss("border: none; color: @accent; background: transparent;"))
         l.addWidget(icon_lbl)
 
         # Title
         lbl_title = QLabel(title)
         lbl_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lbl_title.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
+        lbl_title.setFont(QFont(DesignTokens.FONT_NAME, 13, QFont.Weight.Bold))
         lbl_title.setStyleSheet(theme_qss("border: none; color: @text; background: transparent;"))
         l.addWidget(lbl_title)
 
@@ -258,20 +365,22 @@ class BackupPage(QWidget):
         lbl_desc = QLabel(desc)
         lbl_desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lbl_desc.setWordWrap(True)
-        lbl_desc.setStyleSheet(theme_qss("border: none; color: @text_muted; font-size: 13px; background: transparent;"))
+        lbl_desc.setStyleSheet(theme_qss("border: none; color: @text_muted; font-size: 10px; background: transparent;"))
+        lbl_desc.setMaximumHeight(28)
         l.addWidget(lbl_desc)
 
         l.addStretch()
 
         # Main Button
         btn = QPushButton(btn_text)
+        btn.setFixedHeight(26)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
         btn.setStyleSheet(theme_qss(f"""
             QPushButton {{
                 background-color: {btn_color};
                 color: white;
                 font-weight: bold;
-                padding: 12px;
+                padding: 5px 8px;
                 border-radius: 6px;
                 font-size: 14px;
                 border: none;
@@ -285,17 +394,18 @@ class BackupPage(QWidget):
         if extra_btns:
             for b_text, b_slot, b_col in extra_btns:
                 eb = QPushButton(b_text)
+                eb.setFixedHeight(22)
                 eb.setCursor(Qt.CursorShape.PointingHandCursor)
                 eb.setStyleSheet(theme_qss(f"""
                     QPushButton {{
                         background-color: {b_col};
                         color: white;
                         font-weight: bold;
-                        padding: 12px;
+                        padding: 3px 6px;
                         border-radius: 6px;
-                        font-size: 14px;
+                        font-size: 11px;
                         border: none;
-                        margin-top: 5px;
+                        margin-top: 0px;
                     }}
                     QPushButton:hover {{ opacity: 0.9; }}
                 """))
@@ -438,12 +548,16 @@ class BackupPage(QWidget):
         self.table.setRowCount(0)
         backups_dir = os.path.join(PathHelper.get_app_data_dir(), "backups")
         if not os.path.exists(backups_dir):
+            self.archive_title.setText("Gecmis Yedekleme Arsivi (0)")
+            if self.metric_values:
+                self.metric_values[0].setText("Yerel yedek yok")
+            if hasattr(self, "local_archive_status"):
+                self.local_archive_status.setText(f"Yerel ar\u015fiv: {backups_dir}  |  0 kay\u0131t")
             return
 
         files = sorted(os.listdir(backups_dir), reverse=True)
-        for i, f in enumerate(files):
-            if not f.endswith('.db'): continue
-
+        backup_files = [name for name in files if name.endswith('.db')]
+        for i, f in enumerate(backup_files):
             path = os.path.join(backups_dir, f)
             size = os.path.getsize(path) / 1024 # KB
             mtime = datetime.datetime.fromtimestamp(os.path.getmtime(path)).strftime("%Y-%m-%d %H:%M:%S")
@@ -453,6 +567,20 @@ class BackupPage(QWidget):
             self.table.setItem(i, 1, QTableWidgetItem(f"{size:.1f} KB"))
             self.table.setItem(i, 2, QTableWidgetItem(mtime))
             self.table.setItem(i, 3, QTableWidgetItem("Yerel"))
+        self.archive_title.setText(
+            "Gecmis Yedekleme Arsivi ({})".format(self.table.rowCount())
+        )
+        if backup_files:
+            latest_path = os.path.join(backups_dir, backup_files[0])
+            latest_time = datetime.datetime.fromtimestamp(os.path.getmtime(latest_path))
+            if self.metric_values:
+                self.metric_values[0].setText(latest_time.strftime("%d.%m.%Y %H:%M"))
+            if hasattr(self, "local_archive_status"):
+                self.local_archive_status.setText(
+                    f"Yerel ar\u015fiv: {backups_dir}  |  {len(backup_files)} kay\u0131t"
+                )
+        elif hasattr(self, "local_archive_status"):
+            self.local_archive_status.setText(f"Yerel ar\u015fiv: {backups_dir}  |  0 kay\u0131t")
 
 
     def _wire_ui_signals(self):

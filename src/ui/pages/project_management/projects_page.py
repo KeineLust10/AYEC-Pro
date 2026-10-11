@@ -14,6 +14,7 @@ from src.ui.pages.project_management.project_detail_page import ProjectDetailPag
 from src.ui.widgets.modern_dialog import NoWheelScrollArea
 from src.utils.language_manager import LanguageManager
 from src.ui.dialogs.base_modern_dialog import BaseModernDialog
+from src.utils.design_system import DesignTokens
 
 
 class ProjectsPage(QWidget):
@@ -40,7 +41,7 @@ class ProjectsPage(QWidget):
         # Header
         header = QHBoxLayout()
         self.lbl_title = QLabel(self.lang.get("prj_page_title", "Proje Yönetimi"))
-        self.lbl_title.setFont(QFont("Segoe UI", 24, QFont.Weight.Bold))
+        self.lbl_title.setFont(QFont(DesignTokens.FONT_NAME, 24, QFont.Weight.Bold))
         header.addWidget(self.lbl_title)
         header.addStretch()
 
@@ -250,7 +251,7 @@ class ProjectCard(QFrame):
 
         # Header row: name + delete
         lbl_name = QLabel(self.project['name'])
-        lbl_name.setFont(QFont("Segoe UI", 13, QFont.Weight.Bold))
+        lbl_name.setFont(QFont(DesignTokens.FONT_NAME, 13, QFont.Weight.Bold))
         lbl_name.setStyleSheet(theme_qss("border: none; color: @text;"))
         lbl_name.setWordWrap(True)
 

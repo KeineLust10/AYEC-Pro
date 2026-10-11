@@ -25,6 +25,12 @@ def password_hash(password: str) -> str:
 
 
 def locate_registry() -> Path:
+    configured = str(os.environ.get("AYEC_DB_PATH") or "").strip()
+    if configured:
+        candidate = Path(configured).expanduser().resolve()
+        if candidate.is_file():
+            return candidate
+        raise FileNotFoundError(f"Configured registry database not found: {candidate}")
     for candidate in (BASE / "data" / "ayecpro.db", BASE / "ayecpro.db"):
         if candidate.is_file():
             return candidate

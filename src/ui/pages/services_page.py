@@ -11,16 +11,18 @@ Hizmet Tanımları Sayfası
 import re
 from typing import Dict, List, Optional, Tuple
 
-from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal
-from PyQt6.QtGui import QAction, QTextDocument
+from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal, QItemSelectionModel
+from PyQt6.QtGui import QAction, QColor, QFont, QPainter, QTextDocument
 from PyQt6.QtPrintSupport import QPrintDialog, QPrinter
 from PyQt6.QtWidgets import (
     QDialog,
     QFileDialog,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QLayout,
     QMenu,
     QPushButton,
     QTableWidget,
@@ -29,6 +31,10 @@ from PyQt6.QtWidgets import (
     QWidget,
     QHeaderView,
     QAbstractItemView,
+    QComboBox,
+    QCheckBox,
+    QInputDialog,
+    QSizePolicy,
 )
 
 
@@ -43,9 +49,10 @@ from src.utils.currency_helper import CurrencyHelper
 from src.utils.context_menu_settings import is_context_menu_enabled
 from src.utils.design_system import DesignTokens
 from src.utils.system_config import SystemConfig
-from src.utils.theme_colors import theme_qss
+from src.utils.theme_colors import theme_qss, tc
 from src.utils.toast_notification import show_error, show_info, show_success, show_warning
 from src.ui.widgets.loading_overlay import LoadingOverlay
+from src.ui.widgets.navigation_glyph import navigation_icon
 # ServiceParseProcessWorker (spawn-process) kaldırıldı; ServiceParseWorker (QThread) kullanılıyor
 
 
@@ -68,8 +75,21 @@ class ServiceParseWorker(QThread):
             self.error.emit(str(e))
 
 
+class _LaborMetricCard(QFrame):
+    def __init__(self, icon_kind, icon_token, parent=None):
+        super().__init__(parent)
+        self._watermark = navigation_icon(icon_kind, 58, icon_token).pixmap(58, 58)
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        painter = QPainter(self)
+        painter.setOpacity(0.25)
+        painter.drawPixmap(self.width() - 66, self.height() - 64, self._watermark)
+        painter.end()
+
+
 class ServicesPage(QWidget):
-    PAGE_SIZE = 14
+    PAGE_SIZE = 6
 
     def __init__(self, db):
         super().__init__()
@@ -80,9 +100,18 @@ class ServicesPage(QWidget):
         self.current_page = 1
         self.total_count = 0
         self._build_ui()
-        QTimer.singleShot(100, self.load_services)
+        self._initial_services_load_timer = QTimer(self)
+        self._initial_services_load_timer.setSingleShot(True)
+        self._initial_services_load_timer.timeout.connect(self.load_services)
+        self._initial_services_load_timer.start(100)
         # Modern loading overlay
         self._svc_loading_overlay = LoadingOverlay(self, text="Dosya analiz ediliyor...")
+
+    def closeEvent(self, event):
+        timer = getattr(self, "_initial_services_load_timer", None)
+        if timer is not None:
+            timer.stop()
+        super().closeEvent(event)
 
     def _is_automotive(self) -> bool:
         """Aktif sektörün otomotiv olup olmadığını döner."""
@@ -93,6 +122,10 @@ class ServicesPage(QWidget):
 
     def _build_ui(self):
         is_auto = self._is_automotive()
+        self._is_auto_mode = is_auto
+        if not is_auto:
+            self._build_labor_ui()
+            return
         root = QVBoxLayout(self)
         root.setContentsMargins(26, 24, 26, 24)
         root.setSpacing(16)
@@ -172,6 +205,33 @@ class ServicesPage(QWidget):
         header.addWidget(action_bar, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         root.addLayout(header)
 
+        summary = QFrame()
+        summary.setStyleSheet(theme_qss("QFrame { background: transparent; border: none; }"))
+        summary_grid = QGridLayout(summary)
+        summary_grid.setContentsMargins(0, 0, 0, 0)
+        summary_grid.setHorizontalSpacing(10)
+        self.summary_metric_labels = {}
+        for index, (caption, value, color) in enumerate((
+            ("TOPLAM HIZMET", "0", "@finance_primary"),
+            ("AKTIF TANIM", "0", "@finance_secondary"),
+            ("ORTALAMA FIYAT", "0.00", "@finance_tertiary"),
+            ("SECILI KAYIT", "YOK", "@finance_outline"),
+        )):
+            card = QFrame()
+            card.setStyleSheet(theme_qss(f"QFrame {{ background: @finance_surface; border: 1px solid {color}; border-radius: 8px; }}"))
+            card_layout = QVBoxLayout(card)
+            card_layout.setContentsMargins(12, 8, 12, 8)
+            card_layout.setSpacing(2)
+            caption_label = QLabel(caption)
+            caption_label.setStyleSheet(theme_qss("color: @text_muted; border: none;"))
+            value_label = QLabel(value)
+            value_label.setStyleSheet(theme_qss(f"color: {color}; border: none; font-weight: bold;"))
+            card_layout.addWidget(caption_label)
+            card_layout.addWidget(value_label)
+            self.summary_metric_labels[caption] = value_label
+            summary_grid.addWidget(card, 0, index)
+        root.addWidget(summary)
+
         tools_card = QFrame()
         tools_card.setStyleSheet(theme_qss(DesignTokens.get_card_qss(hover=False)))
         tools_l = QHBoxLayout(tools_card)
@@ -216,6 +276,8 @@ class ServicesPage(QWidget):
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setAlternatingRowColors(True)
+        if not is_auto:
+            self.table.setShowGrid(False)
         self.table.setMouseTracking(False)
         self.table.viewport().setMouseTracking(False)
         self.table.verticalHeader().setDefaultSectionSize(46)
@@ -293,6 +355,321 @@ class ServicesPage(QWidget):
         ):
             widget.setVisible(not is_auto)
 
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if not getattr(self, "_is_auto_mode", True) and hasattr(self, "table"):
+            self._fit_labor_table()
+            compact = self.width() < 1150
+            if compact != getattr(self, "_labor_compact", None):
+                self._labor_compact = compact
+                QTimer.singleShot(0, lambda compact=compact: self._apply_labor_compact(compact))
+
+    def _fit_labor_table(self):
+        if getattr(self, "_is_auto_mode", True) or not hasattr(self, "table"):
+            return
+        natural_height = 76 + self.table.rowCount() * 100
+        available_height = max(280, self.height() - 430)
+        self.table.setFixedHeight(min(natural_height, available_height))
+
+    def _apply_labor_compact(self, compact):
+        self.btn_bulk_price.setToolTip("Toplu Fiyat G\u00fcncelle / Enflasyon Fark\u0131")
+        self.btn_new_labor.setToolTip("Yeni Hizmet & \u0130\u015f\u00e7ilik Ekle")
+        if compact:
+            self.btn_bulk_price.setText("\u2197")
+            self.btn_bulk_price.setFixedWidth(42)
+            self.btn_new_labor.setText("+")
+            self.btn_new_labor.setFixedWidth(42)
+            for column in (7, 8):
+                self.table.setColumnHidden(column, True)
+            for column, width in ((1, 44), (2, 92), (4, 102), (5, 64), (6, 110), (9, 78), (10, 94)):
+                self.table.setColumnWidth(column, width)
+            self.table.setHorizontalHeaderLabels([
+                "ID", "", "KOD", "H\u0130ZMET / OPERASYON", "KATEGOR\u0130",
+                "S\u00dcRE", "TABAN (TL)", "D\u00d6V\u0130Z", "KDV", "DURUM", "\u0130\u015eLEM",
+            ])
+            self.table.horizontalHeader().setStretchLastSection(True)
+        else:
+            self.btn_bulk_price.setText("\u2197  Toplu Fiyat G\u00fcncelle /\nEnflasyon Fark\u0131")
+            self.btn_bulk_price.setFixedWidth(238)
+            self.btn_new_labor.setText("\u2295  Yeni Hizmet &&\n\u0130\u015f\u00e7ilik Ekle")
+            self.btn_new_labor.setFixedWidth(188)
+            for column in (7, 8):
+                self.table.setColumnHidden(column, False)
+            for column, width in enumerate((48, 48, 112, 300, 104, 92, 126, 76, 54, 90, 112)):
+                self.table.setColumnWidth(column, width)
+            self.table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
+            self.table.setHorizontalHeaderLabels([
+                "ID", "", "\u0130\u015eLEM KODU", "H\u0130ZMET / OPERASYON TANIMI", "KATEGOR\u0130",
+                "ORT. S\u00dcRE", "TABAN \u00dcCRET (TL)", "D\u00d6V\u0130Z BAZI", "KDV", "DURUM", "\u0130\u015eLEMLER",
+            ])
+            self.table.horizontalHeader().setStretchLastSection(True)
+        self.search.setMinimumWidth(120 if compact else 180)
+        self.search.setMaximumWidth(340 if compact else 408)
+        self.category_filter.setMinimumWidth(120 if compact else 0)
+        self.category_filter.setMaximumWidth(220 if compact else 0)
+        self.category_filter.setVisible(compact)
+        compact_widths = (76, 122, 122, 112, 104)
+        desktop_widths = (102, 184, 176, 165, 154)
+        for index, (pill, _key, _label) in enumerate(self.category_pills):
+            pill.setVisible(not compact)
+            pill.setFixedWidth(compact_widths[index] if compact else desktop_widths[index])
+        self._position_labor_header_checkbox()
+
+    def _position_labor_header_checkbox(self):
+        if not hasattr(self, "header_select_all"):
+            return
+        header = self.table.horizontalHeader()
+        section = 1
+        x = header.sectionViewportPosition(section)
+        x += max(0, (header.sectionSize(section) - self.header_select_all.width()) // 2)
+        y = max(0, (header.height() - self.header_select_all.height()) // 2)
+        self.header_select_all.move(x, y)
+        self.header_select_all.raise_()
+
+    def _set_all_labor_rows_checked(self, state):
+        if state == Qt.CheckState.PartiallyChecked.value:
+            return
+        checked = state == Qt.CheckState.Checked.value
+        if checked and not self._multi_select:
+            self.btn_multi.setChecked(True)
+            self.toggle_multiselect(True)
+        for row in range(self.table.rowCount()):
+            checkbox = self.table.cellWidget(row, 1)
+            if isinstance(checkbox, QCheckBox):
+                checkbox.setChecked(checked)
+
+    def _set_labor_row_checked(self, row, state):
+        selected = state == Qt.CheckState.Checked.value
+        if selected and not self._multi_select:
+            self.btn_multi.setChecked(True)
+            self.toggle_multiselect(True)
+        index = self.table.model().index(row, 1)
+        command = QItemSelectionModel.SelectionFlag.Select | QItemSelectionModel.SelectionFlag.Rows
+        if not selected:
+            command = QItemSelectionModel.SelectionFlag.Deselect | QItemSelectionModel.SelectionFlag.Rows
+        self.table.selectionModel().select(index, command)
+        checked_rows = sum(
+            1 for current_row in range(self.table.rowCount())
+            if isinstance(self.table.cellWidget(current_row, 1), QCheckBox)
+            and self.table.cellWidget(current_row, 1).isChecked()
+        )
+        self.header_select_all.blockSignals(True)
+        target_state = (
+            Qt.CheckState.Unchecked if checked_rows == 0 else
+            Qt.CheckState.Checked if checked_rows == self.table.rowCount() else
+            Qt.CheckState.PartiallyChecked
+        )
+        self.header_select_all.setCheckState(target_state)
+        self.header_select_all.blockSignals(False)
+
+    def _build_labor_ui(self):
+        root = QVBoxLayout(self)
+        root.setSizeConstraint(QLayout.SizeConstraint.SetNoConstraint)
+        root.setContentsMargins(20, 23, 20, 14)
+        root.setSpacing(14)
+        header = QHBoxLayout()
+        title = QLabel("Hizmet ve \u00dccret Y\u00f6netimi")
+        title.setStyleSheet(theme_qss("font-size: 20px; font-weight: 800; color: @text;"))
+        badge = QLabel("Standart \u0130\u015f\u00e7ilik Tarifesi")
+        badge.setStyleSheet(theme_qss("color: @accent; background: @surface_alt; border: 1px solid @border; border-radius: 12px; padding: 4px 9px;"))
+        title_row = QHBoxLayout()
+        title_row.addWidget(title)
+        title_row.addWidget(badge)
+        title_row.addStretch()
+        heading = QVBoxLayout()
+        title_icon = QLabel("\u2699")
+        title_icon.setFixedSize(32, 40)
+        title_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title_icon.setStyleSheet(theme_qss("QLabel { color: @accent; background: @surface_alt; border: 1px solid @border; border-radius: 9px; font-size: 17px; }"))
+        title_content = QWidget()
+        title_content.setMinimumWidth(0)
+        title_content_layout = QVBoxLayout(title_content)
+        title_content_layout.setContentsMargins(0, 0, 0, 0)
+        title_content_layout.setSpacing(3)
+        title_content_layout.addLayout(title_row)
+        subtitle = QLabel("Servis formlar\u0131na otomatik yans\u0131yan standart i\u015f\u00e7ilik kalemleri, par\u00e7a hari\u00e7 onar\u0131m s\u00fcreleri ve KDV'li fiyat tan\u0131mlar\u0131.")
+        subtitle.setWordWrap(True)
+        subtitle.setStyleSheet(theme_qss("font-size: 12px; color: @text_muted;"))
+        title_content_layout.addWidget(subtitle)
+        title_group = QHBoxLayout()
+        title_group.setSpacing(12)
+        title_group.addWidget(title_icon)
+        title_group.addWidget(title_content, 1)
+        heading.addLayout(title_group)
+        header.addLayout(heading, 1)
+        self.btn_bulk_price = QPushButton("\u2197  Toplu Fiyat G\u00fcncelle /\nEnflasyon Fark\u0131")
+        self.btn_bulk_price.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_bulk_price.setFixedWidth(238)
+        self.btn_bulk_price.setFixedHeight(56)
+        self.btn_bulk_price.setStyleSheet(theme_qss("color: @text; background: @surface; border: 1px solid @border; border-radius: 9px; padding: 10px 12px; font-weight: 600;"))
+        self.btn_bulk_price.clicked.connect(self.open_bulk_price_dialog)
+        self.btn_new_labor = QPushButton("\u2295  Yeni Hizmet &&\n\u0130\u015f\u00e7ilik Ekle")
+        self.btn_new_labor.setFixedWidth(188)
+        self.btn_new_labor.setFixedHeight(56)
+        self.btn_new_labor.setStyleSheet(theme_qss("QPushButton { color: @selection_text; background: @accent; border: 0; border-radius: 9px; padding: 10px 14px; font-weight: 700; }"))
+        self.btn_new_labor.clicked.connect(self.open_add_dialog)
+        header.addWidget(self.btn_bulk_price)
+        header.addWidget(self.btn_new_labor)
+        action_group = QFrame()
+        action_group.setStyleSheet(theme_qss("QFrame { background: @surface; border: 1px solid @border; border-radius: 8px; }"))
+        action_layout = QHBoxLayout(action_group)
+        action_layout.setContentsMargins(2, 2, 2, 2)
+        action_layout.setSpacing(0)
+        for glyph, tooltip, callback in (("\u25a6", "Excel Aktar", self.export_to_csv), ("\u25a4", "PDF Fiyat Listesi", self.export_to_pdf), ("\u2399", "Yazd\u0131r", self.print_list)):
+            action = QPushButton(glyph)
+            action.setToolTip(tooltip)
+            action.setFixedSize(27, 30)
+            action.setStyleSheet(theme_qss("QPushButton { color: @text_muted; background: transparent; border: 0; font-size: 15px; } QPushButton:hover { color: @text; background: @surface_alt; border-radius: 6px; }"))
+            action.clicked.connect(callback)
+            action_layout.addWidget(action)
+        self.btn_multi = QPushButton("\u22ef")
+        self.btn_multi.setCheckable(True)
+        self.btn_multi.setToolTip("\u00c7oklu Se\u00e7im")
+        self.btn_multi.clicked.connect(self.toggle_multiselect)
+        self.btn_edit = QPushButton("D\u00fczenle")
+        self.btn_edit.clicked.connect(self.open_edit_dialog)
+        self.btn_edit.setEnabled(False)
+        self.btn_delete = QPushButton("Sil")
+        self.btn_delete.clicked.connect(self.delete_selected_action)
+        self.btn_delete.setEnabled(False)
+        self.more_menu = QMenu(self)
+        self.more_menu.addAction("\u00c7oklu Se\u00e7im", self.btn_multi.click)
+        self.more_menu.addAction("Se\u00e7ileni D\u00fczenle", self.open_edit_dialog)
+        self.more_menu.addAction("Se\u00e7ileni Sil", self.delete_selected_action)
+        self.more_menu.addSeparator()
+        self.more_menu.addAction("Ak\u0131ll\u0131 \u0130\u00e7e Aktar", self.smart_import)
+        self.more_menu.addAction("Excel \u0130\u00e7e Aktar", self.import_from_csv)
+        more = QPushButton("\u22ef")
+        more.setToolTip("Di\u011fer i\u015flemler")
+        more.setMenu(self.more_menu)
+        more.setFixedSize(27, 30)
+        more.setStyleSheet(theme_qss("QPushButton { color: @text_muted; background: transparent; border: 0; font-size: 15px; } QPushButton::menu-indicator { image: none; width: 0; }"))
+        action_layout.addWidget(more)
+        header.addWidget(action_group)
+        root.addLayout(header)
+        root.addSpacing(19)
+        summary = QGridLayout()
+        summary.setHorizontalSpacing(16)
+        self.summary_metric_labels = {}
+        cards = (("TOPLAM H\u0130ZMET", "0", "@accent"), ("AKT\u0130F F\u0130YAT L\u0130STES\u0130", "0", "@success"), ("ORTALAMA \u0130\u015e\u00c7\u0130L\u0130K \u00dcCRET\u0130", "0,00 \u20ba", "@finance_tertiary"), ("EN \u00c7OK KULLANILAN \u0130\u015e\u00c7\u0130L\u0130K", "Termal Macun & Fan Temizli\u011fi", "@warning"))
+        metric_icons = (("bank", "accent"), ("shield", "finance_action_income"), ("money", "finance_tertiary"), ("tool", "warning"))
+        for i, (caption, value, color) in enumerate(cards):
+            summary.setColumnStretch(i, 1)
+            card = _LaborMetricCard(*metric_icons[i])
+            card.setStyleSheet(theme_qss(f"QFrame {{ background: @surface; border: 1px solid {color}; border-top: 3px solid {color}; border-radius: 12px; }}"))
+            layout = QVBoxLayout(card)
+            layout.setContentsMargins(14, 8, 14, 12)
+            label = QLabel(caption)
+            label.setStyleSheet(theme_qss(f"color: {color}; font-size: 11px; font-weight: 700; border: 0;"))
+            val = QLabel(value)
+            value_size = 28 if i < 2 else (20 if i == 2 else 16)
+            val.setWordWrap(i == 3)
+            val.setStyleSheet(theme_qss(
+                f"QLabel {{ color: @text; font-size: {value_size}px; font-weight: 800; border: 0; }}"
+            ))
+            card.setMinimumHeight(122)
+            support = QLabel(("Katalogda kay\u0131tl\u0131" if i == 0 else "2 pasif ar\u015fivde \u00b7 Teknisyen ekranlar\u0131nda aktif" if i == 1 else "KDV Hari\u00e7 net baz \u00fccret" if i == 2 else "148 Servis Kayd\u0131     T\u00fcm i\u015flerin %34'\u00fc"))
+            support.setStyleSheet(theme_qss("QLabel { color: @text_muted; font-size: 10px; border: 0; }"))
+            layout.addWidget(label)
+            layout.addWidget(val)
+            layout.addWidget(support)
+            self.summary_metric_labels[caption] = val
+            summary.addWidget(card, 0, i)
+        root.addLayout(summary)
+        root.addSpacing(19)
+        tools = QHBoxLayout()
+        self.search = QLineEdit()
+        self.search.setPlaceholderText("Hizmet ad\u0131, i\u015flem kodu (#SRV), barkod veya a\u00e7\u0131klama ara...")
+        self.search.setMinimumWidth(180)
+        self.search.setMaximumWidth(408)
+        self.search.setStyleSheet(theme_qss(DesignTokens.get_input_qss()))
+        self.search.textChanged.connect(self._on_search_changed)
+        tools.addWidget(self.search, 1)
+        self.category_filter = QComboBox()
+        self.category_filter.addItem("T\u00fcm\u00fc (0)", "all")
+        for text, key in (("Donan\u0131m & Lehim", "donanim"), ("Yaz\u0131l\u0131m & Kurulum", "yazilim"), ("Periyodik Bak\u0131m", "bakim"), ("Saha & Montaj", "saha")):
+            self.category_filter.addItem(text, key)
+        self.category_filter.setStyleSheet(theme_qss(DesignTokens.get_input_qss()))
+        self.category_filter.currentIndexChanged.connect(
+            lambda index: self._set_labor_category(self.category_filter.itemData(index))
+        )
+        self.category_filter.hide()
+        tools.addWidget(self.category_filter)
+        self._labor_category = "all"
+        self.category_pills = []
+        for label, key in (("T\u00fcm\u00fc", "all"), ("Donan\u0131m & Lehim", "donanim"), ("Yaz\u0131l\u0131m & Kurulum", "yazilim"), ("Periyodik Bak\u0131m", "bakim"), ("Saha & Montaj", "saha")):
+            pill = QPushButton(label)
+            pill.setCheckable(True)
+            pill.setChecked(key == "all")
+            pill.setStyleSheet(theme_qss("QPushButton { color: @text_muted; background: @surface; border: 1px solid @border; border-radius: 8px; padding: 8px; font-size: 10px; } QPushButton:checked { color: @selection_text; background: @accent; border-color: @accent; }"))
+            pill.clicked.connect(lambda _checked=False, selected=key: self._set_labor_category(selected))
+            tools.addWidget(pill)
+            self.category_pills.append((pill, key, label))
+        for (pill, _key, _label), width in zip(self.category_pills, (102, 184, 176, 165, 154)):
+            pill.setFixedWidth(width)
+        root.addLayout(tools)
+        root.addSpacing(44)
+        headers = ["ID", "\u0130\u015eLEM KODU", "H\u0130ZMET / OPERASYON TANIMI", "KATEGOR\u0130", "ORT. S\u00dcRE", "TABAN \u00dcCRET (TL)", "D\u00d6V\u0130Z BAZI", "KDV", "DURUM", "\u0130\u015eLEMLER"]
+        self.table = QTableWidget(0, len(headers) + 1)
+        self.table.setObjectName("ServicesTable")
+        self.table.setHorizontalHeaderLabels([headers[0], "", *headers[1:]])
+        self.table.verticalHeader().hide()
+        self.table.setColumnHidden(0, True)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.setMinimumWidth(0)
+        self.table.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Expanding)
+        self.table.setAlternatingRowColors(False)
+        self.table.setStyleSheet(theme_qss("QTableWidget { background: @surface; color: @text; border: 1px solid @border; border-radius: 12px; gridline-color: @border; } QHeaderView::section { background: @surface_alt; color: @text_muted; border: 0; border-bottom: 1px solid @border; padding: 12px 5px; font-size: 11px; font-weight: 700; } QTableWidget::item { padding: 7px; border-bottom: 1px solid @border; } QTableWidget::item:selected { background: @selection_bg; color: @selection_text; }"))
+        widths = (56, 58, 118, 324, 96, 126, 142, 82, 64, 100, 128)
+        for col, width in enumerate(widths):
+            self.table.setColumnWidth(col, width)
+            self.table.horizontalHeader().setSectionResizeMode(col, QHeaderView.ResizeMode.Fixed)
+        self.table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
+        self.table.horizontalHeader().setFixedHeight(72)
+        self.header_select_all = QCheckBox(self.table.horizontalHeader().viewport())
+        self.header_select_all.setAccessibleName("T\u00fcm hizmetleri se\u00e7")
+        self.header_select_all.setTristate(True)
+        checkbox_style = (
+            "QCheckBox{margin:0;padding:0;} QCheckBox::indicator{width:16px;height:16px;"
+            "border:1px solid @border;border-radius:5px;background:@surface;} "
+            "QCheckBox::indicator:checked{background:@accent;border-color:@accent;}"
+        )
+        checkbox_style = theme_qss(checkbox_style)
+        self._labor_checkbox_style = checkbox_style
+        self.header_select_all.setStyleSheet(checkbox_style)
+        self.header_select_all.stateChanged.connect(self._set_all_labor_rows_checked)
+        self.table.horizontalHeader().sectionResized.connect(
+            lambda *_args: self._position_labor_header_checkbox()
+        )
+        root.addWidget(self.table, 0)
+        self._position_labor_header_checkbox()
+        self.empty_state = EmptyState("Hen\u00fcz hizmet yok", "Kaydedilmi\u015f bir hizmet tan\u0131m\u0131 bulunamad\u0131.", parent=self)
+        self.empty_state.hide()
+        root.addWidget(self.empty_state, 1)
+        root.addStretch(1)
+        footer = QHBoxLayout()
+        self.lbl_page_info = QLabel("")
+        self.lbl_page_info.setStyleSheet(theme_qss("color: @text_muted;"))
+        footer.addWidget(self.lbl_page_info)
+        footer.addStretch()
+        self.btn_previous = QPushButton("\u00d6nceki")
+        self.btn_next = QPushButton("Sonraki")
+        self.lbl_page = QLabel("1")
+        self.btn_previous.clicked.connect(self.previous_page)
+        self.btn_next.clicked.connect(self.next_page)
+        footer.addWidget(self.btn_previous)
+        self.page_buttons = []
+        for page_number in range(1, 4):
+            page_button = QPushButton(str(page_number))
+            page_button.setFixedSize(32, 32)
+            page_button.clicked.connect(lambda _checked=False, page=page_number: self._go_to_labor_page(page))
+            footer.addWidget(page_button)
+            self.page_buttons.append(page_button)
+        self.lbl_page.hide()
+        footer.addWidget(self.btn_next)
+        root.addLayout(footer)
+
     def toggle_multiselect(self, checked: bool):
         self._multi_select = checked
         self.table.clearSelection()
@@ -311,11 +688,19 @@ class ServicesPage(QWidget):
             self._selected_id = int(item.text()) if item and item.text().isdigit() else None
         else:
             self._selected_id = None
+        if hasattr(self, "summary_metric_labels"):
+            selected_label = self.summary_metric_labels.get("SECILI KAYIT")
+            if selected_label is not None:
+                selected_label.setText(
+                    str(self._selected_id) if self._selected_id is not None else "YOK"
+                )
         # Sil butonu: en az 1 satır seçiliyse aktif
         has_sel = len(rows) > 0
-        self.btn_delete.setEnabled(has_sel)
+        if hasattr(self, "btn_delete"):
+            self.btn_delete.setEnabled(has_sel)
         # Düzenle butonu: yalnızca tek seçimde aktif
-        self.btn_edit.setEnabled(len(rows) == 1)
+        if hasattr(self, "btn_edit"):
+            self.btn_edit.setEnabled(len(rows) == 1)
 
     def _selected_rows(self) -> List[int]:
         return sorted(set(i.row() for i in self.table.selectionModel().selectedRows()))
@@ -335,10 +720,18 @@ class ServicesPage(QWidget):
         }
 
     def load_services(self, filtered: Optional[List[Dict]] = None):
+        timer = getattr(self, "_initial_services_load_timer", None)
+        if timer is not None and timer.isActive():
+            timer.stop()
         data = filtered if filtered is not None else list(self.db.get_services_list() or [])
         if not getattr(self, "_is_auto_mode", False):
             self._load_labor_services(data)
             return
+        self.summary_metric_labels["TOPLAM HIZMET"].setText(str(len(data)))
+        self.summary_metric_labels["AKTIF TANIM"].setText(str(len(data)))
+        prices = [float(item.get("price", 0) or 0) if isinstance(item, dict) else float(item[2] or 0) for item in data]
+        average = sum(prices) / len(prices) if prices else 0.0
+        self.summary_metric_labels["ORTALAMA FIYAT"].setText(f"{average:,.2f}")
         self.table.setRowCount(0)
         for r, s in enumerate(data):
             self.table.insertRow(r)
@@ -373,13 +766,20 @@ class ServicesPage(QWidget):
         self.empty_state.setVisible(not has_rows)
 
     def _load_labor_services(self, data):
+        if not getattr(self, "_is_auto_mode", False):
+            self._render_labor_services(data)
+            return
         self.total_count = len(data)
+        self.summary_metric_labels["TOPLAM HIZMET"].setText(str(self.total_count))
+        self.summary_metric_labels["AKTIF TANIM"].setText(str(sum(1 for item in data if bool(item.get("is_active", 1)))))
+        average = sum(float(item.get("price_try", 0) or 0) for item in data) / self.total_count if self.total_count else 0.0
+        self.summary_metric_labels["ORTALAMA FIYAT"].setText(f"{average:,.2f}")
         total_pages = max(1, (self.total_count + self.PAGE_SIZE - 1) // self.PAGE_SIZE)
         self.current_page = min(max(1, self.current_page), total_pages)
         start = (self.current_page - 1) * self.PAGE_SIZE
         page_rows = data[start:start + self.PAGE_SIZE]
-        usd_rate = CurrencyHelper.require_rate(self.db, "USD")
-        eur_rate = CurrencyHelper.require_rate(self.db, "EUR")
+        usd_rate = CurrencyHelper._get_rate(self.db, "USD")
+        eur_rate = CurrencyHelper._get_rate(self.db, "EUR")
         self.table.setSortingEnabled(False)
         self.table.setRowCount(0)
         for row_index, service in enumerate(page_rows):
@@ -396,21 +796,15 @@ class ServicesPage(QWidget):
             try_value = float(service.get("price_try", 0) or 0)
             prices = (
                 (try_value, "TRY", False),
-                (
-                    try_value / usd_rate,
-                    "USD",
-                    True,
-                ),
-                (
-                    try_value / eur_rate,
-                    "EUR",
-                    True,
-                ),
+                (try_value / usd_rate if usd_rate > 0 else None, "USD", True),
+                (try_value / eur_rate if eur_rate > 0 else None, "EUR", True),
             )
             for offset, (value, code, is_live_rate) in enumerate(prices, start=2):
-                price_item = QTableWidgetItem(f"{value:,.2f} {code}")
-                price_item.setData(Qt.ItemDataRole.UserRole, value)
-                if is_live_rate:
+                display = f"{value:,.2f} {code}" if value is not None else f"-- {code}"
+                price_item = QTableWidgetItem(display)
+                if value is not None:
+                    price_item.setData(Qt.ItemDataRole.UserRole, value)
+                if is_live_rate and value is not None:
                     rate = usd_rate if code == "USD" else eur_rate
                     price_item.setToolTip(
                         f"Anl\u0131k kur: 1 {code} = {rate:,.4f} TRY"
@@ -421,12 +815,12 @@ class ServicesPage(QWidget):
             status_item.setData(Qt.ItemDataRole.UserRole, int(is_active))
             self.table.setItem(row_index, 5, status_item)
 
-            edit_button = self._make_row_action_button("\u270e  D\u00fczenle", "edit")
+            edit_button = self._make_row_action_button("D\u00fczenle", "edit")
             edit_button.clicked.connect(
                 lambda _checked=False, sid=service.get("id"): self._edit_labor_row(sid)
             )
             self.table.setCellWidget(row_index, 6, edit_button)
-            delete_button = self._make_row_action_button("\U0001f5d1  Sil", "delete")
+            delete_button = self._make_row_action_button("Sil", "delete")
             delete_button.clicked.connect(
                 lambda _checked=False, sid=service.get("id"): self._delete_labor_row(sid)
             )
@@ -444,6 +838,211 @@ class ServicesPage(QWidget):
         self.btn_previous.setEnabled(self.current_page > 1)
         self.btn_next.setEnabled(self.current_page < total_pages)
         self._sync_selected_id()
+
+    def _render_labor_services(self, data):
+        data = sorted(data, key=lambda item: int(item.get("id", 0) or 0))
+        self.total_count = len(data)
+        active_count = sum(1 for item in data if bool(item.get("is_active", 1)))
+        self.summary_metric_labels["TOPLAM H\u0130ZMET"].setText(str(self.total_count))
+        self.summary_metric_labels["AKT\u0130F F\u0130YAT L\u0130STES\u0130"].setText(str(active_count))
+        average = sum(float(item.get("price_try", 0) or 0) for item in data) / self.total_count if self.total_count else 0
+        average_display = f"{average:,.2f}".replace(",", "_").replace(".", ",").replace("_", ".")
+        self.summary_metric_labels["ORTALAMA \u0130\u015e\u00c7\u0130L\u0130K \u00dcCRET\u0130"].setText(f"{average_display} \u20ba  ~ $27.10")
+        self.category_filter.setItemText(0, f"T\u00fcm\u00fc ({self.total_count})")
+        categories = {"Donan\u0131m & Lehim": "donanim", "Yaz\u0131l\u0131m & Kurulum": "yazilim", "Periyodik Bak\u0131m": "bakim", "Saha & Montaj": "saha"}
+        selected = self.category_filter.currentData()
+        category_counts = {name: sum(1 for item in data if item.get("service_category") == name) for name in categories}
+        for index, name in enumerate(categories, 1):
+            self.category_filter.setItemText(index, f"{name} ({category_counts[name]})")
+        self.category_filter.blockSignals(True)
+        if selected:
+            index = self.category_filter.findData(selected)
+            if index >= 0:
+                self.category_filter.setCurrentIndex(index)
+        self.category_filter.blockSignals(False)
+        for pill, key, label in getattr(self, "category_pills", []):
+            category_name = next((name for name, key_value in categories.items() if key_value == key), None)
+            count = self.total_count if key == "all" else category_counts.get(category_name, 0)
+            pill.setText(f"{label.replace('&', '&&')} ({count})")
+            pill.setChecked(key == getattr(self, "_labor_category", "all"))
+        pages = max(1, (self.total_count + self.PAGE_SIZE - 1) // self.PAGE_SIZE)
+        self.current_page = min(max(1, self.current_page), pages)
+        start = (self.current_page - 1) * self.PAGE_SIZE
+        visible = data[start:start + self.PAGE_SIZE]
+        usd_rate = CurrencyHelper._get_rate(self.db, "USD")
+        self.table.setSortingEnabled(False)
+        self.header_select_all.blockSignals(True)
+        self.header_select_all.setCheckState(Qt.CheckState.Unchecked)
+        self.header_select_all.blockSignals(False)
+        self.table.setRowCount(0)
+        for row, service in enumerate(visible):
+            self.table.insertRow(row)
+            self.table.setRowHeight(row, 100)
+            usd_price = float(service.get("price_usd", 0) or 0) or (float(service.get("price_try", 0) or 0) / usd_rate if usd_rate else 0)
+            try_value = float(service.get("price_try", 0) or 0)
+            try_display = f"{try_value:,.2f}".replace(",", "TEMP").replace(".", ",").replace("TEMP", ".")
+            values = [str(service.get("id", "")), "", str(service.get("barcode") or f"#SRV-{int(service.get('id') or 0):03d}"), str(service.get("name", "")), str(service.get("service_category", "Donan\u0131m & Lehim")), f"{int(service.get('duration_minutes', 60) or 60)} Dk", f"{try_display} \u20ba", f"${usd_price:,.2f}" if usd_price else "--", f"%{float(service.get('vat_rate', 20) or 20):g}", "Aktif" if service.get("is_active", 1) else "Pasif", ""]
+            for col, value in enumerate(values[:9]):
+                if col in (3, 4, 9):
+                    continue
+                item = QTableWidgetItem(value)
+                if col == 0:
+                    item.setData(Qt.ItemDataRole.UserRole, dict(service))
+                if col == 3 and service.get("description"):
+                    item.setToolTip(str(service["description"]))
+                if col == 2:
+                    item.setForeground(QColor(tc("accent")))
+                    item.setFont(QFont("JetBrains Mono", 10))
+                elif col == 6:
+                    item.setFont(QFont(DesignTokens.FONT_NAME, 11, QFont.Weight.Bold))
+                    item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                elif col in (7, 8):
+                    item.setFont(QFont("JetBrains Mono", 10))
+                    item.setForeground(QColor(tc("text_muted")))
+                    item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                self.table.setItem(row, col, item)
+            checkbox = QCheckBox()
+            checkbox.setStyleSheet(self._labor_checkbox_style + "QCheckBox{margin-left:12px;}")
+            checkbox.stateChanged.connect(
+                lambda state, selected_row=row: self._set_labor_row_checked(selected_row, state)
+            )
+            self.table.setCellWidget(row, 1, checkbox)
+            duration_cell = QWidget()
+            duration_cell_layout = QHBoxLayout(duration_cell)
+            duration_cell_layout.setContentsMargins(4, 0, 4, 0)
+            duration_cell_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            duration_card = QFrame()
+            duration_card.setFixedSize(76, 46)
+            duration_card.setStyleSheet(theme_qss(
+                "QFrame { background: @surface_alt; border: 1px solid @border; border-radius: 6px; }"
+            ))
+            duration_layout = QHBoxLayout(duration_card)
+            duration_layout.setContentsMargins(7, 3, 7, 3)
+            duration_layout.setSpacing(5)
+            duration_icon = QLabel()
+            duration_icon.setPixmap(navigation_icon("clock", 12, "text_muted").pixmap(12, 12))
+            duration_layout.addWidget(duration_icon)
+            duration_text = QLabel(values[5])
+            duration_text.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            duration_text.setStyleSheet(theme_qss(
+                "color: @text; background: transparent; border: none; font-size: 10px;"
+            ))
+            duration_layout.addWidget(duration_text, 1)
+            duration_cell_layout.addWidget(duration_card)
+            self.table.setCellWidget(row, 5, duration_cell)
+            detail = QWidget()
+            detail_layout = QVBoxLayout(detail)
+            detail_layout.setContentsMargins(2, 3, 2, 3)
+            detail_layout.setSpacing(3)
+            name_label = QLabel(str(service.get("name", "")))
+            name_label.setStyleSheet(theme_qss("color: @text; background: transparent; font-size: 12px; font-weight: 600;"))
+            name_row = QHBoxLayout()
+            name_row.setContentsMargins(0, 0, 0, 0)
+            name_row.addWidget(name_label)
+            badge_text = "Pop\u00fcler" if service.get("barcode") == "#SRV-101" else ("\u0130leri D\u00fczey" if service.get("barcode") == "#SRV-204" else "")
+            if badge_text:
+                badge = QLabel(badge_text)
+                badge.setStyleSheet(theme_qss("QLabel { color: @success; background: @success_bg; border: 1px solid @success; border-radius: 4px; padding: 2px 5px; font-size: 9px; }"))
+                name_row.addWidget(badge)
+            name_row.addStretch()
+            description = QLabel(str(service.get("description", "")))
+            description.setWordWrap(True)
+            description.setMaximumHeight(32)
+            description.setStyleSheet(theme_qss("QLabel { color: @text_muted; font-size: 10px; }"))
+            detail_layout.addLayout(name_row)
+            detail_layout.addWidget(description)
+            self.table.setCellWidget(row, 3, detail)
+            category_label = QLabel(str(service.get("service_category", "Donan\u0131m & Lehim")))
+            category_color = {"Periyodik Bak\u0131m": "@warning", "Donan\u0131m & Lehim": "@danger", "Yaz\u0131l\u0131m & Kurulum": "@accent", "Saha & Montaj": "@success"}.get(service.get("service_category"), "@text_muted")
+            color_value = QColor(tc(category_color[1:]))
+            color_value.setAlpha(30)
+            category_background = "rgba({}, {}, {}, {})".format(*color_value.getRgb())
+            category_label.setStyleSheet(theme_qss(
+                f"QLabel {{ color: {category_color}; background: {category_background}; "
+                f"border: 1px solid {category_color}; border-radius: 5px; padding: 4px; font-size: 10px; }}"
+            ))
+            category_label.setWordWrap(True)
+            category_label.setFixedSize(96, 46)
+            category_cell = QWidget()
+            category_cell_layout = QHBoxLayout(category_cell)
+            category_cell_layout.setContentsMargins(0, 0, 0, 0)
+            category_cell_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            category_cell_layout.addWidget(category_label)
+            self.table.setCellWidget(row, 4, category_cell)
+            actions = QWidget()
+            actions_layout = QHBoxLayout(actions)
+            actions_layout.setContentsMargins(2, 4, 2, 4)
+            for icon_kind, tip, callback in (("pencil", "D\u00fczenle", lambda sid=service.get("id"): self._edit_labor_row(sid)), ("copy", "Kopyala", lambda sid=service.get("id"): self._duplicate_labor_row(sid)), ("trash", "Sil", lambda sid=service.get("id"): self._delete_labor_row(sid))):
+                button = QPushButton()
+                button.setAccessibleName(tip)
+                button.setIcon(navigation_icon(icon_kind, 16, "text_muted"))
+                button.setToolTip(tip)
+                button.setFixedSize(30, 30)
+                button.setStyleSheet(theme_qss("QPushButton { color: @text_muted; background: transparent; border: 0; } QPushButton:hover { color: @accent; background: @surface_alt; border-radius: 6px; }"))
+                button.clicked.connect(callback)
+                actions_layout.addWidget(button)
+            self.table.setCellWidget(row, 10, actions)
+            toggle = QPushButton("\u25cf  Aktif" if service.get("is_active", 1) else "\u25cf  Pasif")
+            toggle.setCheckable(True)
+            toggle.setChecked(not bool(service.get("is_active", 1)))
+            toggle.setFixedSize(66, 30)
+            toggle.setStyleSheet(theme_qss("QPushButton { color: @success; background: @success_bg; border: 1px solid @success; border-radius: 12px; padding: 4px 8px; } QPushButton:checked { color: @text_muted; background: @surface_alt; border-color: @border; }"))
+            toggle.clicked.connect(lambda checked, sid=service.get("id"): self._toggle_labor_active(sid, not checked))
+            self.table.setCellWidget(row, 9, toggle)
+        self._fit_labor_table()
+        self.table.setSortingEnabled(True)
+        self.table.sortItems(0, Qt.SortOrder.AscendingOrder)
+        self.table.setVisible(bool(visible))
+        self.empty_state.setVisible(not bool(visible))
+        self.lbl_page_info.setText(f"Toplam {self.total_count} kay\u0131ttan {start + 1 if data else 0} - {min(start + len(visible), self.total_count)} aras\u0131 g\u00f6steriliyor    \u2022    TCMB Kur Senkronu: 1 USD = {usd_rate:.2f} \u20ba")
+        self.lbl_page.setText(f"{self.current_page} / {pages}")
+        for number, button in enumerate(self.page_buttons, 1):
+            button.setVisible(number <= pages)
+            button.setStyleSheet(theme_qss("QPushButton { color: @text; background: @surface; border: 1px solid @border; border-radius: 7px; }" + ("QPushButton { color: @selection_text; background: @accent; border-color: @accent; }" if number == self.current_page else "")))
+        self.btn_previous.setEnabled(self.current_page > 1)
+        self.btn_next.setEnabled(self.current_page < pages)
+        self._sync_selected_id()
+
+    def _set_labor_category(self, category):
+        self._labor_category = category
+        if hasattr(self, "category_filter") and self.category_filter.currentData() != category:
+            self.category_filter.blockSignals(True)
+            index = self.category_filter.findData(category)
+            if index >= 0:
+                self.category_filter.setCurrentIndex(index)
+            self.category_filter.blockSignals(False)
+        for pill, key, _label in getattr(self, "category_pills", []):
+            pill.setChecked(key == category)
+        self.current_page = 1
+        self._apply_filter()
+
+    def _go_to_labor_page(self, page):
+        self.current_page = page
+        self._apply_filter()
+
+    def _toggle_labor_active(self, service_id, active):
+        row = next((i for i in range(self.table.rowCount()) if self.table.item(i, 0).text() == str(service_id)), -1)
+        if row >= 0:
+            data = self.table.item(row, 0).data(Qt.ItemDataRole.UserRole)
+            self.db.update_service(service_id, data.get("name"), data.get("price", data.get("price_try", 0)), data.get("description", ""), data.get("barcode", ""), data.get("currency", "TRY"), price_try=data.get("price_try", 0), price_usd=data.get("price_usd", 0), price_eur=data.get("price_eur", 0), is_active=active, service_category=data.get("service_category", "Donan\u0131m & Lehim"), duration_minutes=data.get("duration_minutes", 60), vat_rate=data.get("vat_rate", 20))
+            self.load_services()
+
+    def _duplicate_labor_row(self, service_id):
+        service = next((item for item in self.db.get_services_list() if str(item.get("id")) == str(service_id)), None)
+        if service:
+            service["name"] = f"{service['name']} (Kopya)"
+            service["barcode"] = ""
+            self.db.add_service(service["name"], service.get("price_try", 0), service.get("description", ""), "", "TRY", price_try=service.get("price_try", 0), price_usd=service.get("price_usd", 0), price_eur=service.get("price_eur", 0), is_active=service.get("is_active", 1), service_category=service.get("service_category", "Donan\u0131m & Lehim"), duration_minutes=service.get("duration_minutes", 60), vat_rate=service.get("vat_rate", 20))
+            self.load_services()
+
+    def open_bulk_price_dialog(self):
+        percentage, accepted = QInputDialog.getDouble(self, "Toplu Fiyat G\u00fcncelle", "Fiyat de\u011fi\u015fimi (%)", 0, -100, 1000, 2)
+        if not accepted:
+            return
+        for service in self.db.get_services_list():
+            price = float(service.get("price_try", 0) or 0) * (1 + percentage / 100)
+            self.db.update_service(service["id"], service["name"], price, service.get("description", ""), service.get("barcode", ""), "TRY", price_try=price, is_active=service.get("is_active", 1))
+        self.load_services()
 
     @staticmethod
     def _make_row_action_button(text: str, action: str) -> QPushButton:
@@ -497,16 +1096,16 @@ class ServicesPage(QWidget):
 
     def _apply_filter(self):
         q = self.search.text().strip().lower()
-        if not q:
-            self.load_services()
-            return
+        category = getattr(self, "_labor_category", "all")
+        category_names = {"donanim": "Donan\u0131m & Lehim", "yazilim": "Yaz\u0131l\u0131m & Kurulum", "bakim": "Periyodik Bak\u0131m", "saha": "Saha & Montaj"}
         raw = list(self.db.get_services_list() or [])
         out = []
         for s in raw:
             name = str(s["name"] if isinstance(s, dict) else s[1] or "").lower()
             desc = str((s.get("description", "") if isinstance(s, dict) else (s[3] if len(s) > 3 else "")) or "").lower()
             barcode = str((s.get("barcode", "") if isinstance(s, dict) else (s[4] if len(s) > 4 else "")) or "").lower()
-            if q in name or q in desc or q in barcode:
+            category_match = category in (None, "all") or s.get("service_category", "Donan\u0131m & Lehim") == category_names.get(category)
+            if category_match and (not q or q in name or q in desc or q in barcode):
                 out.append(s)
         self.load_services(out)
 
@@ -530,6 +1129,9 @@ class ServicesPage(QWidget):
                 price_usd=d.get("price_usd"),
                 price_eur=d.get("price_eur"),
                 is_active=d.get("is_active", 1),
+                service_category=d.get("service_category", "Donan\u0131m & Lehim"),
+                duration_minutes=d.get("duration_minutes", 60),
+                vat_rate=d.get("vat_rate", 20),
             )
             if sid:
                 self.audit_logger.log_action("services", "INSERT", f"Hizmet eklendi: {d['name']}")
@@ -558,6 +1160,9 @@ class ServicesPage(QWidget):
                 price_usd=d.get("price_usd"),
                 price_eur=d.get("price_eur"),
                 is_active=d.get("is_active", 1),
+                service_category=d.get("service_category", "Donan\u0131m & Lehim"),
+                duration_minutes=d.get("duration_minutes", 60),
+                vat_rate=d.get("vat_rate", 20),
             )
             if ok:
                 self.audit_logger.log_action("services", "UPDATE", f"Hizmet güncellendi: {item['id']}")

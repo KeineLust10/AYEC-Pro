@@ -92,8 +92,9 @@ Python önceden özel bir konumda kuruluysa:
 - En az 8 GB boş disk
 - İsteğe bağlı Tesseract yedeği için Windows Tesseract ve Türkçe dil paketi
 
-EasyOCR/PaddleOCR model dosyaları pakettedir. Tesseract ayrı bir Windows programıdır; gerekirse
-`TESSERACT_CMD` ortam değişkeni tam `tesseract.exe` yolu olarak tanımlanmalıdır.
+EasyOCR model weights are downloaded into `ocr-models\EasyOCR` and validated during installation.
+The installer needs network access for the model download. Tesseract is an optional Windows
+program; set `TESSERACT_CMD` to the full `tesseract.exe` path when using that fallback.
 
 ## Kontrol
 

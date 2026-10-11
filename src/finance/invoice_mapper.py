@@ -75,11 +75,15 @@ class InvoiceMapper:
         total_service = 0.0
         total_vat = 0.0
         total_withheld = 0.0
+        total_discount = 0.0
         
         for item in items:
             qty = float(item.get('quantity', 1))
             price = float(item.get('unit_price', 0))
-            amount = qty * price
+            gross_amount = qty * price
+            discount_rate = min(max(float(item.get('discount_rate', 0) or 0), 0.0), 100.0)
+            discount_amount = round(gross_amount * discount_rate / 100.0, 2)
+            amount = gross_amount - discount_amount
             vat_rate = float(item.get('vat_rate', 20))
             wh_code = item.get('withholding_code', "") # "5/10" gibi gelebilir
             
@@ -88,12 +92,15 @@ class InvoiceMapper:
             total_service += amount
             total_vat += calc['vat_amount']
             total_withheld += calc['withheld_amount']
+            total_discount += discount_amount
             
             json_items.append({
                 "urun_adi": item.get('name', 'Hizmet'),
                 "miktar": qty,
                 "birim": item.get('unit', 'Adet'),
                 "birim_fiyat": price,
+                "iskonto_orani": discount_rate,
+                "iskonto_tutari": discount_amount,
                 "kdv_orani": vat_rate,
                 "tevkifat_kodu": wh_code if wh_code else "", 
                 "tevkifat_orani": calc['rate_display'],
@@ -107,9 +114,20 @@ class InvoiceMapper:
         payload = {
             "fatura_bilgileri": {
                 "seri_no": invoice_data.get('serial', ''), # API üretebilir ama biz taslak gönderiyoruz
-                "tarih": datetime.now().strftime("%Y-%m-%d"),
+                "tarih": invoice_data.get('invoice_date') or datetime.now().strftime("%Y-%m-%d"),
+                "duzenleme_saati": invoice_data.get('invoice_time', ''),
                 "tip": invoice_data.get('type', 'SATIS'), 
-                "para_birimi": invoice_data.get('currency', 'TRY')
+                "senaryo": invoice_data.get('scenario', 'TICARIFATURA'),
+                "para_birimi": invoice_data.get('currency', 'TRY'),
+                "para_birimi_kuru": invoice_data.get('currency_rate', 1.0),
+                "vergi_dairesi": receiver.get('tax_office', ''),
+                "irsaliye_referansi": invoice_data.get('dispatch_reference', ''),
+                "fatura_notu": invoice_data.get('notes', ''),
+                "siparis_referansi": invoice_data.get('order_reference', ''),
+                "vade_tarihi": invoice_data.get('due_date', ''),
+                "odeme_kanali": invoice_data.get('payment_channel', ''),
+                "tahsilat_hesabi_id": invoice_data.get('bank_account_id'),
+                "cari_hesaba_isle": bool(invoice_data.get('auto_reconcile', True)),
             },
             "alici_bilgileri": {
                 "unvan": receiver.get('name', ''),
@@ -120,6 +138,7 @@ class InvoiceMapper:
             "kalemler": json_items,
             "toplamlar": {
                 "ara_toplam": round(total_service, 2),
+                "toplam_iskonto": round(total_discount, 2),
                 "toplam_kdv": round(total_vat, 2),
                 "toplam_tevkifat": round(total_withheld, 2),
                 "genel_toplam": round(grand_total, 2)

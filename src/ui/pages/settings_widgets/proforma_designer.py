@@ -13,6 +13,7 @@ from PyQt6.QtCore import Qt, QSize, QRectF
 from PyQt6.QtPdf import QPdfDocument
 
 from src.utils.theme_colors import theme_qss
+from src.utils.design_system import DesignTokens
 from src.utils import message_helper
 
 
@@ -122,7 +123,7 @@ class ProformaTemplateCanvas(QWidget):
             painter.drawRect(rect)
             # Etiket: Türkçe isim göster
             label = self.FIELD_LABELS.get(key, key)
-            painter.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
+            painter.setFont(QFont(DesignTokens.FONT_NAME, 9, QFont.Weight.Bold))
             painter.setPen(QPen(color, 1))
             painter.drawText(
                 rect.adjusted(4, 2, -4, -2),
@@ -163,7 +164,7 @@ class ProformaTemplateDesignerDialog(QtDialog):
         main_layout = QHBoxLayout(self)
         left_panel = QVBoxLayout()
         title = QLabel("Alanları Seçip Çizin")
-        title.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
+        title.setFont(QFont(DesignTokens.FONT_NAME, 12, QFont.Weight.Bold))
         left_panel.addWidget(title)
         page_label = QLabel("Sayfa Seçimi")
         left_panel.addWidget(page_label)

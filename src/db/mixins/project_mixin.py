@@ -122,6 +122,25 @@ class ProjectMixin:
                     FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
                 )
             """)
+            self.cursor.execute("PRAGMA table_info(subcontractors)")
+            subcontractor_columns = {
+                row[1] if not isinstance(row, dict) else row["name"]
+                for row in self.cursor.fetchall()
+            }
+            for column, ddl in (
+                ("payment_model", "TEXT DEFAULT 'fixed'"),
+                ("currency", "TEXT DEFAULT 'TRY'"),
+                ("phone", "TEXT"),
+                ("email", "TEXT"),
+                ("assigned_units", "TEXT DEFAULT '[]'"),
+                ("notes", "TEXT"),
+                ("daily_wage", "REAL DEFAULT 0"),
+                ("unit_rate", "REAL DEFAULT 0"),
+            ):
+                if column not in subcontractor_columns:
+                    self.cursor.execute(
+                        "ALTER TABLE subcontractors ADD COLUMN " + column + " " + ddl
+                    )
 
             # 4. Proje Finansal Hareketleri (Gelir/Gider)
             self.cursor.execute("""
@@ -712,8 +731,11 @@ class ProjectMixin:
         try:
             self.cursor.execute(
                 """
-                INSERT INTO subcontractors (project_id, name, job_type, total_contract_amount, contact_info)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO subcontractors (
+                    project_id, name, job_type, total_contract_amount, contact_info,
+                    payment_model, currency, phone, email, assigned_units, notes,
+                    daily_wage, unit_rate
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
                 (
                     data.get("project_id"),
@@ -721,6 +743,14 @@ class ProjectMixin:
                     data.get("job_type"),
                     data.get("total_contract_amount", 0),
                     data.get("contact_info"),
+                    data.get("payment_model", "fixed"),
+                    data.get("currency", "TRY"),
+                    data.get("phone", ""),
+                    data.get("email", ""),
+                    data.get("assigned_units", "[]"),
+                    data.get("notes", ""),
+                    data.get("daily_wage", 0),
+                    data.get("unit_rate", 0),
                 ),
             )
             self.conn.commit()

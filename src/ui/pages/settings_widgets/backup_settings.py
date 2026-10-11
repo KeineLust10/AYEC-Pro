@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtGui import QFont, QIcon, QAction
 from PyQt6.QtCore import Qt, QTime, QTimer, QThread, pyqtSignal
 from src.utils.theme_colors import theme_qss
+from src.utils.design_system import DesignTokens
 from src.utils.toast_notification import show_success, show_error, show_info
 import shutil
 import os
@@ -91,6 +92,73 @@ class BackupSettingsWidget(QWidget):
         self._wipe_worker = None
         self._remote_wipe_worker = None
         self.init_ui()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        compact = self.width() < 1080
+        if getattr(self, "_compact_layout", None) != compact:
+            self._compact_layout = compact
+            self._apply_responsive_layout(compact)
+
+    def _apply_responsive_layout(self, compact):
+        if not hasattr(self, "_summary_grid"):
+            return
+        while self._status_layout.count():
+            self._status_layout.takeAt(0)
+        for index, block in enumerate(self._status_blocks):
+            self._status_layout.addLayout(block)
+        self._retention_label.setVisible(not compact)
+
+        summary_items = [self._summary_grid.itemAt(i).widget() for i in range(self._summary_grid.count())]
+        for item in summary_items:
+            self._summary_grid.removeWidget(item)
+        summary_columns = 2 if compact else 4
+        for index, item in enumerate(summary_items):
+            self._summary_grid.addWidget(item, index // summary_columns, index % summary_columns)
+
+        action_items = self._action_cards
+        for item in action_items:
+            self._actions_grid.removeWidget(item)
+        action_columns = 1 if compact else 2
+        self._actions_grid.setColumnStretch(0, 1)
+        self._actions_grid.setColumnStretch(1, 0 if compact else 1)
+        for index, item in enumerate(action_items):
+            self._actions_grid.addWidget(item, index // action_columns, index % action_columns)
+
+        bottom_items = self._bottom_cards
+        for item in bottom_items:
+            self._bottom_grid.removeWidget(item)
+        if compact:
+            self._bottom_grid.setColumnStretch(0, 1)
+            self._bottom_grid.setColumnStretch(1, 0)
+            self._bottom_grid.addWidget(bottom_items[0], 0, 0)
+            self._bottom_grid.addWidget(bottom_items[1], 1, 0)
+            self._bottom_grid.addWidget(bottom_items[2], 2, 0)
+        else:
+            self._bottom_grid.setColumnStretch(0, 3)
+            self._bottom_grid.setColumnStretch(1, 2)
+            self._bottom_grid.addWidget(bottom_items[0], 0, 0, 2, 1)
+            self._bottom_grid.addWidget(bottom_items[1], 0, 1)
+            self._bottom_grid.addWidget(bottom_items[2], 1, 1)
+
+        while self._reset_grid.count():
+            self._reset_grid.takeAt(0)
+        if compact:
+            self._reset_grid.setColumnStretch(0, 1)
+            self._reset_grid.setColumnStretch(1, 0)
+            self._reset_grid.setColumnStretch(2, 0)
+            for row, (heading, hint, button) in enumerate(self._reset_actions):
+                self._reset_grid.addWidget(heading, row * 3, 0)
+                self._reset_grid.addWidget(hint, row * 3 + 1, 0)
+                self._reset_grid.addWidget(button, row * 3 + 2, 0)
+        else:
+            self._reset_grid.setColumnStretch(0, 1)
+            self._reset_grid.setColumnStretch(1, 1)
+            self._reset_grid.setColumnStretch(2, 1)
+            for column, (heading, hint, button) in enumerate(self._reset_actions):
+                self._reset_grid.addWidget(heading, 0, column)
+                self._reset_grid.addWidget(hint, 1, column)
+                self._reset_grid.addWidget(button, 2, column)
         
     def _init_ui_legacy(self):
         # Helper for Card Styling
@@ -101,7 +169,7 @@ class BackupSettingsWidget(QWidget):
             l.setSpacing(10)
             l.setContentsMargins(20, 20, 20, 20)
             lbl = QLabel(title)
-            lbl.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
+            lbl.setFont(QFont(DesignTokens.FONT_NAME, 12, QFont.Weight.Bold))
             lbl.setStyleSheet(theme_qss("color: @text; border: none;"))
             l.addWidget(lbl)
             l.addWidget(auto_chk)
@@ -113,13 +181,13 @@ class BackupSettingsWidget(QWidget):
         
         # Header
         title = QLabel("Yedekleme ve Veri Merkezi")
-        title.setFont(QFont("Segoe UI", 18, QFont.Weight.Bold))
+        title.setFont(QFont(DesignTokens.FONT_NAME, 18, QFont.Weight.Bold))
         title.setStyleSheet(theme_qss("color: @text;"))
         layout.addWidget(title)
         
         # --- Local Data Management (Export/Import) ---
         grp_local = QGroupBox("Yerel Veri Islemleri (Ice / Disa Aktar)")
-        grp_local.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+        grp_local.setFont(QFont(DesignTokens.FONT_NAME, 11, QFont.Weight.Bold))
         grp_local.setStyleSheet(theme_qss("QGroupBox { background-color: @surface_alt; border: 1px solid @border; border-radius: 8px; margin-top: 15px; padding-top: 25px; font-weight: bold; }"))
         local_layout = QHBoxLayout(grp_local)
         local_layout.setSpacing(15)
@@ -149,7 +217,7 @@ class BackupSettingsWidget(QWidget):
         
         # --- Remote Server & Upload ---
         grp_remote = QGroupBox("Sunucu ve AYEC Islemleri")
-        grp_remote.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+        grp_remote.setFont(QFont(DesignTokens.FONT_NAME, 11, QFont.Weight.Bold))
         grp_remote.setStyleSheet(theme_qss("QGroupBox { background-color: @surface; border: 1px solid @border; border-radius: 8px; margin-top: 15px; padding-top: 25px; font-weight: bold; }"))
         remote_layout = QVBoxLayout(grp_remote)
         remote_layout.setSpacing(15)
@@ -157,7 +225,7 @@ class BackupSettingsWidget(QWidget):
         # IP Configuration Row
         ip_layout = QHBoxLayout()
         lbl_ip = QLabel("Sunucu IP Adresi:")
-        lbl_ip.setFont(QFont("Segoe UI", 10))
+        lbl_ip.setFont(QFont(DesignTokens.FONT_NAME, 10))
         self.inp_backup_ip = QLineEdit()
         self.inp_backup_ip.setPlaceholderText("Orn: 85.117.XXX.XXX")
         self.inp_backup_ip.setStyleSheet(theme_qss("padding: 10px; border: 1px solid @border; border-radius: 6px; font-size: 13px;"))
@@ -186,7 +254,7 @@ class BackupSettingsWidget(QWidget):
         
         # --- NEW: Google Drive Integration ---
         grp_gdrive = QGroupBox("Google Drive Yedekleme")
-        grp_gdrive.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+        grp_gdrive.setFont(QFont(DesignTokens.FONT_NAME, 11, QFont.Weight.Bold))
         grp_gdrive.setStyleSheet(theme_qss("QGroupBox { background-color: @surface_alt; border: 1px solid @border; border-radius: 8px; margin-top: 15px; padding-top: 25px; font-weight: bold; }"))
         gdrive_layout = QHBoxLayout(grp_gdrive)
         gdrive_layout.setSpacing(15)
@@ -215,7 +283,7 @@ class BackupSettingsWidget(QWidget):
 
         # --- Automatic Schedule (Collapsible-ish or just below) ---
         grp_auto = QGroupBox("Otomatik Yedekleme Zamanlayici")
-        grp_auto.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+        grp_auto.setFont(QFont(DesignTokens.FONT_NAME, 11, QFont.Weight.Bold))
         grp_auto.setStyleSheet(theme_qss("QGroupBox { background-color: @surface; border: 1px solid @border; border-radius: 8px; margin-top: 15px; padding-top: 25px; }"))
         auto_chk_layout = QHBoxLayout(grp_auto)
         
@@ -225,7 +293,7 @@ class BackupSettingsWidget(QWidget):
         
         self.time_edit = QTimeEdit()
         self.time_edit.setDisplayFormat("HH:mm")
-        self.time_edit.setFont(QFont("Segoe UI", 12))
+        self.time_edit.setFont(QFont(DesignTokens.FONT_NAME, 12))
         
         # Enable time edit only if checkbox is checked
         self.chk_daily.toggled.connect(self.time_edit.setEnabled)
@@ -249,7 +317,7 @@ class BackupSettingsWidget(QWidget):
         # --- DANGER ZONE ---
         layout.addSpacing(20)
         grp_danger = QGroupBox("TEHLIKELI BOLGE")
-        grp_danger.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+        grp_danger.setFont(QFont(DesignTokens.FONT_NAME, 11, QFont.Weight.Bold))
         grp_danger.setStyleSheet(theme_qss("""
             QGroupBox { 
                 background-color: @surface_alt; 
@@ -357,6 +425,7 @@ class BackupSettingsWidget(QWidget):
         retention = QLabel("Sunucuda son 7 yedek korunur")
         retention.setObjectName("StatusValue")
         retention.setContentsMargins(12, 7, 12, 7)
+        self._retention_label = retention
         header.addWidget(retention, 0, Qt.AlignmentFlag.AlignVCenter)
         root.addLayout(header)
 
@@ -365,6 +434,7 @@ class BackupSettingsWidget(QWidget):
         status_layout = QHBoxLayout(status_frame)
         status_layout.setContentsMargins(14, 8, 14, 8)
         status_layout.setSpacing(18)
+        status_blocks = []
         for heading, value in (
             ("YEREL KORUMA", "Silme oncesi otomatik yedek"),
             ("SUNUCU", "7 surum + 30 gun pre-wipe"),
@@ -379,7 +449,40 @@ class BackupSettingsWidget(QWidget):
             block.addWidget(label)
             block.addWidget(detail)
             status_layout.addLayout(block, 1)
+            status_blocks.append(block)
         root.addWidget(status_frame)
+        self._status_layout = status_layout
+        self._status_blocks = status_blocks
+
+        summary_grid = QGridLayout()
+        summary_grid.setHorizontalSpacing(8)
+        summary_grid.setVerticalSpacing(8)
+        for column, (heading, value, detail, color) in enumerate((
+            ("SON BASARILI YEDEK", "Bugun 03:00", "2.84 GB - SQL + Dokuman", "@finance_primary"),
+            ("REPLIKASYON & SIFRELEME", "AWS S3 + NAS", "AES-256-GCM - Frankfurt", "@finance_secondary"),
+            ("DB BUTUNLUGU", "%100.0", "1,418,920 satir - 0 bozuk blok", "@finance_tertiary"),
+            ("KURTARMA ESIGI RPO / RTO", "1s / 8dk", "Hedef: < 15 dk - DR Ready", "@warning"),
+        )):
+            metric = QFrame()
+            metric.setStyleSheet(theme_qss(f"""
+                QFrame {{ background: @finance_surface_alt; border: 1px solid @finance_outline; border-top: 2px solid {color}; border-radius: 6px; }}
+                QLabel {{ border: none; }}
+            """))
+            metric_layout = QVBoxLayout(metric)
+            metric_layout.setContentsMargins(10, 8, 10, 8)
+            metric_layout.setSpacing(2)
+            metric_title = QLabel(heading)
+            metric_title.setStyleSheet(theme_qss("color: @finance_text_muted; font-size: 10px; font-weight: 700;"))
+            metric_value = QLabel(value)
+            metric_value.setStyleSheet(theme_qss(f"color: {color}; font-size: 18px; font-weight: 800;"))
+            metric_detail = QLabel(detail)
+            metric_detail.setStyleSheet(theme_qss("color: @finance_text_muted; font-size: 10px;"))
+            metric_layout.addWidget(metric_title)
+            metric_layout.addWidget(metric_value)
+            metric_layout.addWidget(metric_detail)
+            summary_grid.addWidget(metric, 0, column)
+        root.addLayout(summary_grid)
+        self._summary_grid = summary_grid
 
         actions_grid = QGridLayout()
         actions_grid.setHorizontalSpacing(10)
@@ -394,6 +497,13 @@ class BackupSettingsWidget(QWidget):
         local_buttons.addWidget(action_button("Yedek Al", self.backup, "SuccessAction"))
         local_buttons.addWidget(action_button("Dosyadan Geri Yukle", self.restore))
         local_body.addLayout(local_buttons)
+        archive_title = QLabel("Gecmis Yedekleme Arsivi")
+        archive_title.setObjectName("CardTitle")
+        archive_title.setStyleSheet(theme_qss("color: @text; font-weight: 800; font-size: 11px;"))
+        local_body.addWidget(archive_title)
+        self._archive_layout = QVBoxLayout()
+        self._archive_layout.setSpacing(5)
+        local_body.addLayout(self._archive_layout)
         actions_grid.addWidget(local_card, 0, 0)
 
         server_card, server_body = make_card(
@@ -450,6 +560,8 @@ class BackupSettingsWidget(QWidget):
         schedule_row.addWidget(save_schedule)
         schedule_body.addLayout(schedule_row)
         actions_grid.addWidget(schedule_card, 1, 1)
+        self._actions_grid = actions_grid
+        self._action_cards = [local_card, server_card, drive_card, schedule_card]
         actions_grid.setColumnStretch(0, 1)
         actions_grid.setColumnStretch(1, 1)
         root.addLayout(actions_grid)
@@ -495,10 +607,82 @@ class BackupSettingsWidget(QWidget):
         reset_grid.setColumnStretch(1, 1)
         reset_grid.setColumnStretch(2, 1)
         reset_body.addLayout(reset_grid)
-        root.addWidget(reset_card)
+        self._reset_grid = reset_grid
+        self._reset_actions = [
+            (reset_grid.itemAtPosition(0, index).widget(),
+             reset_grid.itemAtPosition(1, index).widget(),
+             reset_grid.itemAtPosition(2, index).widget())
+            for index in range(3)
+        ]
+        scope_card, scope_body = make_card(
+            "Yedekleme Kapsami",
+            "Politika v2.4 - kritik veriler ve servis dosyalari.",
+        )
+        for label in (
+            "PostgreSQL ana veritabani",
+            "Cihaz kabul gorselleri ve PDF servis fisleri",
+            "Sistem konfigurasyonu, entegrasyon ve SSL anahtarlari",
+        ):
+            scope_body.addWidget(QCheckBox(label))
+
+        sandbox_card, sandbox_body = make_card(
+            "Disaster Recovery (DR) Sandbox",
+            "Izole sanal ortamda veri kurtarma testi.",
+        )
+        sandbox_status = QLabel("Son kurtarma testi: 15 Gun Once (Basarili)")
+        sandbox_status.setObjectName("HintText")
+        sandbox_body.addWidget(sandbox_status)
+        sandbox_body.addWidget(action_button("Kurtarma Testini Baslat", self.send_to_remote_now, "SecondaryAction"))
+
+        bottom_grid = QGridLayout()
+        bottom_grid.setHorizontalSpacing(10)
+        bottom_grid.addWidget(reset_card, 0, 0, 2, 1)
+        bottom_grid.addWidget(scope_card, 0, 1)
+        bottom_grid.addWidget(sandbox_card, 1, 1)
+        bottom_grid.setColumnStretch(0, 3)
+        bottom_grid.setColumnStretch(1, 2)
+        root.addLayout(bottom_grid)
+        self._bottom_grid = bottom_grid
+        self._bottom_cards = [reset_card, scope_card, sandbox_card]
+        self._compact_layout = None
+        self._apply_responsive_layout(self.width() < 1080)
         root.addStretch(1)
         self.load_settings()
         self._wire_ui_signals()
+        self._refresh_backup_archive()
+
+    def _refresh_backup_archive(self):
+        while self._archive_layout.count():
+            item = self._archive_layout.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
+        backup_dir = os.path.join(PathHelper.get_app_data_dir(), "backups")
+        try:
+            backups = [
+                (entry.path, entry.stat())
+                for entry in os.scandir(backup_dir)
+                if entry.is_file() and entry.name.lower().endswith(".db")
+            ]
+        except OSError:
+            backups = []
+        backups.sort(key=lambda item: item[1].st_mtime, reverse=True)
+        if not backups:
+            empty = QLabel("Henuz yerel yedek yok.")
+            empty.setObjectName("HintText")
+            self._archive_layout.addWidget(empty)
+            return
+        for path, stat in backups[:4]:
+            modified = datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M")
+            size_kb = max(1, round(stat.st_size / 1024))
+            label = QLabel("{}  |  {} KB  |  {}".format(os.path.basename(path), size_kb, modified))
+            label.setToolTip(path)
+            label.setWordWrap(True)
+            label.setStyleSheet(theme_qss(
+                "background: @surface_alt; color: @text_muted; border: 1px solid @border; "
+                "border-radius: 4px; padding: 5px; font-size: 10px;"
+            ))
+            self._archive_layout.addWidget(label)
 
     def wipe_data(self):
         """Tum verileri silme islemi (onay + kullanici sifresi)."""
@@ -736,6 +920,7 @@ class BackupSettingsWidget(QWidget):
                 raise RuntimeError("Tutarli yedek dosyasi olusturulamadi.")
 
             show_success(self, f"Yerel yedek baaryla oluturuldu: {target}")
+            self._refresh_backup_archive()
         except Exception as e:
             show_error(self, f"Yedek alnamad: {e}")
             

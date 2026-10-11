@@ -203,19 +203,26 @@ class SettingsMixin:
             self.cursor.execute("SELECT * FROM fast_notes ORDER BY display_order")
         return self.cursor.fetchall()
 
-    def add_fast_note(self, category, label, is_active=1, order=0):
+    def add_fast_note(
+        self, category, label, is_active=1, order=0, display_category="", title=""
+    ):
         self.cursor.execute(
             "INSERT INTO fast_notes "
-            "(category, label, is_active, display_order) VALUES (?, ?, ?, ?)",
-            (category, label, is_active, order),
+            "(category, label, is_active, display_order, display_category, title) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (category, label, is_active, order, display_category, title),
         )
         self.conn.commit()
 
-    def update_fast_note(self, note_id, label, is_active, category, order=0):
+    def update_fast_note(
+        self, note_id, label, is_active, category, order=0,
+        display_category="", title="",
+    ):
         self.cursor.execute(
             "UPDATE fast_notes "
-            "SET label=?, is_active=?, category=?, display_order=? WHERE id=?",
-            (label, is_active, category, order, note_id),
+            "SET label=?, is_active=?, category=?, display_order=?, "
+            "display_category=?, title=? WHERE id=?",
+            (label, is_active, category, order, display_category, title, note_id),
         )
         self.conn.commit()
 

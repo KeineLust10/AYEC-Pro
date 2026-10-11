@@ -256,6 +256,7 @@ class DatabaseLegacyPart3Mixin:
             ("fault_description", "TEXT"),
             ("photo_path", "TEXT"),
             ("device_password", "TEXT"),
+            ("bios_password", "TEXT"),
             ("approval_status", "TEXT DEFAULT 'Bekleme'"),
             ("labor_cost", "REAL DEFAULT 0"),
             ("repair_details", "TEXT"),

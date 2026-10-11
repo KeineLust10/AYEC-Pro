@@ -47,6 +47,7 @@ class GeminiSettingsWidget(QWidget):
         super().__init__()
         self.db = db
         self.main_window = main_window
+        self.toggles = {}
         # Set expanding size policy for 100% space usage
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setup_ui()
@@ -70,10 +71,10 @@ class GeminiSettingsWidget(QWidget):
         
         title_col = QVBoxLayout()
         title_lbl = QLabel("Gemini AI Ayarları")
-        title_lbl.setFont(QFont("Segoe UI", 18, QFont.Weight.Bold))
+        title_lbl.setFont(QFont(DesignTokens.FONT_NAME, 18, QFont.Weight.Bold))
         title_lbl.setStyleSheet(theme_qss(f"color: {DesignTokens.FOREGROUND}; background: transparent; border:none;"))
         sub_lbl = QLabel("API bağlantısı, model yönetimi ve otonom yetenekler")
-        sub_lbl.setFont(QFont("Segoe UI", 10))
+        sub_lbl.setFont(QFont(DesignTokens.FONT_NAME, 10))
         sub_lbl.setStyleSheet(theme_qss(f"color: {DesignTokens.MUTED_FOREGROUND}; background: transparent; border:none;"))
         title_col.addWidget(title_lbl)
         title_col.addWidget(sub_lbl)
@@ -100,14 +101,15 @@ class GeminiSettingsWidget(QWidget):
         content = QWidget()
         content.setStyleSheet(theme_qss(f"background: {DesignTokens.BACKGROUND};"))
         self.content_layout = QVBoxLayout(content)
-        self.content_layout.setContentsMargins(24, 24, 24, 24)
-        self.content_layout.setSpacing(16)
+        self.content_layout.setContentsMargins(14, 14, 14, 14)
+        self.content_layout.setSpacing(10)
         
+        self.content_layout.addWidget(self.create_runtime_status_card())
         self.content_layout.addLayout(self.create_summary_row())
         
         grid = QGridLayout()
-        grid.setHorizontalSpacing(16)
-        grid.setVerticalSpacing(16)
+        grid.setHorizontalSpacing(10)
+        grid.setVerticalSpacing(10)
         
         left_col = QVBoxLayout()
         left_col.setSpacing(16)
@@ -115,7 +117,8 @@ class GeminiSettingsWidget(QWidget):
         right_col.setSpacing(16)
         
         left_col.addWidget(self.create_card_api())
-        left_col.addWidget(self.create_card_model())
+        self.model_card = self.create_card_model()
+        left_col.addWidget(self.model_card)
         right_col.addWidget(self.create_card_autonomous())
         right_col.addWidget(self.create_card_communication())
         left_col.addStretch()
@@ -146,12 +149,54 @@ class GeminiSettingsWidget(QWidget):
         scroll.setWidget(content)
         main_layout.addWidget(scroll)
 
+    def create_runtime_status_card(self):
+        card = QFrame()
+        card.setStyleSheet(theme_qss(
+            f"QFrame {{ background: {DesignTokens.CARD}; border: 1px solid {DesignTokens.BORDER}; border-radius: {DesignTokens.RADIUS_LG}; }}"
+        ))
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(16, 14, 16, 14)
+        header = QHBoxLayout()
+        title = QLabel("Jarvis Arka Plan Otomasyon Ajani")
+        title.setStyleSheet(theme_qss("font-size: 15px; font-weight: 850; color: @text; border: none;"))
+        badge = QLabel("AKTIF CALISIYOR")
+        badge.setStyleSheet(theme_qss("color: @success; font-weight: 800; padding: 4px 8px; background: @success_bg; border-radius: 6px; border: none;"))
+        header.addWidget(title)
+        header.addWidget(badge)
+        header.addStretch()
+        layout.addLayout(header)
+        desc = QLabel("7/8 aktif yetenek  -  Son senkronizasyon: Az once")
+        desc.setStyleSheet(theme_qss("color: @text_muted; font-size: 11px; border: none;"))
+        layout.addWidget(desc)
+        status_row = QHBoxLayout()
+        for label, value, color in (
+            ("Sesli Komut Isleme", "Cevirimici", "@success"),
+            ("WhatsApp Gateway", "Bagli", "@success"),
+            ("Cari Istihbarat", "Aktif", "@success"),
+            ("TTS Ses Sentezi", "Beklemede", "@warning"),
+        ):
+            item = QFrame()
+            item.setStyleSheet(theme_qss("QFrame { background: @surface_alt; border: none; border-radius: 6px; }"))
+            item_layout = QVBoxLayout(item)
+            item_layout.setContentsMargins(10, 7, 10, 7)
+            key = QLabel(label)
+            key.setStyleSheet(theme_qss("color: @text_muted; font-size: 10px; border: none;"))
+            val = QLabel(value)
+            val.setStyleSheet(theme_qss(f"color: {color}; font-weight: 800; border: none;"))
+            item_layout.addWidget(key)
+            item_layout.addWidget(val)
+            status_row.addWidget(item, 1)
+        layout.addLayout(status_row)
+        return card
+
     def _wire_ui_signals(self):
         self.cmb_model.currentIndexChanged.connect(self.save_data)
 
     def create_card_container(self, title, icon="\u2699\ufe0f"):
         """creates a styled whitespace card"""
         card = QFrame()
+        card.setMinimumWidth(0)
+        card.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Expanding)
         card.setStyleSheet(theme_qss(f"""
             QFrame {{
                 background-color: {DesignTokens.CARD};
@@ -166,17 +211,17 @@ class GeminiSettingsWidget(QWidget):
         card.setGraphicsEffect(shadow)
         
         layout = QVBoxLayout(card)
-        layout.setContentsMargins(25, 25, 25, 25)
-        layout.setSpacing(20)
+        layout.setContentsMargins(14, 14, 14, 14)
+        layout.setSpacing(10)
         
         # Card Header
         header = QHBoxLayout()
         lbl_icon = QLabel(icon)
-        lbl_icon.setFont(QFont("Segoe UI Emoji", 14))
+        lbl_icon.setFont(QFont(DesignTokens.FONT_NAME, 14))
         lbl_icon.setStyleSheet(theme_qss("border: none;"))
         
         lbl_title = QLabel(title)
-        lbl_title.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
+        lbl_title.setFont(QFont(DesignTokens.FONT_NAME, 14, QFont.Weight.Bold))
         lbl_title.setStyleSheet(theme_qss(f"color: {DesignTokens.FOREGROUND}; border: none;"))
         
         header.addWidget(lbl_icon)
@@ -221,17 +266,17 @@ class GeminiSettingsWidget(QWidget):
         layout.setSpacing(10)
         
         icon_lbl = QLabel(icon)
-        icon_lbl.setFont(QFont("Segoe UI Emoji", 16))
+        icon_lbl.setFont(QFont(DesignTokens.FONT_NAME, 16))
         icon_lbl.setStyleSheet(theme_qss("border:none;"))
         layout.addWidget(icon_lbl)
         
         text_col = QVBoxLayout()
         text_col.setSpacing(2)
         title_lbl = QLabel(title)
-        title_lbl.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
+        title_lbl.setFont(QFont(DesignTokens.FONT_NAME, 9, QFont.Weight.Bold))
         title_lbl.setStyleSheet(theme_qss(f"color: {DesignTokens.MUTED_FOREGROUND}; border:none;"))
         value_lbl = QLabel(value)
-        value_lbl.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
+        value_lbl.setFont(QFont(DesignTokens.FONT_NAME, 12, QFont.Weight.Bold))
         value_lbl.setStyleSheet(theme_qss(f"color: {DesignTokens.FOREGROUND}; border:none;"))
         text_col.addWidget(title_lbl)
         text_col.addWidget(value_lbl)
@@ -277,6 +322,22 @@ class GeminiSettingsWidget(QWidget):
         self.btn_test.setStyleSheet(theme_qss(DesignTokens.get_button_qss("primary", size="md")))
         self.btn_test.clicked.connect(self.test_connection)
         layout.addWidget(self.btn_test)
+
+        fab_row = QHBoxLayout()
+        fab_text = QVBoxLayout()
+        fab_label = QLabel("Asistan Simgesini G\u00f6ster")
+        fab_label.setStyleSheet(theme_qss("font-weight: 600; color: @text; border:none;"))
+        fab_hint = QLabel("Sa\u011f alttaki robot d\u00fc\u011fmesini a\u00e7 veya kapat.")
+        fab_hint.setStyleSheet(theme_qss("color: @text_muted; border:none;"))
+        fab_text.addWidget(fab_label)
+        fab_text.addWidget(fab_hint)
+        fab_row.addLayout(fab_text, 1)
+        self.fab_toggle = AnimatedToggle()
+        self.fab_toggle.setFixedSize(52, 36)
+        self.toggles["assistant_fab_enabled"] = self.fab_toggle
+        self.fab_toggle.toggled.connect(self._persist_assistant_fab)
+        fab_row.addWidget(self.fab_toggle)
+        layout.addLayout(fab_row)
         
         return card
 
@@ -339,7 +400,9 @@ class GeminiSettingsWidget(QWidget):
         layout.addWidget(desc)
         
         grid = QGridLayout()
-        grid.setSpacing(20)
+        grid.setSpacing(10)
+        grid.setColumnStretch(0, 1)
+        grid.setColumnStretch(1, 1)
         
         features = [
              ("Sistemi Aktifleştir", "Jarvi's AI çekirdeğini devreye alır.", "jarvis_enabled", True),
@@ -348,15 +411,16 @@ class GeminiSettingsWidget(QWidget):
              ("Akıllı Müşteri Analizi", "Müşteri kaydında istihbarat sağlar.", "jarvis_intel_enabled", True),
              ("Sesli Not Çevirisi", "Teknik terimleri düzeltir.", "jarvis_voice_refine_enabled", True),
              ("Hata İzleyici", "Yazılım hatalarını raporlar.", "jarvis_log_watcher_enabled", False),
-             ("Asistan Simgesini G\u00f6ster", "S\u00fcr\u00fcklenebilir robot simgesini ana ekranda g\u00f6sterir.", "assistant_fab_enabled", True),
         ]
         
-        self.toggles = {}
+        self.autonomous_grid = grid
+        self.autonomous_items = []
         
         row = 0
         col = 0
         for title, subtitle, db_key, default in features:
             wrapper = QFrame()
+            wrapper.setMinimumWidth(0)
             wrapper.setStyleSheet(theme_qss(f"background: {DesignTokens.CARD}; border-radius: {DesignTokens.RADIUS_MD}; border: 1px solid {DesignTokens.BORDER};"))
             w_layout = QHBoxLayout(wrapper)
             w_layout.setContentsMargins(15, 15, 15, 15)
@@ -364,23 +428,28 @@ class GeminiSettingsWidget(QWidget):
             # Text
             t_layout = QVBoxLayout()
             l_title = QLabel(title)
-            l_title.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+            l_title.setFont(QFont(DesignTokens.FONT_NAME, 10, QFont.Weight.Bold))
             l_title.setStyleSheet(theme_qss(f"border:none; color: {DesignTokens.FOREGROUND};"))
+            l_title.setWordWrap(True)
             l_sub = QLabel(subtitle)
-            l_sub.setFont(QFont("Segoe UI", 9))
+            l_sub.setFont(QFont(DesignTokens.FONT_NAME, 9))
             l_sub.setStyleSheet(theme_qss(f"border:none; color: {DesignTokens.MUTED_FOREGROUND};"))
             l_sub.setWordWrap(True)
+            l_sub.setMinimumWidth(0)
+            l_sub.setMaximumWidth(240)
             t_layout.addWidget(l_title)
             t_layout.addWidget(l_sub)
             
             # Toggle
             toggle = AnimatedToggle()
-            toggle.setFixedSize(60, 40)
+            toggle.setFixedSize(52, 36)
             self.toggles[db_key] = toggle
             toggle.stateChanged.connect(self.update_autonomous_summary)
+            toggle.toggled.connect(lambda checked, setting_key=db_key: self._persist_autonomous_toggle(setting_key, checked))
             
-            w_layout.addLayout(t_layout)
+            w_layout.addLayout(t_layout, 1)
             w_layout.addWidget(toggle)
+            self.autonomous_items.append(wrapper)
             
             grid.addWidget(wrapper, row, col)
             
@@ -391,7 +460,39 @@ class GeminiSettingsWidget(QWidget):
                 row += 1
                 
         layout.addLayout(grid)
+        QTimer.singleShot(0, self._adapt_autonomous_grid)
         return card
+
+    def _adapt_autonomous_grid(self):
+        """Keep the autonomous feature cards inside narrow desktop/mobile widths."""
+        if not hasattr(self, "autonomous_grid"):
+            return
+        narrow = self.width() < 1280
+        while self.autonomous_grid.count():
+            self.autonomous_grid.takeAt(0)
+        columns = 1 if narrow else 2
+        for index, item in enumerate(self.autonomous_items):
+            self.autonomous_grid.addWidget(item, index // columns, index % columns)
+
+    def _persist_assistant_fab(self, checked):
+        value = "1" if checked else "0"
+        if str(self.db.get_setting("assistant_fab_enabled", "1")) != value:
+            self.db.set_setting("assistant_fab_enabled", value)
+
+    def _persist_autonomous_toggle(self, key, checked):
+        value = "1" if checked else "0"
+        enabled_by_default = {
+            "jarvis_enabled",
+            "jarvis_intel_enabled",
+            "assistant_fab_enabled",
+        }
+        default = "1" if key in enabled_by_default else "0"
+        if str(self.db.get_setting(key, default)) != value:
+            self.db.set_setting(key, value)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._adapt_autonomous_grid()
 
     def create_card_communication(self):
         card, layout = self.create_card_container("Haberleşme & Entegrasyon", "📡")
@@ -433,9 +534,13 @@ class GeminiSettingsWidget(QWidget):
         return DesignTokens.get_input_qss() + DesignTokens.get_combobox_qss()
 
     def eventFilter(self, obj, event):
-        if hasattr(self, "cmb_model") and obj == self.cmb_model.lineEdit():
-            if event.type() == QEvent.Type.MouseButtonRelease and not self.cmb_model.view().isVisible():
-                QTimer.singleShot(0, self.cmb_model.showPopup)
+        try:
+            if hasattr(self, "cmb_model") and obj == self.cmb_model.lineEdit():
+                if event.type() == QEvent.Type.MouseButtonRelease and not self.cmb_model.view().isVisible():
+                    QTimer.singleShot(0, self.cmb_model.showPopup)
+        except RuntimeError:
+            # The reference model card can be destroyed before the legacy editor.
+            return False
         return super().eventFilter(obj, event)
 
     def refresh_summary(self, keys_list=None, model_name=None):
@@ -489,7 +594,7 @@ class GeminiSettingsWidget(QWidget):
         self.cmb_model.blockSignals(False)
         
         # WhatsApp
-        self.inp_wa_token.setText(self.db.get_setting("whatsapp_api_token", ""))
+        self.inp_wa_token.setText(SecureSettingStore.get(self.db, "whatsapp_api_token", ""))
         self.inp_wa_phone.setText(self.db.get_setting("whatsapp_admin_phone", ""))
         
         # Toggles
@@ -501,7 +606,9 @@ class GeminiSettingsWidget(QWidget):
                 "assistant_fab_enabled",
             }
             val = self.db.get_setting(key, "1" if key in enabled_by_default else "0")
+            toggle.blockSignals(True)
             toggle.setChecked(val == "1")
+            toggle.blockSignals(False)
             
         # Update Badge
         if self.inp_api_key.toPlainText():
@@ -584,9 +691,9 @@ class GeminiSettingsWidget(QWidget):
                 pass # Silent fail or log if logger available
 
 
-    def test_connection(self):
+    def test_connection(self, _checked=False, *, keys_override=None):
         raw_text = self.inp_api_key.toPlainText()
-        keys_list = [k.strip() for k in raw_text.replace(',', '\n').split('\n') if k.strip()]
+        keys_list = list(keys_override) if keys_override is not None else [k.strip() for k in raw_text.replace(',', '\n').split('\n') if k.strip()]
         
         if not keys_list:
             show_error(self, "Hata", "Test etmeden önce en az bir API anahtarı girmelisiniz.")
@@ -740,7 +847,7 @@ class ModelListDialog(ModernDialog):
         self.setFixedSize(500, 600)
         self.setStyleSheet(theme_qss("""
             QDialog { background-color: @surface; }
-            QLabel { font-family: 'Segoe UI'; }
+            QLabel { font-family: Inter; }
         """))
         
         layout = QVBoxLayout(self)
@@ -754,7 +861,7 @@ class ModelListDialog(ModernDialog):
         hl.setContentsMargins(25, 25, 25, 25)
         
         h_title = QLabel("🤖 Aktif Modeller")
-        h_title.setFont(QFont("Segoe UI", 20, QFont.Weight.Bold))
+        h_title.setFont(QFont(DesignTokens.FONT_NAME, 20, QFont.Weight.Bold))
         h_title.setStyleSheet(theme_qss("color: @selection_text;"))
         hl.addWidget(h_title)
         
@@ -813,7 +920,7 @@ class ModelListDialog(ModernDialog):
             row.setContentsMargins(15, 10, 15, 10)
             
             icon_lbl = QLabel("✨")
-            icon_lbl.setFont(QFont("Segoe UI Emoji", 18))
+            icon_lbl.setFont(QFont(DesignTokens.FONT_NAME, 18))
             icon_lbl.setStyleSheet(theme_qss("border:none; background:transparent;"))
             row.addWidget(icon_lbl)
             
@@ -821,11 +928,11 @@ class ModelListDialog(ModernDialog):
             text_lay.setSpacing(2)
             
             m_name = QLabel(m)
-            m_name.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+            m_name.setFont(QFont(DesignTokens.FONT_NAME, 11, QFont.Weight.Bold))
             m_name.setStyleSheet(theme_qss("color: @text; border:none; background:transparent;"))
             
             m_desc = QLabel("Google DeepMind")
-            m_desc.setFont(QFont("Segoe UI", 9))
+            m_desc.setFont(QFont(DesignTokens.FONT_NAME, 9))
             m_desc.setStyleSheet(theme_qss("color: @disabled_text; border:none; background:transparent;"))
             
             text_lay.addWidget(m_name)

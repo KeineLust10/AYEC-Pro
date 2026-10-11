@@ -1,0 +1,104 @@
+.service-list-ref{--sl-bg:#0b1020;--sl-panel:#111827;--sl-panel-2:#192236;--sl-line:#263449;--sl-ink:#e6edf8;--sl-muted:#94a3b8;--sl-blue:#3b82f6;display:flex;flex-direction:column;gap:10px;min-width:0;color:var(--sl-ink);font-family:Inter,"Segoe UI",system-ui,sans-serif}
+.service-list-heading{min-height:82px;padding:8px 10px;display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--sl-line);border-radius:8px;background:#101a2b}
+.service-list-heading>div:first-child{display:flex;align-items:center;gap:9px;min-width:0}
+.service-list-heading-icon{width:32px;height:32px;display:grid;place-items:center;border-radius:8px;background:#173967;color:#60a5fa;font-size:19px}
+.service-list-heading h1{margin:0;font-size:18px;line-height:1.2;font-weight:750}
+.service-list-heading p{margin:3px 0 0;color:var(--sl-muted);font-size:10px;line-height:1.4}
+.service-list-heading-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap}
+.service-list-heading-actions button,.service-list-filters button{min-height:28px;padding:0 10px;border-radius:5px;font-size:10px}
+.service-list-metrics{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}
+.service-list-metric{position:relative;min-width:0;height:114px;padding:10px;border:1px solid var(--sl-line);border-radius:7px;background:var(--sl-panel);display:flex;flex-direction:column;gap:4px;overflow:hidden}
+.service-list-metric small{color:#aab6c8;font:9px "JetBrains Mono",monospace;letter-spacing:.06em}
+.service-list-metric strong{font-size:18px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.service-list-metric-note{margin-top:auto;color:var(--sl-muted);font-size:9px}
+.service-list-metric-icon{position:absolute;top:8px;right:8px;width:25px;height:25px;display:grid;place-items:center;border:1px solid currentColor;border-radius:6px;background:#0b1020;font-size:15px}
+.service-list-metric.tone-blue{border-color:#16436a}.tone-blue .service-list-metric-icon{color:#22c5ff}.tone-amber .service-list-metric-icon{color:#fb923c}.tone-green .service-list-metric-icon{color:#34d399}.tone-purple .service-list-metric-icon{color:#c084fc}.tone-gold .service-list-metric-icon{color:#fbbf24}.tone-indigo .service-list-metric-icon{color:#818cf8}
+.service-list-tabs{display:flex;gap:4px;min-width:0;overflow:auto;padding:1px 0 4px;scrollbar-width:thin}
+.service-list-tab{flex:0 0 auto;min-height:25px;padding:0 8px;border:1px solid transparent;border-radius:5px;background:#151e30;color:var(--sl-muted);font:600 10px "JetBrains Mono",monospace;white-space:nowrap;cursor:pointer}
+.service-list-tab b{margin-left:5px;padding:1px 4px;border-radius:4px;background:#0b1020;color:#cbd5e1;font:600 9px "JetBrains Mono",monospace}
+.service-list-tab.active{background:#3b82f6;color:white}.service-list-tab.active b{background:#1d4ed8;color:white}
+.service-list-filters{display:grid;grid-template-columns:minmax(120px,1.2fr) repeat(3,minmax(100px,.8fr)) auto auto;gap:6px;align-items:center;padding:5px;border:1px solid var(--sl-line);border-radius:7px;background:#111827}
+.service-list-filters input,.service-list-filters select{width:100%;min-width:0;height:29px;padding:0 8px;border:1px solid var(--sl-line);border-radius:5px;background:#0b1020;color:var(--sl-ink);font-size:10px}
+.service-list-quick-actions{display:flex;gap:5px;align-items:center;flex-wrap:wrap;padding:0 4px 7px;border-bottom:1px solid var(--sl-line)}
+.service-list-quick-actions button{min-height:24px;padding:0 8px;border:0;border-radius:4px;background:#1a2639;color:#dbe5f3;font-size:10px;cursor:pointer}
+.service-list-quick-actions button:hover{background:#243653;color:#fff}
+.service-list-table-wrap{min-width:0;overflow:auto;border:1px solid var(--sl-line);border-radius:8px;background:var(--sl-panel)}
+.service-list-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:10px}
+.service-list-table th{height:38px;padding:5px 6px;background:#171f31;color:#9aa9bf;text-align:left;font:9px "JetBrains Mono",monospace;letter-spacing:.04em}
+.service-list-table td{height:75px;padding:6px;border-top:1px solid rgba(38,52,73,.55);color:#dce5f3;vertical-align:middle;overflow:hidden;text-overflow:ellipsis}
+.service-list-table tbody tr:nth-child(even){background:#192236}.service-list-table tbody tr:hover{background:#1d2b43}
+.service-list-table td strong,.service-list-table td small{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;overflow-wrap:anywhere}
+.service-list-table td small{margin-top:3px;color:#8797ae;font:8px "JetBrains Mono",monospace}
+.service-list-table input[type=checkbox]{accent-color:var(--sl-blue)}
+.service-list-ticket{color:#cfe0ff;font:600 10px "JetBrains Mono",monospace}
+.service-list-price{color:#34d399;text-align:right;font:600 10px "JetBrains Mono",monospace}
+.service-list-status,.service-list-priority{display:inline-block;padding:5px 6px;border-radius:4px;background:#064e3b;color:#6ee7b7;font:700 9px "JetBrains Mono",monospace;text-align:center}
+.status-parca{background:#713f12;color:#fcd34d}.status-kargo{background:#12395b;color:#38bdf8}.status-tamirde{background:#273858;color:#a5b4fc}.status-bekliyor{background:#22314c;color:#cbd5e1}.status-teslim{background:#064e3b;color:#6ee7b7}.service-list-priority{background:#273858;color:#cbd5e1}.service-list-actions{display:flex;gap:3px;align-items:center}
+.service-list-actions button{width:21px;height:21px;padding:0;border:1px solid #31415e;border-radius:4px;background:#17243a;color:#38bdf8;cursor:pointer}
+.service-list-actions button:nth-child(2){color:#fbbf24}.service-list-actions button:nth-child(3){color:#a5b4fc}
+.service-list-empty{height:90px;text-align:center;color:var(--sl-muted)}
+.service-list-pagination{display:flex;justify-content:space-between;align-items:center;gap:10px;color:var(--sl-muted);font-size:11px}
+.service-list-pagination>div{display:flex;align-items:center;gap:6px}.service-list-pagination label{display:flex;align-items:center;gap:6px;padding:6px 8px;border:1px solid var(--sl-line);border-radius:6px;font-size:10px}.service-list-pagination select,.service-list-pagination button{height:28px;border:1px solid var(--sl-line);border-radius:5px;background:#111827;color:var(--sl-ink)}.service-list-pagination button{width:30px;cursor:pointer}.service-list-pagination button:disabled{opacity:.45;cursor:default}
+body[data-page="service-list"] #content{background:var(--sl-bg)}
+@media(max-width:1120px){.service-list-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}.service-list-table{min-width:930px}}
+@media(max-width:760px){.service-list-ref{gap:9px}.service-list-heading{align-items:flex-start;flex-direction:column}.service-list-heading-actions{justify-content:flex-start;width:100%}.service-list-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.service-list-metric{height:102px;padding:9px}.service-list-metric strong{font-size:16px}.service-list-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.service-list-filters input{grid-column:1/-1}.service-list-filters button{width:100%}.service-list-table-wrap{overflow:visible;border:0;background:transparent}.service-list-table,.service-list-table tbody{display:block;width:100%;min-width:0}.service-list-table thead{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}.service-list-table tr{display:grid;grid-template-columns:30px minmax(0,1fr) minmax(0,1fr);gap:5px;padding:9px;margin-bottom:8px;border:1px solid var(--sl-line);border-radius:8px;background:var(--sl-panel)!important}.service-list-table td{display:block;min-width:0;height:auto;min-height:34px;padding:4px;border:0;font-size:11px}.service-list-table td:first-child{grid-row:1/3}.service-list-table td:first-child::before{content:""}.service-list-table td::before{content:attr(data-label);display:block;margin-bottom:3px;color:var(--sl-muted);font:8px "JetBrains Mono",monospace;text-transform:uppercase}.service-list-table td:last-child{grid-column:2/-1}.service-list-actions{flex-wrap:wrap}.service-list-pagination{align-items:flex-start;flex-direction:column}.service-list-pagination>div{width:100%;justify-content:flex-end}.service-list-quick-actions{flex-wrap:nowrap;overflow:auto}.service-list-quick-actions button{white-space:nowrap}}
+
+# Shared Slate treatment for the technical service acceptance form.
+# The same dialog is used from the desktop service list and dashboard actions.
+#appDialog:has(#dialogBody select[name="customerId"]){width:min(1256px,calc(100vw - 24px));max-width:calc(100vw - 24px);max-height:calc(100vh - 24px);padding:0;border:1px solid #263449;border-radius:8px;background:#111827;color:#e6edf8;color-scheme:dark;box-shadow:0 24px 70px rgba(0,0,0,.58)}
+#appDialog:has(#dialogBody select[name="customerId"])::backdrop{background:rgba(0,0,0,1);backdrop-filter:none}
+#appDialog:has(#dialogBody select[name="customerId"]) form>header{min-height:54px;padding:10px 16px;border-bottom:1px solid #263449;background:#101a2b;color:#e6edf8}
+#appDialog:has(#dialogBody select[name="customerId"]) form>header h2{margin:0;color:#e6edf8;font:700 12px Inter,"Segoe UI",system-ui,sans-serif;letter-spacing:.02em;text-transform:uppercase}
+#appDialog:has(#dialogBody select[name="customerId"]) form>header p{margin:3px 0 0;color:#94a3b8;font:10px Inter,"Segoe UI",system-ui,sans-serif}
+#appDialog:has(#dialogBody select[name="customerId"]) .dialog-body{max-height:calc(100vh - 150px);padding:14px 16px;background:#0b1020;color:#e6edf8}
+#dialogBody:has(select[name="customerId"]) .form-grid{width:100%;min-width:0;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 12px;align-items:start}
+#dialogBody:has(select[name="customerId"]) .field{min-width:0;color:#94a3b8}
+#dialogBody:has(select[name="customerId"]) .field label{color:#94a3b8;font:600 10px Inter,"Segoe UI",system-ui,sans-serif}
+#dialogBody:has(select[name="customerId"]) input:not([type=checkbox]),#dialogBody:has(select[name="customerId"]) select,#dialogBody:has(select[name="customerId"]) textarea{box-sizing:border-box;width:100%;min-width:0;min-height:30px;padding:6px 9px;border:1px solid #263449;border-radius:5px;background:#0f1929;color:#e6edf8;font:11px Inter,"Segoe UI",system-ui,sans-serif;outline:0}
+#dialogBody:has(select[name="customerId"]) textarea{min-height:66px;resize:vertical}
+#dialogBody:has(select[name="customerId"]) input:focus,#dialogBody:has(select[name="customerId"]) select:focus,#dialogBody:has(select[name="customerId"]) textarea:focus{border-color:#3b82f6;box-shadow:0 0 0 2px rgba(59,130,246,.15)}
+#appDialog:has(#dialogBody select[name="customerId"]) footer{gap:8px;padding:10px 16px;border-top:1px solid #263449;background:#101a2b}
+#appDialog:has(#dialogBody select[name="customerId"]) footer button{min-height:32px;border-radius:5px;font:600 10px Inter,"Segoe UI",system-ui,sans-serif}
+@media(max-width:760px){#appDialog:has(#dialogBody select[name="customerId"]){width:calc(100vw - 18px);max-width:calc(100vw - 18px);max-height:calc(100svh - 20px)}#appDialog:has(#dialogBody select[name="customerId"]) .dialog-body{max-height:calc(100svh - 160px);padding:10px}#dialogBody:has(select[name="customerId"]) .form-grid{grid-template-columns:minmax(0,1fr);gap:9px}#dialogBody:has(select[name="customerId"]) .field.full{grid-column:1}#appDialog:has(#dialogBody select[name="customerId"]) form>header{padding:10px 12px}#appDialog:has(#dialogBody select[name="customerId"]) footer{padding:9px 10px}}
+
+/* Raise service-list text to a readable baseline without changing its compact rows. */
+.service-list-heading p,.service-list-heading-actions button,.service-list-filters button,.service-list-filters input,.service-list-filters select,.service-list-quick-actions button{font-size:11px}
+.service-list-metric small,.service-list-metric-note{font-size:10px}
+.service-list-tab{font-size:11px}
+.service-list-tab b{font-size:10px}
+.service-list-table{font-size:12px}
+.service-list-table th{font-size:10px}
+.service-list-table td small{font-size:10px}
+.service-list-ticket,.service-list-price{font-size:11px}
+.service-list-status,.service-list-priority{font-size:10px}
+#appDialog:has(#dialogBody select[name="customerId"]) form>header h2{font-size:14px}
+#appDialog:has(#dialogBody select[name="customerId"]) form>header p,#dialogBody:has(select[name="customerId"]) .field label{font-size:11px}
+#dialogBody:has(select[name="customerId"]) input:not([type=checkbox]),#dialogBody:has(select[name="customerId"]) select,#dialogBody:has(select[name="customerId"]) textarea{font-size:12px}
+#appDialog:has(#dialogBody select[name="customerId"]) footer button{font-size:11px}
+@media(max-width:760px){.service-list-table td::before{font-size:10px}.service-list-table td{font-size:12px}.service-list-metric small,.service-list-metric-note{font-size:10px}}
+
+.service-accept-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-areas:"customer fault" "device fault" "device security" "actions actions";gap:12px 16px;width:100%;min-width:0;align-items:stretch}
+.service-form-card{min-width:0;padding:11px;border:1px solid var(--sl-line);border-radius:7px;background:var(--sl-panel)}
+.service-form-customer{grid-area:customer}.service-form-device{grid-area:device}.service-form-fault{grid-area:fault}.service-form-security{grid-area:security}.service-open-form{grid-area:actions}
+.service-form-card-head{min-height:30px;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 0 8px;margin-bottom:9px;border-bottom:1px solid var(--sl-line)}
+.service-form-card-head>div{display:flex;align-items:center;gap:8px;min-width:0}.service-form-card-head h3{margin:0;color:var(--sl-ink);font:700 10px Inter,"Segoe UI",system-ui,sans-serif;letter-spacing:.02em}
+.service-form-card-head small{flex:0 0 auto;color:var(--sl-muted);font:9px Inter,"Segoe UI",system-ui,sans-serif}.service-form-card-head .service-ai-label{color:#fbbf24;font-weight:700}
+.service-form-icon{width:24px;height:24px;display:grid;place-items:center;border:1px solid #2563eb;border-radius:5px;background:#17243a;color:#60a5fa;font-size:13px}.service-form-icon.warning{border-color:#854d0e;background:#2b2518;color:#fbbf24}
+.service-customer-state{display:block;margin-top:2px;color:#34d399!important}.service-customer-state.is-registered{color:#34d399!important}
+.service-customer-picker{width:130px!important;height:25px!important;min-height:25px!important;padding:0 6px!important;border-color:#31415e!important;border-radius:5px!important;background:#111d30!important;color:#93c5fd!important;font:9px Inter,"Segoe UI",system-ui,sans-serif!important}
+#dialogBody:has(select[name="customerId"]) .service-form-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;min-width:0}
+#dialogBody:has(select[name="customerId"]) .service-form-fields .field.full{grid-column:1/-1}
+.service-open-form{min-height:32px;display:flex;align-items:center;justify-content:flex-start;gap:8px;margin:0;padding:7px 10px;border:1px solid var(--sl-line);border-radius:5px;background:var(--sl-panel);color:var(--sl-muted);font-size:10px}
+@media(max-width:900px){.service-accept-form{gap:9px}.service-form-card{padding:9px}}
+@media(max-width:760px){.service-accept-form{grid-template-columns:minmax(0,1fr);grid-template-areas:"customer" "device" "fault" "security" "actions";gap:9px}.service-form-card{padding:10px}.service-form-card-head{margin-bottom:8px}#dialogBody:has(select[name="customerId"]) .service-form-fields{grid-template-columns:minmax(0,1fr);gap:8px}.service-customer-picker{max-width:145px}.service-open-form{width:100%;grid-column:1}}
+/* Keep service records and acceptance forms legible at every viewport. */
+.service-list-heading p{font-size:12px}.service-list-heading-actions button,.service-list-filters button,.service-list-filters input,.service-list-filters select,.service-list-quick-actions button{font-size:12px}
+.service-list-metric small,.service-list-metric-note{font-size:11px}.service-list-tab{font-size:12px}.service-list-tab b{font-size:11px}.service-list-table{font-size:12px}.service-list-table th{font-size:11px}.service-list-table td small{font-size:11px}.service-list-status,.service-list-priority{font-size:11px}
+#appDialog:has(#dialogBody select[name="customerId"]){width:min(1440px,calc(100vw - 32px));max-width:calc(100vw - 32px)}
+#appDialog:has(#dialogBody select[name="customerId"]) .dialog-body{padding:18px 20px}
+#dialogBody:has(select[name="customerId"]) .form-grid{gap:12px 16px}
+#dialogBody:has(select[name="customerId"]) .field label{font-size:12px}
+#dialogBody:has(select[name="customerId"]) input:not([type=checkbox]),#dialogBody:has(select[name="customerId"]) select,#dialogBody:has(select[name="customerId"]) textarea{min-height:38px;font-size:13px}
+#appDialog:has(#dialogBody select[name="customerId"]) footer button{min-height:38px;font-size:12px}
+.service-form-card-head h3{font-size:13px}.service-form-card-head small{font-size:11px}.service-customer-picker{width:160px!important;height:32px!important;min-height:32px!important;font-size:12px!important}.service-open-form{min-height:38px;font-size:12px}
+@media(max-width:760px){.service-list-table td::before{font-size:11px}.service-list-table td{font-size:12px}.service-list-metric small,.service-list-metric-note{font-size:11px}#appDialog:has(#dialogBody select[name="customerId"]){width:calc(100vw - 18px);max-width:calc(100vw - 18px)}#appDialog:has(#dialogBody select[name="customerId"]) .dialog-body{padding:12px}.service-customer-picker{max-width:170px}}

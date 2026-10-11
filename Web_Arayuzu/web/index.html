@@ -1,27 +1,31 @@
 <!doctype html>
-<html lang="tr">
+<html lang="tr" data-theme="midnight">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#0b1020">
   <title>AYEC Pro &mdash; Teknik Servis Y&#246;netimi</title>
-  <link rel="stylesheet" href="styles.css?v=20260817-1">
+  <link rel="stylesheet" href="reference-fonts.css?v=20261002-1">
+<link rel="stylesheet" href="styles.css?v=20261011-p9-telegram-align-5">
+<link rel="stylesheet" href="voice-command-reference.css?v=20261011-3">
   <link rel="stylesheet" href="control-center.css?v=20260719-2">
+  <link rel="stylesheet" href="reference-navigation.css?v=20261008-3">
+  <link rel="stylesheet" href="service-list-reference.css?v=20261008-1">
+  <link rel="stylesheet" href="midnight-reference.css?v=20261011-05">
+  <link rel="stylesheet" href="automotive-parity.css?v=20260720-2">
+  <link rel="stylesheet" href="desktop-parity.css?v=20261011-p9-97">
+  <link rel="stylesheet" href="dashboard-parity.css?v=20261008-8">
+  <link rel="stylesheet" href="contracts-reference.css?v=20261008-3">
 </head>
 <body>
   <div id="authRoot" class="auth-root" hidden aria-live="polite"></div>
   <div class="app-shell" id="appShell">
-    <aside class="sidebar" id="sidebar">
-      <div class="brand"><span class="brand-mark"><img id="brandLogo" alt="Firma logosu"><span id="brandInitial">A</span></span><div><strong>AYEC Pro</strong><small id="sectorBrand">Teknik Servis</small></div></div>
-      <nav id="nav" aria-label="Ana men&#252;"></nav>
-      <div class="sidebar-bottom"><button class="nav-button" data-page="settings"><span>&#9881;</span><span>Ayarlar</span></button><div class="user"><button class="user-profile" id="profileBtn" type="button" title="Profil bilgilerini d&#252;zenle"><span class="avatar" id="currentUserInitial">YA</span><span><strong id="currentUserName">Y&#246;netici</strong><small id="currentUserRole">&#199;evrimi&#231;i</small></span></button><button class="user-logout" id="logoutBtn" type="button" title="Oturumu kapat" aria-label="Oturumu kapat">&#8618;</button></div></div>
-    </aside>
-    <main class="main">
       <header class="topbar">
         <button type="button" class="icon-btn mobile-only" id="menuToggle" aria-expanded="false" aria-label="Men&#252;y&#252; a&#231;">&#9776;</button>
         <div><p class="eyebrow" id="breadcrumb">Genel Bak&#305;&#351;</p><h1 id="pageTitle">Kontrol Merkezi</h1></div>
         <div class="top-actions">
           <label class="global-search"><span>&#8981;</span><input id="globalSearch" placeholder="M&#252;&#351;teri, stok veya servis ara..."></label>
+          <button class="topbar-tool global-search-voice" id="globalSearchVoice" type="button" aria-label="Sesli arama ba&#351;lat" title="Sesli arama">&#127908;</button>
           <button class="topbar-tool" id="managementCenterBtn" type="button" hidden aria-label="Y&#246;netim Merkezi"><span aria-hidden="true">&#9635;</span><b>Y&#246;netim</b></button>
           <button class="topbar-tool" id="interfaceEditBtn" type="button" aria-label="Aray&#252;z&#252; ve men&#252; isimlerini d&#252;zenle"><span aria-hidden="true">&#9998;</span><b>Aray&#252;z D&#252;zenle</b></button>
           <button class="topbar-tool" id="themeBtn" type="button" aria-label="Temay&#305; de&#287;i&#351;tir"><span aria-hidden="true">&#9680;</span><b>Tema</b></button>
@@ -29,18 +33,70 @@
           <button class="primary" data-action="quick-add">&#65291; H&#305;zl&#305; &#304;&#351;lem</button>
         </div>
       </header>
+        <aside class="sidebar" id="sidebar">
+      <div class="brand"><span class="brand-mark"><img id="brandLogo" alt="Firma logosu"><span id="brandInitial">A</span></span><div><strong id="brandCompanyName">AYEC Pro</strong><small id="brandProductName">AYEC Pro</small></div><span class="brand-sector" id="sectorBrand">ERP</span><button type="button" class="sidebar-pin" id="sidebarPin" aria-label="Sol men&#252; sabitle" aria-pressed="true" title="Sol men&#252; sabit">&#128204;</button></div>
+      <nav id="nav" aria-label="Ana men&#252;"></nav>
+      <div class="sidebar-bottom"><button class="nav-button" data-page="settings"><span>&#9881;</span><span>Ayarlar</span></button><div class="sidebar-license"><strong>Teknik Servis</strong><span>v2.0.4 Premium</span></div><div class="user"><button class="user-profile" id="profileBtn" type="button" title="Profil bilgilerini d&#252;zenle"><span class="avatar" id="currentUserInitial">YA</span><span><strong id="currentUserName">Y&#246;netici</strong><small id="currentUserRole">&#199;evrimi&#231;i</small></span></button><button class="user-logout" id="logoutBtn" type="button" title="Oturumu kapat" aria-label="Oturumu kapat">Oturumu Kapat</button></div></div>
+    </aside>
+    <main class="main">
+
       <section id="content" class="content" tabindex="-1"></section>
     </main>
+  </div>
+  <div id="shellStatusBar" class="shell-status-bar" role="status">
+    <span id="shellDatabaseStatus">ERP Core Yerel Veritabani Hazir</span>
+    <span class="shell-status-separator" aria-hidden="true"></span>
+    <span id="shellExchangeRate">USD kuru: --</span>
+    <span class="shell-status-spacer"></span>
+    <span class="shell-status-version">AYEC PRO Finans Konsolu v2.0.4 Premium Enterprise</span>
   </div>
   <div id="toastRoot" class="toast-root" aria-live="polite"></div>
   <div id="contextMenu" class="context-menu" role="menu"></div>
   <dialog id="appDialog"><form method="post" id="dialogForm"><header><div><p class="eyebrow" id="dialogEyebrow"></p><h2 id="dialogTitle"></h2></div><button type="button" id="dialogClose" class="icon-btn" aria-label="Kapat">&times;</button></header><div id="dialogBody" class="dialog-body"></div><footer id="dialogFooter"></footer></form></dialog>
   <input type="file" id="fileInput" hidden accept=".json,.csv,.xlsx,.xls,.png,.jpg,.jpeg,.pdf">
   <input type="file" id="companyLogoInput" hidden accept="image/png,image/jpeg,image/webp">
-<script src="app.js?v=20260827-1"></script>
+<script src="app.js?v=20261011-p9-65"></script>
 <script src="google-auth.js?v=20260912-1"></script>
-  <link rel="stylesheet" href="automotive-parity.css?v=20260720-2">
-  <script src="automotive-parity.js?v=20260723-2"></script>
+  <script src="automotive-parity.js?v=20261008-12"></script>
   <script src="appointment-workflow.js?v=20260806-1"></script>
+  <script src="service-list-reference.js?v=20261005-1"></script>
+<script src="loans.js?v=20261006-4"></script>
+<script src="report-templates.js?v=20261006-3"></script>
+<script src="product-groups.js?v=20261007-1"></script>
+<script src="appointments-reference.js?v=20261007-2"></script>
+<script src="dashboard-parity.js?v=20261008-1"></script>
+<script src="contracts-reference.js?v=20261008-4"></script>
+<script src="settings-theme-reference.js?v=20261008-13"></script>
+<script src="voice-command-reference.js?v=20261011-3"></script>
 </body>
-</html>
+</html>\n
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\n\n
+
+\n

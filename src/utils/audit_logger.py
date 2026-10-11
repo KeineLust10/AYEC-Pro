@@ -226,6 +226,41 @@ class AuditLogger:
             logger.error(f"Get recent activity error: {str(e)}")
             return []
     
+    def get_recent_activity_page(self, limit=25, offset=0, query="", scope_prefixes=None, severity="Tumu"):
+        """Read a deterministic audit page with filters covering all saved records."""
+        self.db.conn.create_function("ayec_audit_lower", 1, lambda value: str(value or "").lower())
+        clauses = []
+        params = []
+        needle = str(query or "").strip().lower()
+        if needle:
+            columns = ("a.created_at", "a.user_id", "a.table_name", "a.action", "a.details")
+            direct = [f"instr(ayec_audit_lower({column}), ?) > 0" for column in columns]
+            params.extend([needle] * len(columns))
+            direct.append(
+                "EXISTS (SELECT 1 FROM users u LEFT JOIN personnel p ON p.id=u.personnel_id "
+                "WHERE (CAST(u.id AS TEXT)=CAST(a.user_id AS TEXT) OR u.username=a.user_id) "
+                "AND (instr(ayec_audit_lower(u.username), ?) > 0 OR instr(ayec_audit_lower(p.name), ?) > 0 "
+                "OR instr(ayec_audit_lower(u.role), ?) > 0))"
+            )
+            params.extend([needle, needle, needle])
+            clauses.append("(" + " OR ".join(direct) + ")")
+        if scope_prefixes:
+            clauses.append("(" + " OR ".join("ayec_audit_lower(a.table_name) LIKE ?" for _prefix in scope_prefixes) + ")")
+            params.extend(str(prefix).lower() + "%" for prefix in scope_prefixes)
+        if severity != "Tumu":
+            clauses.append(
+                "UPPER(CASE WHEN json_valid(a.details) THEN COALESCE(json_extract(a.details, '$.severity'), "
+                "json_extract(a.details, '$.level'), '-') ELSE '-' END)=?"
+            )
+            params.append(str(severity).upper())
+        where = " WHERE " + " AND ".join(clauses) if clauses else ""
+        count = int(self.db.conn.execute("SELECT COUNT(*) FROM audit_logs a" + where, params).fetchone()[0])
+        rows = self.db.conn.execute(
+            "SELECT a.* FROM audit_logs a" + where + " ORDER BY a.created_at DESC, a.id DESC LIMIT ? OFFSET ?",
+            params + [max(1, int(limit)), max(0, int(offset))],
+        ).fetchall()
+        return rows, count
+
     def get_activity_stats(self, days=30):
         """
         Aktivite istatistiklerini getirir
@@ -315,4 +350,4 @@ def get_audit_logger(db):
 
 if __name__ == '__main__':
     logger.info("Audit Logger - Test Modu")
-    logger.info("Bu modül database bağlantısı gerektirir.")
+    logger.info("Bu mod\u00fcl database ba\u011flant\u0131s\u0131 gerektirir.")

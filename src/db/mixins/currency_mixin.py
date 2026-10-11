@@ -1048,7 +1048,7 @@ class CurrencyMixin:
 
             if allocations:
                 for cid, curr in affected_pairs:
-                    self.rebuild_customer_currency_balance(
+                    self.recalculate_customer_currency_balance(
                         cid,
                         curr,
                         commit=False,

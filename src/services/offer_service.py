@@ -12,7 +12,7 @@ class OfferService:
         }
         if offer_columns and "created_by" not in offer_columns:
             self.db.cursor.execute("ALTER TABLE offers ADD COLUMN created_by TEXT")
-        self.db.conn.commit()
+            self.db.conn.commit()
 
     def offers(self, search=""):
         query = """
@@ -32,6 +32,64 @@ class OfferService:
             params.extend([term, term, term, term])
         query += " GROUP BY o.id ORDER BY o.created_at DESC, o.id DESC"
         return self.db.cursor.execute(query, params).fetchall()
+
+    def offers_page(
+        self,
+        search="",
+        status_filter="all",
+        currency_filter="all",
+        limit=6,
+        offset=0,
+    ):
+        """Fetch only one filtered page of offers for responsive navigation."""
+        conditions = []
+        params = []
+        search_term = str(search or "").strip()
+        if search_term:
+            pattern = f"%{search_term}%"
+            conditions.append(
+                "(o.offer_no LIKE ? OR o.customer_name LIKE ? OR o.company_name LIKE ? "
+                "OR EXISTS (SELECT 1 FROM offer_items sx WHERE sx.offer_id=o.id "
+                "AND sx.description LIKE ?))"
+            )
+            params.extend([pattern, pattern, pattern, pattern])
+
+        normalized_status = "LOWER(REPLACE(REPLACE(COALESCE(o.status, ''), 'I', 'i'), '\u0131', 'i'))"
+        status_groups = {
+            "pending": ("draft", "pending", "waiting", "beklemede", "revision_pending", "sent"),
+            "accepted": ("accepted", "approved", "onaylandi", "processed"),
+            "rejected": ("rejected", "declined", "reddedildi", "draft", "created"),
+        }
+        allowed_statuses = status_groups.get(str(status_filter or "all"))
+        if allowed_statuses:
+            placeholders = ", ".join("?" for _ in allowed_statuses)
+            conditions.append(f"{normalized_status} IN ({placeholders})")
+            params.extend(allowed_statuses)
+
+        normalized_currency = "UPPER(COALESCE(NULLIF(o.currency_code, ''), 'TRY'))"
+        currency = str(currency_filter or "all").upper()
+        if currency != "ALL":
+            conditions.append(f"{normalized_currency} = ?")
+            params.append(currency)
+
+        where = " WHERE " + " AND ".join(conditions) if conditions else ""
+        total = self.db.cursor.execute(
+            "SELECT COUNT(*) FROM offers o" + where,
+            params,
+        ).fetchone()
+        total = int((total or (0,))[0] or 0)
+        page_limit = max(1, min(int(limit), 500))
+        page_offset = max(0, int(offset))
+        query = """
+            SELECT o.*, COALESCE(GROUP_CONCAT(oi.description, ', '), '') AS items
+            FROM offers o
+            LEFT JOIN offer_items oi ON oi.offer_id=o.id
+        """ + where + " GROUP BY o.id ORDER BY o.created_at DESC, o.id DESC LIMIT ? OFFSET ?"
+        rows = self.db.cursor.execute(
+            query,
+            [*params, page_limit, page_offset],
+        ).fetchall()
+        return total, rows
 
     def offer_summary(self):
         row = self.db.cursor.execute(

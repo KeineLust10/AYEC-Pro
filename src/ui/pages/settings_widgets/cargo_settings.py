@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import (
     QFormLayout,
     QFrame,
     QHBoxLayout,
+    QGridLayout,
     QLabel,
     QLineEdit,
     QPushButton,
@@ -19,6 +20,8 @@ from PyQt6.QtWidgets import (
 )
 
 from src.utils.theme_colors import theme_qss
+from src.utils.design_system import DesignTokens
+from src.ui.widgets.modern_inputs import ModernComboBox
 
 
 class CargoSettingsWidget(QWidget):
@@ -29,8 +32,8 @@ class CargoSettingsWidget(QWidget):
         self.db = db
         self.main_window = main_window
         self.setup_ui()
-        self._wire_ui_signals()
         self.load_data()
+        self._wire_ui_signals()
 
     def setup_ui(self):
         root = QVBoxLayout(self)
@@ -38,9 +41,34 @@ class CargoSettingsWidget(QWidget):
         root.setSpacing(10)
 
         title = QLabel("Kargo Firma Ayarları")
-        title.setFont(QFont("Segoe UI", 18, QFont.Weight.Bold))
+        title.setFont(QFont(DesignTokens.FONT_NAME, 18, QFont.Weight.Bold))
         title.setStyleSheet(theme_qss("color: @text;"))
         root.addWidget(title)
+
+        summary = QFrame()
+        summary.setStyleSheet(theme_qss("QFrame { background: transparent; border: none; }"))
+        summary_grid = QGridLayout(summary)
+        summary_grid.setContentsMargins(0, 0, 0, 0)
+        summary_grid.setHorizontalSpacing(10)
+        for index, (caption, value, color) in enumerate((
+            ("KARGO SAGLAYICI", "7 FIRMA", "@finance_primary"),
+            ("OTOMATIK TAKIP", "AKTIF", "@finance_secondary"),
+            ("ORTALAMA TESLIM", "3 GUN", "@finance_tertiary"),
+            ("SMS BILDIRIMI", "KAPALI", "@finance_outline"),
+        )):
+            card = QFrame()
+            card.setStyleSheet(theme_qss(f"QFrame {{ background: @finance_surface; border: 1px solid {color}; border-radius: 8px; }}"))
+            card_layout = QVBoxLayout(card)
+            card_layout.setContentsMargins(12, 8, 12, 8)
+            card_layout.setSpacing(2)
+            label = QLabel(caption)
+            label.setStyleSheet(theme_qss("color: @text_muted; border: none;"))
+            metric = QLabel(value)
+            metric.setStyleSheet(theme_qss(f"color: {color}; border: none; font-weight: bold;"))
+            card_layout.addWidget(label)
+            card_layout.addWidget(metric)
+            summary_grid.addWidget(card, 0, index)
+        root.addWidget(summary)
 
         card = QFrame()
         card.setStyleSheet(theme_qss("QFrame { background: @surface; border: 1px solid @border; border-radius: 12px; }"))
@@ -48,7 +76,8 @@ class CargoSettingsWidget(QWidget):
         form.setContentsMargins(18, 14, 18, 18)
         form.setVerticalSpacing(12)
 
-        self.default_cargo = QComboBox()
+        self.default_cargo = ModernComboBox()
+        self.default_cargo.setProperty("referenceGlyph", "chevron_down")
         self.default_cargo.addItems(["Yurtiçi", "MNG", "Aras", "Sürat", "PTT", "UPS", "DHL"])
         self.default_cargo.setStyleSheet(theme_qss("background: @surface_alt; color: @text; border: 1px solid @border; border-radius: 8px; padding: 6px;"))
 
@@ -94,6 +123,7 @@ class CargoSettingsWidget(QWidget):
         btn_save.setStyleSheet(theme_qss("background: @accent; color: @selection_text; border: none; border-radius: 8px; padding: 10px 20px; font-weight: 700;"))
         btn_save.clicked.connect(self.save_data)
         row.addWidget(btn_save)
+        row.addStretch()
 
         root.addLayout(row)
 

@@ -5,7 +5,6 @@ from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
                              QLineEdit, QPushButton, QFrame, QGraphicsDropShadowEffect, QScrollArea, QWidget)
 from PyQt6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QSize, QThread, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QColor, QFont, QIcon, QPainter, QLinearGradient, QBrush
-import threading
 import os
 import re
 from src.utils.theme_colors import theme_qss
@@ -103,7 +102,6 @@ class AssistantSidebarDialog(ModernDialog):
         super().__init__(title="AYEC Pro", parent=parent, width=450, height=700)
         self.db = db
         self.ai_service = ai_service
-        self.tts_engine = None
         self.query_thread = None
         self.set_footer_visible(False)
         self.setFixedSize(450, 700)
@@ -276,32 +274,11 @@ class AssistantSidebarDialog(ModernDialog):
         """Metni sesli olarak okur (Türkçe)."""
         if not text: return
         try:
-            if not self.tts_engine:
-                try:
-                    import pyttsx3
-                    from src.utils.asistan_motoru import _select_turkish_pyttsx3_voice
-                except Exception:
-                    pyttsx3 = None
-                    _select_turkish_pyttsx3_voice = None
-                if not pyttsx3:
-                    return
-                self.tts_engine = pyttsx3.init()
-                # Türkçe ses seçimi (merkezi fonksiyon)
-                if _select_turkish_pyttsx3_voice:
-                    _select_turkish_pyttsx3_voice(self.tts_engine)
+            from src.utils.asistan_motoru import sesli_cevap_ver_async
 
-            if self.tts_engine:
-                # Run in separate thread to avoid freezing UI
-                threading.Thread(target=lambda: self._tts_run(text), daemon=True).start()
+            sesli_cevap_ver_async(text, engine_type="auto")
         except Exception as e:
             logger.error(f"TTS error: {e}")
-
-    def _tts_run(self, text):
-        try:
-            self.tts_engine.say(text)
-            self.tts_engine.runAndWait()
-        except Exception:
-            pass
 
     def add_message(self, text, is_ai=True):
         msg = AssistantMessage(text, is_ai=is_ai)

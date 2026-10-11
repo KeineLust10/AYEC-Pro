@@ -12,27 +12,39 @@ import traceback
 import faulthandler
 
 
-def _configure_software_webengine():
+def _configure_webengine():
     """Configure Chromium before any Qt module can initialize WebEngine."""
     os.environ["QT_QUICK_BACKEND"] = "software"
-    os.environ["QT_OPENGL"] = "software"
     os.environ["QT_DEVICE_PIXEL_RATIO"] = "0"
-    fallback_flags = [
+    blocked_flags = {
         "--disable-gpu",
         "--disable-gpu-compositing",
         "--disable-gpu-vsync",
         "--disable-3d-apis",
-        "--disable-accelerated-2d-canvas",
-        "--disable-accelerated-video-decode",
-        "--disable-features=Vulkan,UseSkiaRenderer",
+    }
+    existing = [
+        flag
+        for flag in os.environ.get("QTWEBENGINE_CHROMIUM_FLAGS", "").split()
+        if flag not in blocked_flags
+        and not flag.startswith("--use-gl=")
+        and not flag.startswith("--use-angle=")
+        and not flag.startswith("--disable-features=Vulkan,UseSkiaRenderer")
     ]
-    existing = os.environ.get("QTWEBENGINE_CHROMIUM_FLAGS", "").split()
+    webgl_flags = [
+        "--use-gl=angle",
+        "--use-angle=swiftshader-webgl",
+        "--disable-accelerated-video-decode",
+        "--enable-unsafe-swiftshader",
+    ]
     os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = " ".join(
-        [*existing, *(flag for flag in fallback_flags if flag not in existing)]
+        [*existing, *(flag for flag in webgl_flags if flag not in existing)]
     )
 
 
-_configure_software_webengine()
+from src.utils.windows_cpp_runtime import preload_windows_cpp_runtime
+
+preload_windows_cpp_runtime()
+_configure_webengine()
 
 # Segfault/C-level crash'ları da dosyaya yaz
 try:
@@ -50,8 +62,8 @@ from src.utils.startup_profiler import startup_finish, startup_mark, startup_spa
 startup_mark("main.python_imports.ready")
 
 from PyQt6.QtCore import QCoreApplication, QEventLoop, QThread, QTimer, Qt, pyqtSignal
-from PyQt6.QtGui import QIcon, QPixmap
-from PyQt6.QtWidgets import QApplication, QDialog, QSplashScreen
+from PyQt6.QtGui import QIcon
+from PyQt6.QtWidgets import QApplication, QDialog
 
 from src.utils.path_helper import PathHelper
 from src.desktop_runtime import (
@@ -110,20 +122,16 @@ def main():
     os.environ.setdefault("AYEC_WEB_SYNC_URL", DEFAULT_WEB_SYNC_URL)
 
     QCoreApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts, True)
-    QCoreApplication.setAttribute(Qt.ApplicationAttribute.AA_UseSoftwareOpenGL, True)
-
-    try:
-        importlib.import_module("PyQt6.QtWebEngineWidgets")
-    except Exception as exc:
-        logging.warning("QtWebEngine preload failed: %s", exc)
-    startup_mark("qt_webengine.preload.ready")
-
     setup_logging()
     app = QApplication(sys.argv)
     app.setApplicationName("AYEC Pro")
     app.setOrganizationName("AYEC Pro")
     app.setApplicationDisplayName("AYEC Pro")
     startup_mark("qt_application.ready")
+
+    if any(arg in ("--healthcheck", "--smoke") for arg in sys.argv[1:]):
+        sys.exit(run_healthcheck())
+
     from src.utils.context_menu_guard import install_context_menu_guard
     from src.utils.message_helper import install_modern_messagebox_hooks, show_error
     from src.utils.text_encoding import install_qt_text_sanitizer
@@ -133,8 +141,18 @@ def main():
     install_context_menu_guard()
     startup_mark("qt_guards.ready")
 
-    if any(arg in ("--healthcheck", "--smoke") for arg in sys.argv[1:]):
-        sys.exit(run_healthcheck())
+    from src.ui.startup_splash import StartupSplash
+
+    splash = StartupSplash()
+    splash.show()
+    splash.set_phase("Program baslatiliyor...")
+    startup_mark("splash.ready")
+
+    try:
+        importlib.import_module("PyQt6.QtWebEngineWidgets")
+    except Exception as exc:
+        logging.warning("QtWebEngine preload failed: %s", exc)
+    startup_mark("qt_webengine.preload.ready")
 
     # --- Single-instance guard ---
     if not _ensure_single_instance():
@@ -155,21 +173,7 @@ def main():
     install_modern_messagebox_hooks()
     startup_mark("single_instance.ready")
 
-    base_assets = PathHelper.get_resource_path("assets")
-    splash_path = os.path.join(base_assets, "app_icon.png")
-    splash = None
-    show_splash = os.environ.get("AYEC_SHOW_SPLASH", "0") == "1"
-    if show_splash and os.path.exists(splash_path):
-        pixmap = QPixmap(splash_path)
-        splash = QSplashScreen(pixmap, Qt.WindowType.WindowStaysOnTopHint)
-        splash.show()
-        splash.showMessage(
-            "Baslatiliyor...",
-            Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignHCenter,
-            Qt.GlobalColor.white,
-        )
-    startup_mark("splash.ready")
-
+    splash.set_phase("Acilis verileri ve bekleyen geri yukleme kontrol ediliyor...")
     try:
         from src.utils.web_sync_client import apply_pending_restore
 
@@ -181,6 +185,7 @@ def main():
         logging.error("Pending remote restore was not applied: %s", exc)
     startup_mark("pending_restore.ready")
 
+    splash.set_phase("Yerel veritabani hazirlaniyor...")
     try:
         from src.database import Database
 
@@ -194,6 +199,7 @@ def main():
     from src.utils.auth_manager import AuthManager
 
     auth_manager = AuthManager(db)
+    splash.set_phase("Lisans ve oturum bilgileri kontrol ediliyor...")
     login_status = {"success": False, "user": None}
     saved_token = auth_manager.get_saved_token()
     server_bound_tenant = str(
@@ -207,8 +213,7 @@ def main():
     else:
         from src.ui.modern_login_window import ModernLoginWindow
 
-        if splash:
-            splash.hide()
+        splash.hide()
         login_window = ModernLoginWindow(db)
         login_window.login_successful.connect(
             lambda user: login_status.update({"success": True, "user": user})
@@ -218,29 +223,36 @@ def main():
             or not login_status["success"]
         ):
             sys.exit(0)
-        if splash:
-            splash.show()
+        splash.show()
     startup_mark("authentication.ready")
 
-    if splash:
-        splash.showMessage(
-            "Veriler hazirlaniyor...",
-            Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignHCenter,
-            Qt.GlobalColor.white,
-        )
+    splash.set_phase("Yerel veriler hazirlaniyor...")
 
     if not hasattr(app, "_active_threads"):
         app._active_threads = set()
     loop = QEventLoop()
     worker = DbFullInitWorker(db)
+    db_init_result = {"ok": False, "error": "Database initialization did not finish."}
+
+    def finish_database_initialization(ok, error):
+        db_init_result["ok"] = bool(ok)
+        db_init_result["error"] = str(error or "")
+        loop.quit()
+
     app._active_threads.add(worker)
-    worker.completed.connect(lambda ok, err: loop.quit())
+    worker.completed.connect(finish_database_initialization)
     worker.start()
     loop.exec()
     worker.wait()
     app._active_threads.discard(worker)
+    if not db_init_result["ok"]:
+        error = db_init_result["error"] or "Unknown database initialization error."
+        logging.critical("Full database initialization failed: %s", error)
+        show_error(None, "Hata", f"Veritabani hazirlanamadi: {error}")
+        sys.exit(1)
     startup_mark("database.full.ready")
 
+    splash.set_phase("Urun bilesenleri hazirlaniyor...")
     try:
         from core import SectorManager
 
@@ -253,6 +265,7 @@ def main():
         sector_manager = None
     startup_mark("sector_manager.ready")
 
+    splash.set_phase("Sesli asistan ve sunucu senkronizasyonu baslatiliyor...")
     try:
         from src.ui.main_window import MainWindow
 
@@ -265,12 +278,19 @@ def main():
         main_window._web_sync_password = (
             getattr(login_window, "_last_login_password", "") if login_window else ""
         )
+        main_window.license_service.start_license_check()
+        sync_enabled = auto_web_sync_enabled(db)
+        main_window.configure_auto_web_sync(sync_enabled)
+        if sync_enabled:
+            main_window.start_web_sync(silent=True)
+        splash.set_phase("Sunucu kontrolu ve senkronizasyon arka planda suruyor...")
         main_window.show()
         main_window.showMaximized()
         PathHelper.apply_windows_taskbar_icon(main_window)
         startup_mark("main_window.shown")
-        if splash:
-            splash.finish(main_window)
+        splash.stop_animation()
+        splash.close()
+        splash.deleteLater()
     except Exception as exc:
         logging.critical(
             "Main window launch failed: %s\n%s", exc, traceback.format_exc()
@@ -295,7 +315,6 @@ def main():
         startup_finish()
 
     QTimer.singleShot(0, finish_first_paint)
-    main_window.configure_auto_web_sync(auto_web_sync_enabled(db))
     if local_api_enabled(db):
         QTimer.singleShot(2500, start_backend_server_deferred)
     if login_window:

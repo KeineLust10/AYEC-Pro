@@ -30,6 +30,8 @@ from datetime import datetime
 
 from src.ui.widgets.kanban_board import KanbanBoard
 from src.ui.widgets.modern_dialog import ModernDialog
+from src.ui.widgets.modern_inputs import ModernComboBox
+from src.ui.widgets.financial_reference_controls import FinancialMetricGlyph
 from src.utils.toast_notification import (
     show_success,
     show_info,
@@ -347,17 +349,17 @@ class ServiceBoardPage(QWidget):
                 QPushButton:hover {{ background: #F3F4F6; border-color: #1F4E79; }}
             """
         if primary:
-            return theme_qss("QPushButton { background-color: @accent; color: @selection_text; border-radius: 10px; font-weight: bold; padding: 0 15px; } QPushButton:hover { background-color: @accent_hover; }")
-        return theme_qss("QPushButton { background-color: @surface_alt; color: @text; border: 1px solid @border; border-radius: 10px; padding: 0 15px; } QPushButton:hover { background-color: @surface; border-color: @accent; }")
+            return theme_qss("QPushButton { background-color: @finance_action_collection; color: @finance_action_collection_text; border: none; border-radius: 4px; font-weight: 700; padding: 0 12px; } QPushButton:hover { background-color: @accent_hover; }")
+        return theme_qss("QPushButton { background-color: @finance_surface_high; color: @finance_text; border: none; border-radius: 4px; padding: 0 8px; } QPushButton:hover { background-color: @finance_active_bg; }")
 
     def _header_qss(self):
         if self._is_classic_appearance():
             return "#PageHeader { background-color: #FFFFFF; border: 1px solid #B8C0CC; border-radius: 0px; }"
         return theme_qss("""
             #PageHeader {
-                background-color: @surface;
-                border: 1px solid @border;
-                border-radius: 16px;
+                background-color: @finance_surface;
+                border: 1px solid @finance_outline;
+                border-radius: 6px;
             }
         """)
     def showEvent(self, event):
@@ -381,9 +383,10 @@ class ServiceBoardPage(QWidget):
     def setup_main_tab(self):
         layout = QVBoxLayout(self.tab_main)
         classic = self._is_classic_appearance()
-        layout.setContentsMargins(10 if classic else 18, 10 if classic else 18, 10 if classic else 18, 10 if classic else 18)
-        layout.setSpacing(8 if classic else 14)
-        self.tab_main.setStyleSheet("background: #F3F4F6;" if classic else theme_qss("background: @window;"))
+        layout.setContentsMargins(10 if classic else 12, 10 if classic else 12, 10 if classic else 12, 10 if classic else 12)
+        layout.setSpacing(8 if classic else 10)
+        self.tab_main.setObjectName("ServiceBoardMainCanvas")
+        self.tab_main.setStyleSheet("background: #F3F4F6;" if classic else theme_qss("QWidget#ServiceBoardMainCanvas { background: @finance_canvas; }"))
 
         # 1. Header & Filters
         self.header_widget = QFrame()
@@ -399,57 +402,106 @@ class ServiceBoardPage(QWidget):
             shadow.setEnabled(False)
 
         header_layout = QHBoxLayout(self.header_widget)
-        header_layout.setContentsMargins(10 if classic else 24, 8 if classic else 18, 10 if classic else 24, 8 if classic else 18)
-        header_layout.setSpacing(8 if classic else 16)
+        header_layout.setContentsMargins(10 if classic else 16, 8 if classic else 14, 10 if classic else 16, 8 if classic else 14)
+        header_layout.setSpacing(8 if classic else 12)
 
         # Title Section
         title_vbox = QVBoxLayout()
         title_vbox.setSpacing(2)
         title = QLabel(
-            "Araç Servis Operasyon Panosu"
+            "Ara\u00e7 Servis Operasyon Panosu"
             if self._is_automotive()
             else "Servis Operasyon Panosu"
         )
-        title.setFont(QFont("Segoe UI", 25, QFont.Weight.Light))  # Fixed QFont.Light
-        title.setStyleSheet("color: #111827; font-size: 12px; font-weight: 700; border: none; background: transparent;" if classic else theme_qss("color: @text;"))
+        # Use the bundled Windows-safe UI font so Turkish glyphs render consistently.
+        title.setWordWrap(True)
+        title.setStyleSheet("color: #111827; font-size: 12px; font-weight: 700; border: none; background: transparent;" if classic else theme_qss("color: @finance_text; font-size: 21px; font-weight: 700; border: none; background: transparent;"))
 
         subtitle = QLabel(
-            "İş emri, DVI, parça ve teslim akışlarını tek panodan yönetin"
+            "\u0130\u015f emri, DVI, par\u00e7a ve teslim ak\u0131\u015flar\u0131n\u0131 tek panodan y\u00f6netin"
             if self._is_automotive()
-            else "Teknik servis iş emri takibi ve durum yönetimi"
+            else "Teknik servis i\u015f emri takibi, at\u00f6lye a\u015famalar\u0131 ve lojistik durum y\u00f6netimi"
         )
-        subtitle.setFont(QFont("Segoe UI", 11))
-        subtitle.setStyleSheet("color: #4B5563; font-size: 11px; border: none; background: transparent;" if classic else theme_qss("color: @text_muted;"))
+        subtitle.setWordWrap(True)
+        subtitle.setStyleSheet("color: #4B5563; font-size: 11px; border: none; background: transparent;" if classic else theme_qss("color: @finance_text_muted; font-size: 13px; border: none; background: transparent;"))
 
         title_vbox.addWidget(title)
         title_vbox.addWidget(subtitle)
         title_vbox.setAlignment(Qt.AlignmentFlag.AlignVCenter)
-        header_layout.addLayout(title_vbox)
+        header_layout.addLayout(title_vbox, 1)
+        operational_controls = QVBoxLayout()
+        operational_controls.setSpacing(8)
+        header_layout.addLayout(operational_controls, 2)
 
-        header_layout.addStretch()
+        # Search and filter controls mirror the compact reference toolbar.
+        toolbar_layout = QHBoxLayout()
+        toolbar_layout.setSpacing(6)
+        self.board_search = QLineEdit()
+        self.board_search.setPlaceholderText("\u0130\u015f emri, m\u00fc\u015fteri veya model ara...")
+        self.board_search.setMinimumWidth(210)
+        self.board_search.setFixedHeight(30)
+        self.board_search.setStyleSheet(theme_qss("QLineEdit { background: @finance_surface_high; color: @finance_text; border: 1px solid @finance_outline; border-radius: 4px; padding: 0 8px; } QLineEdit:focus { border-color: @finance_primary; }"))
+        self.board_search.textChanged.connect(lambda _text: self.refresh_data())
+        toolbar_layout.addWidget(self.board_search)
+        self.board_filter = ModernComboBox()
+        self.board_filter.addItem("T\u00fcm\u00fc", "all")
+        self.board_filter.addItem("Acil", "urgent")
+        self.board_filter.addItem("Bugun", "today")
+        self.board_filter.addItem("Par\u00e7a bekliyor", "parts")
+        self.board_filter.addItem("Test / Onay", "test")
+        self.board_filter.setFixedHeight(30)
+        self.board_filter.setStyleSheet(theme_qss(
+            "QComboBox { background: @finance_surface_high; color: @finance_text; "
+            "border: 1px solid @finance_outline; border-radius: 4px; padding: 0 8px; font-size: 11px; }"
+            "QComboBox QAbstractItemView { background: @finance_surface; color: @finance_text; "
+            "selection-background-color: @finance_active_bg; }"
+        ))
+        self.board_filter.set_reference_chevron()
+        self.board_filter.currentIndexChanged.connect(lambda _index: self.refresh_data())
+        toolbar_layout.addWidget(self.board_filter)
+        self.btn_urgent_filter = QPushButton("Acil (0)")
+        self.btn_urgent_filter.setFixedHeight(30)
+        self.btn_urgent_filter.setStyleSheet(self._button_qss(False))
+        self.btn_urgent_filter.clicked.connect(lambda: self.board_filter.setCurrentIndex(1))
+        toolbar_layout.addWidget(self.btn_urgent_filter)
+        self.btn_today_filter = QPushButton("Bug\u00fcn")
+        self.btn_today_filter.setFixedHeight(30)
+        self.btn_today_filter.setStyleSheet(self._button_qss(False))
+        self.btn_today_filter.clicked.connect(lambda: self.board_filter.setCurrentIndex(2))
+        toolbar_layout.addWidget(self.btn_today_filter)
+        operational_controls.addLayout(toolbar_layout)
 
         # Action Buttons Container
         btn_layout = QHBoxLayout()
-        btn_layout.setSpacing(10)
+        btn_layout.setSpacing(6)
 
         def _sbtn(icon, tooltip, primary=False):
             b = QPushButton(icon)
             b.setToolTip(tooltip)
             b.setCursor(Qt.CursorShape.PointingHandCursor)
-            b.setFixedSize(40, 40)
-            b.setStyleSheet(theme_qss(DesignTokens.get_icon_btn_qss()))
+            b.setFixedSize(32, 32)
+            b.setStyleSheet(self._button_qss(primary))
             return b
 
-        btn_add = _sbtn("\U0001f4cb", "Yeni Kay\u0131t A\u00e7", primary=True)
+        btn_add = QPushButton("+  Yeni \u0130\u015f Emri Ekle")
+        btn_add.setToolTip("Yeni Kay\u0131t A\u00e7")
+        btn_add.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_add.setFixedHeight(34)
+        btn_add.setMinimumWidth(150)
+        btn_add.setStyleSheet(self._button_qss(True))
         btn_add.clicked.connect(self.open_new_service_dialog)
 
-        btn_refresh = _sbtn("\U0001f504", "Panoyu Yenile", primary=False)
+        btn_refresh = _sbtn("\u21bb", "Panoyu Yenile", primary=False)
         btn_refresh.clicked.connect(self.refresh_data)
 
-        btn_layout.addWidget(btn_add)
+        self.btn_new_service = btn_add
+        create_row = QHBoxLayout()
+        create_row.addWidget(btn_add)
+        create_row.addStretch(1)
+        operational_controls.addLayout(create_row)
         btn_layout.addWidget(btn_refresh)
 
-        btn_archive = _sbtn("\U0001f4da", "T\u00fcm \u0130\u015flemler / Ar\u015fiv", primary=False)
+        btn_archive = _sbtn("\u2261", "T\u00fcm \u0130\u015flemler / Ar\u015fiv", primary=False)
         btn_archive.clicked.connect(
             lambda: (
                 self.main_window.switch_page(PageIds.JOB_TRACKING)
@@ -459,7 +511,7 @@ class ServiceBoardPage(QWidget):
         )
         btn_layout.addWidget(btn_archive)
 
-        btn_bulk = _sbtn("\u2699\ufe0f", "Toplu \u0130\u015flem", primary=False)
+        btn_bulk = _sbtn("\u2699", "Toplu \u0130\u015flem", primary=False)
         btn_bulk.clicked.connect(self.open_bulk_action_dialog)
         btn_layout.addWidget(btn_bulk)
 
@@ -468,16 +520,100 @@ class ServiceBoardPage(QWidget):
             btn_appt.clicked.connect(self.open_add_appointment_dialog)
             btn_layout.addWidget(btn_appt)
 
-        header_layout.addLayout(btn_layout)
+        toolbar_layout.addLayout(btn_layout)
 
         layout.addWidget(self.header_widget)
 
         # 2. The Kanban Board
         self.board = KanbanBoard()
-        self.board.setStyleSheet("#KanbanBoard { background: #F3F4F6; border: none; }" if self._is_classic_appearance() else theme_qss("background: @window; border: none;"))
+        self.board.setStyleSheet("#KanbanBoard { background: #F3F4F6; border: none; }" if self._is_classic_appearance() else theme_qss("QScrollArea#KanbanBoard { background: @finance_canvas; border: none; }"))
         self.board.card_clicked.connect(self.open_device_detail)
         self.board.action_triggered.connect(self.on_board_action)
         layout.addWidget(self.board)
+        self._build_kpi_bar(layout)
+
+    def _build_kpi_bar(self, parent_layout):
+        """Build the compact telemetry row from the reference desktop screen."""
+        self.kpi_bar = QFrame()
+        self.kpi_bar.setObjectName("ServiceBoardKpiBar")
+        self.kpi_bar.setFixedHeight(100)
+        self.kpi_bar.setStyleSheet(theme_qss(
+            "QFrame#ServiceBoardKpiBar { background: @finance_surface; border: 1px solid @finance_outline; border-radius: 6px; }"
+        ))
+        bar_layout = QHBoxLayout(self.kpi_bar)
+        bar_layout.setContentsMargins(8, 8, 8, 8)
+        bar_layout.setSpacing(8)
+        specs = [
+            ("collection", "Toplam Aktif \u0130\u015f Emri", "active", "finance_action_collection"),
+            ("clock", "Ort. A\u00e7\u0131k Kalma", "age", "finance_secondary"),
+            ("truck", "Bug\u00fcnk\u00fc Teslimat", "due", "finance_primary"),
+            ("wallet", "G\u00fcnl\u00fck Servis Cirosu", "revenue", "finance_secondary"),
+        ]
+        self._kpi_values = {}
+        for icon, title, key, accent in specs:
+            card = QFrame()
+            card.setObjectName("ServiceBoardKpiCard")
+            card.setStyleSheet(theme_qss(
+                "QFrame#ServiceBoardKpiCard { background: @finance_surface_container; border: none; border-radius: 4px; }"
+            ))
+            card_layout = QHBoxLayout(card)
+            card_layout.setContentsMargins(10, 6, 10, 6)
+            card_layout.setSpacing(8)
+            icon_frame = QFrame(card)
+            icon_frame.setObjectName("ServiceBoardKpiIcon")
+            icon_frame.setFixedSize(42, 42)
+            icon_frame.setStyleSheet(theme_qss(
+                "QFrame#ServiceBoardKpiIcon { background: @finance_active_bg; border: none; border-radius: 4px; }"
+            ))
+            icon_box = QVBoxLayout(icon_frame)
+            icon_box.setContentsMargins(7, 7, 7, 7)
+            icon_box.addWidget(FinancialMetricGlyph(icon, accent, icon_frame, glyph_size=28))
+            card_layout.addWidget(icon_frame)
+            text_layout = QVBoxLayout()
+            text_layout.setSpacing(0)
+            title_label = QLabel(title)
+            title_label.setStyleSheet(theme_qss("color: @finance_text_muted; font-size: 12px; font-weight: 500; background: transparent; border: none;"))
+            value_label = QLabel("-")
+            value_label.setObjectName("KpiValue")
+            value_label.setStyleSheet(theme_qss("color: @" + accent + "; font-size: 24px; font-weight: 700; background: transparent; border: none;"))
+            text_layout.addWidget(title_label)
+            text_layout.addWidget(value_label)
+            card_layout.addLayout(text_layout, 1)
+            bar_layout.addWidget(card, 1)
+            self._kpi_values[key] = value_label
+        parent_layout.addWidget(self.kpi_bar)
+
+    def _update_kpi_bar(self, devices):
+        """Update telemetry values from the same rows rendered by the board."""
+        if not getattr(self, "_kpi_values", None):
+            return
+        rows = [row for row in devices if isinstance(row, dict)]
+        active_value = len(devices)
+        ages = []
+        due_today = 0
+        revenue = 0.0
+        today = datetime.now().date().isoformat()
+        for row in rows:
+            raw_entry = str(row.get("entry_date") or row.get("created_at") or "")[:10]
+            try:
+                ages.append(max(0, (datetime.now().date() - datetime.fromisoformat(raw_entry).date()).days))
+            except (TypeError, ValueError):
+                pass
+            planned = str(row.get("estimated_date") or row.get("exit_date") or "")[:10]
+            if planned == today:
+                due_today += 1
+            try:
+                revenue += float(row.get("price") or 0)
+            except (TypeError, ValueError):
+                pass
+        average_age = f"{sum(ages) / len(ages):.1f} g\u00fcn" if ages else "-"
+        revenue_text = CurrencyHelper.format_try_for_display(
+            revenue, db=self.db, include_try_reference=False
+        )
+        self._kpi_values["active"].setText(str(active_value))
+        self._kpi_values["age"].setText(average_age)
+        self._kpi_values["due"].setText(str(due_today))
+        self._kpi_values["revenue"].setText(revenue_text)
 
     def refresh_data(self):
         try:
@@ -516,15 +652,13 @@ class ServiceBoardPage(QWidget):
               AND (
                   COALESCE(status, '') = ''
                   OR (
-                      status NOT LIKE '%Teslim%'
+                      status NOT LIKE 'Teslim %'
                       AND status NOT LIKE '%Kapan%'
                       AND status NOT LIKE '%Kapali%'
                       AND status NOT LIKE '%Kapalı%'
                       AND status NOT LIKE '%Tamamland%'
                       AND status NOT LIKE '%Bitti%'
                       AND status NOT LIKE '%Tamir Edildi%'
-                      AND status NOT LIKE '%Hazir%'
-                      AND status NOT LIKE '%Hazır%'
                       AND status NOT LIKE '%İptal%'
                       AND status NOT LIKE '%Iptal%'
                       AND status NOT LIKE '%İade%'
@@ -578,7 +712,46 @@ class ServiceBoardPage(QWidget):
             else:
                 normalized_devices.append(device)
         self._attach_kanban_quick_info(normalized_devices)
-        self.board.refresh(normalized_devices)
+        self._update_kpi_bar(normalized_devices)
+        urgent_count = sum(
+            str(row.get("urgency") or "").casefold() in {"acil", "kritik", "y\u00fcksek", "yuksek"}
+            for row in normalized_devices if isinstance(row, dict)
+        )
+        self.btn_urgent_filter.setText("Acil (" + str(urgent_count) + ")")
+        visible_devices = normalized_devices
+        needle = self.board_search.text().strip().casefold() if hasattr(self, "board_search") else ""
+        filter_key = self.board_filter.currentData() if hasattr(self, "board_filter") else "all"
+        if needle:
+            visible_devices = [
+                row for row in visible_devices
+                if needle in " ".join(
+                    str(row.get(key) or "")
+                    for key in ("tracking_no", "customer_name", "device_brand", "device_model", "fault_description")
+                ).casefold()
+            ]
+        if filter_key == "urgent":
+            visible_devices = [
+                row for row in visible_devices
+                if str(row.get("urgency") or "").casefold() in {"acil", "kritik", "y\u00fcksek", "yuksek"}
+            ]
+        elif filter_key == "today":
+            today = datetime.now().strftime("%Y-%m-%d")
+            visible_devices = [
+                row for row in visible_devices
+                if str(row.get("entry_date") or row.get("date") or "").startswith(today)
+            ]
+        elif filter_key == "parts":
+            visible_devices = [
+                row for row in visible_devices
+                if "par\u00e7a" in str(row.get("status") or "").casefold()
+                or "parca" in str(row.get("status") or "").casefold()
+            ]
+        elif filter_key == "test":
+            visible_devices = [
+                row for row in visible_devices
+                if any(token in str(row.get("status") or "").casefold() for token in ("test", "onay", "haz\u0131r", "hazir"))
+            ]
+        self.board.refresh(visible_devices)
         self._refresh_navigation_badges()
 
     def _attach_kanban_quick_info(self, devices):
@@ -666,8 +839,14 @@ class ServiceBoardPage(QWidget):
                 sector_manager=self.sector_manager,
             )
         else:
-            from src.ui.dialogs.add_device_dialog import AddDeviceDialog
-            dialog = AddDeviceDialog(self.db, self)
+            from src.ui.dialogs.technical_service_new_service_dialog import (
+                TechnicalServiceNewServiceDialog,
+            )
+            dialog = TechnicalServiceNewServiceDialog(
+                self.db,
+                self,
+                sector_manager=self.sector_manager,
+            )
         if dialog.exec():
             self.refresh_data()
 
@@ -988,7 +1167,7 @@ class ServiceBoardPage(QWidget):
                         html = f"""
                             <html>
                             <head><meta charset="UTF-8"></head>
-                            <body style="text-align: center; font-family: Arial; margin:0;">
+                            <body style="text-align: center; font-family: Inter; margin:0;">
                                 <div style="width: 200px; height: 100px; border: 1px solid black; margin: 10px auto; padding: 5px;">
                                     <div style="font-size: 10px; font-weight: bold;">{model}</div>
                                     <div style="font-size: 20px; font-family: monospace; letter-spacing: 2px; margin: 5px 0;">{tracking_no}</div>

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from PyQt6.QtWidgets import (
-    QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame, QSplitter, QListWidget,
+    QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QPushButton, QFrame, QSplitter, QListWidget,
     QTabWidget, QWidget, QTableWidget, QTableWidgetItem, QHeaderView,
     QAbstractItemView
 )
@@ -82,15 +82,20 @@ class PartnersPageUiMixin:
         self.partner_scorecard = QLabel("Scorecard metrikleri partner secildiginde guncellenir.")
         text_col.addWidget(self.partner_name); text_col.addWidget(self.partner_meta); text_col.addWidget(self.partner_scorecard)
         top_row.addLayout(text_col); top_row.addStretch()
-        actions = QHBoxLayout(); actions.setSpacing(10)
+        actions = QGridLayout(); actions.setSpacing(10)
         self.btn_add_shipment = QPushButton("+ Gonderi Kaydi"); self.btn_add_shipment.clicked.connect(self.add_partner_tracking)
         self.btn_documents = QPushButton("Belgeler"); self.btn_documents.clicked.connect(self.open_selected_partner_documents)
         self.btn_docs_center = QPushButton("Belge Merkezi"); self.btn_docs_center.clicked.connect(self.open_unified_documents_center)
         self.btn_edit_partner = QPushButton("Ortak Bilgilerini Duzenle"); self.btn_edit_partner.clicked.connect(self.edit_selected_partner)
         self.btn_more = QPushButton("Daha Fazla"); self.btn_more.clicked.connect(self.open_selected_partner_menu)
-        for btn in (self.btn_add_shipment, self.btn_documents, self.btn_docs_center, self.btn_edit_partner, self.btn_more):
-            btn.setFixedHeight(36); btn.setCursor(Qt.CursorShape.PointingHandCursor); actions.addWidget(btn)
-        top_row.addLayout(actions); hero_layout.addLayout(top_row)
+        for index, btn in enumerate((self.btn_add_shipment, self.btn_documents, self.btn_docs_center, self.btn_edit_partner, self.btn_more)):
+            btn.setFixedHeight(36); btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            actions.addWidget(btn, index // 3, index % 3)
+        for column in range(3):
+            actions.setColumnStretch(column, 1)
+        hero_layout.addLayout(top_row)
+        actions.setAlignment(Qt.AlignmentFlag.AlignRight)
+        hero_layout.addLayout(actions)
         stats_row = QHBoxLayout(); stats_row.setSpacing(12)
         self.stat_total = self._create_stat_card("Toplam Gonderi", "0")
         self.stat_active = self._create_stat_card("Surecte", "0")

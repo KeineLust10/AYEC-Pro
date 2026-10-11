@@ -1,12 +1,48 @@
 # -*- coding: utf-8 -*-
 
-from PyQt6.QtWidgets import QDialog, QApplication, QLineEdit
+from PyQt6.QtWidgets import QDialog, QApplication, QLineEdit, QWidget
 from PyQt6.QtCore import Qt, QTimer
 from src.utils.logger import logger
 from src.utils.theme_colors import theme_qss
 
 class MainWindowFuncMixin:
     """Specialized functional dialogs and user actions."""
+
+    def is_in_windows_startup(self):
+        from src.utils.windows_shortcuts import is_in_windows_startup
+
+        return is_in_windows_startup()
+
+    def toggle_windows_startup(self, enabled):
+        from src.utils.windows_shortcuts import set_windows_startup
+
+        try:
+            set_windows_startup(bool(enabled))
+            return True
+        except Exception as exc:
+            toggle = self.findChild(QWidget, "windowsStartupToggle")
+            if toggle is not None:
+                toggle.blockSignals(True)
+                toggle.setChecked(not bool(enabled))
+                toggle.blockSignals(False)
+            self.show_notification(f"Windows ba\u015flang\u0131\u00e7 ayar\u0131 de\u011fi\u015ftirilemedi: {exc}", "error")
+            return False
+
+    def create_desktop_shortcut(self):
+        return self._create_windows_shortcut("desktop")
+
+    def create_start_menu_shortcut(self):
+        return self._create_windows_shortcut("start-menu")
+
+    def _create_windows_shortcut(self, location):
+        from src.utils.windows_shortcuts import create_shortcut
+
+        try:
+            create_shortcut(location)
+            return True
+        except Exception as exc:
+            self.show_notification(f"K\u0131sayol olu\u015fturulamad\u0131: {exc}", "error")
+            return False
 
     def init_assistant_fab(self):
         from src.ui.components.assistant_fab import DraggableAssistantFabButton
@@ -17,6 +53,7 @@ class MainWindowFuncMixin:
         self.assistant_fab.clicked.connect(self.toggle_assistant)
         self.assistant_fab.setStyleSheet(theme_qss("QPushButton#AssistantFAB { background-color: @accent; color: white; border-radius: 30px; font-size: 28px; padding-bottom: 2px; }"))
         fab_enabled = str(self.db.get_setting("assistant_fab_enabled", "1")) == "1"
+        self._assistant_fab_enabled = fab_enabled
         self.assistant_fab.setVisible(fab_enabled)
         if fab_enabled:
             self.reposition_fab()
@@ -24,8 +61,11 @@ class MainWindowFuncMixin:
     def reposition_fab(self):
         if not hasattr(self, "assistant_fab"):
             return
-        # Reserve the lower-right notification lane above the assistant.
-        self.assistant_fab.move(self.width() - 90, self.height() - 90)
+        # Keep the active offer actions unobstructed while retaining the assistant entry.
+        if int(getattr(self, "_current_page_index", -1)) == 150:
+            self.assistant_fab.move(18, self.height() - 190)
+        else:
+            self.assistant_fab.move(self.width() - 90, self.height() - 90)
 
     def _verify_technician_lock(self):
         if self.db.get_setting("tech_lock_active", "0") != "1":
@@ -64,9 +104,9 @@ class MainWindowFuncMixin:
 
     def is_assistant_silent_mode(self):
         try:
-            return self.db.get_setting("voice_assistant_active", "1") != "1"
+            return self.db.get_setting("voice_assistant_active", "0") != "1"
         except Exception:
-            return False
+            return True
 
     def set_assistant_silent_mode(self, silent):
         try:
@@ -141,6 +181,10 @@ class MainWindowFuncMixin:
         if getattr(self, "_dialog_open", False):
             return
         self._dialog_open = True
+        assistant = getattr(self, "assistant", None)
+        voice_thread = getattr(assistant, "voice_assistant_thread", None)
+        if voice_thread is not None:
+            voice_thread.followup_mode = True
         try:
             device = None
             if tracking_no:
@@ -151,8 +195,13 @@ class MainWindowFuncMixin:
             if not device and not tracking_no:
                 from src.ui.dialogs.device_selection_dialog import DeviceSelectionDialog
                 dlg = DeviceSelectionDialog(self.db, self)
-                if dlg.exec() and getattr(dlg, "selected_device", None):
-                    device = dlg.selected_device
+                self._active_device_selection_dialog = dlg
+                try:
+                    if dlg.exec() and getattr(dlg, "selected_device", None):
+                        device = dlg.selected_device
+                finally:
+                    if getattr(self, "_active_device_selection_dialog", None) is dlg:
+                        self._active_device_selection_dialog = None
             if device:
                 # Sector based panel logic
                 if self._is_automotive():
@@ -164,6 +213,8 @@ class MainWindowFuncMixin:
                 panel.exec()
         finally:
             self._dialog_open = False
+            if voice_thread is not None:
+                voice_thread.followup_mode = False
 
     def open_customer_360_by_id(self, customer_id):
         try:

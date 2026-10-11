@@ -42,11 +42,33 @@ class ThemeQSSTransformer:
             "primary": "accent",
             "primary_hover": "accent_hover",
             "primary_pressed": "accent_pressed",
+            "surface_high": "surface_alt",
         }
         key = aliases.get(token, token)
         value = current_palette.get(key)
         if value:
             return str(value)
+
+        semantic_fallbacks = {
+            "service_kpi_active": "info",
+            "service_kpi_cargo": "info",
+            "service_kpi_duration": "accent",
+            "service_kpi_parts": "warning",
+            "service_kpi_ready": "success",
+            "service_kpi_revenue": "warning",
+        }
+        fallback_key = semantic_fallbacks.get(token)
+        if fallback_key:
+            value = current_palette.get(fallback_key) or current_palette.get("accent")
+            if value:
+                return str(value)
+
+        if token == "accent_soft":
+            return str(
+                light_fallback("accent_soft", "#DCE8FB")
+                or current_palette.get("surface_alt")
+                or "#DCE8FB"
+            )
 
         if token.endswith("_hover"):
             base = aliases.get(token[:-6], token[:-6])
@@ -353,12 +375,19 @@ class ThemeQSSTransformer:
         # 1. Sanitize (remove cursor, outline etc.)
         out = cls.sanitize_qss(qss_text)
         
-        # 2. Resolve all @tokens first. This is crucial so that subsequent logic 
-        # sees actual colors instead of token strings.
-        out = TOKEN_REF_RE.sub(
-            lambda m: cls._resolve_palette_token(m.group(1), current_palette, light_fallback),
-            out,
-        )
+        # Explicit semantic tokens must not be remapped as legacy literals.
+        protected_tokens = {}
+        marker_prefix = "__AYEC_THEME_TOKEN_"
+        while marker_prefix in out:
+            marker_prefix = "_" + marker_prefix
+
+        def protect_token(match):
+            marker = marker_prefix + str(len(protected_tokens)) + "__"
+            protected_tokens[marker] = cls._resolve_palette_token(
+                match.group(1), current_palette, light_fallback)
+            return marker
+
+        out = TOKEN_REF_RE.sub(protect_token, out)
         
         # 3. Harmonize literals (e.g. #FFFFFF -> theme neutral)
         out = cls.harmonize_literal_neutrals(out, current_palette, is_dark_theme)
@@ -369,6 +398,9 @@ class ThemeQSSTransformer:
         # 5. Delta remapping if transitioning from old palette
         if old_palette:
             out = cls.remap_palette_literals(out, old_palette, current_palette)
+
+        for marker, value in protected_tokens.items():
+            out = out.replace(marker, value)
             
         # Final pass of sanitization to catch any artifacts
         return cls.sanitize_qss(out)

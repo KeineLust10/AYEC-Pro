@@ -37,9 +37,14 @@ _OFFICIAL_LICENSE_EMAIL = "info@ayecpro.com"
 class LicenseRequestDialog(ModernDialog):
     """Authenticated license order and payment screen."""
 
-    def __init__(self, hwid, parent=None, locked=False, warning_message=""):
+    def __init__(
+        self, hwid, parent=None, locked=False, warning_message="",
+        product_code="teknik_servis", initial_plan_code="",
+    ):
         self.locked_mode = bool(locked)
         self.warning_message = str(warning_message or "")
+        self.product_code = str(product_code or "teknik_servis").strip().lower()
+        self.initial_plan_code = str(initial_plan_code or "")
         super().__init__(
             title=(
                 "Lisans S\u00fcresi Sona Erdi"
@@ -113,15 +118,15 @@ class LicenseRequestDialog(ModernDialog):
         payment_box.setFixedWidth(680)
         payment_box.setObjectName("paymentBox")
         payment_box.setStyleSheet(theme_qss(
-            "#paymentBox{background:#EFF6FF;border:1px solid #93C5FD;border-radius:14px;}"
-            "#paymentBox QLabel{border:none;background:transparent;color:#0F172A;"
+            "#paymentBox{background:@surface_alt;border:1px solid @border;border-radius:14px;}"
+            "#paymentBox QLabel{border:none;background:transparent;color:@text;"
             "font-size:13px;font-weight:700;}"
         ))
         payment_layout = QVBoxLayout(payment_box)
         payment_layout.setContentsMargins(18, 16, 18, 16)
         payment_layout.setSpacing(12)
         payment_title = QLabel("Havale / EFT Bilgileri")
-        payment_title.setStyleSheet("font-size:15px;font-weight:800;color:#1D4ED8;")
+        payment_title.setStyleSheet(theme_qss("font-size:15px;font-weight:800;color:@accent;"))
         payment_layout.addWidget(payment_title)
         payment_layout.addWidget(self.payment_holder)
         payment_layout.addWidget(self.payment_bank)
@@ -197,7 +202,11 @@ class LicenseRequestDialog(ModernDialog):
                 self.plan_grid.addWidget(button, index // 2, 0, 1, 2)
             else:
                 self.plan_grid.addWidget(button, index // 2, index % 2)
-        self._select_plan(dict(_LICENSE_PLANS[2]))
+        selected = next(
+            (plan for plan in _LICENSE_PLANS if plan["code"] == self.initial_plan_code),
+            _LICENSE_PLANS[2],
+        )
+        self._select_plan(dict(selected))
 
     def _select_plan(self, plan):
         self.selected_plan = dict(plan or {})
@@ -260,6 +269,7 @@ class LicenseRequestDialog(ModernDialog):
             identity = self._license_identity()
             result = client.create_order({
                 "hardware_id": self.hwid,
+                "product_code": self.product_code,
                 "plan_code": str(self.selected_plan.get("code") or ""),
                 "payment_reported": bool(paid),
                 **identity,
@@ -507,7 +517,7 @@ class LicenseRequestDialog(ModernDialog):
 class LicenseLockScreen(ModernDialog):
     def __init__(
         self, parent=None, hwid="Bilinmiyor", message="Deneme sureniz dolmustur",
-        request_only=False, username="",
+        request_only=False, username="", product_code="teknik_servis",
     ):
         title = "Lisans Islemleri" if request_only else "Lisans Gerekli"
         super().__init__(title=title, parent=parent, width=610, height=540)
@@ -515,6 +525,7 @@ class LicenseLockScreen(ModernDialog):
         self.message = str(message or "")
         self.request_only = bool(request_only)
         self.username = str(username or "")
+        self.product_code = str(product_code or "teknik_servis").strip().lower()
         self.setWindowFlag(
             Qt.WindowType.WindowStaysOnTopHint, not self.request_only
         )
@@ -677,4 +688,6 @@ class LicenseLockScreen(ModernDialog):
         parent.db.conn.commit()
 
     def request_license(self):
-        LicenseRequestDialog(self.hwid, self).exec()
+        LicenseRequestDialog(
+            self.hwid, self, product_code=self.product_code
+        ).exec()

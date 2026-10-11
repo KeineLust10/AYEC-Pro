@@ -3,15 +3,17 @@
 
 import random
 import os
+import math
 from datetime import datetime
 from PyQt6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QLabel, 
     QPushButton, QTextEdit, QCompleter, QCheckBox,
-    QApplication, QWidget, QFrame, QGridLayout, QTableWidget, QDialog
+    QApplication, QWidget, QFrame, QGridLayout, QTableWidget, QDialog, QLineEdit, QButtonGroup, QComboBox
 )
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, QEvent, QSize
 from PyQt6.QtCore import QDate
 from PyQt6.QtWidgets import QDateEdit
+from PyQt6.QtGui import QFont
 
 from src.utils.theme_colors import theme_qss
 from src.utils.toast_notification import ToastManager
@@ -26,8 +28,10 @@ from src.ui.widgets.modern_inputs import ValidatedLineEdit, ModernComboBox
 from src.utils.logger import logger
 from src.ui.dialogs.quick_notes_editor import PROFILE_PRESETS
 from src.utils.system_config import SystemConfig
+from src.utils.currency_helper import CurrencyHelper
+from decimal import Decimal
 
-from ._new_service_dialog_widgets_mixin import NewServiceDialogWidgetsMixin
+from ._new_service_dialog_widgets_mixin import NewServiceDialogWidgetsMixin, ServiceVoiceButton
 from ._new_service_dialog_sector_mixin import NewServiceDialogSectorMixin
 
 
@@ -91,8 +95,6 @@ class NewServiceDialog(
             self.is_automotive = self.sector_manager.get_current_plugin().sector_id == "otomotiv"
         else:
             self.is_automotive = SystemConfig.get_current_sector(self.db) == "otomotiv"
-        if not self.is_automotive:
-            raise RuntimeError("NewServiceDialog is reserved for the automotive sector")
         self.device_data = device_data 
         self._service_area = "Bilgisayar"
         if not self.is_automotive:
@@ -106,13 +108,15 @@ class NewServiceDialog(
         self.automotive_checklist_data = {"items": []}
         self.automotive_damage_data = {"items": [], "general_note": ""}
         
-        mode_title = "Servis Kaydı Düzenle" if device_data else "Yeni Servis Kaydı Oluştur"
+        mode_title = "Servis Kayd\u0131 D\u00fczenle" if device_data else "Yeni Servis Kayd\u0131 Olu\u015ftur"
 
         screen = QApplication.primaryScreen().geometry()
-        width = min(int(screen.width() * 0.985), 1720)
-        height = min(int(screen.height() * 0.95), 1020)
+        width = min(1440, max(760, screen.width() - 16))
+        height = min(1188, max(600, screen.height() - 48))
         super().__init__(mode_title, parent, width=width, height=height)
+        self.setFont(QFont("Segoe UI", 9))
         self.setup_content()
+        self.finished.connect(lambda _result: setattr(self, "_fault_voice_discarded", True))
         self._initial_customer_name = customer_name
         QTimer.singleShot(0, self._deferred_bootstrap_step_customers)
 
@@ -129,6 +133,13 @@ class NewServiceDialog(
             self.load_device_from_data()
         elif self._initial_customer_name:
             self.cmb_customer.setCurrentText(self._initial_customer_name)
+        for name in ("cmb_customer", "cmb_device", "cmb_brand", "cmb_model", "cmb_urgency", "cmb_personnel"):
+            widget = getattr(self, name, None)
+            if isinstance(widget, QComboBox):
+                widget.setFixedHeight(32)
+        if not self.is_automotive:
+            self._capture_reference_form_defaults()
+            self.btn_reset_form.setEnabled(True)
 
     def mousePressEvent(self, event):
         super().mousePressEvent(event)
@@ -145,12 +156,25 @@ class NewServiceDialog(
                 w.deleteLater()
 
         screen = QApplication.primaryScreen().geometry()
-        new_w = min(int(screen.width() * 0.985), 1720)
-        new_h = min(int(screen.height() * 0.95), 1020)
+        new_w = min(1440, max(760, screen.width() - 16))
+        new_h = min(1188, max(600, screen.height() - 48))
         self.set_dialog_size(new_w, new_h)
-        self.setMinimumSize(1380, 800)
+        self.setMinimumSize(min(1080, new_w), min(720, new_h))
 
-        self.set_footer_visible(True, 62)
+        self.set_footer_visible(True, 78)
+        if not self.is_automotive:
+            self.header.setFixedHeight(56)
+            self._build_reference_service_header()
+            accent = QFrame(self.card)
+            accent.setFixedHeight(4)
+            accent.setProperty("skipThemeTransform", True)
+            accent.setStyleSheet(
+                "QFrame { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, "
+                "stop:0 #2563EB, stop:0.52 #6366F1, stop:1 #22D3EE); "
+                "border: none; border-top-left-radius: 12px; "
+                "border-top-right-radius: 12px; }"
+            )
+            self.card_layout.insertWidget(0, accent)
         self.clear_footer()
         self.content_layout.setContentsMargins(0, 0, 0, 0)
         self.content_layout.setSpacing(0)
@@ -165,8 +189,8 @@ class NewServiceDialog(
         main_widget = QWidget()
         main_widget.setStyleSheet(theme_qss("background: @surface; border: none;"))
         root_layout = QVBoxLayout(main_widget)
-        root_layout.setContentsMargins(16, 10, 16, 8)
-        root_layout.setSpacing(10)
+        root_layout.setContentsMargins(12, 12, 12, 14)
+        root_layout.setSpacing(12)
 
         if self.is_automotive:
             intro_title = "Ara\u00e7 Servis Kayd\u0131"
@@ -193,8 +217,9 @@ class NewServiceDialog(
                 "Kay\u0131t",
             ]
 
-        root_layout.addWidget(self.create_form_intro(intro_title, intro_text))
-        root_layout.addWidget(self.create_workflow_strip(workflow_steps, active_index=0))
+        if self.is_automotive:
+            root_layout.addWidget(self.create_form_intro(intro_title, intro_text))
+            root_layout.addWidget(self.create_workflow_strip(workflow_steps, active_index=0))
 
         columns_widget = QWidget()
         columns_widget.setStyleSheet("background: transparent; border: none;")
@@ -204,32 +229,126 @@ class NewServiceDialog(
 
         # Left column
         left_col = QVBoxLayout()
-        left_col.setSpacing(0)
+        left_col.setSpacing(16)
 
         # 1. Customer
-        left_col.addWidget(self._sec("MÜŞTERİ"))
-        left_col.addSpacing(4)
+        left_col.addWidget(self._sec("M\u00dc\u015eTER\u0130 B\u0130LG\u0130LER\u0130"))
+        left_col.addSpacing(6 if not self.is_automotive else 4)
         cust_row = QHBoxLayout()
         cust_row.setSpacing(8)
         self.cmb_customer = ModernComboBox()
-        self.cmb_customer.setMinimumHeight(36)
+        self.cmb_customer.setMinimumHeight(32)
+        self._compact_reference_combo(self.cmb_customer)
+        self.cmb_customer.setEditable(True)
+        self.cmb_customer.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        self.cmb_customer.setFixedHeight(32)
+        customer_placeholder = "Ad Soyad veya Firma \u00dcnvan\u0131 giriniz..."
+        self.cmb_customer.setPlaceholderText(customer_placeholder)
+        if self.cmb_customer.lineEdit() is not None:
+            self.cmb_customer.lineEdit().setPlaceholderText(customer_placeholder)
+            self.cmb_customer.lineEdit().addAction(
+                self._reference_customer_field_icon(),
+                QLineEdit.ActionPosition.LeadingPosition,
+            )
         btn_add_cust = QPushButton("+ Yeni")
         btn_add_cust.setFixedSize(76, 36)
         btn_add_cust.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_add_cust.setStyleSheet(theme_qss(
-            "background-color: @selection_bg; color: @selection_text; border: 1px solid @border; border-radius: 8px; font-weight: bold;"
+            "QPushButton { background-color: @finance_primary; color: @finance_primary_text; "
+            "border: 1px solid @finance_outline; border-radius: 4px; font-weight: bold; }"
         ))
         btn_add_cust.clicked.connect(self.quick_add_customer)
-        cust_row.addWidget(self.cmb_customer, 1)
-        cust_row.addWidget(btn_add_cust)
+        if self.is_automotive:
+            cust_row.addWidget(self.cmb_customer, 1)
+        else:
+            customer_name_field = self.create_field_box(
+                "M\u00fc\u015fteri Ad\u0131 / \u00dcnvan\u0131 *", self.cmb_customer
+            )
+            customer_name_field.setSpacing(6)
+            cust_row.addLayout(customer_name_field, 1)
         left_col.addLayout(cust_row)
+        if not self.is_automotive:
+            customer_fields = QGridLayout()
+            customer_fields.setHorizontalSpacing(8)
+            customer_fields.setVerticalSpacing(10)
+            self.inp_customer_identity = QLineEdit()
+            self.inp_customer_phone = QLineEdit()
+            for column, (label, editor) in enumerate((
+                ("Kimlik / Vergi No", self.inp_customer_identity),
+                ("\u0130leti\u015fim Telefonu", self.inp_customer_phone),
+            )):
+                editor.setReadOnly(False)
+                editor.setPlaceholderText("TCKN veya Vergi No" if column == 0 else "0 (5XX) XXX XX XX")
+                editor.setToolTip("Yeni musteri icin doldurun; kayitli musteri secilince bilgiler otomatik gelir.")
+                editor.setFixedHeight(32)
+                editor.setFont(QFont(DesignTokens.MONO_FONT_NAME, 10))
+                editor.setStyleSheet(theme_qss(
+                    "QLineEdit { background: @finance_surface_lowest; color: @finance_text; "
+                    "border: 1px solid @finance_outline; border-radius: 4px; "
+                    "padding: 3px 8px; min-height: 22px; font-size: 12px; "
+                    "selection-background-color: @selection_bg; selection-color: @selection_text; }"))
+                field_box = self.create_field_box(label, editor)
+                field_box.setSpacing(5)
+                customer_fields.addLayout(field_box, 0, column)
+            left_col.addLayout(customer_fields)
+            left_col.addSpacing(1)
+            handover_fields = QGridLayout()
+            handover_fields.setHorizontalSpacing(8)
+            handover_fields.setVerticalSpacing(10)
+            self.inp_delivered_by = QLineEdit()
+            self.inp_delivered_phone = QLineEdit()
+            for column, (label, editor, placeholder) in enumerate((
+                ("Teslim Eden Ki\u015fi", self.inp_delivered_by, "Cihaz\u0131 teslim eden ki\u015fi"),
+                ("Teslim Eden Tel", self.inp_delivered_phone, "Teslim eden ileti\u015fim no"),
+            )):
+                editor.setPlaceholderText(placeholder)
+                editor.setFixedHeight(32)
+                if column == 1:
+                    editor.setFont(QFont(DesignTokens.MONO_FONT_NAME, 10))
+                editor.setStyleSheet(theme_qss(
+                    "QLineEdit { background: @finance_surface_lowest; color: @finance_text; "
+                    "border: 1px solid @finance_outline; border-radius: 4px; "
+                    "padding: 4px 8px; min-height: 18px; font-size: 11px; "
+                    "selection-background-color: @selection_bg; selection-color: @selection_text; }"))
+                field_box = self.create_field_box(label, editor)
+                field_box.setSpacing(6)
+                handover_fields.addLayout(field_box, 0, column)
+            left_col.addLayout(handover_fields)
+            self.cmb_customer.currentIndexChanged.connect(self._refresh_reference_customer_fields)
         left_col.addSpacing(12)
+        self.btn_add_customer = btn_add_cust
+        if not self.is_automotive:
+            customer_card = self._wrap_reference_section(left_col, 0, "serviceCustomerCard")
+            btn_add_cust.setParent(customer_card)
+            btn_add_cust.hide()
+            heading = customer_card.layout().itemAt(0).widget()
+            if heading is not None and heading.layout() is not None:
+                btn_select_customer = QPushButton("\u2315  Kay\u0131tl\u0131 M\u00fc\u015fteri Se\u00e7")
+                btn_select_customer.setFixedSize(142, 26)
+                btn_select_customer.setText("Kay\u0131tl\u0131 M\u00fc\u015fteri Se\u00e7")
+                btn_select_customer.setIcon(self._reference_search_icon())
+                btn_select_customer.setIconSize(QSize(12, 12))
+                btn_select_customer.setCursor(Qt.CursorShape.PointingHandCursor)
+                btn_select_customer.setStyleSheet(theme_qss(
+                    "QPushButton { background: @finance_surface_alt; color: @finance_primary; "
+                    "border: 1px solid @finance_outline; border-radius: 5px; padding: 0px 1px; "
+                    "font-size: 9px; font-weight: 600; }"
+                    "QPushButton:hover { border-color: @finance_primary; }"
+                ))
+                btn_select_customer.clicked.connect(self.cmb_customer.showPopup)
+                heading.layout().addWidget(btn_select_customer)
+                self.btn_select_customer = btn_select_customer
+            left_col.setSpacing(14)
 
         # 2. Device
-        left_col.addWidget(self._sec("CİHAZ BİLGİLERİ"))
+        left_col.addWidget(self._sec("C\u0130HAZ B\u0130LG\u0130LER\u0130"))
         left_col.addSpacing(4)
         dev_grid = QGridLayout()
-        dev_grid.setSpacing(8)
+        dev_grid.setHorizontalSpacing(8)
+        dev_grid.setVerticalSpacing(20)
+        dev_grid.setColumnStretch(0, 1)
+        dev_grid.setColumnStretch(1, 1)
+        dev_grid.setVerticalSpacing(14)
         device_items = []
         try:
             cur = self.db.cursor
@@ -258,27 +377,45 @@ class NewServiceDialog(
             if OTHER_DEVICE_TYPE not in device_items:
                 device_items.append(OTHER_DEVICE_TYPE)
         self.cmb_device = ModernComboBox(items=device_items)
-        self.cmb_device.setMinimumHeight(36)
+        self.cmb_device.setMinimumHeight(40)
         dev_grid.addLayout(self.create_field_box("Cihaz Türü", self.cmb_device), 0, 0)
         self.cmb_brand = ModernComboBox()
         self.cmb_brand.setEditable(True)
-        self.cmb_brand.setMinimumHeight(36)
+        self.cmb_brand.setMinimumHeight(40)
         self._load_brands_for_device_type(self.cmb_device.currentText(), preserve_current=False)
         self.cmb_device.currentTextChanged.connect(self._on_device_type_changed)
         dev_grid.addLayout(self.create_field_box("Marka", self.cmb_brand), 0, 1)
         self.inp_model = ValidatedLineEdit("Örn: Nitro 5 / ThinkPad E14 / RTX Sistem")
         self.cmb_model = ModernComboBox()
         self.cmb_model.setEditable(True)
-        self.cmb_model.setMinimumHeight(36)
-        self.cmb_model.setPlaceholderText("Model secin veya yazin")
+        self.cmb_model.setMinimumHeight(40)
+        self.cmb_model.setPlaceholderText("\u00d6rn: Aspire 7 A715-42G")
+        if self.cmb_model.lineEdit():
+            self.cmb_model.lineEdit().setPlaceholderText("\u00d6rn: Aspire 7 A715-42G")
+        if not self.is_automotive:
+            device_combo_style = theme_qss(
+                "QComboBox { background: @surface_alt; color: @text; border: 1px solid @border; "
+                "border-radius: 7px; padding: 0 10px; } "
+                "QComboBox QAbstractItemView { background: @surface_alt; color: @text; "
+                "selection-background-color: @accent; selection-color: @selection_text; }"
+            )
+            for device_combo in (self.cmb_device, self.cmb_brand, self.cmb_model):
+                device_combo.setStyleSheet(device_combo.styleSheet() + device_combo_style)
         self.cmb_brand.currentTextChanged.connect(self._on_brand_changed)
         self._load_models_for_device_brand(
             self.cmb_device.currentText(), self.cmb_brand.currentText(), preserve_current=False
         )
-        dev_grid.addLayout(self.create_field_box("Model", self.cmb_model), 1, 0)
-        self.inp_serial = ValidatedLineEdit("Seri No / Servis Etiketi")
-        self.inp_serial.setMinimumHeight(36)
-        dev_grid.addLayout(self.create_field_box("Seri No", self.inp_serial), 1, 1)
+        dev_grid.addLayout(self.create_field_box("Model Ad\u0131 / Kodu", self.cmb_model), 1, 0)
+        self.inp_serial = ValidatedLineEdit("Seri Numaras\u0131 veya IMEI girin")
+        self.inp_serial.setMinimumHeight(40)
+        if not self.is_automotive:
+            self.inp_serial.setFont(QFont(DesignTokens.MONO_FONT_NAME, 10))
+            self.inp_serial.setStyleSheet(
+                theme_qss("QLineEdit { background: @finance_surface_lowest; color: @finance_text; border: 1px solid @finance_outline; "
+                "border-radius: 4px; padding: 3px 8px; font-size: 12px; "
+                "selection-background-color: @selection_bg; selection-color: @selection_text; }")
+            )
+        dev_grid.addLayout(self.create_field_box("Seri No / IMEI", self.inp_serial), 1, 1)
         self.inp_other_device = ValidatedLineEdit("Cihaz t\u00fcr\u00fcn\u00fc yaz\u0131n")
         self.inp_other_device.setMinimumHeight(36)
         self.other_device_wrap = QFrame()
@@ -303,6 +440,10 @@ class NewServiceDialog(
         self.vehicle_vin_wrap.setVisible(self.is_automotive)
         left_col.addLayout(dev_grid)
         left_col.addSpacing(12)
+        if not self.is_automotive:
+            self.reference_device_card = self._wrap_reference_section(
+                left_col, 1, "serviceDeviceCard"
+            )
 
         # Keep the compact customer and device fields on the left. The service
         # workflow continues in the right column so both sides use the space.
@@ -314,28 +455,77 @@ class NewServiceDialog(
         left_col = right_col
 
         # 3. Service details
-        left_col.addWidget(self._sec("SERVİS DETAYLARI"))
+        left_col.addWidget(self._sec("SERV\u0130S DETAYLARI" if self.is_automotive else "ARIZA & SERV\u0130S DETAYLARI"))
         left_col.addSpacing(4)
         servis_grid = QGridLayout()
         servis_grid.setSpacing(8)
-        self.inp_password = ValidatedLineEdit("Ekran Şifresi")
-        self.inp_password.setPlaceholderText("Ekran Şifresi")
+        self.inp_password = ValidatedLineEdit("Cihaz / Windows A\u00e7\u0131l\u0131\u015f \u015eifresi")
+        self.inp_password.setPlaceholderText("\u00d6rn: 1234, aslan2024")
         self.inp_password.setMinimumHeight(36)
-        servis_grid.addLayout(self.create_field_box("Ekran Şifresi", self.inp_password), 0, 0)
+        if not self.is_automotive:
+            self.inp_password.setStyleSheet(
+                theme_qss("QLineEdit { background: @finance_surface_lowest; color: @finance_text; border: 1px solid @finance_outline; "
+                "border-radius: 4px; padding: 4px 8px; font-size: 14px; "
+                "selection-background-color: @selection_bg; selection-color: @selection_text; }")
+            )
+        servis_grid.addLayout(
+            self.create_field_box("Cihaz / Windows A\u00e7\u0131l\u0131\u015f \u015eifresi", self.inp_password),
+            0,
+            0,
+        )
         self.cmb_urgency = ModernComboBox(items=["Düşük", "Normal", "Yüksek", "🔥 ACİL"])
         self.cmb_urgency.setCurrentText("Normal")
-        self.cmb_urgency.setMinimumHeight(36)
-        servis_grid.addLayout(self.create_field_box("Aciliyet", self.cmb_urgency), 0, 1)
+        self.cmb_urgency.setMinimumHeight(32)
+        if not self.is_automotive:
+            self.cmb_urgency.setStyleSheet(theme_qss(
+                "QComboBox { background: @surface_alt; color: @text; border: 1px solid @border; "
+                "border-radius: 7px; padding: 0 10px; }"
+            ))
+        servis_grid.addLayout(self.create_field_box("\u00d6ncelik Derecesi", self.cmb_urgency), 0, 1)
         self.cmb_personnel = ModernComboBox()
         self.cmb_personnel.setMinimumHeight(36)
         servis_grid.addLayout(self.create_field_box("Teknisyen", self.cmb_personnel), 1, 0)
-        self.inp_est_price = ValidatedLineEdit("0.00")
-        self.inp_est_price.setPlaceholderText("Tahmini Tutar")
-        self.inp_est_price.setMinimumHeight(36)
+        self.inp_est_price = ValidatedLineEdit("")
+        self.inp_est_price.setPlaceholderText("")
+        self.inp_est_price.setMinimumHeight(32)
         self.inp_est_price.setStyleSheet(theme_qss(
-            "font-size: 13px; font-weight: bold; color: @success; padding: 6px 8px;"
+            "QLineEdit { font-size: 12px; font-weight: bold; color: @finance_secondary; "
+            "background: @finance_surface_alt; border: 1px solid @finance_outline; "
+            "border-radius: 4px; padding: 5px 8px; }"
         ))
-        servis_grid.addLayout(self.create_field_box("💰 Tahmini Tutar", self.inp_est_price), 1, 1)
+        if self.is_automotive:
+            servis_grid.addLayout(self.create_field_box("Tahmini Tutar", self.inp_est_price), 1, 1)
+        else:
+            self.inp_est_price.setFont(QFont(DesignTokens.MONO_FONT_NAME, 10))
+            self.inp_est_price.setStyleSheet(
+                theme_qss("QLineEdit { font-size: 12px; font-weight: bold; color: @finance_text; "
+                "background: @finance_surface_lowest; border: 1px solid @finance_outline; border-radius: 4px; "
+                "padding: 5px 8px; selection-background-color: @selection_bg; "
+                "selection-color: @selection_text; }")
+            )
+            self._estimate_base_currency = CurrencyHelper.get_code(self.db)
+            self._estimate_currency = self._estimate_base_currency
+            self._estimate_rate_to_base = Decimal("1")
+            estimate_row = QHBoxLayout()
+            estimate_row.setSpacing(2)
+            estimate_row.addWidget(self.inp_est_price, 1)
+            self.estimate_currency_group = QButtonGroup(self)
+            self.estimate_currency_buttons = {}
+            for code in ("TRY", "USD", "EUR"):
+                button = QPushButton(CurrencyHelper.get_symbol(currency_code=code))
+                button.setCheckable(True)
+                button.setFixedSize(26, 30)
+                button.setToolTip(code + ": Tutar " + self._estimate_base_currency + " olarak kaydedilir. Yerel kay\u0131tl\u0131 kur kullan\u0131l\u0131r.")
+                button.setStyleSheet(theme_qss(
+                    "QPushButton { background: @finance_surface_alt; color: @text_muted; "
+                    "border: 1px solid @finance_outline; border-radius: 4px; padding: 0; font-size: 11px; } "
+                    "QPushButton:checked { background: @finance_primary; color: @finance_primary_text; }"))
+                self.estimate_currency_group.addButton(button)
+                self.estimate_currency_buttons[code] = button
+                button.clicked.connect(lambda _checked=False, currency=code: self._select_estimate_currency(currency))
+                estimate_row.addWidget(button)
+            self.estimate_currency_buttons[self._estimate_currency].setChecked(True)
+            servis_grid.addLayout(self.create_field_box("Tahmini Tutar (KDV Dahil)", layout=estimate_row), 1, 1)
         self.cmb_delivery_method = ModernComboBox(
             items=[
                 "Elden Teslim Al\u0131nd\u0131",
@@ -358,6 +548,9 @@ class NewServiceDialog(
         self.dt_estimated_delivery.setDisplayFormat("dd.MM.yyyy")
         self.dt_estimated_delivery.setDate(QDate.currentDate().addDays(3))
         self.dt_estimated_delivery.setMinimumHeight(36)
+        delivery_calendar = self.dt_estimated_delivery.calendarWidget()
+        delivery_calendar.setObjectName("serviceDeliveryCalendar")
+        delivery_calendar.setAutoFillBackground(True)
         servis_grid.addLayout(
             self.create_field_box(
                 "Tahmini Teslim Tarihi",
@@ -388,10 +581,69 @@ class NewServiceDialog(
             1,
             2,
         )
-        left_col.addLayout(servis_grid)
+        if self.is_automotive:
+            left_col.addLayout(servis_grid)
+        else:
+            password_field = servis_grid.itemAtPosition(0, 0).layout()
+            servis_grid.removeItem(password_field)
+            password_field.setParent(None)
+            priority_fields = QGridLayout()
+            priority_fields.setSpacing(8)
+            for column, position in enumerate(((0, 1), (1, 1))):
+                field = servis_grid.itemAtPosition(*position).layout()
+                servis_grid.removeItem(field)
+                field.setParent(None)
+                priority_fields.addLayout(field, 0, column)
+            left_col.addLayout(priority_fields)
+            primary_col.takeAt(primary_col.count() - 1)
+            self.btn_delivery_details = QPushButton("Ek Servis Bilgileri")
+            self.btn_delivery_details.setAccessibleName("Ek servis ve teslim bilgileri")
+            self.btn_delivery_details.setToolTip("Teknisyen, teslim tarihi, garanti ve not bilgilerini gosterir.")
+            self.btn_delivery_details.setCheckable(True)
+            self.btn_delivery_details.setMinimumSize(116, 24)
+            self.btn_delivery_details.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.btn_delivery_details.setStyleSheet(theme_qss(
+                "QPushButton { background: @surface_alt; color: @text_muted; "
+                "border: 1px solid @border; border-radius: 6px; padding: 0 7px; "
+                "font-size: 10px; font-weight: 700; } "
+                "QPushButton:checked { color: @text; border-color: @accent; }"
+            ))
+            self.delivery_details_panel = QFrame()
+            self.delivery_details_panel.setObjectName("serviceDeliveryCard")
+            self.delivery_details_panel.setStyleSheet(theme_qss(
+                "QFrame#serviceDeliveryCard { background: @surface_alt; "
+                "border: 1px solid @border; border-radius: 8px; }"
+            ))
+            delivery_panel_layout = QVBoxLayout(self.delivery_details_panel)
+            delivery_panel_layout.setContentsMargins(12, 10, 12, 10)
+            delivery_panel_layout.setSpacing(8)
+            delivery_panel_title = QLabel("Servis ve teslim bilgileri")
+            delivery_panel_title.setStyleSheet(theme_qss(
+                "color: @text; font-size: 12px; font-weight: 700; "
+                "border: none; background: transparent;"
+            ))
+            delivery_panel_layout.addWidget(delivery_panel_title)
+            delivery_panel_layout.addLayout(servis_grid)
+            self.delivery_details_panel.setVisible(False)
+            self.btn_delivery_details.toggled.connect(
+                self.delivery_details_panel.setVisible
+            )
+            self.btn_delivery_details.toggled.connect(
+                lambda checked: self.btn_delivery_details.setText(
+                    "Ek Servis Bilgilerini Gizle" if checked else "Ek Servis Bilgileri"
+                )
+            )
+            primary_col.addWidget(self.delivery_details_panel)
+            self.reference_delivery_card = self.delivery_details_panel
+            device_card = getattr(self, "reference_device_card", None)
+            device_layout = device_card.layout() if device_card is not None else None
+            if device_layout is not None:
+                device_layout.addWidget(self.btn_delivery_details)
+            primary_col.addStretch(1)
         left_col.addSpacing(12)
 
         # 4. Fault description (fills remaining space)
+        fault_extras_start = left_col.count()
         left_col.addWidget(self._sec("ARIZA TANIMI"))
         left_col.addSpacing(4)
         sector_fields_layout = self._build_sector_service_fields()
@@ -423,11 +675,24 @@ class NewServiceDialog(
         left_col.addSpacing(4)
         self.txt_fault = QTextEdit()
         self.txt_fault.setPlaceholderText("Müşteri şikayeti ve detaylı arıza açıklaması...")
-        self.txt_fault.setFixedHeight(72)
+        self.txt_fault.setFixedHeight(64 if not self.is_automotive else 72)
+        fault_padding = "6px 8px" if self.is_automotive else "6px 38px 6px 8px"
         self.txt_fault.setStyleSheet(theme_qss(
-            "border: 1px solid @border; border-radius: 6px; padding: 6px 8px; font-size: 11px; background: @surface;"
+            "QTextEdit { border: 1px solid @border; border-radius: 6px; padding: " + fault_padding +
+            "; font-size: 11px; background: @surface_alt; color: @text; }"
         ))
         self.txt_fault.textChanged.connect(self._on_fault_manual_changed)
+        if not self.is_automotive:
+            self.btn_fault_voice = ServiceVoiceButton(self.txt_fault)
+            self.btn_fault_voice.setFixedSize(28, 28)
+            self.btn_fault_voice.setToolTip("Mikrofon ile dikte et. Ses mevcut Google Speech Recognition hizmetiyle metne \u00e7evrilir.")
+            self.btn_fault_voice.setAccessibleName("Ar\u0131za i\u00e7in sesli giri\u015f")
+            self.btn_fault_voice.setStyleSheet(theme_qss(
+                "QPushButton { background: @finance_surface_alt; color: @text_muted; "
+                "border: 1px solid @finance_outline; border-radius: 4px; } "
+                "QPushButton:disabled { color: @danger; }"))
+            self.btn_fault_voice.clicked.connect(self._start_fault_dictation)
+            self.txt_fault.installEventFilter(self)
         left_col.addWidget(self.txt_fault)
         left_col.addSpacing(6)
         sc_header = QHBoxLayout()
@@ -454,18 +719,86 @@ class NewServiceDialog(
         self.fs_grid.setVerticalSpacing(6)
         self.reload_fault_toggles()
         left_col.addWidget(self.fault_shortcuts_container)
+        if not self.is_automotive:
+            left_col.removeWidget(self.txt_fault)
+            fault_label_row = QWidget()
+            fault_labels = QHBoxLayout(fault_label_row)
+            fault_labels.setContentsMargins(0, 0, 0, 0)
+            fault_labels.setSpacing(6)
+            self.lbl_reference_fault_description = QLabel("Ar\u0131za Tan\u0131m\u0131 ve M\u00fc\u015fteri \u015eikayeti *")
+            self.lbl_reference_fault_description.setBuddy(self.txt_fault)
+            self.lbl_reference_fault_hint = QLabel("Sesle yazd\u0131r\u0131labilir")
+            for label in (self.lbl_reference_fault_description, self.lbl_reference_fault_hint):
+                label.setStyleSheet(theme_qss("color: @text_muted; font-size: 10px; letter-spacing: 0px; border: none; background: transparent;"))
+            fault_labels.addWidget(self.lbl_reference_fault_description)
+            fault_labels.addStretch()
+            fault_labels.addWidget(self.lbl_reference_fault_hint)
+            left_col.insertWidget(2, fault_label_row)
+            left_col.insertWidget(3, self.txt_fault)
+            shortcuts_card = self._wrap_reference_section(
+                left_col, fault_extras_start + 2, "serviceFaultShortcutsCard")
+            shortcuts_card.setVisible(False)
+            fault_card = self._wrap_reference_section(left_col, 0, "serviceFaultCard")
+            quick_issue_row = QWidget()
+            quick_issue_layout = QHBoxLayout(quick_issue_row)
+            quick_issue_layout.setContentsMargins(0, 0, 0, 0)
+            quick_issue_layout.setSpacing(6)
+            self.quick_issue_buttons = []
+            for issue_text in ("G\u00f6r\u00fcnt\u00fc Gelmiyor", "S\u0131v\u0131 Temas\u0131", "A\u015f\u0131r\u0131 Is\u0131nma / Fan", "Format & Bak\u0131m"):
+                issue_button = QPushButton(issue_text)
+                issue_button.setFixedHeight(28)
+                issue_button.setCursor(Qt.CursorShape.PointingHandCursor)
+                issue_button.setStyleSheet(theme_qss(
+                    "QPushButton { background: @surface_alt; border: 1px solid @border; "
+                    "border-radius: 6px; padding: 0 8px; color: @text_muted; font-size: 10px; } "
+                    "QPushButton:hover { border-color: @accent; color: @accent; }"
+                ))
+                issue_button.clicked.connect(
+                    lambda checked=False, value=issue_text: self._append_quick_issue(value)
+                )
+                quick_issue_layout.addWidget(issue_button)
+                self.quick_issue_buttons.append(issue_button)
+            fault_card.layout().addWidget(quick_issue_row)
+            fault_layout = fault_card.layout()
+            priority_index = next(
+                (index for index in range(fault_layout.count())
+                 if fault_layout.itemAt(index).layout() is priority_fields),
+                -1,
+            )
+            quick_index = fault_layout.indexOf(quick_issue_row)
+            if priority_index >= 0 and quick_index > priority_index:
+                fault_layout.takeAt(quick_index)
+                fault_layout.takeAt(priority_index)
+                fault_layout.insertWidget(priority_index, quick_issue_row)
+                fault_layout.insertLayout(priority_index + 1, priority_fields)
+            quick_issue_row.setVisible(False)
+            self.btn_fault_advanced = QPushButton("+ Daha fazla ar\u0131za se\u00e7ene\u011fi")
+            self.btn_fault_advanced.setCheckable(True)
+            self.btn_fault_advanced.setFixedHeight(22)
+            self.btn_fault_advanced.setStyleSheet(theme_qss(
+                "QPushButton { background: transparent; border: none; color: @accent; "
+                "text-align: left; font-size: 10px; }"
+            ))
+            self.btn_fault_advanced.toggled.connect(shortcuts_card.setVisible)
+            self.btn_fault_advanced.toggled.connect(quick_issue_row.setVisible)
+            self.btn_fault_advanced.toggled.connect(
+                lambda checked: self.btn_fault_advanced.setText(
+                    "- Daha fazla ar\u0131za se\u00e7ene\u011fi" if checked else "+ Daha fazla ar\u0131za se\u00e7ene\u011fi"
+                )
+            )
+            fault_card.layout().addWidget(self.btn_fault_advanced)
 
-        main_lay.addLayout(primary_col, 50)
+        main_lay.addLayout(primary_col, 1)
 
-        # Vertical separator
-        v_line = QFrame()
-        v_line.setFrameShape(QFrame.Shape.VLine)
-        v_line.setFrameShadow(QFrame.Shadow.Plain)
-        v_line.setStyleSheet(theme_qss(
-            "border: none; border-left: 1px solid @border; background: @border;"
-        ))
-        v_line.setMaximumWidth(1)
-        main_lay.addWidget(v_line)
+        if self.is_automotive:
+            v_line = QFrame()
+            v_line.setFrameShape(QFrame.Shape.VLine)
+            v_line.setFrameShadow(QFrame.Shadow.Plain)
+            v_line.setStyleSheet(theme_qss(
+                "border: none; border-left: 1px solid @border; background: @border;"
+            ))
+            v_line.setMaximumWidth(1)
+            main_lay.addWidget(v_line)
 
         # The right column was prepared before the service details so they
         # remain at the top of the dialog.
@@ -473,12 +806,12 @@ class NewServiceDialog(
         lock_section_start = right_col.count()
 
         # 1. Lock & Photos
-        right_col.addWidget(self._sec("KİLİT DESENİ & FOTOĞRAF"))
+        right_col.addWidget(self._sec("K\u0130L\u0130T DESEN\u0130 & G\u00dcVENL\u0130K \u015e\u0130FRES\u0130"))
         right_col.addSpacing(4)
         kilit_row = QHBoxLayout()
         kilit_row.setSpacing(12)
         self.pattern_lock = PatternLockWidget()
-        self.pattern_lock.setFixedSize(220, 220)
+        self.pattern_lock.setFixedSize(150, 150)
         try:
             self.pattern_lock.setReadOnly(False)
         except Exception as e:
@@ -490,6 +823,9 @@ class NewServiceDialog(
         self.btn_photo = QPushButton("Cihaz G\u00f6rseli Ekle")
         self.btn_photo.setFixedHeight(36)
         self.btn_photo.setCursor(Qt.CursorShape.PointingHandCursor)
+        if not self.is_automotive:
+            self.btn_photo.setAcceptDrops(True)
+            self.btn_photo.installEventFilter(self)
         self.btn_photo.setStyleSheet(theme_qss(
             "QPushButton { background: @surface_alt; border: 1px solid @border; border-radius: 8px; font-weight: 600; color: @text; }"
             "QPushButton:hover { background: @border; }"
@@ -506,43 +842,111 @@ class NewServiceDialog(
         self.btn_photo_count.setFixedWidth(136)
         self.btn_photo_count.clicked.connect(self._open_photo_gallery)
         if not self.is_automotive:
+            self.pattern_lock.setFixedSize(88, 88)
             self.btn_pattern_lock = QPushButton("Desen Kilidi")
-            self.btn_pattern_lock.setFixedHeight(32)
+            self.btn_pattern_lock.setFixedHeight(22)
             self.btn_pattern_lock.setFixedWidth(136)
             self.btn_pattern_lock.setCursor(Qt.CursorShape.PointingHandCursor)
             self.btn_pattern_lock.setStyleSheet(
-                theme_qss(DesignTokens.get_button_qss("secondary", size="sm"))
+                theme_qss("QPushButton { background: transparent; color: @finance_primary; border: none; padding: 0; font-size: 9px; } QPushButton:hover { color: @accent; }")
             )
             self.btn_pattern_lock.clicked.connect(self.open_pattern_lock_dialog)
-            foto_col.addWidget(self.btn_pattern_lock)
         foto_col.addWidget(self.btn_photo)
         foto_col.addWidget(self.btn_photo_count)
-        foto_col.addStretch()
-        kilit_row.addLayout(foto_col, 0)
-        kilit_row.addStretch()
+        if self.is_automotive:
+            foto_col.addStretch()
+        if not self.is_automotive:
+            self.btn_pattern_lock.setText("Desen Kilidi Tan\u0131mla")
+            for button in (self.btn_pattern_lock, self.btn_photo, self.btn_photo_count):
+                button.setMinimumWidth(0)
+                button.setMaximumWidth(16777215)
+            self.reference_photo_preview = QWidget()
+            self.reference_photo_preview_layout = QHBoxLayout(self.reference_photo_preview)
+            self.reference_photo_preview_layout.setContentsMargins(0, 0, 0, 0)
+            self.reference_photo_preview_layout.setSpacing(8)
+            foto_col.addWidget(self.reference_photo_preview)
+            self.btn_photo.setFixedHeight(138)
+            self._update_photo_button()
+            self._update_reference_photo_preview()
+            self.reference_pattern_card = QFrame()
+            self.reference_pattern_card.setStyleSheet(theme_qss(
+                "QFrame { background: @window; border: 1px solid @border; border-radius: 10px; }"
+            ))
+            pattern_column = QVBoxLayout(self.reference_pattern_card)
+            pattern_column.setContentsMargins(10, 8, 10, 8)
+            pattern_column.setSpacing(5)
+            pattern_title = QLabel("Desen Kilidi")
+            pattern_title.setStyleSheet(theme_qss(
+                "color: @text_muted; font-size: 10px; border: none; background: transparent;"
+            ))
+            pattern_column.addWidget(pattern_title, 0, Qt.AlignmentFlag.AlignCenter)
+            pattern_column.addWidget(self.pattern_lock, 0, Qt.AlignmentFlag.AlignCenter)
+            pattern_column.addWidget(self.btn_pattern_lock)
+            kilit_row.addWidget(self.reference_pattern_card, 0)
+            password_column = QVBoxLayout()
+            password_column.setContentsMargins(0, 0, 0, 0)
+            password_column.setSpacing(8)
+            self.inp_bios_password = ValidatedLineEdit("Varsa giriniz...")
+            self.inp_bios_password.setPlaceholderText("Varsa giriniz...")
+            self.inp_bios_password.setMinimumHeight(36)
+            self.inp_bios_password.setStyleSheet(
+                theme_qss("QLineEdit { background: @finance_surface_lowest; color: @finance_text; border: 1px solid @finance_outline; "
+                "border-radius: 4px; padding: 4px 8px; font-size: 14px; "
+                "selection-background-color: @selection_bg; selection-color: @selection_text; }")
+            )
+            password_column.addLayout(password_field)
+            password_column.addLayout(
+                self.create_field_box("BIOS / Supervisor Parolas\u0131", self.inp_bios_password)
+            )
+            kilit_row.addLayout(password_column, 1)
+        else:
+            kilit_row.addLayout(foto_col, 0)
+            kilit_row.addStretch()
         self.lbl_photo_list = QLabel()
         self.lbl_photo_list.setVisible(False)
         self.table_photos = QTableWidget()
         self.table_photos.setVisible(False)
+        if self.is_automotive:
+            kilit_row.addWidget(self.pattern_lock, 0)
         right_col.addLayout(kilit_row)
+        if self.is_automotive:
+            right_col.addLayout(foto_col)
         right_col.addSpacing(12)
         lock_section_items = []
         while right_col.count() > lock_section_start:
             lock_section_items.append(right_col.takeAt(lock_section_start))
 
-        # 2. Notes
-        right_col.addWidget(self._sec("NOTLAR"))
-        right_col.addSpacing(4)
+        # 2. Optional notes stay available without displacing the photo/security cards.
+        self.btn_service_notes = QPushButton("+ Notlar ve ek bilgiler")
+        self.btn_service_notes.setCheckable(True)
+        self.btn_service_notes.setFixedHeight(32)
+        self.btn_service_notes.setStyleSheet(theme_qss(
+            "QPushButton { background: transparent; border: 1px solid @border; "
+            "border-radius: 6px; color: @text_muted; text-align: left; padding: 0 10px; }"
+        ))
+        right_col.addWidget(self.btn_service_notes)
+        notes_panel = QWidget()
+        notes_layout = QVBoxLayout(notes_panel)
+        notes_layout.setContentsMargins(0, 6, 0, 0)
+        notes_layout.setSpacing(6)
         self.txt_public_note = QTextEdit()
         self.txt_public_note.setPlaceholderText("Müşteri fişi notu...")
         self.txt_public_note.setFixedHeight(46)
-        right_col.addLayout(self.create_field_box("Genel Not (Müşteri)", self.txt_public_note))
-        right_col.addSpacing(6)
+        notes_layout.addLayout(self.create_field_box("Genel Not (M\u00fc\u015fteri)", self.txt_public_note))
         self.txt_tech_note = QTextEdit()
         self.txt_tech_note.setPlaceholderText("Gizli teknik not...")
         self.txt_tech_note.setFixedHeight(46)
-        right_col.addLayout(self.create_field_box("Teknik Not (Gizli)", self.txt_tech_note))
-        right_col.addSpacing(12)
+        notes_layout.addLayout(self.create_field_box("Teknik Not (Gizli)", self.txt_tech_note))
+        notes_panel.setMaximumHeight(0)
+        right_col.addWidget(notes_panel)
+        self.btn_service_notes.toggled.connect(
+            lambda checked: notes_panel.setMaximumHeight(16777215 if checked else 0)
+        )
+        self.btn_service_notes.toggled.connect(
+            lambda checked: self.btn_service_notes.setText(
+                "- Notlar ve ek bilgiler" if checked else "+ Notlar ve ek bilgiler"
+            )
+        )
 
         if self.is_automotive:
             right_col.addWidget(self._sec("SERVİS KABUL & YASAL"))
@@ -603,8 +1007,11 @@ class NewServiceDialog(
             right_col.addSpacing(12)
 
         # 3. Accessories (fills remaining space)
-        right_col.addWidget(self._sec("TESLİM ALINAN AKSESUARLAR"))
-        right_col.addSpacing(4)
+        accessory_col = right_col if self.is_automotive else None
+        accessory_heading = self._sec("TESL\u0130M ALINAN AKSESUAR & DONANIMLAR")
+        if accessory_col is not None:
+            accessory_col.addWidget(accessory_heading)
+            accessory_col.addSpacing(4)
         self.acc_grid = QGridLayout()
         self.acc_grid.setSpacing(6)
         self.accessory_checkboxes = {}
@@ -621,36 +1028,66 @@ class NewServiceDialog(
                 acc_card.setStyleSheet(theme_qss(
                     "background: @surface_alt; border: 1px solid @border; border-radius: 7px;"
                 ))
-                cl = QVBoxLayout(acc_card)
-                cl.setContentsMargins(8, 5, 8, 5)
-                cl.setSpacing(3)
-                lbl = QLabel(name)
-                lbl.setStyleSheet(theme_qss(
-                    "font-size: 10px; font-weight: 800; color: @text; border: none;"
+                cl = QHBoxLayout(acc_card)
+                cl.setContentsMargins(10, 7, 10, 7)
+                checkbox = QCheckBox()
+                checkbox.setCursor(Qt.CursorShape.PointingHandCursor)
+                checkbox.setAccessibleName(name)
+                checkbox.setStyleSheet(theme_qss(
+                    "QCheckBox::indicator { width: 16px; height: 16px; border: 1px solid @border; "
+                    "border-radius: 4px; background: @surface; } "
+                    "QCheckBox::indicator:checked { background: @accent; border-color: @accent; }"
                 ))
-                tgl = AnimatedToggle()
-                tgl.setFixedSize(36, 16)
-                tgl.setCursor(Qt.CursorShape.PointingHandCursor)
-                lbl.setCursor(Qt.CursorShape.PointingHandCursor)
-                lbl.mousePressEvent = lambda event, t=tgl: t.toggle()
-                wrap = QHBoxLayout()
-                wrap.addStretch()
-                wrap.addWidget(tgl)
-                wrap.addStretch()
-                cl.addWidget(lbl, 0, Qt.AlignmentFlag.AlignCenter)
-                cl.addLayout(wrap)
+                label = QLabel(name)
+                label.setCursor(Qt.CursorShape.PointingHandCursor)
+                label.setStyleSheet(theme_qss(
+                    "color: @text; font-size: 10px; font-weight: 600; border: none; "
+                    "background: transparent;"
+                ))
+                label.mousePressEvent = lambda event, control=checkbox: control.toggle()
+                cl.addWidget(checkbox)
+                cl.addWidget(label, 1)
                 self.acc_grid.addWidget(acc_card, r, c)
-                self.accessory_checkboxes[name] = tgl
-                tgl.toggled.connect(self._handle_accessory_toggle_changed)
+                self.accessory_checkboxes[name] = checkbox
+                checkbox.toggled.connect(self._handle_accessory_toggle_changed)
                 c += 1
-                if c >= 3:
+                if c >= 4:
                     c = 0
                     r += 1
         except Exception as e:
             logger.warning(f"NewServiceDialog accessory card build failed: {e}")
-        right_col.addLayout(self.acc_grid)
+        if self.is_automotive:
+            accessory_col.addLayout(self.acc_grid)
+        else:
+            device_card = getattr(self, "reference_device_card", None)
+            device_layout = device_card.layout() if device_card is not None else None
+            if device_layout is not None:
+                accessory_divider = QFrame()
+                accessory_divider.setFixedHeight(1)
+                accessory_divider.setStyleSheet(
+                    theme_qss("background: @finance_outline; border: none;")
+                )
+                device_layout.addWidget(accessory_divider)
+                if self.btn_delivery_details is not None:
+                    device_layout.removeWidget(self.btn_delivery_details)
+                    accessory_header = QHBoxLayout()
+                    accessory_header.setContentsMargins(0, 0, 0, 0)
+                    accessory_header.setSpacing(8)
+                    accessory_header.addWidget(accessory_heading, 1)
+                    accessory_header.addWidget(self.btn_delivery_details)
+                    device_layout.addLayout(accessory_header)
+                else:
+                    device_layout.addWidget(accessory_heading)
+                device_layout.addLayout(self.acc_grid)
+                delivery_card = getattr(self, "reference_delivery_card", None)
+                if delivery_card is not None:
+                    primary_col.removeWidget(delivery_card)
+                    device_layout.addWidget(delivery_card)
 
-        right_col.addStretch(1)
+        if not self.is_automotive:
+            primary_col.addStretch(1)
+        else:
+            right_col.addStretch(1)
         for item in lock_section_items:
             if item.widget() is not None:
                 right_col.addWidget(item.widget())
@@ -658,42 +1095,83 @@ class NewServiceDialog(
                 right_col.addLayout(item.layout())
             elif item.spacerItem() is not None:
                 right_col.addItem(item)
+        if not self.is_automotive:
+            lock_start = right_col.count() - len(lock_section_items)
+            lock_card = self._wrap_reference_section(right_col, lock_start, "serviceLockCard")
+            right_col.removeWidget(lock_card)
+            right_col.insertWidget(1, lock_card)
+            photo_start = right_col.count()
+            right_col.addWidget(self._sec("C\u0130HAZ G\u00d6RSEL\u0130 & EKSPERT\u0130Z FOTO\u011eRAFLARI"))
+            right_col.addLayout(foto_col)
+            photo_card = self._wrap_reference_section(
+                right_col, photo_start, "servicePhotoCard"
+            )
+            right_col.removeWidget(photo_card)
+            right_col.insertWidget(2, photo_card)
+            right_col.setSpacing(16)
 
-        main_lay.addLayout(right_col, 50)
+        main_lay.addLayout(right_col, 1)
         root_layout.addWidget(columns_widget, 1)
         self.scroll_area.setWidget(main_widget)
         self._apply_wheel_bridge_recursive(main_widget)
 
         # Footer
 
-        self.footer_layout.setContentsMargins(20, 0, 20, 0)
+        self.footer_layout.setContentsMargins(24, 0, 24, 0)
         self.footer_layout.setSpacing(12)
-        btn_cancel = QPushButton("İptal")
-        btn_cancel.setFixedSize(100, 40)
+        if not self.is_automotive:
+            self.lbl_service_accept_status = QLabel(
+                "ERP Core v2.0.4 Online   \u00b7   USD Kuru: 49.20 TL   \u00b7   Servis Kayd\u0131"
+            )
+            self.lbl_service_accept_status.setStyleSheet(theme_qss(
+                "color: @text_muted; background: transparent; border: none; "
+                "font-family: 'Consolas'; font-size: 10px; letter-spacing: 0px;"
+            ))
+            self.footer_layout.addWidget(self.lbl_service_accept_status)
+            self.footer_layout.addStretch(1)
+        btn_cancel = QPushButton("\u0130ptal")
+        self.btn_cancel = btn_cancel
+        btn_cancel.setFixedSize(76, 40)
         btn_cancel.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_cancel.setStyleSheet(theme_qss(
-            "background: @surface_alt; color: @text_muted; border: 1px solid @border; border-radius: 8px; font-weight: bold;"
+            "QPushButton { background: @finance_surface_alt; color: @text_muted; "
+            "border: 1px solid @finance_outline; border-radius: 4px; font-weight: bold; }"
         ))
         btn_cancel.clicked.connect(self.reject)
-        self.btn_save_and_form = QPushButton("🖨️ Kaydet ve Servis Formu Aç")
+        self.btn_save_and_form = QPushButton("Kayd\u0131 Tamamla ve Fi\u015f Olu\u015ftur")
         self.btn_save_and_form.setFixedHeight(40)
-        self.btn_save_and_form.setMinimumWidth(220)
+        self.btn_save_and_form.setMinimumWidth(312)
         self.btn_save_and_form.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_save_and_form.setStyleSheet(theme_qss(
-            "background-color: @accent; color: @selection_text; border-radius: 8px; font-weight: bold; border: none; font-size: 13px;"
+            "QPushButton { background-color: @finance_primary; color: @finance_primary_text; "
+            "border-radius: 4px; font-weight: bold; border: none; font-size: 11px; }"
         ))
         self.btn_save_and_form.clicked.connect(lambda: self.save(open_service_form_after=True))
-        action_text = "✅ Kaydı Güncelle" if self.device_data else "✅ Servis Kaydı Oluştur"
+        action_text = "Kayd\u0131 G\u00fcncelle" if self.device_data else "Servis Kayd\u0131 Olu\u015ftur"
         self.btn_action = QPushButton(action_text)
         self.btn_action.setFixedHeight(40)
         self.btn_action.setMinimumWidth(200)
         self.btn_action.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_action.setStyleSheet(theme_qss(
-            "background-color: @success; color: @selection_text; border-radius: 8px; font-weight: bold; border: none; font-size: 13px;"
+            "QPushButton { background-color: @finance_secondary; color: @selection_text; "
+            "border-radius: 4px; font-weight: bold; border: none; font-size: 11px; }"
         ))
         self.btn_action.clicked.connect(self.save)
+        self.btn_action.setVisible(False)
         self.footer_layout.addWidget(btn_cancel)
-        self.footer_layout.addStretch()
+        if not self.is_automotive:
+            self.btn_reset_form = QPushButton("De\u011fi\u015fiklikleri Geri Al" if self.device_data else "Temizle")
+            self.btn_reset_form.setFixedSize(122, 40)
+            self.btn_reset_form.setStyleSheet(theme_qss(
+                "QPushButton { background: @finance_surface_alt; color: @text_muted; "
+                "border: 1px solid @finance_outline; border-radius: 4px; padding: 4px 12px; "
+                "font-weight: bold; }"))
+            self.btn_reset_form.setEnabled(False)
+            self.btn_reset_form.setToolTip("Formu ilk a\u00e7\u0131ld\u0131\u011f\u0131 de\u011ferlere d\u00f6nd\u00fcr\u00fcr; kay\u0131tlara yazmaz.")
+            self.btn_reset_form.clicked.connect(self._reset_reference_form)
+            self.footer_layout.addWidget(self.btn_reset_form)
+        if self.is_automotive:
+            self.footer_layout.addStretch()
         self.footer_layout.addWidget(self.btn_save_and_form)
         self.footer_layout.addWidget(self.btn_action)
 
@@ -882,8 +1360,43 @@ class NewServiceDialog(
 
     def load_customers(self):
         self.cmb_customer.clear()
-        for c in self.db.get_customers():
+        customers = self.db.get_customers()
+        description = getattr(getattr(self.db, "cursor", None), "description", None) or []
+        columns = [column[0] for column in description]
+        self._reference_customer_rows = {}
+        for c in customers:
+            row = dict(c) if hasattr(c, "keys") else dict(zip(columns, c))
+            self._reference_customer_rows[c[0]] = row
             self.cmb_customer.addItem(c[1], c[0])
+        self.cmb_customer.addItem("+ Yeni M\u00fc\u015fteri Ekle", "__new_customer__")
+        self.cmb_customer.activated.connect(self._on_service_customer_activated)
+        if not self.device_data and not self._initial_customer_name:
+            self.cmb_customer.setCurrentIndex(-1)
+            self.cmb_customer.setEditText("")
+        self._refresh_reference_customer_fields()
+
+    def _refresh_reference_customer_fields(self, _index=None):
+        if not hasattr(self, "inp_customer_identity"):
+            return
+        row = getattr(self, "_reference_customer_rows", {}).get(self.cmb_customer.currentData(), {})
+        self.inp_customer_identity.setText(str(row.get("tc_no") or row.get("tax_id") or row.get("tax_no") or ""))
+        self.inp_customer_phone.setText(str(row.get("phone") or ""))
+        if hasattr(self, "lbl_reference_customer_status"):
+            selected = self.cmb_customer.currentData() is not None
+            self.lbl_reference_customer_status.setText(
+                "Durum: Kay\u0131tl\u0131 m\u00fc\u015fteri se\u00e7ildi"
+                if selected else "Durum: Yeni M\u00fc\u015fteri Kayd\u0131"
+            )
+            color = "@finance_secondary"
+            self.lbl_reference_customer_status.setStyleSheet(theme_qss("color: " + color + "; font-size: 10px; letter-spacing: 0px; border: none; background: transparent;"))
+
+    def _on_service_customer_activated(self, index):
+        if self.cmb_customer.itemData(index) != "__new_customer__":
+            return
+        self.cmb_customer.setCurrentIndex(-1)
+        self.cmb_customer.setEditText("")
+        self._refresh_reference_customer_fields()
+        self.quick_add_customer()
 
     def load_personnel(self):
         self.cmb_personnel.clear()
@@ -966,10 +1479,84 @@ class NewServiceDialog(
                 logger.debug("Fault note remove skipped; key already missing")
         self._update_fault_selected_label()
 
+    def _append_quick_issue(self, issue_text):
+        current = self.txt_fault.toPlainText().strip()
+        if issue_text in current:
+            return
+        self.txt_fault.setPlainText((current + "\n" if current else "") + issue_text)
+
     def _on_fault_manual_changed(self):
         if not hasattr(self, "selected_fault_notes"):
             return
         self._update_fault_selected_label()
+
+    def eventFilter(self, obj, event):
+        if obj is getattr(self, "btn_photo", None):
+            if event.type() == QEvent.Type.DragEnter and event.mimeData().hasUrls():
+                event.acceptProposedAction()
+                return True
+            if event.type() == QEvent.Type.Drop and event.mimeData().hasUrls():
+                paths = [url.toLocalFile() for url in event.mimeData().urls() if url.isLocalFile()]
+                self._add_selected_photos(paths)
+                event.acceptProposedAction()
+                return True
+        if obj is getattr(self, "txt_fault", None) and event.type() == QEvent.Type.Resize:
+            button = getattr(self, "btn_fault_voice", None)
+            if button is not None:
+                button.move(max(0, obj.width() - button.width() - 8), 8)
+                button.raise_()
+        return super().eventFilter(obj, event)
+
+    def _voice_input_available(self):
+        import importlib.util
+        return all(importlib.util.find_spec(module) is not None for module in ("speech_recognition", "pyaudio"))
+
+    def _create_fault_voice_worker(self):
+        from src.utils.ai_service import AIService
+        from src.utils.voice_worker import VoiceWorker
+        return VoiceWorker(AIService(self.db), QApplication.instance())
+
+    def _start_fault_dictation(self):
+        worker = getattr(self, "_fault_voice_worker", None)
+        if worker is not None:
+            return
+        try:
+            if not self._voice_input_available():
+                ToastManager.warning(self, "Sesli giri\u015f i\u00e7in speech_recognition ve PyAudio gerekir.")
+                return
+            worker = self._create_fault_voice_worker()
+            self._fault_voice_worker = worker
+            self._fault_voice_discarded = False
+            self._fault_voice_placeholder = self.txt_fault.placeholderText()
+            worker.text_received.connect(self._append_fault_dictation)
+            worker.error_occurred.connect(self._fault_dictation_error)
+            worker.finished.connect(self._finish_fault_dictation)
+            worker.finished.connect(worker.deleteLater)
+            self.btn_fault_voice.setEnabled(False)
+            self.txt_fault.setPlaceholderText("Dinleniyor... Ar\u0131zay\u0131 anlat\u0131n.")
+            worker.start()
+        except Exception as exc:
+            self._finish_fault_dictation()
+            self._fault_dictation_error(str(exc))
+
+    def _append_fault_dictation(self, text):
+        if getattr(self, "_fault_voice_discarded", False):
+            return
+        text = str(text or "").strip()
+        if text:
+            current = self.txt_fault.toPlainText().rstrip()
+            self.txt_fault.setPlainText(current + ("\n" if current else "") + text)
+
+    def _fault_dictation_error(self, message):
+        if not getattr(self, "_fault_voice_discarded", False):
+            ToastManager.warning(self, "Sesli giri\u015f tamamlanamad\u0131: " + str(message))
+
+    def _finish_fault_dictation(self):
+        self._fault_voice_worker = None
+        self.btn_fault_voice.setEnabled(True)
+        placeholder = getattr(self, "_fault_voice_placeholder", None)
+        if placeholder is not None:
+            self.txt_fault.setPlaceholderText(placeholder)
 
     def _compose_fault_description(self):
         selected = list(getattr(self, "selected_fault_notes", set()) or [])
@@ -1009,15 +1596,12 @@ class NewServiceDialog(
             full_data = self.db.get_device_with_extensions(tracking_no=tracking_no, sector_id=self._active_sector_id())
         else:
             self.db.cursor.execute(
-                "SELECT tracking_no, customer_name, device_brand, device_model, "
-                "serial_no, fault_description, urgency, technician, "
-                "internal_notes, repair_details, accessories, pattern_lock, "
-                "device_type, vehicle_plate, vehicle_vin "
-                "FROM devices WHERE tracking_no=?",
+                "SELECT * FROM devices WHERE tracking_no=?",
                 (tracking_no,)
             )
             row = self.db.cursor.fetchone()
-            full_data = dict(row) if row and hasattr(row, "keys") else row
+            columns = [column[0] for column in (self.db.cursor.description or [])]
+            full_data = (dict(row) if hasattr(row, "keys") else dict(zip(columns, row))) if row else None
 
         if not full_data:
             return
@@ -1025,6 +1609,9 @@ class NewServiceDialog(
         # Set fields
         getter = (lambda key, idx: full_data.get(key)) if isinstance(full_data, dict) else (lambda key, idx: full_data[idx])
         self.cmb_customer.setCurrentText(str(getter("customer_name", 1) or ""))
+        if hasattr(self, "inp_delivered_by"):
+            self.inp_delivered_by.setText(str(getter("delivered_by_name", None) or ""))
+            self.inp_delivered_phone.setText(str(getter("delivered_by_phone", None) or ""))
         saved_model = str(getter("device_model", 3) or "")
         self.inp_serial.setText(str(getter("serial_no", 4) or ""))
         self.cmb_urgency.setCurrentText(str(getter("urgency", 6) or ""))
@@ -1191,6 +1778,13 @@ class NewServiceDialog(
                 self.inp_password.setText(str(pwd_result[0]))
         except Exception as e:
             logger.warning(f"Device password load failed: {e}")
+        try:
+            self.db.cursor.execute("SELECT bios_password FROM devices WHERE tracking_no=?", (tracking_no,))
+            bios_result = self.db.cursor.fetchone()
+            if bios_result and bios_result[0]:
+                self.inp_bios_password.setText(str(bios_result[0]))
+        except Exception as e:
+            logger.warning(f"BIOS password load failed: {e}")
 
         try:
             self.photo_paths = []
@@ -1272,8 +1866,14 @@ class NewServiceDialog(
     def open_pattern_lock_dialog(self):
         if self.is_automotive:
             return
+        dialog = self._create_pattern_lock_dialog()
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self.pattern_lock.set_pattern_string(dialog.pattern_editor.get_pattern_string())
+
+    def _create_pattern_lock_dialog(self):
         dialog = ModernDialog("Desen Kilidi", self, width=380, height=450)
-        dialog.set_footer_visible(False)
+        dialog.service_owner = self
+        dialog.clear_footer()
         layout = dialog.content_layout
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(14)
@@ -1282,24 +1882,21 @@ class NewServiceDialog(
         layout.addWidget(title)
 
         editor = PatternLockWidget()
+        dialog.pattern_editor = editor
         if self.pattern_lock.get_pattern_string():
             editor.set_pattern_string(self.pattern_lock.get_pattern_string())
         layout.addWidget(editor, alignment=Qt.AlignmentFlag.AlignCenter)
 
-        actions = QHBoxLayout()
-        actions.addStretch()
-        cancel_button = QPushButton("Iptal")
-        cancel_button.setStyleSheet(theme_qss(DesignTokens.get_button_qss("secondary", size="sm")))
-        cancel_button.clicked.connect(dialog.reject)
-        save_button = QPushButton("Kaydet")
-        save_button.setStyleSheet(theme_qss(DesignTokens.get_button_qss("primary", size="sm")))
-        save_button.clicked.connect(dialog.accept)
-        actions.addWidget(cancel_button)
-        actions.addWidget(save_button)
-        layout.addLayout(actions)
-
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            self.pattern_lock.set_pattern_string(editor.get_pattern_string())
+        dialog.footer_layout.addStretch()
+        dialog.btn_cancel = dialog.add_button("\u0130ptal", "secondary", dialog.reject)
+        dialog.btn_save = dialog.add_button("Kaydet", "primary", dialog.accept)
+        for button, token in ((dialog.btn_cancel, "@finance_surface_alt"), (dialog.btn_save, "@finance_primary")):
+            button.setFixedHeight(32)
+            button.setStyleSheet(theme_qss(
+                "QPushButton { background: " + token + "; color: @text; border: 1px solid @finance_outline; "
+                "border-radius: 4px; padding: 4px 12px; font-size: 11px; }"))
+        dialog.set_footer_visible(True, 52)
+        return dialog
 
     def open_automotive_checklist_dialog(self):
         templates = self.sector_manager.get_checklist_templates() if self.sector_manager else {}
@@ -1394,6 +1991,10 @@ class NewServiceDialog(
         self.cmb_brand.addItems(brands)
         if current:
             self.cmb_brand.setCurrentText(current)
+        else:
+            reference_brand_index = self.cmb_brand.findText("Acer")
+            if reference_brand_index >= 0:
+                self.cmb_brand.setCurrentIndex(reference_brand_index)
         self.cmb_brand.blockSignals(False)
         self._load_models_for_device_brand(
             device_type, self.cmb_brand.currentText(), preserve_current=False
@@ -1436,7 +2037,7 @@ class NewServiceDialog(
         core_device_columns = {
             "customer_name", "device_brand", "device_model", "serial_no", "urgency", "technician",
             "fault_description", "internal_notes", "repair_details", "pattern_lock", "accessories",
-            "photo_path", "photo_paths", "device_password", "device_type", "warranty_status",
+            "photo_path", "photo_paths", "device_password", "bios_password", "device_type", "warranty_status",
             "vehicle_plate", "vehicle_vin", "invoice_ready_at",
             "delivery_method", "service_location", "other_info", "price",
         }
@@ -1453,7 +2054,11 @@ class NewServiceDialog(
         data = {
             "customer_name": self.cmb_customer.currentText(),
             "device_brand": self.cmb_brand.currentText(),
-            "device_model": self.cmb_model.currentText(),
+            "device_model": (
+                self.cmb_model.currentText().strip()
+                if hasattr(self, "cmb_model") and self.cmb_model.currentText().strip()
+                else self.inp_model.text().strip()
+            ),
             "serial_no": self.inp_serial.text(),
             "urgency": self.cmb_urgency.currentText(),
             "technician": self.cmb_personnel.currentText(),
@@ -1462,6 +2067,8 @@ class NewServiceDialog(
             "repair_details": self.txt_public_note.toPlainText(),
             "pattern_lock": self.pattern_lock.get_pattern_string(),
             "photo_path": self.photo_path if self.photo_path else "",
+            "device_password": self.inp_password.text().strip(),
+            "bios_password": self.inp_bios_password.text().strip() if hasattr(self, "inp_bios_password") else "",
             "device_type": (
                 self._selected_device_type()
                 if hasattr(self, "_selected_device_type")
@@ -1475,8 +2082,16 @@ class NewServiceDialog(
                 price_text = (
                     self.inp_est_price.text().strip().replace(",", ".")
                 )
-                data["price"] = float(price_text or 0)
+                if hasattr(self, "_estimate_currency"):
+                    data["price"] = float(self._estimate_price_in_base())
+                    if not math.isfinite(data["price"]):
+                        raise ValueError("Estimate exceeds numeric storage range")
+                else:
+                    data["price"] = float(price_text or 0)
             except (TypeError, ValueError):
+                if hasattr(self, "_estimate_currency"):
+                    ToastManager.warning(self, "Tahmini tutar ge\u00e7erli, s\u0131f\u0131r veya pozitif bir say\u0131 olmal\u0131d\u0131r.")
+                    return
                 data["price"] = 0.0
         if hasattr(self, "dt_estimated_delivery"):
             data["estimated_date"] = (
@@ -1492,6 +2107,9 @@ class NewServiceDialog(
             )
         if hasattr(self, "inp_other_info"):
             data["other_info"] = self.inp_other_info.text().strip()
+        for column, field in (("delivered_by_name", "inp_delivered_by"), ("delivered_by_phone", "inp_delivered_phone")):
+            if column in device_cols and hasattr(self, field):
+                data[column] = getattr(self, field).text().strip()
         if descriptor_values.get("estimated_date"):
             data["estimated_date"] = descriptor_values.get("estimated_date")
         if descriptor_values.get("inspection_summary"):
@@ -1542,14 +2160,14 @@ class NewServiceDialog(
                     "customer_name", "device_brand", "device_model", "serial_no",
                     "urgency", "technician", "fault_description", "internal_notes",
                     "repair_details", "pattern_lock", "accessories", "photo_path",
-                    "device_password", "device_type",
+                    "device_password", "bios_password", "device_type",
                 ]
                 values = [
                     data["customer_name"], data["device_brand"], data["device_model"],
                     data["serial_no"], data["urgency"], data["technician"],
                     data["fault_description"], data["internal_notes"], data["repair_details"],
                     data["pattern_lock"], data["accessories"], data["photo_path"],
-                    self.inp_password.text(), data["device_type"],
+                    self.inp_password.text(), data.get("bios_password", ""), data["device_type"],
                 ]
                 for optional_column in (
                     "estimated_date",
@@ -1557,6 +2175,8 @@ class NewServiceDialog(
                     "delivery_method",
                     "service_location",
                     "other_info",
+                    "delivered_by_name",
+                    "delivered_by_phone",
                 ):
                     if optional_column in data:
                         columns.append(optional_column)
@@ -1627,6 +2247,37 @@ class NewServiceDialog(
                 for key, value in data.items()
                 if not device_cols or key in device_cols
             }
+            selected_customer_id = self.cmb_customer.currentData()
+            selected_customer_name = (
+                self.cmb_customer.itemText(self.cmb_customer.currentIndex())
+                if self.cmb_customer.currentIndex() >= 0 else ""
+            )
+            if not selected_customer_id or selected_customer_name != data["customer_name"]:
+                try:
+                    self.db.cursor.execute(
+                        "SELECT id FROM customers WHERE TRIM(UPPER(name))=TRIM(UPPER(?)) LIMIT 1",
+                        (data["customer_name"],),
+                    )
+                    existing_customer = self.db.cursor.fetchone()
+                    selected_customer_id = existing_customer[0] if existing_customer else None
+                    if not selected_customer_id:
+                        selected_customer_id = self.db.add_customer({
+                            "name": data["customer_name"],
+                            "phone": self.inp_customer_phone.text().strip(),
+                            "tc_no": self.inp_customer_identity.text().strip(),
+                            "tax_id": self.inp_customer_identity.text().strip(),
+                            "type": "Kurumsal" if self.inp_customer_identity.text().strip() else "Bireysel",
+                            "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        })
+                    if not selected_customer_id:
+                        ToastManager.error(self, "M\u00fc\u015fteri kayd\u0131 olu\u015fturulamad\u0131.")
+                        return
+                    if "customer_id" in device_cols:
+                        insert_data["customer_id"] = selected_customer_id
+                except Exception as customer_error:
+                    logger.exception("New service customer save failed: %s", customer_error)
+                    ToastManager.error(self, "M\u00fc\u015fteri kayd\u0131 olu\u015fturulamad\u0131.")
+                    return
             device_id = self.db.add_device(insert_data)
             if device_id:
                 if extension_data and hasattr(self.db, "upsert_sector_extension"):

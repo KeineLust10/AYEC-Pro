@@ -4,9 +4,10 @@ import sqlite3
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QTableWidgetItem
 
 from src.ui.pages.settings_widgets.user_management_dialogs import UserDialog
+from src.ui.pages.settings_widgets.user_management import UserManagementWidget
 from src.ui.pages.settings_sidebar import PremiumSettingsSidebar
 from src.ui.pages.settings_widgets.management_center_settings import ManagementCenterSettingsWidget
 from src.utils.desktop_web_sync import configured_sync_url
@@ -90,6 +91,42 @@ def test_role_change_to_admin_applies_all_permissions():
     assert all(toggle.isChecked() for toggle in dialog.perm_toggles.values())
     assert all(not toggle.isEnabled() for toggle in dialog.perm_toggles.values())
     dialog.close()
+
+
+def test_user_management_detail_panel_uses_selected_database_user():
+    _app()
+    db = DialogDatabase()
+    db.cursor.execute("ALTER TABLE users ADD COLUMN active INTEGER DEFAULT 1")
+    db.cursor.execute("ALTER TABLE users ADD COLUMN interface_edit_access INTEGER DEFAULT 0")
+    db.cursor.execute("INSERT INTO personnel (id, name) VALUES (7, 'Test Person')")
+    user_id = db.add_user("Personel", json.dumps({"pages": [21, 50]}))
+    db.cursor.execute("UPDATE users SET personnel_id=7 WHERE id=?", (user_id,))
+    db.conn.commit()
+    db._get_table_columns = lambda table: [
+        row[1] for row in db.cursor.execute(f"PRAGMA table_info({table})").fetchall()
+    ]
+
+    widget = UserManagementWidget(db)
+    widget.table.setRowCount(1)
+    widget.table.setItem(0, 0, QTableWidgetItem(str(user_id)))
+    widget._update_detail_panel(0)
+
+    assert widget.detail_title.text() == "Test Person"
+    assert "test-user" in widget.detail_status.text()
+    assert widget.detail_values["personnel"].text() == "Test Person"
+    assert widget.detail_values["role"].text() == "Personel"
+    assert widget._permission_baseline == {21, 50}
+    assert {page_id for page_id, check in widget.detail_permission_checks.items()
+            if check.isChecked()} == {21, 50}
+    for page_ids, label in widget.detail_permission_rows.values():
+        granted = len({21, 50}.intersection(page_ids))
+        assert label.text() == f"{granted} / {len(page_ids)} izin"
+    db.cursor.execute("UPDATE users SET personnel_id=NULL WHERE id=?", (user_id,))
+    db.conn.commit()
+    widget._update_detail_panel(0)
+    assert widget.detail_title.text() == "test-user"
+    assert "test-user" in widget.detail_status.text()
+    widget.close()
 
 
 def test_footer_actions_fit_inside_dialog():

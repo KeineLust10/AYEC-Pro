@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 
-from src.ui.dialogs.add_device_dialog import AddDeviceDialog
+from src.ui.dialogs.new_service_dialog import NewServiceDialog
 
 
-class TechnicalServiceNewServiceDialog(AddDeviceDialog):
-    """Compatibility entry point for the compact technical service form."""
+class TechnicalServiceNewServiceDialog(NewServiceDialog):
+    """Compatibility entry point for the reference technical service form."""
 
     SECTOR_ID = "teknik_servis"
 
@@ -16,10 +16,10 @@ class TechnicalServiceNewServiceDialog(AddDeviceDialog):
         device_data=None,
         sector_manager=None,
     ):
-        del sector_manager
         super().__init__(
             db,
             parent=parent,
             customer_name=customer_name,
             device_data=device_data,
+            sector_manager=sector_manager,
         )

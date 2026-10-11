@@ -83,7 +83,7 @@ class Database(
     DatabaseLegacyPart5Mixin,
     DatabaseLegacyPart6Mixin,
 ):
-    CURRENT_SCHEMA_VERSION = 17
+    CURRENT_SCHEMA_VERSION = 19
     VALID_INIT_MODES = {"auth", "full", "connection_only"}
 
     def __init__(self, db_name="ayecpro.db", init_mode="full"):

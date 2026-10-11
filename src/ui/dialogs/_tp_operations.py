@@ -272,6 +272,8 @@ class _TpOperations:
 
     def save_update(self):
         """Save wizard data to database"""
+        if getattr(self, "read_only", False):
+            return
         try:
             # Collect data from all wizard pages (if they exist)
             if (
@@ -823,19 +825,26 @@ class _TpOperations:
 
     def _perform_silent_save(self):
         """Used for auto-save when closing or certain events"""
+        if getattr(self, "read_only", False):
+            return
         try:
             if not hasattr(self, "wizard_page1"):
                 return
             data_page1 = self.wizard_page1.get_data()
+            internal_notes = getattr(self, "device_dict", {}).get("internal_notes")
+            if hasattr(self, "wizard_page2"):
+                internal_notes = self.wizard_page2.get_data().get("internal_notes", internal_notes)
             self.db.cursor.execute(
                 "UPDATE devices SET internal_notes=?, accessories=? WHERE tracking_no=?",
-                (data_page1.get("internal_notes"), data_page1.get("accessories"), self.tracking_no)
+                (internal_notes, data_page1.get("accessories"), self.tracking_no)
             )
             self.db.conn.commit()
         except Exception:
             pass
 
     def _handle_toggle_changed(self, name, is_checked):
+        if getattr(self, "read_only", False):
+            return
         """Handle individual test toggle changes"""
         current_status = self._load_cached_checklist_status()
         items = [x.strip() for x in current_status.split(",") if x.strip()]

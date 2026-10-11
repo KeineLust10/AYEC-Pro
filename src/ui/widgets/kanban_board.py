@@ -2,13 +2,14 @@
 
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                              QFrame, QScrollArea, QPushButton, QGraphicsDropShadowEffect,
-                             QMenu, QApplication)
-from PyQt6.QtCore import Qt, pyqtSignal, QMimeData, QSize, QEvent
+                             QMenu, QApplication, QSizePolicy)
+from PyQt6.QtCore import Qt, pyqtSignal, QMimeData, QSize, QEvent, QTimer
 from src.utils.context_menu_settings import is_context_menu_enabled
 from src.utils.theme_colors import theme_qss, tc
 from src.utils.currency_helper import CurrencyHelper
 from src.utils.theme_manager import ThemeManager
 from src.utils.appearance_mode import AppearanceModeManager
+from src.utils.design_system import DesignTokens
 from src.utils.status_utils import is_active_device_status, normalize_device_status
 from PyQt6.QtGui import QFont, QColor, QDrag, QPixmap, QPainter, QAction
 import logging
@@ -17,12 +18,12 @@ logger = logging.getLogger("AYECProLogger")
 
 def get_kanban_colors():
     return {
-        "Bekliyor": "#F59E0B",
-        "Tamirde": "#2563EB",
-        "Parça Bekliyor": "#D97706",
-        "Test Sürecinde": "#0EA5E9",
-        "Teslim Edildi": "#10B981",
-        "İptal": "#EF4444",
+        "Bekliyor": tc("finance_action_expense"),
+        "Tamirde": tc("finance_action_collection"),
+        "Par\u00e7a Bekliyor": tc("finance_secondary"),
+        "Test S\u00fcrecinde": tc("finance_primary"),
+        "Teslim Edildi": tc("finance_secondary"),
+        "\u0130ptal": tc("finance_tertiary"),
     }
 
 
@@ -97,7 +98,7 @@ class KanbanCard(QFrame):
         # self.setFixedWidth(280) # Responsive
         self.setObjectName("KanbanCard")
         self.setCursor(Qt.CursorShape.OpenHandCursor)
-        self.setMinimumHeight(220)
+        self.setMinimumHeight(182)
         
         self._accent = None
         self._bar = None
@@ -106,8 +107,8 @@ class KanbanCard(QFrame):
         self._apply_accent_styles(accent)
         
         layout = QVBoxLayout(self)
-        layout.setSpacing(10)
-        layout.setContentsMargins(14, 12, 14, 12)
+        layout.setSpacing(8)
+        layout.setContentsMargins(10, 10, 10, 10)
 
         bar = QFrame()
         self._bar = bar
@@ -116,32 +117,48 @@ class KanbanCard(QFrame):
         layout.addWidget(bar)
         
         top = QHBoxLayout()
-        top.setSpacing(10)
+        top.setSpacing(8)
 
-        title_box = QVBoxLayout()
-        title_box.setSpacing(4)
+        lbl_tracking = QLabel(f"#{self.tracking_no}")
+        lbl_tracking.setTextFormat(Qt.TextFormat.PlainText)
+        lbl_tracking.setFont(QFont(DesignTokens.MONO_FONT_NAME))
+        lbl_tracking.setObjectName("KanbanTrackingBadge")
+        lbl_tracking.setProperty("referenceFont", "mono")
+        lbl_tracking.setWordWrap(True)
+        lbl_tracking.setToolTip(self.tracking_no)
+        lbl_tracking.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        lbl_tracking.setStyleSheet(theme_qss(f"background: @surface; color: @text; border: 1px solid @border; border-radius: 4px; padding: 2px 6px; font-size: 10px; font-family: \"{DesignTokens.MONO_FONT_NAME}\"; font-weight: 800;"))
+        lbl_tracking.setFont(QFont(DesignTokens.MONO_FONT_NAME))
+        QTimer.singleShot(0, lambda: lbl_tracking.setFont(QFont(DesignTokens.MONO_FONT_NAME)))
+        top.addWidget(lbl_tracking, 1)
 
-        lbl_title = QLabel(self._ellipsize(self.fault_desc, 60))
+        lbl_title = QLabel(self.brand_model)
+        lbl_title.setTextFormat(Qt.TextFormat.PlainText)
         lbl_title.setObjectName("KanbanTitle")
         lbl_title.setWordWrap(True)
-        lbl_title.setStyleSheet(theme_qss("color: @text; font-size: 13px; font-weight: 800;"))
-        title_box.addWidget(lbl_title)
+        lbl_title.setToolTip(self.brand_model)
+        lbl_title.setStyleSheet(theme_qss("color: @text; font-size: 15px; font-weight: 700;"))
 
-        lbl_sub = QLabel(self._ellipsize(self.customer, 42))
+        lbl_sub = QLabel(self.fault_desc)
+        lbl_sub.setTextFormat(Qt.TextFormat.PlainText)
         lbl_sub.setObjectName("KanbanCustomer")
-        lbl_sub.setStyleSheet(theme_qss("color: @text_muted; font-size: 12px; font-weight: 600;"))
-        title_box.addWidget(lbl_sub)
-
-        top.addLayout(title_box, 1)
+        lbl_sub.setWordWrap(True)
+        lbl_sub.setToolTip(self.fault_desc)
+        lbl_sub.setStyleSheet(theme_qss("color: @text_muted; font-size: 12px; font-weight: 400;"))
 
         status_pill = QLabel(self._status_label(self.status))
         status_pill.setObjectName("KanbanStatusPill")
         self._status_pill = status_pill
         status_pill.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        status_pill.setStyleSheet(theme_qss(f"background: {_status_surface(accent)}; color: {accent}; border: 1px solid {_status_outline(accent)}; border-radius: 10px; padding: 2px 10px; font-size: 11px; font-weight: 900;"))
-        top.addWidget(status_pill, 0, Qt.AlignmentFlag.AlignTop)
+        status_pill.setWordWrap(True)
+        status_pill.setToolTip(self._status_label(self.status))
+        status_pill.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        status_pill.setStyleSheet(theme_qss(f"background: {_status_surface(accent)}; color: {accent}; border: 1px solid {_status_outline(accent)}; border-radius: 4px; padding: 2px 8px; font-size: 10px; font-weight: 800;"))
+        top.addWidget(status_pill, 1, Qt.AlignmentFlag.AlignTop)
 
         layout.addLayout(top)
+        layout.addWidget(lbl_title)
+        layout.addWidget(lbl_sub)
         
         # 2. Tags Row (Vibrant Badges)
         tags_layout = QHBoxLayout()
@@ -157,32 +174,23 @@ class KanbanCard(QFrame):
 
         lbl_tag = QLabel(tag_text)
         lbl_tag.setObjectName("KanbanUrgencyBadge")
-        lbl_tag.setStyleSheet(theme_qss(f"border-radius: 10px; padding: 3px 10px; font-size: 10px; font-weight: 900; {tag_style}"))
+        lbl_tag.setStyleSheet(theme_qss(f"border-radius: 4px; padding: 2px 8px; font-size: 10px; font-weight: 800; {tag_style}"))
         tags_layout.addWidget(lbl_tag)
         
         if self.device_type:
             lbl_type = QLabel(self._ellipsize(self.device_type, 14))
             lbl_type.setObjectName("KanbanTypeBadge")
-            lbl_type.setStyleSheet(theme_qss("border-radius: 10px; padding: 3px 10px; font-size: 10px; font-weight: 900; background-color: @surface_alt; color: @accent; border: 1px solid @accent;"))
+            lbl_type.setStyleSheet(theme_qss("border-radius: 4px; padding: 2px 8px; font-size: 10px; font-weight: 800; background-color: @surface_alt; color: @accent; border: 1px solid @accent;"))
             tags_layout.addWidget(lbl_type)
         if self.fault_category:
             lbl_cat = QLabel(self._ellipsize(self.fault_category, 14))
             lbl_cat.setObjectName("KanbanCategoryBadge")
-            lbl_cat.setStyleSheet(theme_qss("border-radius: 10px; padding: 3px 10px; font-size: 10px; font-weight: 900; background-color: @surface_alt; color: @warning; border: 1px solid rgba(180, 83, 9, 0.22);"))
+            lbl_cat.setStyleSheet(theme_qss("border-radius: 4px; padding: 2px 8px; font-size: 10px; font-weight: 800; background-color: @surface_alt; color: @warning; border: 1px solid rgba(180, 83, 9, 0.22);"))
             tags_layout.addWidget(lbl_cat)
         
         tags_layout.addStretch()
         layout.addLayout(tags_layout)
         
-        mid = QHBoxLayout()
-        mid.setSpacing(10)
-        lbl_device = QLabel(self._ellipsize(self.brand_model, 34))
-        lbl_device.setObjectName("KanbanDevice")
-        lbl_device.setStyleSheet(theme_qss("color: @text; font-size: 12px; font-weight: 700;"))
-        mid.addWidget(lbl_device)
-        mid.addStretch()
-        layout.addLayout(mid)
-
         if self.price and self.price > 0:
             price_row = QHBoxLayout()
             price_row.setContentsMargins(0, 0, 0, 0)
@@ -195,9 +203,14 @@ class KanbanCard(QFrame):
                 )
             )
             lbl_price.setObjectName("KanbanPrice")
+            lbl_price.setProperty("referenceFont", "mono")
+            lbl_price.setTextFormat(Qt.TextFormat.PlainText)
+            lbl_price.setFont(QFont(DesignTokens.MONO_FONT_NAME))
             lbl_price.setMinimumWidth(92)
             lbl_price.setAlignment(Qt.AlignmentFlag.AlignCenter)
             lbl_price.setStyleSheet(theme_qss("color: @selection_text; font-size: 12px; font-weight: 900; background: @surface_alt; border: 1px solid @border; border-radius: 10px; padding: 3px 10px;"))
+            lbl_price.setFont(QFont(DesignTokens.MONO_FONT_NAME))
+            QTimer.singleShot(0, lambda label=lbl_price: label.setFont(QFont(DesignTokens.MONO_FONT_NAME)))
             price_row.addWidget(lbl_price)
             layout.addLayout(price_row)
 
@@ -222,15 +235,24 @@ class KanbanCard(QFrame):
         # 3. Bottom Row: Tracking + Date + Avatar
         bottom_layout = QHBoxLayout()
         
-        lbl_track = QLabel(f"#{self.tracking_no}")
+        lbl_track = QLabel(self.customer)
+        lbl_track.setTextFormat(Qt.TextFormat.PlainText)
         lbl_track.setObjectName("KanbanTrack")
+        lbl_track.setWordWrap(True)
+        lbl_track.setToolTip(self.customer)
+        lbl_track.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         lbl_track.setStyleSheet(theme_qss("color: @text_muted; font-size: 12px; font-weight: 800;"))
-        bottom_layout.addWidget(lbl_track)
+        bottom_layout.addWidget(lbl_track, 1)
 
         if self.entry_date:
             lbl_when = QLabel(self._short_date(self.entry_date))
+            lbl_when.setTextFormat(Qt.TextFormat.PlainText)
+            lbl_when.setFont(QFont(DesignTokens.MONO_FONT_NAME))
             lbl_when.setObjectName("KanbanDate")
+            lbl_when.setProperty("referenceFont", "mono")
             lbl_when.setStyleSheet(theme_qss("color: @disabled_text; font-size: 11px; font-weight: 700;"))
+            lbl_when.setFont(QFont(DesignTokens.MONO_FONT_NAME))
+            QTimer.singleShot(0, lambda label=lbl_when: label.setFont(QFont(DesignTokens.MONO_FONT_NAME)))
             bottom_layout.addWidget(lbl_when)
         
         bottom_layout.addStretch()
@@ -251,11 +273,32 @@ class KanbanCard(QFrame):
         bottom_layout.addWidget(lbl_avatar)
         
         layout.addLayout(bottom_layout)
+
+        if normalize_device_status(self.status) == "Teslime Hazir":
+            delivery_row = QHBoxLayout()
+            delivery_row.setContentsMargins(0, 0, 0, 0)
+            delivery_row.addStretch(1)
+            delivery_button = QPushButton("Teslim Et", self)
+            delivery_button.setObjectName("KanbanDeliverAction")
+            delivery_button.setAccessibleName("Teslim Et: " + self.tracking_no)
+            delivery_button.setToolTip("Teslim ve tahsilat kontrol\u00fc")
+            delivery_button.setCursor(Qt.CursorShape.PointingHandCursor)
+            delivery_button.setFixedHeight(26)
+            delivery_button.setStyleSheet(theme_qss(
+                "QPushButton { background: @finance_action_income; color: @finance_action_income_text; "
+                "border: none; border-radius: 4px; padding: 0 10px; font-size: 11px; font-weight: 700; }"
+                "QPushButton:hover { background: @finance_secondary; }"
+            ))
+            delivery_button.clicked.connect(
+                lambda checked=False: self.action_triggered.emit("update_status:Teslim Edildi", self.tracking_no)
+            )
+            delivery_row.addWidget(delivery_button)
+            layout.addLayout(delivery_row)
         
         shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(22)
-        shadow.setColor(QColor(15, 23, 42, 22))
-        shadow.setOffset(0, 6)
+        shadow.setBlurRadius(12)
+        shadow.setColor(QColor(15, 23, 42, 45))
+        shadow.setOffset(0, 2)
         self.setGraphicsEffect(shadow)
         self._apply_accent_styles(accent)
 
@@ -291,18 +334,21 @@ class KanbanCard(QFrame):
     def _status_color(self, status):
         s = (status or "").strip().lower()
         colors = get_kanban_colors()
+        normalized = normalize_device_status(status)
+        if normalized in colors:
+            return colors[normalized]
+        if "par\u00e7a" in s or "parca" in s or "sipari\u015f" in s or "siparis" in s:
+            return colors["Par\u00e7a Bekliyor"]
         if "bek" in s:
             return colors["Bekliyor"]
-        if "tamir" in s or "servis" in s or "işlem" in s:
+        if "tamir" in s or "servis" in s or "i\u015flem" in s:
             return colors["Tamirde"]
-        if "parça" in s or "sipariş" in s:
-            return colors["Parça Bekliyor"]
-        if "test" in s or "onay" in s or "hazır" in s or "bitti" in s or "tamam" in s:
-            return colors["Test Sürecinde"]
+        if "test" in s or "onay" in s or "haz\u0131r" in s or "bitti" in s or "tamam" in s:
+            return colors["Test S\u00fcrecinde"]
         if "teslim" in s:
             return colors["Teslim Edildi"]
         if "iptal" in s:
-            return colors["İptal"]
+            return colors["\u0130ptal"]
         return colors["Tamirde"]
 
     def _status_label(self, status):
@@ -385,20 +431,24 @@ class KanbanCard(QFrame):
             return
         self.setStyleSheet(theme_qss(f"""
             #KanbanCard {{
-                background-color: @surface;
-                border-radius: 14px;
-                border: 1px solid @border;
+                background-color: @finance_surface;
+                border-radius: 6px;
+                border: 1px solid transparent;
             }}
             #KanbanCard:hover {{
                 border: 1px solid {accent};
-                background-color: @surface_alt;
+                background-color: @finance_surface_high;
             }}
         """))
         if self._bar is not None:
+            self._bar.setVisible(False)
             self._bar.setStyleSheet(theme_qss(f"background-color: {accent}; border-radius: 2px;"))
+        effect = self.graphicsEffect()
+        if effect is not None:
+            effect.setEnabled(False)
         if self._status_pill is not None:
             self._status_pill.setStyleSheet(theme_qss(
-                f"background: {_status_surface(accent)}; color: {accent}; border: 1px solid {_status_outline(accent)}; border-radius: 10px; padding: 2px 10px; font-size: 11px; font-weight: 900;"
+                f"background: {_status_surface(accent)}; color: {accent}; border: 1px solid {_status_outline(accent)}; border-radius: 4px; padding: 2px 6px; font-size: 10px; font-weight: 700;"
             ))
         self._apply_modern_child_styles()
 
@@ -445,15 +495,15 @@ class KanbanCard(QFrame):
                 label.setStyleSheet(style)
         for badge in self.findChildren(QLabel, "KanbanUrgencyBadge"):
             if self.urgency in ["Kritik", "Yüksek", "Yüksek", "Acil"]:
-                badge.setStyleSheet(theme_qss("border-radius: 10px; padding: 3px 10px; font-size: 10px; font-weight: 900; background-color: @surface_alt; color: @danger; border: 1px solid @danger;"))
+                badge.setStyleSheet(theme_qss("border-radius: 4px; padding: 2px 8px; font-size: 10px; font-weight: 800; background-color: @surface_alt; color: @danger; border: 1px solid @danger;"))
             else:
-                badge.setStyleSheet(theme_qss("border-radius: 10px; padding: 3px 10px; font-size: 10px; font-weight: 900; background-color: @surface_alt; color: @success; border: 1px solid @success;"))
+                badge.setStyleSheet(theme_qss("border-radius: 4px; padding: 2px 8px; font-size: 10px; font-weight: 800; background-color: @surface_alt; color: @success; border: 1px solid @success;"))
         for badge in self.findChildren(QLabel, "KanbanTypeBadge"):
-            badge.setStyleSheet(theme_qss("border-radius: 10px; padding: 3px 10px; font-size: 10px; font-weight: 900; background-color: @surface_alt; color: @accent; border: 1px solid @accent;"))
+            badge.setStyleSheet(theme_qss("border-radius: 4px; padding: 2px 8px; font-size: 10px; font-weight: 800; background-color: @surface_alt; color: @accent; border: 1px solid @accent;"))
         for badge in self.findChildren(QLabel, "KanbanCategoryBadge"):
-            badge.setStyleSheet(theme_qss("border-radius: 10px; padding: 3px 10px; font-size: 10px; font-weight: 900; background-color: @surface_alt; color: @warning; border: 1px solid rgba(180, 83, 9, 0.22);"))
+            badge.setStyleSheet(theme_qss("border-radius: 4px; padding: 2px 8px; font-size: 10px; font-weight: 800; background-color: @surface_alt; color: @warning; border: 1px solid rgba(180, 83, 9, 0.22);"))
         for price in self.findChildren(QLabel, "KanbanPrice"):
-            price.setStyleSheet(theme_qss("color: @selection_text; font-size: 12px; font-weight: 900; background: @surface_alt; border: 1px solid @border; border-radius: 10px; padding: 3px 10px;"))
+            price.setStyleSheet(theme_qss("color: @selection_text; font-size: 12px; font-weight: 900; background: @surface_alt; border: 1px solid @border; border-radius: 4px; padding: 2px 8px;"))
         for avatar in self.findChildren(QLabel, "KanbanAvatar"):
             avatar.setStyleSheet(theme_qss("background-color: @selection_bg; color: @accent; border-radius: 14px; font-size: 11px; font-weight: 700;"))
         for frame in self.findChildren(QFrame, "KanbanInfo"):
@@ -597,7 +647,7 @@ class KanbanColumn(QWidget):
         from PyQt6.QtWidgets import QSizePolicy
         self.db = db
         # self.setFixedWidth(320) # REMOVED: Fixed width causes scroll
-        self.setMinimumWidth(300)
+        self.setMinimumWidth(205)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setAcceptDrops(True)
         
@@ -606,51 +656,55 @@ class KanbanColumn(QWidget):
         self.CHUNK_SIZE = 5
         
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 10, 10, 10)
-        layout.setSpacing(10)
+        layout.setContentsMargins(6, 6, 6, 6)
+        layout.setSpacing(8)
 
         from src.utils.design_system import DesignTokens
         # Header
         self.header = QFrame()
         self.header.setObjectName("KanbanColumnHeader")
-        self.header.setFixedHeight(54)
+        self.header.setFixedHeight(48)
         self.header.setStyleSheet(theme_qss(f"""
             QFrame {{
                 background-color: {_status_surface(color)};
-                border-radius: 16px;
-                border: 1px solid {color};
+                border-radius: 6px;
+                border: none;
             }}
         """))
         h_layout = QHBoxLayout(self.header)
-        h_layout.setContentsMargins(16, 0, 16, 0)
+        h_layout.setContentsMargins(8, 0, 8, 0)
         
         icon = QLabel(self._icon_for_key(status_key))
         icon.setObjectName("KanbanColumnIcon")
         self.lbl_icon = icon
         icon.setStyleSheet(theme_qss(f"color: {color}; font-size: 16px; border:none;"))
+        if not _is_classic_appearance():
+            icon.setText("")
+            icon.setFixedSize(10, 10)
+            icon.setToolTip(title)
+            icon.setAccessibleName(title)
+            icon.setStyleSheet(theme_qss(f"background: {color}; border: none; border-radius: 5px;"))
         h_layout.addWidget(icon)
 
         lbl = QLabel(title)
         lbl.setObjectName("KanbanColumnTitle")
         self.lbl_title = lbl
-        lbl.setFont(QFont(DesignTokens.FONT_FAMILY, 10, QFont.Weight.Bold))
-        lbl.setStyleSheet(theme_qss(f"color: {tc('text')}; letter-spacing: 0.6px; border: none;"))
+        lbl.setWordWrap(True)
+        lbl.setStyleSheet(theme_qss("color: @finance_text; font-size: 18px; font-weight: 700; border: none; background: transparent;"))
         h_layout.addWidget(lbl)
         
         h_layout.addStretch()
 
         self.lbl_count = QLabel("0")
         self.lbl_count.setObjectName("KanbanColumnCount")
-        self.lbl_count.setStyleSheet(theme_qss(f"background-color: {color}; color: {_status_text(color)}; border-radius: 10px; padding: 4px 12px; font-weight: 900; border: 1px solid {color};"))
+        self.lbl_count.setFixedSize(26, 24)
+        self.lbl_count.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_count.setStyleSheet(theme_qss("background-color: @finance_surface_high; color: @finance_text; border-radius: 12px; padding: 0; font-size: 11px; font-weight: 700; border: none;"))
         h_layout.addWidget(self.lbl_count)
         
         layout.addWidget(self.header)
 
-        header_shadow = QGraphicsDropShadowEffect(self.header)
-        header_shadow.setBlurRadius(18)
-        header_shadow.setColor(QColor(15, 23, 42, 26))
-        header_shadow.setOffset(0, 6)
-        self.header.setGraphicsEffect(header_shadow)
+        self.header.setGraphicsEffect(None)
         
         # Content Area
         self.scroll = QScrollArea()
@@ -661,13 +715,13 @@ class KanbanColumn(QWidget):
         self.scroll.verticalScrollBar().valueChanged.connect(self.on_scroll)
         self.scroll.setStyleSheet(theme_qss("""
             QScrollArea {
-                background-color: @surface_alt;
-                border-radius: 16px;
-                border: 1px solid @border;
+                background-color: @finance_surface_lowest;
+                border-radius: 6px;
+                border: none;
             }
             QScrollArea::viewport {
                 background-color: transparent;
-                border-radius: 16px;
+                border-radius: 6px;
             }
             QScrollBar:vertical {
                 border: none;
@@ -689,11 +743,11 @@ class KanbanColumn(QWidget):
         
         self.content = QWidget()
         self.content.setObjectName("ColumnContent")
-        self.content.setStyleSheet(theme_qss("#ColumnContent { background-color: transparent; border-radius: 16px; }"))
+        self.content.setStyleSheet(theme_qss("#ColumnContent { background-color: transparent; border-radius: 10px; }"))
         self.content.setAcceptDrops(True)
         self.cards_layout = QVBoxLayout(self.content)
-        self.cards_layout.setContentsMargins(12, 12, 12, 12)
-        self.cards_layout.setSpacing(12)
+        self.cards_layout.setContentsMargins(8, 8, 8, 8)
+        self.cards_layout.setSpacing(8)
         self.cards_layout.addStretch()
         
         self.scroll.setWidget(self.content)
@@ -726,9 +780,9 @@ class KanbanColumn(QWidget):
             else:
                 self.header.setStyleSheet(theme_qss(f"""
                     QFrame {{
-                        background-color: {_status_surface(color)};
-                        border-radius: 16px;
-                        border: 1px solid {_status_outline(color)};
+                        background-color: transparent;
+                        border-radius: 6px;
+                        border: none;
                     }}
                 """))
         if hasattr(self, "lbl_count") and self.lbl_count:
@@ -738,12 +792,12 @@ class KanbanColumn(QWidget):
                 )
             else:
                 self.lbl_count.setStyleSheet(theme_qss(
-                    f"background-color: {color}; color: {_status_text(color)}; border-radius: 10px; padding: 4px 12px; font-weight: 900; border: 1px solid {_status_outline(color)};"
+                    "background-color: @finance_surface_high; color: @finance_text; border-radius: 12px; padding: 0; font-size: 11px; font-weight: 700; border: none;"
                 ))
         if hasattr(self, "lbl_icon") and self.lbl_icon:
-            self.lbl_icon.setStyleSheet(f"color: {color}; font-size: 16px; border: none; background: transparent;" if _is_classic_appearance() else theme_qss(f"color: {color}; font-size: 16px; border:none;"))
+            self.lbl_icon.setStyleSheet(f"color: {color}; font-size: 16px; border: none; background: transparent;" if _is_classic_appearance() else theme_qss(f"background: {color}; border: none; border-radius: 5px;"))
         if hasattr(self, "lbl_title") and self.lbl_title:
-            self.lbl_title.setStyleSheet("color: #111827; letter-spacing: 0px; border: none; background: transparent; font-weight: 800;" if _is_classic_appearance() else theme_qss(f"color: {tc('text')}; letter-spacing: 0.6px; border: none;"))
+            self.lbl_title.setStyleSheet("color: #111827; letter-spacing: 0px; border: none; background: transparent; font-weight: 800;" if _is_classic_appearance() else theme_qss("color: @finance_text; font-size: 18px; font-weight: 700; border: none; background: transparent;"))
         if hasattr(self, "scroll") and self.scroll and _is_classic_appearance():
             self.scroll.setStyleSheet("""
                 QScrollArea#KanbanColumnScroll {
@@ -772,13 +826,13 @@ class KanbanColumn(QWidget):
         elif hasattr(self, "scroll") and self.scroll:
             self.scroll.setStyleSheet(theme_qss("""
                 QScrollArea {
-                    background-color: @surface_alt;
-                    border-radius: 16px;
-                    border: 1px solid @border;
+                    background-color: @finance_surface_lowest;
+                    border-radius: 6px;
+                    border: none;
                 }
                 QScrollArea::viewport {
                     background-color: transparent;
-                    border-radius: 16px;
+                    border-radius: 6px;
                 }
                 QScrollBar:vertical {
                     border: none;
@@ -798,7 +852,7 @@ class KanbanColumn(QWidget):
                 QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: none; }
             """))
             if hasattr(self, "content") and self.content:
-                self.content.setStyleSheet(theme_qss("#ColumnContent { background-color: transparent; border-radius: 16px; }"))
+                self.content.setStyleSheet(theme_qss("#ColumnContent { background-color: transparent; border-radius: 10px; }"))
 
     def apply_theme_styles(self):
         for i in range(self.cards_layout.count()):
@@ -864,7 +918,7 @@ class KanbanColumn(QWidget):
 
     def dragEnterEvent(self, event):
 
-        if event.mimeData().hasText():
+        if event.mimeData().hasText() and event.mimeData().text().strip():
             event.acceptProposedAction()
             self.scroll.setStyleSheet(theme_qss(f"""
                 QScrollArea {{
@@ -893,7 +947,7 @@ class KanbanColumn(QWidget):
         event.accept()
 
     def dragMoveEvent(self, event):
-        if event.mimeData().hasText():
+        if event.mimeData().hasText() and event.mimeData().text().strip():
             event.acceptProposedAction()
         else:
             event.ignore()
@@ -909,13 +963,16 @@ class KanbanColumn(QWidget):
                 background-color: transparent;
             }
         """))
-        tracking_no = event.mimeData().text()
-        self.card_dropped.emit(tracking_no, self.status_key)
-        event.acceptProposedAction()
+        tracking_no = event.mimeData().text().strip()
+        if tracking_no:
+            self.card_dropped.emit(tracking_no, self.status_key)
+            event.acceptProposedAction()
+        else:
+            event.ignore()
 
     def eventFilter(self, watched, event):
         if event.type() == QEvent.Type.DragEnter:
-            if event.mimeData().hasText():
+            if event.mimeData().hasText() and event.mimeData().text().strip():
                 event.acceptProposedAction()
                 self.scroll.setStyleSheet(theme_qss(f"""
                     QScrollArea {{
@@ -931,7 +988,7 @@ class KanbanColumn(QWidget):
             event.ignore()
             return True
         if event.type() == QEvent.Type.DragMove:
-            if event.mimeData().hasText():
+            if event.mimeData().hasText() and event.mimeData().text().strip():
                 event.acceptProposedAction()
                 return True
             event.ignore()
@@ -960,7 +1017,7 @@ class KanbanColumn(QWidget):
                     background-color: transparent;
                 }
             """))
-            if event.mimeData().hasText():
+            if event.mimeData().hasText() and event.mimeData().text().strip():
                 tracking_no = event.mimeData().text()
                 self.card_dropped.emit(tracking_no, self.status_key)
                 event.acceptProposedAction()
@@ -972,16 +1029,16 @@ class KanbanColumn(QWidget):
     def _icon_for_key(self, status_key):
         k = (status_key or "").lower()
         if "bek" in k:
-            return "⏳"
+            return "\u23f3"
         if "tamir" in k:
-            return "🛠️"
+            return "\u2692"
         if "parça" in k:
-            return "📦"
+            return "\u25a3"
         if "test" in k or "onay" in k:
-            return "✅"
+            return "\u2713"
         if "teslim" in k:
-            return "🚚"
-        return "📌"
+            return "\u2192"
+        return "\u2022"
 
     def _set_empty_state_visible(self, visible):
         if not hasattr(self, "empty_label"):
@@ -993,7 +1050,7 @@ class KanbanColumn(QWidget):
                 font-weight: 700;
                 padding: 22px 18px;
                 border: 1px dashed @border;
-                border-radius: 14px;
+                border-radius: 10px;
                 background: @surface;
             """))
             self.cards_layout.insertWidget(0, self.empty_label)
@@ -1023,8 +1080,8 @@ class KanbanBoard(QScrollArea):
         self.container.setStyleSheet(theme_qss("background: transparent;"))
         self.layout = QHBoxLayout(self.container)
         self.layout.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
-        self.layout.setContentsMargins(12, 10, 12, 10)
-        self.layout.setSpacing(12)
+        self.layout.setContentsMargins(8, 8, 8, 8)
+        self.layout.setSpacing(8)
         self.setWidget(self.container)
         self.viewport().setAcceptDrops(True)
         self.viewport().installEventFilter(self)
@@ -1041,6 +1098,7 @@ class KanbanBoard(QScrollArea):
             "Hazır": "Test Sürecinde", "Bitti": "Test Sürecinde", "Tamamlandı": "Test Sürecinde", "Tamir Edildi": "Test Sürecinde",
             "Kabul Edildi": "Bekliyor",
             "Teslim Edildi": "Teslim Edildi", "Teslim": "Teslim Edildi",
+            "Teslime Hazir": "Teslim Edildi", "Teslime Haz\\u0131r": "Teslim Edildi",
             "İptal": "İptal", "Iptal": "İptal", "İptal Edildi": "İptal", "Iptal Edildi": "İptal"
         }
         
@@ -1105,19 +1163,19 @@ class KanbanBoard(QScrollArea):
     def eventFilter(self, watched, event):
         if watched is self.viewport():
             if event.type() == QEvent.Type.DragEnter:
-                if event.mimeData().hasText():
+                if event.mimeData().hasText() and event.mimeData().text().strip():
                     event.acceptProposedAction()
                 else:
                     event.ignore()
                 return True
             if event.type() == QEvent.Type.DragMove:
-                if event.mimeData().hasText():
+                if event.mimeData().hasText() and event.mimeData().text().strip():
                     event.acceptProposedAction()
                 else:
                     event.ignore()
                 return True
             if event.type() == QEvent.Type.Drop:
-                if not event.mimeData().hasText():
+                if not event.mimeData().hasText() or not event.mimeData().text().strip():
                     event.ignore()
                     return True
 
@@ -1190,6 +1248,8 @@ class KanbanBoard(QScrollArea):
         
         for key, col_devices in grouped.items():
             self.columns[key].set_devices(col_devices, signals)
+            if key == "\u0130ptal":
+                self.columns[key].setVisible(bool(col_devices))
         
         # Summary report of unmapped statuses
         if unmapped_statuses:

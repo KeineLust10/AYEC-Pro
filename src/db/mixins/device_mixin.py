@@ -380,7 +380,7 @@ class DeviceMixin:
                   AND transaction_type='CREDIT'
                   AND currency=?
                 """,
-                (customer_id, tracking_no, tracking_no, debt_currency),
+                (customer_id, tracking_no, debt_currency),
             )
             paid_sum = float((self.cursor.fetchone() or [0])[0] or 0.0)
 

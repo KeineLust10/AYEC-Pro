@@ -1,11 +1,13 @@
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QDoubleSpinBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QPlainTextEdit,
+    QSpinBox,
     QVBoxLayout,
 )
 
@@ -68,6 +70,26 @@ class AddServiceDefinitionDialog(ModernDialog):
         right_col.addStretch()
         top_row.addLayout(right_col, 2)
         self.content_layout.addLayout(top_row)
+
+        metadata_row = QHBoxLayout()
+        self.inp_category = QComboBox()
+        self.inp_category.addItems([
+            "Donan\u0131m & Lehim", "Yaz\u0131l\u0131m & Kurulum",
+            "Periyodik Bak\u0131m", "Saha & Montaj",
+        ])
+        self.inp_duration = QSpinBox()
+        self.inp_duration.setRange(1, 1440)
+        self.inp_duration.setSuffix(" Dk")
+        self.inp_vat = QDoubleSpinBox()
+        self.inp_vat.setRange(0, 100)
+        self.inp_vat.setDecimals(1)
+        self.inp_vat.setSuffix(" %")
+        for label, widget in (("Kategori", self.inp_category), ("Ortalama s\u00fcre", self.inp_duration), ("KDV", self.inp_vat)):
+            column = QVBoxLayout()
+            column.addWidget(self._field_label(label))
+            column.addWidget(widget)
+            metadata_row.addLayout(column, 1)
+        self.content_layout.addLayout(metadata_row)
 
         prices_row = QHBoxLayout()
         prices_row.setSpacing(12)
@@ -142,6 +164,11 @@ class AddServiceDefinitionDialog(ModernDialog):
         self.inp_price_usd.setValue(saved_usd)
         self.inp_price_eur.setValue(saved_eur)
         self.chk_active.setChecked(bool(self.service_data.get("is_active", 1)))
+        category_index = self.inp_category.findText(str(self.service_data.get("service_category", "Donan\u0131m & Lehim")))
+        if category_index >= 0:
+            self.inp_category.setCurrentIndex(category_index)
+        self.inp_duration.setValue(int(self.service_data.get("duration_minutes", 60) or 60))
+        self.inp_vat.setValue(float(self.service_data.get("vat_rate", 20) or 20))
 
     def get_data(self):
         price_try = self.inp_price_try.value()
@@ -163,4 +190,7 @@ class AddServiceDefinitionDialog(ModernDialog):
             "is_active": int(self.chk_active.isChecked()),
             "description": self.inp_desc.toPlainText().strip(),
             "barcode": self.inp_barcode.text().strip(),
+            "service_category": self.inp_category.currentText(),
+            "duration_minutes": self.inp_duration.value(),
+            "vat_rate": self.inp_vat.value(),
         }

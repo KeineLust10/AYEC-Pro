@@ -38,6 +38,9 @@ class ServicesMixin:
             ("price_usd", "REAL DEFAULT 0"),
             ("price_eur", "REAL DEFAULT 0"),
             ("is_active", "INTEGER DEFAULT 1"),
+            ("service_category", "TEXT DEFAULT 'Donan\u0131m & Lehim'"),
+            ("duration_minutes", "INTEGER DEFAULT 60"),
+            ("vat_rate", "REAL DEFAULT 20"),
         )
         for column, declaration in additions:
             if column not in columns:
@@ -76,7 +79,10 @@ class ServicesMixin:
                        COALESCE(price_try, 0) AS price_try,
                        COALESCE(price_usd, 0) AS price_usd,
                        COALESCE(price_eur, 0) AS price_eur,
-                       COALESCE(is_active, 1) AS is_active
+                       COALESCE(is_active, 1) AS is_active,
+                       COALESCE(service_category, 'Donan\u0131m & Lehim') AS service_category,
+                       COALESCE(duration_minutes, 60) AS duration_minutes,
+                       COALESCE(vat_rate, 20) AS vat_rate
                 FROM services
                 WHERE COALESCE(is_deleted, 0) = 0
                 ORDER BY name
@@ -172,6 +178,9 @@ class ServicesMixin:
         price_usd=None,
         price_eur=None,
         is_active=1,
+        service_category="Donan\u0131m & Lehim",
+        duration_minutes=60,
+        vat_rate=20,
     ):
         """Add or restore an extended labor definition."""
         try:
@@ -195,6 +204,7 @@ class ServicesMixin:
                     UPDATE services
                     SET price=?, description=?, barcode=?, currency=?,
                         price_try=?, price_usd=?, price_eur=?, is_active=?,
+                        service_category=?, duration_minutes=?, vat_rate=?,
                         is_deleted=0, deleted_at=NULL
                     WHERE id=?
                     """,
@@ -207,6 +217,9 @@ class ServicesMixin:
                         prices["USD"],
                         prices["EUR"],
                         int(bool(is_active)),
+                        service_category,
+                        int(duration_minutes or 60),
+                        float(vat_rate or 20),
                         service_id,
                     ),
                 )
@@ -215,9 +228,10 @@ class ServicesMixin:
                     """
                     INSERT INTO services (
                         name, price, description, barcode, currency, created_at,
-                        price_try, price_usd, price_eur, is_active
+                        price_try, price_usd, price_eur, is_active,
+                        service_category, duration_minutes, vat_rate
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         name,
@@ -230,6 +244,9 @@ class ServicesMixin:
                         prices["USD"],
                         prices["EUR"],
                         int(bool(is_active)),
+                        service_category,
+                        int(duration_minutes or 60),
+                        float(vat_rate or 20),
                     ),
                 )
                 service_id = self.cursor.lastrowid
@@ -251,6 +268,9 @@ class ServicesMixin:
         price_usd=None,
         price_eur=None,
         is_active=1,
+        service_category="Donan\u0131m & Lehim",
+        duration_minutes=60,
+        vat_rate=20,
     ):
         """Update an extended labor definition."""
         try:
@@ -267,7 +287,8 @@ class ServicesMixin:
                 """
                 UPDATE services
                 SET name=?, price=?, description=?, barcode=?, currency=?,
-                    price_try=?, price_usd=?, price_eur=?, is_active=?
+                    price_try=?, price_usd=?, price_eur=?, is_active=?,
+                    service_category=?, duration_minutes=?, vat_rate=?
                 WHERE id=?
                 """,
                 (
@@ -280,6 +301,9 @@ class ServicesMixin:
                     prices["USD"],
                     prices["EUR"],
                     int(bool(is_active)),
+                    service_category,
+                    int(duration_minutes or 60),
+                    float(vat_rate or 20),
                     service_id,
                 ),
             )

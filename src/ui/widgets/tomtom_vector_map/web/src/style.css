@@ -1,0 +1,53 @@
+html,
+body,
+#map {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  font-family: 'Segoe UI', Arial, sans-serif;
+}
+
+body { background: #08111f; }
+
+#map-status {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 5;
+  max-width: min(520px, calc(100vw - 40px));
+  padding: 8px 12px;
+  color: #dbeafe;
+  background: rgba(8, 18, 32, 0.9);
+  border: 1px solid #24405e;
+  border-radius: 8px;
+  font-size: 12px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease;
+}
+
+#map-status.visible,
+#map-status.error { opacity: 1; }
+#map-status.error { color: #fecaca; border-color: #7f1d1d; }
+
+.ayec-marker {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 2px solid #dbeafe;
+  border-radius: 50%;
+  box-shadow: 0 0 0 5px rgba(29, 78, 216, 0.2), 0 4px 16px rgba(0, 0, 0, 0.55);
+}
+
+.ayec-marker span { width: 9px; height: 9px; border-radius: 50%; background: currentColor; }
+.ayec-marker-center { color: #fbbf24; background: #201b10; }
+.ayec-marker-personnel { color: #34d399; background: #09251e; animation: ayec-pulse 1.8s ease-out infinite; }
+.ayec-marker-selected { color: #fb7185; background: #351522; }
+
+@keyframes ayec-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.55), 0 4px 16px rgba(0, 0, 0, 0.55); }
+  70% { box-shadow: 0 0 0 13px rgba(52, 211, 153, 0), 0 4px 16px rgba(0, 0, 0, 0.55); }
+  100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0), 0 4px 16px rgba(0, 0, 0, 0.55); }
+}

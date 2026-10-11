@@ -10,10 +10,11 @@ from __future__ import annotations
 import os
 import html
 from datetime import datetime, timedelta
+from math import isfinite
 from typing import Any, Dict, List, Optional
 
-from PyQt6.QtCore import QEvent, Qt, QTimer, QSize, pyqtSignal
-from PyQt6.QtGui import QColor, QCursor, QFont, QIcon, QPainter, QPixmap
+from PyQt6.QtCore import QEvent, Qt, QTimer, QSize, pyqtSignal, QFileInfo
+from PyQt6.QtGui import QColor, QCursor, QFont, QIcon, QPainter, QPixmap, QPageLayout, QTextDocument, QPdfWriter
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -21,12 +22,16 @@ from PyQt6.QtWidgets import (
     QFileDialog,
     QFrame,
     QHBoxLayout,
+    QGridLayout,
     QHeaderView,
     QLabel,
     QLineEdit,
+    QMenu,
+    QProgressBar,
     QPushButton,
     QScrollArea,
     QSizePolicy,
+    QStyledItemDelegate,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -39,7 +44,33 @@ from src.utils.currency_helper import CurrencyHelper
 from src.utils.design_system import DesignTokens
 from src.utils.logger import logger
 from src.utils.status_utils import is_active_device_status, normalize_device_status
+from src.ui.widgets.modern_inputs import ModernComboBox
+from src.ui.widgets.financial_reference_controls import FinancialMetricGlyph, FinancialReferenceActionButton
 from src.utils.theme_colors import tc, theme_qss
+from src.utils.toast_notification import show_error, show_info, show_success, show_warning
+
+
+class _ServiceListCompactDelegate(QStyledItemDelegate):
+    def __init__(self, kind, parent=None):
+        super().__init__(parent)
+        self.kind = kind
+
+    def initStyleOption(self, option, index):
+        super().initStyleOption(option, index)
+        value = str(index.data(Qt.ItemDataRole.DisplayRole) or "")
+        if self.kind == "tracking":
+            option.text = value.replace("-", "-\n", 2)
+        elif self.kind == "date" and "-" in value:
+            year, remainder = value.split("-", 1)
+            option.text = year + "-\n" + remainder
+        elif self.kind == "price" and " " in value:
+            amount, currency = value.rsplit(" ", 1)
+            option.text = amount + "\n" + currency
+        option.textElideMode = Qt.TextElideMode.ElideNone
+        option.font.setFamily(DesignTokens.MONO_FONT_NAME)
+        option.font.setPixelSize(9 if self.kind in {"date", "price"} else 10)
+        if self.kind == "price":
+            option.displayAlignment = Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
 
 
 class ServiceListPage(DashboardActionsMixin, QWidget):
@@ -60,17 +91,21 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
 
         # Pagination state
         self._current_page = 1
-        self._page_size = 8
+        self._page_size = 15
         self._all_records: List[Dict[str, Any]] = []
         self._filtered_records: List[Dict[str, Any]] = []
 
         # Chip button map
         self._chip_buttons: Dict[str, QPushButton] = {}
+        self._reference_kpi_values = []
 
         self.init_ui()
         QTimer.singleShot(50, self.refresh_data)
 
     def eventFilter(self, watched, event):
+        if event.type() == QEvent.Type.Resize and watched is getattr(self, "table", None):
+            QTimer.singleShot(0, self._fit_reference_table_columns)
+            QTimer.singleShot(0, self._fit_reference_table_height)
         if event.type() == QEvent.Type.MouseButtonPress:
             row = watched.property("serviceRow") if hasattr(watched, "property") else None
             if row is not None:
@@ -80,6 +115,65 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
                     pass
         return super().eventFilter(watched, event)
 
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._fit_reference_filter_controls()
+        if hasattr(self, "table"):
+            QTimer.singleShot(0, self._fit_reference_table_columns)
+
+    def _fit_reference_filter_controls(self):
+        if self.main_window is None or not hasattr(self, "combo_status"):
+            return
+        compact = self.width() < 850
+        controls = (self.combo_status, self.combo_date, self.combo_priority)
+        for control in controls:
+            if not hasattr(control, "_reference_original_style"):
+                control._reference_original_style = control.styleSheet()
+            style = control._reference_original_style
+            if compact:
+                style = style.replace("min-width: 140px", "min-width: 105px")
+                style = style.replace("min-width: 112px", "min-width: 84px")
+            control.setStyleSheet(style)
+        self.search_input.setMinimumWidth(150 if compact else 0)
+
+    def _fit_reference_table_columns(self):
+        if not hasattr(self, "table") or self.table.width() <= 0:
+            return
+        available = self.table.viewport().width()
+        if self.main_window is None:
+            return
+        if available <= 820:
+            widths = [26, 58, 70, 80, 56, 50, 50, 76, 58, max(188, available - 524)]
+            compact_headers = [
+                "", "TAK\u0130P\nNO", "M\u00dc\u015eTER\u0130", "C\u0130HAZ /\nMODEL",
+                "KABUL\nTAR\u0130H\u0130", "TESL\u0130M\nTAR\u0130H\u0130", "\u00dcCRET",
+                "DURUM", "AC\u0130L\u0130YET", "\u0130\u015eLEMLER",
+            ]
+        else:
+            ratios = (0.04, 0.085, 0.095, 0.11, 0.09, 0.09, 0.07, 0.105, 0.07, 0.245)
+            minimums = (24, 48, 58, 64, 54, 54, 48, 60, 42, 140)
+            widths = [max(minimum, int(available * ratio)) for ratio, minimum in zip(ratios, minimums)]
+            overflow = sum(widths) - available
+            for index in (9, 3, 2, 7, 1, 4, 5, 6, 8, 0):
+                if overflow <= 0:
+                    break
+                reducible = max(0, widths[index] - minimums[index])
+                reduction = min(reducible, overflow)
+                widths[index] -= reduction
+                overflow -= reduction
+            compact_headers = self._reference_headers
+        header = self.table.horizontalHeader()
+        if getattr(self, "_reference_compact_headers_active", None) != (available <= 820):
+            self.table.setHorizontalHeaderLabels(compact_headers)
+            header.setFixedHeight(40 if available <= 820 else 42)
+            self._reference_compact_headers_active = available <= 820
+        for index, width in enumerate(widths):
+            self.table.setColumnWidth(index, width)
+        for row in range(self.table.rowCount()):
+            self.table.setRowHeight(row, max(75 if self.main_window is not None else 74,
+                                              self.table.rowHeight(row)))
+        self._fit_reference_table_height()
+
     def _install_row_selection(self, widget, row_idx):
         widget.setProperty("serviceRow", int(row_idx))
         widget.installEventFilter(self)
@@ -88,14 +182,17 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
     def init_ui(self):
         self.setObjectName("ServiceListPage")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        self.setStyleSheet(theme_qss("background-color: @surface_alt;"))
+        self.setStyleSheet(theme_qss("background-color: @finance_canvas;"))
 
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(24, 20, 24, 20)
-        main_layout.setSpacing(14)
+        main_layout.setContentsMargins(0, 8 if self.main_window is not None else 0, 12 if self.main_window is not None else 0, 0)
+        main_layout.setSpacing(8)
 
         # 1. Top Header
         self._create_header(main_layout)
+
+        # 1b. Compact reference KPI strip.
+        self._create_reference_kpis(main_layout)
 
         # 2. Quick Filter Chips / Tabs
         self._create_filter_chips(main_layout)
@@ -111,13 +208,270 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
 
         # 6. Pagination Footer
         self._create_pagination_footer(main_layout)
+        self._create_reference_footer(main_layout)
+        self.reference_summary_frame.setVisible(self.main_window is None)
+        main_layout.addStretch(0)
+
+    def _create_reference_kpis(self, parent_layout):
+        strip = QFrame(self)
+        strip.setStyleSheet(theme_qss("background: transparent; border: none;"))
+        grid = QGridLayout(strip)
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setSpacing(8)
+        items = [
+            ("Aktif Tamirde", "--", "@service_kpi_active", "repair"),
+            ("Par\u00e7a Bekleyen", "--", "@service_kpi_parts", "hourglass"),
+            ("Teslime Haz\u0131r", "--", "@service_kpi_ready", "collection"),
+            ("Kargo Sevkiyat", "--", "@service_kpi_cargo", "truck"),
+            ("Tahmini Ciro", "--", "@service_kpi_revenue", "wallet"),
+            ("Ort. \u00c7\u00f6z\u00fcm S\u00fcresi", "--", "@service_kpi_duration", "clock"),
+        ]
+        self._reference_kpi_values = []
+        self._reference_kpi_notes = []
+        self._reference_kpi_pills = []
+        reference_host = self.main_window is not None
+        notes = (
+            "At\u00f6lyede \u0130\u015flemde", "Normal Ak\u0131\u015f", "WhatsApp",
+            "Kurye \u00c7a\u011fr\u0131ld\u0131", "Kay\u0131tl\u0131 Tutar", "Ayn\u0131 G\u00fcn Teslim",
+        )
+        for index, (title, value, accent, glyph) in enumerate(items):
+            card = QFrame(strip)
+            card.setObjectName("ServiceKpiCard")
+            card.setStyleSheet(theme_qss(
+                "QFrame#ServiceKpiCard { background: @finance_surface; "
+                "border: 1px solid @finance_outline; border-radius: 6px; }"
+                if reference_host else
+                "QFrame#ServiceKpiCard { background: @finance_surface; border: none; border-radius: 4px; }"
+            ))
+            box = QVBoxLayout(card)
+            box.setContentsMargins(8, 6 if reference_host else 5, 8, 6 if reference_host else 5)
+            box.setSpacing(2)
+            card.setFixedHeight(114)
+            label = QLabel(title.upper() if reference_host else title)
+            label.setWordWrap(True)
+            label.setMinimumWidth(0)
+            label.setStyleSheet(theme_qss(
+                f"color: @finance_text_muted; font-size: {10 if reference_host else 11}px; "
+                "font-weight: 700; border: none; background: transparent;"
+            ))
+            amount = QLabel(value)
+            amount.setStyleSheet(theme_qss(
+                f"color: {'@finance_text' if reference_host else accent}; "
+                "font-size: 18px; font-weight: 900; border: none;"
+            ))
+            title_row = QHBoxLayout()
+            title_row.setSpacing(4)
+            title_row.addWidget(label, 1)
+            icon = FinancialMetricGlyph(glyph, accent.lstrip("@"))
+            if reference_host:
+                icon_box = QFrame(card)
+                icon_box.setFixedSize(26, 26)
+                icon_box.setStyleSheet(theme_qss(
+                    f"background: @finance_active_bg; border: 1px solid {accent}; border-radius: 5px;"
+                ))
+                icon_layout = QHBoxLayout(icon_box)
+                icon_layout.setContentsMargins(3, 3, 3, 3)
+                icon_layout.addWidget(icon)
+                title_row.addWidget(icon_box)
+            else:
+                title_row.addWidget(icon)
+            box.addLayout(title_row)
+            box.addWidget(amount)
+            if reference_host:
+                if index == 0:
+                    self._reference_kpi_capacity = QProgressBar(card)
+                    self._reference_kpi_capacity.setTextVisible(False)
+                    self._reference_kpi_capacity.setFixedHeight(5)
+                    self._reference_kpi_capacity.setRange(0, 100)
+                    self._reference_kpi_capacity.setStyleSheet(theme_qss(
+                        "QProgressBar { background: @finance_surface_high; border: none; border-radius: 2px; } "
+                        "QProgressBar::chunk { background: @service_kpi_active; border-radius: 2px; }"
+                    ))
+                    box.addWidget(self._reference_kpi_capacity)
+                foot_row = QHBoxLayout()
+                foot_row.setSpacing(3)
+                note = QLabel(notes[index], card)
+                note.setWordWrap(True)
+                note.setMinimumWidth(0)
+                note.setStyleSheet(theme_qss(
+                    "color: @finance_text_muted; font-size: 9px; border: none; background: transparent;"
+                ))
+                pill = QLabel("--", card)
+                pill.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                pill.setStyleSheet(theme_qss(
+                    f"color: {accent}; background: @finance_active_bg; "
+                    f"border: 1px solid {accent}; border-radius: 3px; font-size: 9px; padding: 1px 3px;"
+                ))
+                foot_row.addWidget(note, 1)
+                foot_row.addWidget(pill)
+                box.addLayout(foot_row)
+                self._reference_kpi_notes.append(note)
+                self._reference_kpi_pills.append(pill)
+            self._reference_kpi_values.append(amount)
+            grid.addWidget(card, 0, index)
+        parent_layout.addWidget(strip)
+
+    def _update_reference_kpis(self):
+        records = self._all_records
+        active = sum(1 for rec in records if (
+            str(rec.get("status") or "").casefold() in {
+                "tamirde", "onar\u0131mda", "i\u015flemde", "serviste"
+            }
+            if self.main_window is not None else is_active_device_status(rec.get("status"))
+        ))
+        parts = sum(1 for rec in records if normalize_device_status(rec.get("status")) == "Par\u00e7a Bekliyor")
+        ready = sum(1 for rec in records if normalize_device_status(rec.get("status")) == "Teslime Hazir")
+        cargo = sum(1 for rec in records if str(rec.get("delivery_type") or "").casefold() in {"kargo", "cargo"})
+        revenue = 0.0
+        durations = []
+        delivered_today = 0
+        today = datetime.now().date()
+        for record in records:
+            try:
+                amount = float(record.get("price") or 0)
+                if isfinite(amount):
+                    revenue += amount
+            except (ValueError, TypeError):
+                pass
+            entry_date = self._reference_date(record.get("entry_date"))
+            exit_date = self._reference_date(record.get("exit_date"))
+            status = normalize_device_status(record.get("status"))
+            if status in {"Teslim Edildi", "Teslim", "Tamir Edildi"} and entry_date and exit_date and exit_date >= entry_date:
+                durations.append((exit_date - entry_date).days)
+            if status in {"Teslim Edildi", "Teslim"} and exit_date == today:
+                delivered_today += 1
+        average = f"{sum(durations) / len(durations):.1f} G\u00fcn" if durations else "Veri yok"
+        revenue_text = CurrencyHelper.format_amount(revenue, db=self.db)
+        values = [f"{active} Cihaz", f"{parts} Cihaz", f"{ready} Cihaz", f"{cargo} Paket", revenue_text, average]
+        for label, value in zip(self._reference_kpi_values, values):
+            display_value = value
+            if self.main_window is not None:
+                display_value = value.replace(".00 ", " ")
+                if value == "Veri yok":
+                    display_value = "0.0 G\u00fcn"
+            label.setText(display_value)
+            label.setToolTip(value)
+        if self.main_window is not None:
+            capacity = min(100, round(active * 100 / max(1, len(records))))
+            critical = sum(
+                1 for rec in records
+                if str(rec.get("urgency") or rec.get("priority") or "").casefold()
+                in {"acil", "y\u00fcksek"}
+            )
+            delivered = sum(
+                1 for rec in records
+                if normalize_device_status(rec.get("status")) in {"Teslim Edildi", "Teslim"}
+            )
+            sla = round(delivered * 100 / max(1, len(records)))
+            try:
+                revenue_goal = float(self.db.get_setting("service_revenue_target", "0") or 0)
+            except (TypeError, ValueError, AttributeError):
+                revenue_goal = 0
+            goal_label = (
+                "Hedef: " + CurrencyHelper.format_amount(revenue_goal, db=self.db).replace(".00 ", " ")
+                if revenue_goal > 0 else "Hedef: --"
+            )
+            pills = (
+                f"%{capacity} Kapasite", f"Kritik: {critical}", f"{ready} Bekleyen",
+                f"{cargo} / {max(4, cargo)} Sevk", goal_label, f"%{sla} SLA",
+            )
+            for label, value in zip(self._reference_kpi_pills, pills):
+                label.setText(value)
+            self._reference_kpi_capacity.setValue(capacity)
+        footer_values = [str(len(records)), average, f"{delivered_today} Cihaz", revenue_text]
+        for label, value in zip(getattr(self, "_reference_footer_values", []), footer_values):
+            label.setText(value)
+
+    @staticmethod
+    def _reference_date(value):
+        if not value:
+            return None
+        text = str(value).strip()
+        try:
+            return datetime.fromisoformat(text.replace("Z", "+00:00")).date()
+        except ValueError:
+            for format_string in ("%d.%m.%Y", "%d/%m/%Y"):
+                try:
+                    return datetime.strptime(text, format_string).date()
+                except ValueError:
+                    continue
+        return None
+
+    def _create_reference_footer(self, parent_layout):
+        frame = QWidget(self)
+        self.reference_summary_frame = frame
+        frame.setObjectName("ServiceReferenceSummary")
+        frame.setFixedHeight(84)
+        frame.setStyleSheet("background: transparent; border: none;")
+        grid = QHBoxLayout(frame)
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setSpacing(8)
+        summary = QFrame(frame)
+        summary.setObjectName("ServiceMovementSummary")
+        summary.setStyleSheet(theme_qss(
+            "QFrame#ServiceMovementSummary { background: @finance_surface; "
+            "border: none; border-radius: 6px; }"
+        ))
+        summary_box = QVBoxLayout(summary)
+        summary_box.setContentsMargins(8, 8, 8, 8)
+        summary_box.setSpacing(6)
+        heading = QLabel("Son Servis Hareketleri \u00d6zeti", summary)
+        heading.setStyleSheet(theme_qss(
+            "color: @finance_text; font-size: 14px; font-weight: 700; border: none; background: transparent;"
+        ))
+        summary_box.addWidget(heading)
+        cards = QHBoxLayout()
+        cards.setSpacing(4)
+        summary_box.addLayout(cards)
+        grid.addWidget(summary, 2)
+        self._reference_footer_values = []
+        items = [("Toplam Kay\u0131t", "--"), ("Ort. \u00c7\u00f6z\u00fcm S\u00fcresi", "--"), ("Bug\u00fcnk\u00fc Teslimatlar", "--"), ("Kay\u0131tl\u0131 Servis Tutar\u0131", "--")]
+        for index, (title, value) in enumerate(items):
+            card = QFrame(frame)
+            card.setObjectName("ServiceSummaryCard" + str(index))
+            card.setStyleSheet(theme_qss(
+                "QFrame#ServiceSummaryCard" + str(index) + " { background: @finance_surface_alt; "
+                "border: none; border-radius: 4px; }"
+            ))
+            box = QVBoxLayout(card)
+            box.setContentsMargins(10, 6, 10, 6)
+            title_label = QLabel(title)
+            title_label.setStyleSheet(theme_qss("color: @finance_text_muted; font-size: 10px; border: none;"))
+            value_label = QLabel(value)
+            value_label.setStyleSheet(theme_qss("color: @finance_text; font-size: 14px; font-weight: 700; border: none; background: transparent;"))
+            title_label.setStyleSheet(theme_qss("color: @finance_text_muted; font-size: 10px; border: none; background: transparent;"))
+            box.addWidget(title_label)
+            box.addWidget(value_label)
+            if index < 3:
+                cards.addWidget(card, 1)
+            else:
+                card.setStyleSheet(theme_qss(
+                    "QFrame#ServiceSummaryCard3 { background: @finance_surface; "
+                    "border: none; border-left: 3px solid @finance_secondary; border-radius: 6px; }"
+                ))
+                box.addStretch(1)
+                note = QLabel("Mevcut servis kay\u0131tlar\u0131", card)
+                note.setStyleSheet(theme_qss("color: @finance_text_muted; font-size: 10px; border: none; background: transparent;"))
+                box.addWidget(note)
+                grid.addWidget(card, 1)
+            self._reference_footer_values.append(value_label)
+        parent_layout.addWidget(frame)
 
     def _create_header(self, parent_layout: QVBoxLayout):
-        header_widget = QWidget(self)
-        header_widget.setStyleSheet("background: transparent; border: none;")
-        h_layout = QHBoxLayout(header_widget)
-        h_layout.setContentsMargins(0, 0, 0, 0)
-        h_layout.setSpacing(12)
+        header_widget = QFrame(self)
+        header_widget.setObjectName("ServiceListHeader")
+        header_widget.setFixedHeight(82)
+        header_widget.setStyleSheet(theme_qss(
+            "QFrame#ServiceListHeader { background: @finance_surface; "
+            "border: 1px solid @finance_outline; border-radius: 6px; }"
+        ))
+        reference_host = self.main_window is not None
+        h_layout = QVBoxLayout(header_widget) if reference_host else QHBoxLayout(header_widget)
+        h_layout.setContentsMargins(10, 7, 10, 5) if reference_host else h_layout.setContentsMargins(12, 8, 12, 8)
+        h_layout.setSpacing(4 if reference_host else 8)
+        buttons_layout = QHBoxLayout() if reference_host else h_layout
+        if reference_host:
+            buttons_layout.setSpacing(6)
 
         # Title & subtitle
         title_box = QVBoxLayout()
@@ -125,23 +479,84 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
 
         self.lbl_title = QLabel("Servis Listesi")
         self.lbl_title.setStyleSheet(theme_qss(
-            "font-size: 26px; font-weight: 900; color: @text; border: none;"
+            f"font-size: {18 if reference_host else 23}px; font-weight: 900; "
+            "color: @finance_text; border: none; background: transparent;"
         ))
 
-        self.lbl_subtitle = QLabel("T\u00fcm servis kay\u0131tlar\u0131n\u0131 tek ekrandan y\u00f6netin.")
+        self.lbl_subtitle = QLabel(
+            "T\u00fcm teknik servis ve onar\u0131m kay\u0131tlar\u0131n\u0131 tek ekrandan "
+            "y\u00f6netin, filtreleyin ve yazd\u0131r\u0131n."
+        )
         self.lbl_subtitle.setStyleSheet(theme_qss(
-            "font-size: 13px; color: @text_muted; border: none;"
+            f"font-size: {10 if reference_host else 12}px; color: @finance_text_muted; "
+            "border: none; background: transparent;"
         ))
 
-        title_box.addWidget(self.lbl_title)
+        title_line = QHBoxLayout()
+        title_line.setSpacing(6)
+        header_glyph = FinancialMetricGlyph(
+            "repair", "finance_primary_text" if reference_host else "finance_text",
+            glyph_size=18 if reference_host else 24,
+        )
+        if reference_host:
+            icon_box = QFrame(header_widget)
+            icon_box.setFixedSize(30, 30)
+            icon_box.setStyleSheet(theme_qss(
+                "background: @finance_primary; border: none; border-radius: 5px;"
+            ))
+            icon_layout = QHBoxLayout(icon_box)
+            icon_layout.setContentsMargins(6, 6, 6, 6)
+            icon_layout.addWidget(header_glyph)
+            title_line.addWidget(icon_box)
+            title_line.addWidget(self.lbl_title)
+            self.lbl_live_data = QLabel("\u25cf CANLI VER\u0130", header_widget)
+            self.lbl_live_data.setStyleSheet(theme_qss(
+                "color: @finance_secondary; background: @finance_success_bg; "
+                "border: 1px solid @finance_secondary; border-radius: 7px; "
+                "font-size: 9px; font-weight: 800; padding: 1px 5px;"
+            ))
+            title_line.addWidget(self.lbl_live_data)
+            title_line.addStretch()
+        else:
+            title_line.addWidget(header_glyph)
+            title_line.addWidget(self.lbl_title, 1)
+        title_box.addLayout(title_line)
         title_box.addWidget(self.lbl_subtitle)
         h_layout.addLayout(title_box)
-        h_layout.addStretch()
+        if reference_host:
+            h_layout.addLayout(buttons_layout)
+        else:
+            h_layout.addStretch()
+
+        if reference_host:
+            self.btn_refresh = QPushButton("\u21bb  Yenile")
+            self.btn_refresh.setFixedHeight(24)
+            self.btn_refresh.setCursor(Qt.CursorShape.PointingHandCursor)
+            self.btn_refresh.setStyleSheet(theme_qss(
+                "QPushButton { background: @finance_surface_high; color: @finance_text; "
+                "border: none; border-radius: 4px; padding: 0 8px; font-size: 10px; }"
+            ))
+            self.btn_refresh.clicked.connect(self.refresh_data)
+            buttons_layout.addWidget(self.btn_refresh)
+
+        self.btn_bulk_actions = QPushButton("Toplu \u0130\u015flemler")
+        self.btn_bulk_actions.setFixedHeight(28)
+        self.btn_bulk_actions.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_bulk_actions.setToolTip("Bu sayfadaki se\u00e7ili servis kay\u0131tlar\u0131")
+        self.btn_bulk_actions.setStyleSheet(theme_qss("background: @finance_surface_high; color: @finance_text; border: none; border-radius: 4px; padding: 0 12px; font-size: 11px; font-weight: 700;"))
+        self.reference_bulk_menu = QMenu(self.btn_bulk_actions)
+        self.reference_bulk_menu.addAction("Se\u00e7ili kay\u0131tlar\u0131 d\u0131\u015fa aktar", self._export_selected_services)
+        self.reference_bulk_menu.addAction("Se\u00e7ili servis fi\u015flerini yazd\u0131r", self._print_selected_services)
+        self.reference_bulk_menu.addSeparator()
+        self.reference_bulk_menu.addAction("Bu sayfan\u0131n t\u00fcm\u00fcn\u00fc se\u00e7", lambda: self._set_visible_service_selection(True))
+        self.reference_bulk_menu.addAction("Se\u00e7imi kald\u0131r", lambda: self._set_visible_service_selection(False))
+        self.btn_bulk_actions.setMenu(self.reference_bulk_menu)
+        buttons_layout.addWidget(self.btn_bulk_actions)
 
         # Right Action Buttons: "+ Cihaz Ekle" and "Dışa Aktar"
         self.btn_add_device = QPushButton("+ Cihaz Ekle")
         self.btn_add_device.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_add_device.setFixedHeight(40)
+        self.btn_add_device.setFixedHeight(36)
         self.btn_add_device.setStyleSheet(theme_qss("""
             QPushButton {
                 background-color: #2563EB;
@@ -149,8 +564,8 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
                 font-size: 13px;
                 font-weight: 800;
                 border: none;
-                border-radius: 10px;
-                padding: 0 18px;
+                border-radius: 6px;
+                padding: 0 14px;
             }
             QPushButton:hover {
                 background-color: #1D4ED8;
@@ -160,11 +575,11 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
             }
         """))
         self.btn_add_device.clicked.connect(self.open_service_form_shortcut)
-        h_layout.addWidget(self.btn_add_device)
 
-        self.btn_export = QPushButton("D\u0131\u015fa Aktar")
+        self.btn_export = QPushButton("D\u0131\u015fa Aktar (Excel/PDF)")
+        self.btn_export.setToolTip("Excel, CSV veya PDF olarak d\u0131\u015fa aktar")
         self.btn_export.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_export.setFixedHeight(40)
+        self.btn_export.setFixedHeight(36)
         self.btn_export.setStyleSheet(theme_qss("""
             QPushButton {
                 background-color: @surface;
@@ -172,8 +587,8 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
                 font-size: 13px;
                 font-weight: 700;
                 border: 1px solid @border;
-                border-radius: 10px;
-                padding: 0 16px;
+                border-radius: 6px;
+                padding: 0 14px;
             }
             QPushButton:hover {
                 background-color: @hover_bg;
@@ -181,14 +596,24 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
             }
         """))
         self.btn_export.clicked.connect(self.export_records)
-        h_layout.addWidget(self.btn_export)
+        self.btn_add_device.setFixedHeight(28)
+        self.btn_add_device.setStyleSheet(theme_qss("background: @finance_primary; color: @finance_primary_text; border: none; border-radius: 4px; padding: 0 12px; font-size: 11px; font-weight: 700;"))
+        self.btn_export.setFixedHeight(28)
+        self.btn_export.setStyleSheet(theme_qss("background: @finance_surface_high; color: @finance_text; border: none; border-radius: 4px; padding: 0 12px; font-size: 11px; font-weight: 700;"))
+        if reference_host:
+            for button in (self.btn_bulk_actions, self.btn_export, self.btn_add_device):
+                button.setFixedHeight(24)
+        buttons_layout.addWidget(self.btn_export)
+        buttons_layout.addWidget(self.btn_add_device)
+        if reference_host:
+            buttons_layout.addStretch()
 
         parent_layout.addWidget(header_widget)
 
     def _create_filter_chips(self, parent_layout: QVBoxLayout):
         scroll = QScrollArea(self)
         scroll.setWidgetResizable(True)
-        scroll.setFixedHeight(46)
+        scroll.setFixedHeight(32)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         scroll.setStyleSheet("background: transparent; border: none;")
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
@@ -198,7 +623,7 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
         chip_container.setStyleSheet("background: transparent;")
         c_layout = QHBoxLayout(chip_container)
         c_layout.setContentsMargins(0, 2, 0, 2)
-        c_layout.setSpacing(8)
+        c_layout.setSpacing(4)
 
         # Chip definitions: (key, title)
         chips_def = [
@@ -215,9 +640,11 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
         for key, title in chips_def:
             btn = QPushButton(title)
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            btn.setFixedHeight(34)
+            btn.setFixedHeight(24)
+            btn.setCheckable(True)
+            btn.setChecked(key == self.current_filter_category)
             btn.setProperty("chipKey", key)
-            btn.setStyleSheet(self._chip_style(False))
+            btn.setStyleSheet(self._chip_style(key == self.current_filter_category))
             btn.clicked.connect(lambda checked=False, k=key: self.set_filter_category(k))
             c_layout.addWidget(btn)
             self._chip_buttons[key] = btn
@@ -230,24 +657,24 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
         if active:
             return theme_qss("""
                 QPushButton {
-                    background-color: #2563EB;
-                    color: #FFFFFF;
-                    font-size: 12px;
+                    background-color: @finance_action_collection;
+                    color: @finance_action_collection_text;
+                    font-size: 10px;
                     font-weight: 800;
-                    border: 1px solid #2563EB;
-                    border-radius: 17px;
-                    padding: 0 14px;
+                    border: none;
+                    border-radius: 4px;
+                    padding: 0 6px;
                 }
             """)
         return theme_qss("""
             QPushButton {
-                background-color: @surface;
-                color: @text;
-                font-size: 12px;
+                background-color: @finance_surface_high;
+                color: @finance_text;
+                font-size: 10px;
                 font-weight: 700;
-                border: 1px solid @border;
-                border-radius: 17px;
-                padding: 0 14px;
+                border: none;
+                border-radius: 4px;
+                padding: 0 6px;
             }
             QPushButton:hover {
                 background-color: @hover_bg;
@@ -257,6 +684,7 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
 
     def _create_filter_bar(self, parent_layout: QVBoxLayout):
         bar = QFrame(self)
+        bar.setObjectName("serviceReferenceFilterBar")
         bar.setStyleSheet(theme_qss("""
             QFrame {
                 background-color: @surface;
@@ -265,8 +693,9 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
             }
         """))
         layout = QHBoxLayout(bar)
-        layout.setContentsMargins(12, 8, 12, 8)
-        layout.setSpacing(10)
+        layout.setContentsMargins(6, 3 if self.main_window is not None else 6,
+                                  6, 3 if self.main_window is not None else 6)
+        layout.setSpacing(6)
 
         # Search box
         self.search_input = QLineEdit()
@@ -289,7 +718,7 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
         layout.addWidget(self.search_input, 3)
 
         # Status dropdown
-        self.combo_status = QComboBox()
+        self.combo_status = ModernComboBox()
         self.combo_status.setFixedHeight(36)
         self.combo_status.setStyleSheet(theme_qss("""
             QComboBox {
@@ -315,7 +744,7 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
         layout.addWidget(self.combo_status, 1)
 
         # Date range dropdown
-        self.combo_date = QComboBox()
+        self.combo_date = ModernComboBox()
         self.combo_date.setFixedHeight(36)
         self.combo_date.setStyleSheet(theme_qss("""
             QComboBox {
@@ -336,8 +765,31 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
         self.combo_date.addItem("Bu Ay", "month")
         self.combo_date.addItem("Son 30 G\u00fcn", "last_30")
         self.combo_date.addItem("Bu Y\u0131l", "year")
+        if self.main_window is not None:
+            self.combo_date.setCurrentIndex(self.combo_date.findData("last_30"))
         self.combo_date.currentIndexChanged.connect(self._on_combo_filter_changed)
         layout.addWidget(self.combo_date, 1)
+
+        self.combo_priority = ModernComboBox()
+        self.combo_priority.setFixedHeight(36)
+        self.combo_priority.setStyleSheet(theme_qss("""
+            QComboBox {
+                background-color: @surface_alt;
+                color: @text;
+                font-size: 12px;
+                font-weight: 700;
+                border: 1px solid @border;
+                border-radius: 8px;
+                padding: 0 12px;
+                min-width: 112px;
+            }
+            QComboBox::drop-down { border: none; }
+        """))
+        self.combo_priority.addItem("Oncelik: Tum", "all")
+        self.combo_priority.addItem("Normal", "Normal")
+        self.combo_priority.addItem("Acil", "Acil")
+        self.combo_priority.currentIndexChanged.connect(self._on_combo_filter_changed)
+        layout.addWidget(self.combo_priority, 1)
 
         # Filter button
         btn_filter = QPushButton("Filtrele")
@@ -377,56 +829,82 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
         btn_clear.clicked.connect(self.clear_filters)
         layout.addWidget(btn_clear)
 
+        bar.setStyleSheet(theme_qss("QFrame#serviceReferenceFilterBar { background: @finance_surface; border: 1px solid @finance_outline; border-radius: 4px; }"))
+        for control in (self.search_input, self.combo_status, self.combo_date, self.combo_priority):
+            control.setFixedHeight(28)
+            control.setStyleSheet(theme_qss("QLineEdit, QComboBox { background: @finance_canvas; color: @finance_text; border: 1px solid @finance_outline; border-radius: 4px; padding: 3px 6px; font-size: 10px; } QComboBox::drop-down { border: none; width: 20px; }"))
+            if isinstance(control, ModernComboBox):
+                control.set_reference_chevron()
+        btn_filter.setFixedHeight(28)
+        btn_filter.setStyleSheet(theme_qss("background: @finance_primary; color: @finance_primary_text; border: none; border-radius: 4px; padding: 3px 12px; font-size: 10px; font-weight: 700;"))
+        btn_clear.setFixedHeight(28)
+        btn_clear.setStyleSheet(theme_qss("background: @finance_surface_high; color: @finance_text; border: none; border-radius: 4px; padding: 3px 12px; font-size: 10px; font-weight: 700;"))
+
         parent_layout.addWidget(bar)
 
     def _create_action_bar(self, parent_layout: QVBoxLayout):
-        bar = QWidget(self)
-        bar.setStyleSheet("background: transparent; border: none;")
+        bar = QFrame(self)
+        bar.setObjectName("ServiceQuickActions")
+        bar.setFixedHeight(26 if self.main_window is not None else 32)
+        bar.setStyleSheet(theme_qss("QFrame#ServiceQuickActions { background: @finance_canvas; border: none; border-radius: 4px; }"))
         layout = QHBoxLayout(bar)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(8)
+        layout.setContentsMargins(6, 1 if self.main_window is not None else 4,
+                                  6, 1 if self.main_window is not None else 4)
+        layout.setSpacing(4)
 
         actions = [
-            ("\U0001f552 Servis Ge\u00e7mi\u015fi", self._action_service_history),
-            ("\U0001f5a8 Detayl\u0131 Fi\u015f Yazd\u0131r", self._action_print_detail),
-            ("\U0001f4e6 Kargo Fi\u015fi Yazd\u0131r", self._action_print_cargo),
-            ("\U0001f4c4 E-\u0130rsaliye", self._action_dispatch_note),
-            ("\U0001f4b3 E-Fatura", self._action_e_invoice),
+            ("Servis Ge\u00e7mi\u015fi", "clock", self._action_service_history),
+            ("Detayl\u0131 Fi\u015f Yazd\u0131r", "print", self._action_print_detail),
+            ("Kargo Fi\u015fi Yazd\u0131r", "truck", self._action_print_cargo),
+            ("E-\u0130rsaliye", "pdf", self._action_dispatch_note),
+            ("E-Fatura", "excel", self._action_e_invoice),
+            ("WhatsApp Bildirim", "pending", self._action_whatsapp),
         ]
 
-        for text, callback in actions:
-            btn = QPushButton(text)
+        self.reference_quick_actions = []
+        for text, glyph, callback in actions:
+            btn = FinancialReferenceActionButton(text, glyph, bar, stacked=False)
+            btn.setAccessibleName(text)
+            btn.setToolTip(text)
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            btn.setFixedHeight(32)
+            btn.setFixedHeight(24)
             btn.setStyleSheet(theme_qss("""
                 QPushButton {
-                    background-color: @surface;
-                    color: @text;
-                    font-size: 12px;
+                    background-color: @finance_surface_high;
+                    color: @finance_text;
+                    font-size: 11px;
                     font-weight: 700;
-                    border: 1px solid @border;
-                    border-radius: 8px;
-                    padding: 0 12px;
+                    border: none;
+                    border-radius: 4px;
+                    padding: 0 6px 0 28px;
                 }
                 QPushButton:hover {
-                    background-color: @hover_bg;
-                    border-color: @accent;
+                    background-color: @finance_active_bg;
                 }
             """))
+            label_width = btn.fontMetrics().horizontalAdvance(text)
+            btn.setMinimumWidth(max(btn.sizeHint().width(), label_width + 34))
             btn.clicked.connect(callback)
             layout.addWidget(btn)
+            self.reference_quick_actions.append(btn)
 
         layout.addStretch()
         parent_layout.addWidget(bar)
 
+    def _action_whatsapp(self):
+        tracking_no = self._get_selected_tracking_no()
+        if tracking_no:
+            self.open_context_menu_action("whatsapp", tracking_no)
+
     def _create_table_widget(self, parent_layout: QVBoxLayout):
         wrapper = QFrame(self)
+        self.reference_table_wrapper = wrapper
         wrapper.setObjectName("ServiceListTableWrapper")
         wrapper.setStyleSheet(theme_qss("""
             QFrame#ServiceListTableWrapper {
-                background-color: @surface;
-                border: 1px solid @border;
-                border-radius: 10px;
+                background-color: @finance_surface;
+                border: 1px solid @finance_outline;
+                border-radius: 6px;
             }
         """))
         wrap_layout = QVBoxLayout(wrapper)
@@ -434,6 +912,13 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
         wrap_layout.setSpacing(0)
 
         self.table = QTableWidget(0, 10, wrapper)
+        self.table.setMinimumWidth(0)
+        if self.main_window is not None:
+            for column, kind in ((1, "tracking"), (4, "date"), (5, "date"), (6, "price")):
+                self.table.setItemDelegateForColumn(
+                    column, _ServiceListCompactDelegate(kind, self.table)
+                )
+        self.table.installEventFilter(self)
         self.table.setObjectName("ServiceListTable")
         headers = [
             "",
@@ -447,8 +932,9 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
             "AC\u0130L\u0130YET",
             "\u0130\u015eLEMLER",
         ]
+        self._reference_headers = headers
         self.table.setHorizontalHeaderLabels(headers)
-        self.table.setAlternatingRowColors(False)
+        self.table.setAlternatingRowColors(True)
         self.table.setShowGrid(False)
         self.table.setWordWrap(True)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -461,57 +947,61 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
 
         # Header styling and resize modes
         header = self.table.horizontalHeader()
+        header.setFixedHeight(38 if self.main_window is not None else 32)
+        header.setMinimumSectionSize(20)
         header.setStretchLastSection(False)
         header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
-        self.table.setColumnWidth(0, 44)
+        self.table.setColumnWidth(0, 32)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Fixed)
-        self.table.setColumnWidth(1, 184)
+        self.table.setColumnWidth(1, 112)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
-        self.table.setColumnWidth(2, 232)
+        self.table.setColumnWidth(2, 100)
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
-        self.table.setColumnWidth(3, 224)
+        self.table.setColumnWidth(3, 108)
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)
         self.table.setColumnWidth(4, 104)
         header.setSectionResizeMode(5, QHeaderView.ResizeMode.Fixed)
         self.table.setColumnWidth(5, 104)
         header.setSectionResizeMode(6, QHeaderView.ResizeMode.Fixed)
-        self.table.setColumnWidth(6, 92)
+        self.table.setColumnWidth(6, 90)
         header.setSectionResizeMode(7, QHeaderView.ResizeMode.Fixed)
-        self.table.setColumnWidth(7, 116)
+        self.table.setColumnWidth(7, 124)
         header.setSectionResizeMode(8, QHeaderView.ResizeMode.Fixed)
-        self.table.setColumnWidth(8, 92)
-        header.setSectionResizeMode(9, QHeaderView.ResizeMode.Stretch)
+        self.table.setColumnWidth(8, 68)
+        header.setSectionResizeMode(9, QHeaderView.ResizeMode.Fixed)
+        self.table.setColumnWidth(9, 224)
 
         self.table.verticalHeader().setVisible(False)
-        self.table.verticalHeader().setDefaultSectionSize(58)
-        self.table.setWordWrap(False)
+        self.table.verticalHeader().setDefaultSectionSize(64)
+        self.table.setWordWrap(True)
         self.table.setTextElideMode(Qt.TextElideMode.ElideRight)
 
         self.table.setStyleSheet(theme_qss("""
             QTableWidget#ServiceListTable {
-                background-color: @surface;
+                background-color: @finance_surface;
+                alternate-background-color: @finance_surface_container;
+                color: @finance_text;
                 border: none;
                 border-radius: 0px;
                 gridline-color: transparent;
             }
             QTableWidget#ServiceListTable::item {
                 padding: 6px 8px;
-                background-color: @surface;
-                border-bottom: 1px solid @border;
+                background-color: @finance_surface;
+                border: none;
             }
-            QTableWidget#ServiceListTable::item:alternate { background-color: @surface; }
+            QTableWidget#ServiceListTable::item:alternate { background-color: @finance_surface_container; }
             QTableWidget#ServiceListTable::item:selected {
-                background-color: @hover_bg;
-                color: @text;
+                background-color: @finance_active_bg;
+                color: @finance_text;
             }
             QHeaderView::section {
-                background-color: @surface_alt;
-                color: @text_muted;
+                background-color: @finance_canvas;
+                color: @finance_text_muted;
                 font-size: 11px;
                 font-weight: 800;
                 border: none;
-                border-bottom: 1px solid @border;
                 padding: 10px 8px;
                 letter-spacing: 0.5px;
             }
@@ -522,7 +1012,12 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
 
     def _create_pagination_footer(self, parent_layout: QVBoxLayout):
         footer = QWidget(self)
-        footer.setStyleSheet("background: transparent; border: none;")
+        footer.setStyleSheet(theme_qss(
+            "background: @finance_surface_high; border: none; border-top: 1px solid @finance_outline;"
+            if self.main_window is not None else "background: transparent; border: none;"
+        ))
+        if self.main_window is not None:
+            footer.setFixedHeight(42)
         layout = QHBoxLayout(footer)
         layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(12)
@@ -551,6 +1046,7 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
         """))
         for size in [8, 15, 25, 50, 100]:
             self.combo_page_size.addItem(f"{size} / sayfa", size)
+        self.combo_page_size.setCurrentIndex(self.combo_page_size.findData(15))
         self.combo_page_size.currentIndexChanged.connect(self._on_page_size_changed)
         layout.addWidget(self.combo_page_size)
 
@@ -562,7 +1058,14 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
         self.page_btn_layout.setSpacing(4)
         layout.addWidget(self.page_btn_container)
 
-        parent_layout.addWidget(footer)
+        if self.main_window is not None:
+            self.reference_pagination_footer = footer
+            parent_layout.removeWidget(footer)
+            footer.setParent(self.reference_table_wrapper)
+            self.reference_table_wrapper.layout().addWidget(footer)
+            self._fit_reference_table_height()
+        else:
+            parent_layout.addWidget(footer)
 
     def set_filter_category(self, category: str):
         category_value = str(category or "all")
@@ -576,6 +1079,7 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
         }.get(category_value, category_value)
         for key, btn in self._chip_buttons.items():
             is_active = (key == self.current_filter_category)
+            btn.setChecked(is_active)
             btn.setStyleSheet(self._chip_style(is_active))
         self._apply_all_filters()
 
@@ -586,6 +1090,7 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
     def refresh_data(self):
         """Fetch records from database and refresh table."""
         self._fetch_records()
+        self._update_reference_kpis()
         self._update_chip_counts()
         self._apply_all_filters()
 
@@ -600,11 +1105,11 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
         except Exception:
             cols = self._get_devices_columns()
         wanted = [
-            "tracking_no", "customer_name", "customer_phone", "company_name",
-            "device_type", "device_brand", "device_model", "fault_description",
+            "tracking_no", "customer_name", "customer_phone", "customer_contact", "company_name",
+            "device_type", "device_brand", "device_model", "serial_no", "fault_description",
             "entry_date", "exit_date", "estimated_date", "price", "labor_cost",
             "status", "urgency", "approval_status", "payment_status",
-            "service_source", "delivery_type",
+            "service_source", "delivery_type", "is_invoiced",
         ]
         selected = [c for c in wanted if c in cols]
         if not selected:
@@ -620,7 +1125,9 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
         query = f"SELECT {', '.join(selected)} FROM devices"
         if where:
             query += " WHERE " + " AND ".join(where)
-        query += " ORDER BY id DESC"
+        order_fields = (["id"] if "id" in cols else []) + [field for field in ("entry_date", "tracking_no") if field in cols]
+        if order_fields:
+            query += " ORDER BY " + ", ".join(field + " DESC" for field in order_fields)
 
         try:
             read_cursor.execute(query)
@@ -638,7 +1145,49 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
         for row in rows:
             rec = {col_name: row[idx] for idx, col_name in enumerate(selected)}
             records.append(rec)
+        invoice_flags = ServiceListPage._read_service_invoice_flags(read_cursor)
+        for record in records:
+            record.setdefault("is_invoiced", invoice_flags.get(str(record.get("tracking_no") or ""), False))
         self._all_records = records
+
+    @staticmethod
+    def _read_service_invoice_flags(read_cursor):
+        """Read the existing invoice workflow flags; never create billing state."""
+        flags = {}
+        for table, kind_column, kind_value in (
+            ("accounting", "type", "Gelir"),
+            ("currency_transactions", "transaction_type", "DEBIT"),
+        ):
+            try:
+                read_cursor.execute("PRAGMA table_info(" + table + ")")
+                columns = {row[1] for row in read_cursor.fetchall()}
+                if not {"tracking_no", "is_invoiced", kind_column}.issubset(columns):
+                    continue
+                clauses = ["t." + kind_column + " = ?"]
+                parameters = [kind_value]
+                if table == "accounting":
+                    if "category" not in columns:
+                        continue
+                    clauses.append("t.category = ?")
+                    parameters.append("Sat\u0131\u015f")
+                if "is_deleted" in columns:
+                    clauses.append("COALESCE(t.is_deleted, 0) = 0")
+                read_cursor.execute(
+                    "SELECT t.tracking_no, t.is_invoiced FROM " + table + " t "
+                    "INNER JOIN devices d ON d.tracking_no = t.tracking_no WHERE "
+                    + " AND ".join(clauses), parameters,
+                )
+                for tracking, invoiced in read_cursor.fetchall():
+                    key = str(tracking or "")
+                    issued = str(invoiced or "0").strip().lower() in {"1", "true"}
+                    flags[key] = flags.get(key, True) and issued
+            except Exception as error:
+                logger.warning("Service invoice flags unavailable for %s: %s", table, error)
+        return flags
+
+    @staticmethod
+    def _service_is_invoiced(record):
+        return str(record.get("is_invoiced") or "0").strip().lower() in {"1", "true"}
 
     def _update_chip_counts(self):
         counts = {key: 0 for key in {
@@ -656,6 +1205,7 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
             payment_status = str(rec.get("payment_status") or "").lower()
 
             counts["all"] += 1
+            counts["invoiced" if self._service_is_invoiced(rec) else "uninvoiced"] += 1
             if status in {"Tamirde", "Serviste", "\u0130\u015flemde"}:
                 counts["active"] += 1
             elif status in {"Teslim Edildi", "Teslim", "Haz\u0131r", "Tamir Edildi"}:
@@ -695,6 +1245,7 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
         self.search_input.clear()
         self.combo_status.setCurrentIndex(0)
         self.combo_date.setCurrentIndex(0)
+        self.combo_priority.setCurrentIndex(0)
         self.set_filter_category("all")
 
     def _apply_all_filters(self):
@@ -702,6 +1253,7 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
         sq = self._current_search_query
         sf = self._current_status_filter
         df = self._current_date_filter
+        pf = self.combo_priority.currentData() if hasattr(self, "combo_priority") else "all"
 
         filtered = []
         for rec in self._all_records:
@@ -742,6 +1294,9 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
             if sf != "all" and sf != status and sf != status_raw:
                 continue
 
+            if pf != "all" and str(rec.get("urgency") or rec.get("priority") or "Normal") != pf:
+                continue
+
             # Chip category filter
             if cat == "all":
                 pass
@@ -780,9 +1335,11 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
                 if "kargo" not in shipment and status not in {"Kargo Bekliyor", "Kargoya Verildi"}:
                     continue
             elif cat == "invoiced":
-                pass
+                if not self._service_is_invoiced(rec):
+                    continue
             elif cat == "uninvoiced":
-                pass
+                if self._service_is_invoiced(rec):
+                    continue
             elif cat == "today":
                 entry = str(rec.get("entry_date") or "")
                 today_str = datetime.now().strftime("%Y-%m-%d")
@@ -828,8 +1385,11 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
 
             # 0: Checkbox
             chk = QCheckBox()
+            chk.setFixedSize(20, 20)
+            chk.setAccessibleName(tracking_no + " kayd\u0131n\u0131 se\u00e7")
+            chk.stateChanged.connect(self._update_bulk_selection)
             chk.setCursor(Qt.CursorShape.PointingHandCursor)
-            chk.setToolTip("Satiri sec")
+            chk.setToolTip("Sat\u0131r\u0131 se\u00e7")
             chk.setStyleSheet(theme_qss("""
                 QCheckBox {
                     background: transparent;
@@ -853,6 +1413,7 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
                 }
             """))
             chk_wrap = QWidget()
+            chk_wrap.setStyleSheet("background: transparent; border: none;")
             chk_lay = QHBoxLayout(chk_wrap)
             chk_lay.setContentsMargins(0, 0, 0, 0)
             chk_lay.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -862,41 +1423,51 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
             # 1: TAKIP NO
             item_tno = QTableWidgetItem(tracking_no)
             item_tno.setToolTip(tracking_no)
-            item_tno.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
-            item_tno.setForeground(QColor("#1D4ED8"))
+            item_tno.setFont(self._reference_table_font(bold=True))
+            item_tno.setForeground(QColor(tc("finance_text")))
             item_tno.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
             self.table.setItem(row_idx, 1, item_tno)
 
             # 2: MUSTERI (transparent two-line cell)
             cust_name = str(rec.get("customer_name") or "-")
             company = str(rec.get("company_name") or "").strip()
+            phone = str(rec.get("customer_phone") or rec.get("customer_contact") or "").strip()
+            customer_detail = "\n".join(value for value in (company, phone) if value)
             self.table.setCellWidget(
                 row_idx, 2,
                 self._install_row_selection(
-                    self._make_text_cell(cust_name, company, bold=True), row_idx
+                    self._make_text_cell(cust_name, customer_detail, bold=True), row_idx
                 ),
             )
 
             # 3: CIHAZ / MODEL (transparent two-line cell)
             brand = str(rec.get("device_brand") or rec.get("device_type") or "-")
             model = str(rec.get("device_model") or "").strip()
+            serial = str(rec.get("serial_no") or "").strip()
+            device_detail = "\n".join(value for value in (model, "SN: " + serial if serial else "") if value)
             self.table.setCellWidget(
                 row_idx, 3,
                 self._install_row_selection(
-                    self._make_text_cell(brand, model, bold=True), row_idx
+                    self._make_text_cell(brand, device_detail, bold=True), row_idx
                 ),
             )
 
             # 4: KABUL TARIHI
             entry_date = str(rec.get("entry_date") or "-")
-            item_entry = QTableWidgetItem(entry_date)
-            item_entry.setFont(QFont("Segoe UI", 10))
+            parsed_entry = self._reference_date(entry_date)
+            item_entry = QTableWidgetItem(parsed_entry.isoformat() if parsed_entry else entry_date)
+            item_entry.setToolTip(entry_date)
+            item_entry.setData(Qt.ItemDataRole.UserRole, entry_date)
+            item_entry.setFont(self._reference_table_font())
             self.table.setItem(row_idx, 4, item_entry)
 
             # 5: TESLIM TARIHI
             exit_date = str(rec.get("exit_date") or "-")
-            item_exit = QTableWidgetItem(exit_date if exit_date else "-")
-            item_exit.setFont(QFont("Segoe UI", 10))
+            parsed_exit = self._reference_date(exit_date)
+            item_exit = QTableWidgetItem(parsed_exit.isoformat() if parsed_exit else exit_date)
+            item_exit.setToolTip(exit_date)
+            item_exit.setData(Qt.ItemDataRole.UserRole, exit_date)
+            item_exit.setFont(self._reference_table_font())
             self.table.setItem(row_idx, 5, item_exit)
 
             # 6: UCRET
@@ -907,11 +1478,16 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
                 price_val = 0.0
             price_str = CurrencyHelper.format_amount(price_val, db=self.db)
             item_price = QTableWidgetItem(price_str)
-            item_price.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+            item_price.setFont(self._reference_table_font(bold=True))
+            item_price.setToolTip(price_str)
             self.table.setItem(row_idx, 6, item_price)
 
             # 7: DURUM (Badge)
-            status_text = normalize_device_status(rec.get("status") or "Bekliyor")
+            status_text = (
+                str(rec.get("status") or "Bekliyor")
+                if self.main_window is not None else
+                normalize_device_status(rec.get("status") or "Bekliyor")
+            )
             badge_durum = self._create_status_badge(status_text)
             self.table.setCellWidget(row_idx, 7, self._install_row_selection(badge_durum, row_idx))
 
@@ -923,6 +1499,29 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
             # 9: ISLEMLER (View, Edit, Print, More)
             actions_widget = self._create_row_actions(tracking_no)
             self.table.setCellWidget(row_idx, 9, actions_widget)
+            required_height = 64
+            for column in (2, 3):
+                cell = self.table.cellWidget(row_idx, column)
+                content_width = max(1, self.table.columnWidth(column) - 16)
+                for label in cell.findChildren(QLabel):
+                    label.ensurePolished()
+                    label.setMinimumHeight(label.heightForWidth(max(1, content_width - 16)))
+                required_height = max(required_height, cell.layout().heightForWidth(content_width) + 12)
+            self.table.setRowHeight(row_idx, required_height)
+        self._fit_reference_table_height()
+        self._update_bulk_selection()
+
+    def _fit_reference_table_height(self):
+        if not hasattr(self, "reference_table_wrapper"):
+            return
+        row_height = sum(self.table.rowHeight(row) for row in range(self.table.rowCount())) or 48
+        height = self.table.horizontalHeader().height() + row_height + 2
+        if self.table.horizontalScrollBar().maximum() > 0:
+            height += self.table.horizontalScrollBar().sizeHint().height()
+        footer = getattr(self, "reference_pagination_footer", None)
+        if footer is not None and footer.parentWidget() is self.reference_table_wrapper:
+            height += footer.height()
+        self.reference_table_wrapper.setMaximumHeight(height)
 
     def _make_text_cell(self, primary: str, secondary: str = "", bold: bool = False) -> QWidget:
         """Create a transparent two-line cell without an extra panel/shadow."""
@@ -930,32 +1529,42 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
         cell.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         cell.setStyleSheet("background: transparent; border: none;")
         layout = QVBoxLayout(cell)
-        layout.setContentsMargins(8, 4, 8, 4)
+        inset = 2 if self.main_window is not None else 8
+        layout.setContentsMargins(inset, 2 if self.main_window is not None else 4, inset, 2 if self.main_window is not None else 4)
         layout.setSpacing(0)
-        primary_label = QLabel(html.escape(str(primary or "-")))
-        primary_label.setTextFormat(Qt.TextFormat.RichText)
-        primary_label.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold if bold else QFont.Weight.DemiBold))
+        primary_label = QLabel(str(primary or "-"))
+        primary_label.setTextFormat(Qt.TextFormat.PlainText)
+        primary_label.setFont(QFont(DesignTokens.FONT_NAME, 10 if self.main_window is not None else 11, QFont.Weight.Bold if bold else QFont.Weight.DemiBold))
         primary_label.setStyleSheet(
             theme_qss(
                 "background: transparent; border: none; color: @text; "
-                f"font-size: 11px; font-weight: {'800' if bold else '600'};"
+                f"font-size: {11 if self.main_window is not None else 12}px; font-weight: {'800' if bold else '600'};"
             )
         )
-        primary_label.setWordWrap(False)
+        primary_label.setWordWrap(True)
+        primary_label.setToolTip(str(primary))
         layout.addWidget(primary_label)
         if secondary:
-            secondary_label = QLabel(html.escape(str(secondary)))
-            secondary_label.setTextFormat(Qt.TextFormat.RichText)
-            secondary_label.setFont(QFont("Segoe UI", 9))
+            secondary_label = QLabel(str(secondary))
+            secondary_label.setTextFormat(Qt.TextFormat.PlainText)
+            secondary_label.setFont(QFont(DesignTokens.FONT_NAME, 9 if self.main_window is not None else 10))
             secondary_label.setStyleSheet(
                 theme_qss(
                     "background: transparent; border: none; color: @text_muted; "
-                    "font-size: 10px; font-weight: 500;"
+                    "font-size: 11px; font-weight: 500;"
                 )
             )
-            secondary_label.setWordWrap(False)
+            secondary_label.setWordWrap(True)
+            secondary_label.setToolTip(str(secondary))
             layout.addWidget(secondary_label)
         return cell
+
+    def _reference_table_font(self, bold=False):
+        font = QFont(self.font())
+        font.setFamily(DesignTokens.MONO_FONT_NAME)
+        font.setPixelSize(11)
+        font.setBold(bool(bold))
+        return font
 
     def _create_status_badge(self, status: str) -> QWidget:
         container = QWidget()
@@ -966,35 +1575,50 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         norm = normalize_device_status(status)
-        badge = QLabel(f" {norm} ")
-        badge.setFixedHeight(26)
+        display_source = str(status) if self.main_window is not None else norm
+        display_status = display_source.replace("i", "\u0130").replace("\u0131", "I").upper()
+        if self.main_window is not None and " " in display_status:
+            display_status = display_status.replace(" ", "\n", 1)
+        badge = QLabel(display_status)
+        badge.setTextFormat(Qt.TextFormat.PlainText)
+        badge.setAccessibleName(norm)
+        badge.setToolTip(norm)
+        badge.setFixedHeight(30 if self.main_window is not None else 18)
+        badge.setWordWrap(self.main_window is not None)
         badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        if norm == "Tamirde":
-            bg, fg = "#FEF3C7", "#D97706"
-        elif norm in {"Teslim Edildi", "Teslim", "Tamir Edildi"}:
-            bg, fg = "#D1FAE5", "#059669"
+        if self.main_window is not None and status == "Kargoda":
+            bg, fg = "@finance_active_bg", "@service_kpi_active"
+        elif self.main_window is not None and status == "Onayland\u0131":
+            bg, fg = "@finance_success_bg", "@service_kpi_ready"
+        elif self.main_window is not None and status == "Onar\u0131mda":
+            bg, fg = "@finance_active_bg", "@service_kpi_duration"
+        elif norm == "Tamirde":
+            bg, fg = "@warning_bg", "@warning"
+        elif norm in {"Teslim Edildi", "Teslim", "Tamir Edildi", "Teslime Hazir"}:
+            bg, fg = "@finance_success_bg", "@finance_secondary"
         elif norm == "\u0130ptal":
-            bg, fg = "#FEE2E2", "#DC2626"
+            bg, fg = "@danger_bg", "@danger"
         elif norm == "Par\u00e7a Bekliyor":
-            bg, fg = "#FFEDD5", "#EA580C"
+            bg, fg = "@finance_warning_bg", "@finance_tertiary"
         elif norm == "Test S\u00fcrecinde":
-            bg, fg = "#EDE9FE", "#7C3AED"
+            bg, fg = "@finance_active_bg", "@finance_primary"
         elif norm == "Onay Bekliyor":
-            bg, fg = "#FEF9C3", "#CA8A04"
+            bg, fg = "@warning_bg", "@warning"
         else:
-            bg, fg = "#E0F2FE", "#0284C7"
+            bg, fg = "@finance_active_bg", "@finance_primary"
 
-        badge.setStyleSheet(f"""
+        badge.setStyleSheet(theme_qss(f"""
             QLabel {{
                 background-color: {bg};
                 color: {fg};
-                font-size: 11px;
+                font-size: {8 if self.main_window is not None else 9}px;
                 font-weight: 800;
-                border-radius: 12px;
-                padding: 0 10px;
+                border: none;
+                border-radius: 3px;
+                padding: 0 2px;
             }}
-        """)
+        """))
         layout.addWidget(badge)
         return container
 
@@ -1003,31 +1627,35 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
         container.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         container.setStyleSheet("background: transparent; border: none;")
         layout = QHBoxLayout(container)
-        layout.setContentsMargins(4, 6, 4, 6)
+        layout.setContentsMargins(1 if self.main_window is not None else 4, 6, 1 if self.main_window is not None else 4, 6)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        badge = QLabel(f" {urgency} ")
-        badge.setFixedHeight(24)
+        badge = QLabel(str(urgency))
+        badge.setTextFormat(Qt.TextFormat.PlainText)
+        badge.setAccessibleName(str(urgency))
+        badge.setToolTip(str(urgency))
+        badge.setFixedHeight(18)
         badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         u_lower = urgency.lower()
         if "y\u00fcksek" in u_lower or "acil" in u_lower:
-            bg, fg = "#FEE2E2", "#DC2626"
+            bg, fg = "@finance_warning_bg", "@finance_tertiary"
         elif "d\u00fc\u015f\u00fck" in u_lower:
-            bg, fg = "#F1F5F9", "#64748B"
+            bg, fg = "transparent", "@finance_text_muted"
         else:
-            bg, fg = "#EFF6FF", "#2563EB"
+            bg, fg = "transparent", "@finance_text_muted"
 
-        badge.setStyleSheet(f"""
+        badge.setStyleSheet(theme_qss(f"""
             QLabel {{
                 background-color: {bg};
                 color: {fg};
-                font-size: 10px;
+                font-size: {8 if self.main_window is not None else 10}px;
                 font-weight: 800;
-                border-radius: 10px;
-                padding: 0 8px;
+                border: none;
+                border-radius: 3px;
+                padding: 0 2px;
             }}
-        """)
+        """))
         layout.addWidget(badge)
         return container
 
@@ -1036,23 +1664,22 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
         container.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         container.setStyleSheet("background: transparent; border: none;")
         layout = QHBoxLayout(container)
-        layout.setContentsMargins(6, 2, 8, 2)
-        layout.setSpacing(4)
+        layout.setContentsMargins(4, 2, 4, 2)
+        layout.setSpacing(3)
         layout.addStretch(1)
-        container.setMinimumWidth(280)
+        container.setMinimumWidth(188 if self.main_window is not None else 208)
         container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
 
         btn_style = theme_qss("""
             QPushButton {
-                background-color: @surface_alt;
-                color: @text;
-                border: 1px solid @border;
-                border-radius: 6px;
+                background-color: transparent;
+                color: @finance_text;
+                border: none;
+                border-radius: 4px;
                 font-size: 13px;
             }
             QPushButton:hover {
-                background-color: @hover_bg;
-                border-color: @accent;
+                background-color: @finance_surface_high;
             }
         """)
 
@@ -1113,10 +1740,30 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
             button.clicked.connect(callback)
             layout.addWidget(button)
 
+        action_colors = (
+            "#22d3ee", "#fbbf24", "#a5b4fc", "#c084fc",
+            "#38bdf8", "#34d399", "#fb923c", "#f87171",
+        )
+        for index, button in enumerate(container.findChildren(QPushButton)):
+            button.setFixedSize(20 if self.main_window is not None else 22, 22)
+            button.setAccessibleName(button.toolTip())
+            if self.main_window is not None:
+                color = action_colors[index]
+                red, green, blue = (
+                    int(color[offset:offset + 2], 16) for offset in (1, 3, 5)
+                )
+                button.setStyleSheet(
+                    f"QPushButton {{ background: rgba({red}, {green}, {blue}, 34); "
+                    "border: none; border-radius: 4px; } "
+                    f"QPushButton:hover {{ background: rgba({red}, {green}, {blue}, 85); }}"
+                )
+                svg = button.property("serviceActionSvg")
+                if svg:
+                    button.setIcon(render_svg_icon(svg, color, size=16))
         return container
 
     def refresh_theme(self):
-        self.setStyleSheet(theme_qss("background-color: @surface_alt;"))
+        self.setStyleSheet(theme_qss("background-color: @finance_canvas;"))
         for button in self.findChildren(QPushButton):
             svg = button.property("serviceActionSvg")
             if svg:
@@ -1265,22 +1912,24 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
 
     def export_records(self):
         """Export current filtered table data to Excel or CSV."""
-        if not self._filtered_records:
+        self._export_service_records(self._filtered_records)
+
+    def _export_service_records(self, records):
+        if not records:
             self.notify("D\u0131\u015fa aktar\u0131lacak servis kayd\u0131 bulunamad\u0131.", "warning")
             return
         try:
-            import pandas as pd
-            file_path, _ = QFileDialog.getSaveFileName(
+            file_path, selected_filter = QFileDialog.getSaveFileName(
                 self,
                 "Servis Listesini D\u0131\u015fa Aktar",
                 f"servis_listesi_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
-                "Excel Dosyas\u0131 (*.xlsx);;CSV Dosyas\u0131 (*.csv)",
+                "Excel Dosyas\u0131 (*.xlsx);;CSV Dosyas\u0131 (*.csv);;PDF Rapor (*.pdf)",
             )
             if not file_path:
                 return
 
             rows_to_export = []
-            for r in self._filtered_records:
+            for r in records:
                 rows_to_export.append({
                     "Takip No": r.get("tracking_no"),
                     "M\u00fc\u015fteri": r.get("customer_name"),
@@ -1294,12 +1943,88 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
                     "Durum": r.get("status"),
                     "Aciliyet": r.get("urgency"),
                 })
-            df = pd.DataFrame(rows_to_export)
-            if file_path.endswith(".csv"):
-                df.to_csv(file_path, index=False, encoding="utf-8-sig")
+            if file_path.lower().endswith(".pdf") or selected_filter.startswith("PDF"):
+                if not file_path.lower().endswith(".pdf"):
+                    file_path += ".pdf"
+                self._write_service_pdf(file_path, rows_to_export)
             else:
-                df.to_excel(file_path, index=False)
+                import pandas as pd
+                df = pd.DataFrame(rows_to_export)
+                if file_path.lower().endswith(".csv"):
+                    df.to_csv(file_path, index=False, encoding="utf-8-sig")
+                else:
+                    df.to_excel(file_path, index=False)
             self.notify("Servis listesi ba\u015far\u0131yla d\u0131\u015fa aktar\u0131ld\u0131.", "success")
         except Exception as e:
             logger.error(f"Service export error: {e}")
             self.notify(f"D\u0131\u015fa aktarma hatas\u0131: {e}", "error")
+
+    def _write_service_pdf(self, file_path, rows):
+        headers = list(rows[0])
+        header_html = "".join("<th>" + html.escape(header) + "</th>" for header in headers)
+        body_html = []
+        for row in rows:
+            cells = []
+            for header in headers:
+                value = row.get(header)
+                if header == "\u00dccret":
+                    value = CurrencyHelper.format_amount(value or 0, db=self.db)
+                cells.append("<td>" + html.escape("" if value is None else str(value)) + "</td>")
+            body_html.append("<tr>" + "".join(cells) + "</tr>")
+        document = QTextDocument()
+        document.setDefaultFont(self.font())
+        document.setHtml("<html><head><meta charset='UTF-8'><style>body { color: #172033; } table { width: 100%; border-collapse: collapse; font-size: 7pt; } th, td { border: 1px solid #CBD5E1; padding: 4px; text-align: left; } th { background: #EEF2F7; } </style></head><body><h2>AYEC Pro - Servis Listesi</h2><p>" + str(len(rows)) + " kay\u0131t</p><table><thead><tr>" + header_html + "</tr></thead><tbody>" + "".join(body_html) + "</tbody></table></body></html>")
+        writer = QPdfWriter(file_path)
+        writer.setCreator("AYEC Pro")
+        writer.setTitle("Servis Listesi")
+        writer.setPageOrientation(QPageLayout.Orientation.Landscape)
+        document.print(writer)
+        del writer
+        if not QFileInfo(file_path).exists() or QFileInfo(file_path).size() < 8:
+            raise OSError("PDF output could not be written")
+
+    def _checked_service_records(self):
+        tracking_numbers = set()
+        for row in range(self.table.rowCount()):
+            widget = self.table.cellWidget(row, 0)
+            checkbox = widget.findChild(QCheckBox) if widget is not None else None
+            item = self.table.item(row, 1)
+            if checkbox is not None and checkbox.isChecked() and item is not None:
+                tracking_numbers.add(item.text().strip())
+        return [record for record in self._filtered_records if record.get("tracking_no") in tracking_numbers]
+
+    def _update_bulk_selection(self, *args):
+        if not hasattr(self, "btn_bulk_actions"):
+            return
+        count = len(self._checked_service_records())
+        self.btn_bulk_actions.setText("Toplu \u0130\u015flemler" + (" (" + str(count) + ")" if count else ""))
+
+    def _set_visible_service_selection(self, checked):
+        for row in range(self.table.rowCount()):
+            widget = self.table.cellWidget(row, 0)
+            checkbox = widget.findChild(QCheckBox) if widget is not None else None
+            if checkbox is not None:
+                checkbox.setChecked(bool(checked))
+
+    def _export_selected_services(self):
+        records = self._checked_service_records()
+        if not records:
+            self.notify("L\u00fctfen d\u0131\u015fa aktar\u0131lacak kay\u0131tlar\u0131 se\u00e7in.", "warning")
+            return
+        self._export_service_records(records)
+
+    def _print_selected_services(self):
+        records = self._checked_service_records()
+        if not records:
+            self.notify("L\u00fctfen yazd\u0131r\u0131lacak kay\u0131tlar\u0131 se\u00e7in.", "warning")
+            return
+        for record in records:
+            self.print_service(record["tracking_no"])
+
+    def notify(self, message, level="info"):
+        target = self.main_window or self.window()
+        if hasattr(target, "show_notification"):
+            target.show_notification(message, level)
+            return
+        callback = {"error": show_error, "success": show_success, "warning": show_warning}.get(level, show_info)
+        callback(self.window(), message)

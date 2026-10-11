@@ -16,9 +16,11 @@ class MainWindowBaseMixin:
     def _apply_theme_early(self):
         app = QApplication.instance()
         if not app: return
+        from src.utils.reference_typography import apply_reference_font
+        apply_reference_font(app)
         try: ThemeManager.load_custom_colors(self.db)
         except Exception: pass
-        try: theme_name = self.db.get_setting("color_theme_full", "AYEC")
+        try: theme_name = self.db.get_setting("color_theme_full", "Koyu Mavi")
         except Exception: theme_name = "AYEC"
         normalized = ThemeManager.normalize_theme_name(theme_name)
         self._current_theme_name = normalized
@@ -30,6 +32,7 @@ class MainWindowBaseMixin:
             # get_stylesheet now returns a transformed and sanitized string internally
             app.setStyleSheet(ThemeManager.get_stylesheet(normalized))
             AppearanceModeManager.apply(app, self.db, self, mode=AppearanceModeManager.current(self.db))
+            self._theme_revision = 1
             self._theme_applied_early = True
         except Exception as e:
             logger.warning(f"Early theme apply failed: {e}")
@@ -39,12 +42,13 @@ class MainWindowBaseMixin:
         if not app: return
         try: ThemeManager.load_custom_colors(self.db)
         except Exception: pass
-        try: theme_name = self.db.get_setting("color_theme_full", "AYEC")
+        try: theme_name = self.db.get_setting("color_theme_full", "Koyu Mavi")
         except Exception: theme_name = "AYEC"
         normalized = ThemeManager.normalize_theme_name(theme_name)
         self._current_theme_name = normalized
         if not getattr(self, "_theme_applied_early", False):
             ThemeManager.apply_theme(app, normalized, window=self, animate=False)
+            self._theme_revision = getattr(self, "_theme_revision", 0) + 1
         self.apply_appearance_mode(force_tree=True)
         if hasattr(self, "_apply_shell_theme_styles"): self._apply_shell_theme_styles()
         if hasattr(self, "app_header") and hasattr(self.app_header, "apply_theme_styles"):
@@ -68,9 +72,16 @@ class MainWindowBaseMixin:
             try: self.db.set_setting("color_theme_full", normalized)
             except Exception: pass
             
+            self._theme_revision = getattr(self, "_theme_revision", 0) + 1
+            cached_pages = tuple(getattr(self, "pages", {}).values())
+            active_page = None
             if hasattr(self, "content_area"):
-                page = self.content_area.currentWidget()
-                if page: self._refresh_page_theme(page)
+                active_page = self.content_area.currentWidget()
+            if active_page in cached_pages:
+                try:
+                    self._refresh_page_theme(active_page)
+                except Exception as exc:
+                    logger.warning("Active page theme refresh failed: %s", exc)
 
             self._refresh_theme_chrome(refresh_appearance=False)
             self._refresh_visible_top_level_themes(appearance_mode)
@@ -101,6 +112,7 @@ class MainWindowBaseMixin:
             try:
                 if hasattr(widget, "apply_theme_styles"): widget.apply_theme_styles()
                 elif hasattr(widget, "refresh_theme"): widget.refresh_theme()
+                ThemeManager.refresh_widget_tree(widget)
                 AppearanceModeManager.apply_to_widget_tree(widget, appearance_mode)
                 widget.style().unpolish(widget)
                 widget.style().polish(widget)
@@ -109,20 +121,17 @@ class MainWindowBaseMixin:
 
     def _refresh_page_theme(self, page):
         if not page: return
-        handled = False
         if hasattr(page, "apply_theme_styles"):
             page.apply_theme_styles()
-            handled = True
         elif hasattr(page, "refresh_theme"):
             page.refresh_theme()
-            handled = True
-        if not handled:
-            ThemeManager.refresh_widget_tree(page)
+        ThemeManager.refresh_widget_tree(page)
         AppearanceModeManager.apply_to_widget_tree(
             page,
             getattr(self, "_appearance_mode", AppearanceModeManager.current(self.db)),
         )
         page.update()
+        page._ayec_theme_revision = getattr(self, "_theme_revision", 0)
 
     def apply_appearance_mode(self, mode=None, force_tree=True):
         try:
@@ -137,13 +146,13 @@ class MainWindowBaseMixin:
 
     def sync_theme_toggle_button(self):
         if hasattr(self, "app_header") and hasattr(self.app_header, "sync_theme_controls"):
-            self.app_header.sync_theme_controls(getattr(self, "_current_theme_name", "AYEC"))
+            self.app_header.sync_theme_controls(getattr(self, "_current_theme_name", "Koyu Mavi"))
 
     def toggle_theme_from_header(self):
         """Header'daki butondan temaları sırayla değiştir."""
         themes = ThemeManager.get_available_themes(self.db)
         if not themes: return
-        current = ThemeManager.normalize_theme_name(getattr(self, "_current_theme_name", "AYEC"))
+        current = ThemeManager.normalize_theme_name(getattr(self, "_current_theme_name", "Koyu Mavi"))
         try: idx = themes.index(current)
         except ValueError: idx = -1
         self.apply_theme(themes[(idx + 1) % len(themes)])

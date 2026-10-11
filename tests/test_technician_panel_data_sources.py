@@ -1,6 +1,8 @@
 import sqlite3
+from types import SimpleNamespace
 
 from src.ui.dialogs.device_selection_dialog import DeviceSelectionDialog
+from src.ui.dialogs._tp_operations import _TpOperations
 from src.utils.automotive_defaults import (
     AUTOMOTIVE_PRESET,
     ensure_automotive_fast_notes,
@@ -122,3 +124,46 @@ def test_automotive_note_seed_fills_missing_categories_without_overwrite():
     for category in AUTOMOTIVE_PRESET:
         assert db.get_fast_notes(category)
     assert ensure_automotive_fast_notes(db) == 0
+
+
+def test_silent_close_save_uses_notes_page_and_preserves_unrelated_device_fields():
+    conn = sqlite3.connect(":memory:")
+    cursor = conn.cursor()
+    cursor.execute("CREATE TABLE devices(tracking_no TEXT PRIMARY KEY,internal_notes TEXT,accessories TEXT,repair_details TEXT,status TEXT)")
+    original = ("CURRENT", "Original private note", "Original accessories", "Original public note", "Waiting")
+    other = ("OTHER", "Other private note", "Other accessories", "Other public note", "In progress")
+    cursor.executemany("INSERT INTO devices VALUES (?,?,?,?,?)", (original, other))
+    conn.commit()
+    panel = SimpleNamespace(
+        db=SimpleNamespace(conn=conn, cursor=cursor),
+        tracking_no="CURRENT",
+        read_only=False,
+        device_dict={"internal_notes": original[1]},
+        wizard_page1=SimpleNamespace(get_data=lambda: {"accessories": "Actual selected charger"}),
+        wizard_page2=SimpleNamespace(get_data=lambda: {"internal_notes": "Actual edited private note"}),
+    )
+    try:
+        _TpOperations._perform_silent_save(panel)
+        assert cursor.execute("SELECT * FROM devices WHERE tracking_no='CURRENT'").fetchone() == ("CURRENT", "Actual edited private note", "Actual selected charger", "Original public note", "Waiting")
+        assert cursor.execute("SELECT * FROM devices WHERE tracking_no='OTHER'").fetchone() == other
+        panel.read_only = True
+        changes = conn.total_changes
+        panel.wizard_page1.get_data = lambda: (_ for _ in ()).throw(AssertionError("Read-only close must not collect mutating fields"))
+        _TpOperations._perform_silent_save(panel)
+        assert conn.total_changes == changes
+    finally:
+        conn.close()
+
+
+def test_silent_close_without_notes_page_keeps_original_private_note():
+    conn = sqlite3.connect(":memory:")
+    cursor = conn.cursor()
+    cursor.execute("CREATE TABLE devices(tracking_no TEXT PRIMARY KEY,internal_notes TEXT,accessories TEXT)")
+    cursor.execute("INSERT INTO devices VALUES ('CURRENT','Actual original note','Original charger')")
+    conn.commit()
+    panel = SimpleNamespace(db=SimpleNamespace(conn=conn, cursor=cursor), tracking_no="CURRENT", read_only=False, device_dict={"internal_notes": "Actual original note"}, wizard_page1=SimpleNamespace(get_data=lambda: {"accessories": "Selected charger"}))
+    try:
+        _TpOperations._perform_silent_save(panel)
+        assert cursor.execute("SELECT internal_notes,accessories FROM devices").fetchone() == ("Actual original note", "Selected charger")
+    finally:
+        conn.close()

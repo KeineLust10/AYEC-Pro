@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
                              QTableWidget, QTableWidgetItem, QHeaderView, QLabel, 
                              QFormLayout, QLineEdit, QDateEdit, 
                              QTextEdit, QFrame, QAbstractItemView, QComboBox, 
-                             QMenu, QMessageBox, QGraphicsDropShadowEffect, QScrollArea, QListWidget)
+                             QMenu, QMessageBox, QGraphicsDropShadowEffect, QScrollArea, QListWidget, QSizePolicy)
 from PyQt6.QtCore import Qt, QDate, QMimeData, QPoint, pyqtSignal, QTimer
 from PyQt6.QtGui import QFont, QColor, QDrag, QIcon, QCursor, QPainter, QPixmap, QAction
 from datetime import datetime, timedelta
@@ -70,11 +70,11 @@ class AddAppointmentDialog(ModernDialog):
             }
             QLabel#AppointmentDialogHeroTitle {
                 background: transparent; border: none; color: @text;
-                font-family: Segoe UI; font-size: 17px; font-weight: bold;
+                font-family: Inter; font-size: 17px; font-weight: bold;
             }
             QLabel#AppointmentDialogHeroText {
                 background: transparent; border: none; color: @text_muted;
-                font-family: Segoe UI; font-size: 12px;
+                font-family: Inter; font-size: 12px;
             }
         """))
         plan_intro_layout = QVBoxLayout(plan_intro)
@@ -93,7 +93,7 @@ class AddAppointmentDialog(ModernDialog):
             QFrame#AppointmentDialogForm {
                 background: @surface; border: 1px solid @border; border-radius: 14px;
             }
-            QLabel { font-family: Segoe UI; color: @text_muted; font-size: 11px; font-weight: bold; }
+            QLabel { font-family: Inter; color: @text_muted; font-size: 11px; font-weight: bold; }
             QLineEdit, QComboBox, QDateEdit, QTextEdit {
                 min-height: 34px; background: @surface_alt; border: 1px solid @border;
                 border-radius: 8px; color: @text; padding: 4px 10px;
@@ -179,7 +179,7 @@ class AddAppointmentDialog(ModernDialog):
             self.cmb_workflow.addItem(label, value)
         form_layout.addRow("Randevu Ak\u0131\u015f\u0131", self.cmb_workflow)
         self.workflow_hint = QLabel("Secilen akis, randevu kapatma ve odeme adimlarini belirler.")
-        self.workflow_hint.setStyleSheet(theme_qss("font-family: Segoe UI; font-size: 10px; color: @text_muted; padding-left: 2px;"))
+        self.workflow_hint.setStyleSheet(theme_qss("font-family: Inter; font-size: 10px; color: @text_muted; padding-left: 2px;"))
         form_layout.addRow("", self.workflow_hint)
         legacy_type_label = form_layout.labelForField(self.cmb_type)
         if legacy_type_label:
@@ -438,9 +438,9 @@ class MontagePreparationDialog(ModernDialog):
         hero_layout = QVBoxLayout(hero)
         hero_layout.setContentsMargins(16, 12, 16, 12)
         hero_title = QLabel("Araca Yukleme Kontrolu")
-        hero_title.setStyleSheet(theme_qss("font-family: Segoe UI; font-size: 15px; font-weight: bold; color: @text;"))
+        hero_title.setStyleSheet(theme_qss("font-family: Inter; font-size: 15px; font-weight: bold; color: @text;"))
         hero_note = QLabel("Teklif kalemlerini kontrol edin; malzemeleri sahaya cikmadan once araca transfer edin.")
-        hero_note.setStyleSheet(theme_qss("font-family: Segoe UI; font-size: 11px; color: @text_muted;"))
+        hero_note.setStyleSheet(theme_qss("font-family: Inter; font-size: 11px; color: @text_muted;"))
         hero_layout.addWidget(hero_title)
         hero_layout.addWidget(hero_note)
         layout.addWidget(hero)
@@ -451,7 +451,7 @@ class MontagePreparationDialog(ModernDialog):
         source_label = QLabel("Kaynak Konum")
         vehicle_label = QLabel("Servis Araci")
         for label in (source_label, vehicle_label):
-            label.setStyleSheet(theme_qss("font-family: Segoe UI; font-size: 11px; font-weight: bold; color: @text_muted;"))
+            label.setStyleSheet(theme_qss("font-family: Inter; font-size: 11px; font-weight: bold; color: @text_muted;"))
         locations_row.addWidget(source_label)
         locations_row.addWidget(self.source_combo, 1)
         locations_row.addWidget(vehicle_label)
@@ -468,12 +468,12 @@ class MontagePreparationDialog(ModernDialog):
         self.plan_table.verticalHeader().setVisible(False)
         self.plan_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         self.plan_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.plan_table.setFont(QFont("Segoe UI", 9))
-        self.plan_table.horizontalHeader().setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
+        self.plan_table.setFont(QFont(DesignTokens.FONT_NAME, 9))
+        self.plan_table.horizontalHeader().setFont(QFont(DesignTokens.FONT_NAME, 9, QFont.Weight.Bold))
         self.plan_table.setStyleSheet(theme_qss("""
-            QTableWidget { font-family: Segoe UI; background: @surface; border: 1px solid @border; border-radius: 10px; gridline-color: @border; }
-            QHeaderView::section { font-family: Segoe UI; background: @surface_alt; color: @text_muted; border: none; padding: 8px; font-weight: bold; }
-            QTableWidget::item { font-family: Segoe UI; color: @text; padding: 6px; }
+            QTableWidget { font-family: Inter; background: @surface; border: 1px solid @border; border-radius: 10px; gridline-color: @border; }
+            QHeaderView::section { font-family: Inter; background: @surface_alt; color: @text_muted; border: none; padding: 8px; font-weight: bold; }
+            QTableWidget::item { font-family: Inter; color: @text; padding: 6px; }
         """))
         layout.addWidget(self.plan_table, 1)
         self.add_widget(content)
@@ -611,7 +611,7 @@ class MontageCompletionDialog(ModernDialog):
             else "Kullanilan miktarlari girin. Kullanilmayan malzemeler kaynak konuma iade edilir."
         )
         notice = QLabel(notice_text)
-        notice.setStyleSheet(theme_qss("font-family: Segoe UI; color: @text_muted; padding: 10px; background: @surface_alt; border: 1px solid @border; border-radius: 10px;"))
+        notice.setStyleSheet(theme_qss("font-family: Inter; color: @text_muted; padding: 10px; background: @surface_alt; border: 1px solid @border; border-radius: 10px;"))
         layout.addWidget(notice)
 
         self.plan_table = QTableWidget(0, 5)
@@ -622,12 +622,12 @@ class MontageCompletionDialog(ModernDialog):
         self.plan_table.verticalHeader().setVisible(False)
         self.plan_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         self.plan_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.plan_table.setFont(QFont("Segoe UI", 9))
-        self.plan_table.horizontalHeader().setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
+        self.plan_table.setFont(QFont(DesignTokens.FONT_NAME, 9))
+        self.plan_table.horizontalHeader().setFont(QFont(DesignTokens.FONT_NAME, 9, QFont.Weight.Bold))
         self.plan_table.setStyleSheet(theme_qss("""
-            QTableWidget { font-family: Segoe UI; background: @surface; border: 1px solid @border; border-radius: 10px; gridline-color: @border; }
-            QHeaderView::section { font-family: Segoe UI; background: @surface_alt; color: @text_muted; border: none; padding: 8px; font-weight: bold; }
-            QTableWidget::item { font-family: Segoe UI; color: @text; padding: 6px; }
+            QTableWidget { font-family: Inter; background: @surface; border: 1px solid @border; border-radius: 10px; gridline-color: @border; }
+            QHeaderView::section { font-family: Inter; background: @surface_alt; color: @text_muted; border: none; padding: 8px; font-weight: bold; }
+            QTableWidget::item { font-family: Inter; color: @text; padding: 6px; }
         """))
         layout.addWidget(self.plan_table, 1)
         self.add_widget(content)
@@ -672,6 +672,25 @@ class MontageCompletionDialog(ModernDialog):
 
 
 # --- Takvim Kart ---
+class _CalendarTextLabel(QLabel):
+    """Keep complete record text while painting a compact reference line."""
+
+    def __init__(self, text, parent=None):
+        super().__init__(text, parent)
+        self.setTextFormat(Qt.TextFormat.PlainText)
+        self.setToolTip(text)
+        self.setFixedHeight(18)
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setFont(self.font())
+        painter.setPen(self.palette().color(self.foregroundRole()))
+        text = self.fontMetrics().elidedText(self.text(), Qt.TextElideMode.ElideRight, self.contentsRect().width())
+        painter.drawText(self.contentsRect(), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, text)
+        painter.end()
+
+
 class CalendarCard(QFrame):
     clicked = pyqtSignal(int)
     rightClicked = pyqtSignal(int, QPoint)
@@ -710,13 +729,15 @@ class CalendarCard(QFrame):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 6, 8, 6)
         layout.setSpacing(2)
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         
         # Müşteri İsmi
-        lbl_name = QLabel(self.data.get('customer_name', ''))
-        lbl_name.setMinimumHeight(30)
-        lbl_name.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
+        lbl_name = _CalendarTextLabel(self.data.get('customer_name', ''))
+        lbl_name.setTextFormat(Qt.TextFormat.PlainText)
+        lbl_name.setMinimumHeight(18)
+        lbl_name.setFont(QFont(DesignTokens.FONT_NAME, 9, QFont.Weight.Bold))
         lbl_name.setStyleSheet(theme_qss("color: @text; border: none; background: transparent;"))
-        lbl_name.setWordWrap(True)
+        lbl_name.setWordWrap(False)
         lbl_name.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
         layout.addWidget(lbl_name)
         
@@ -724,10 +745,25 @@ class CalendarCard(QFrame):
         desc = self.data.get('description') or ''
         type_text = desc.split(' - ')[0] if ' - ' in desc else desc
         self.setToolTip("{}\n{}\n{}".format(self.data.get("time", ""), self.data.get("customer_name", ""), desc))
-        lbl_type = QLabel(str(self.data.get("time", "")) + "  " + (type_text[:22] + "..." if len(type_text) > 22 else type_text))
-        lbl_type.setWordWrap(True)
+        lbl_type = _CalendarTextLabel(str(self.data.get("time", "")) + "  " + type_text)
+        lbl_type.setTextFormat(Qt.TextFormat.PlainText)
+        lbl_type.setFont(QFont(DesignTokens.FONT_NAME))
+        lbl_type.setWordWrap(False)
         lbl_type.setStyleSheet(theme_qss(f"color: {color}; font-size: 10px; font-weight: bold; border: none; background: transparent;"))
         layout.addWidget(lbl_type)
+
+        personnel_name = str(self.data.get('personnel_name') or '').strip()
+        if personnel_name:
+            personnel_label = _CalendarTextLabel(personnel_name)
+            personnel_label.setObjectName('CalendarAssignedPersonnel')
+            personnel_label.setTextFormat(Qt.TextFormat.PlainText)
+            personnel_label.setFont(QFont(DesignTokens.FONT_NAME))
+            personnel_label.setWordWrap(False)
+            personnel_label.setToolTip(personnel_name)
+            personnel_label.setStyleSheet(theme_qss(
+                'color: @finance_text_muted; font-size: 10px; border: none; background: transparent;'
+            ))
+            layout.addWidget(personnel_label)
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
@@ -792,7 +828,7 @@ class CalendarTable(QTableWidget):
         self.verticalHeader().setVisible(False)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.setShowGrid(True)
-        self.setAlternatingRowColors(True) # Satırları renklendir
+        self.setAlternatingRowColors(False)
         
         # Scrollbar styler
         self.verticalScrollBar().setStyleSheet(theme_qss("""
@@ -828,9 +864,9 @@ class CalendarTable(QTableWidget):
 
         board_header = QHBoxLayout()
         title = QLabel("Haftal\u0131k Planlama Kanban")
-        title.setStyleSheet(theme_qss("font-family: Segoe UI; font-size: 13px; font-weight: bold; color: @text;"))
+        title.setStyleSheet(theme_qss("font-family: Inter; font-size: 13px; font-weight: bold; color: @text;"))
         subtitle = QLabel("Planlanan i\u015fleri durumuna g\u00f6re takip edin")
-        subtitle.setStyleSheet(theme_qss("font-family: Segoe UI; font-size: 10px; color: @text_muted; padding-left: 6px;"))
+        subtitle.setStyleSheet(theme_qss("font-family: Inter; font-size: 10px; color: @text_muted; padding-left: 6px;"))
         board_header.addWidget(title)
         board_header.addWidget(subtitle)
         board_header.addStretch()
@@ -859,7 +895,7 @@ class CalendarTable(QTableWidget):
             heading = QHBoxLayout()
             heading_label = QLabel(label)
             heading_label.setStyleSheet(theme_qss(
-                "font-family: Segoe UI; font-size: 11px; font-weight: bold; color: {};".format(color)
+                "font-family: Inter; font-size: 11px; font-weight: bold; color: {};".format(color)
             ))
             count_label = QLabel("0")
             count_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -944,16 +980,15 @@ class CalendarTable(QTableWidget):
     def apply_theme_styles(self):
         self.setStyleSheet(theme_qss("""
             QTableWidget {
-                background-color: @surface;
-                border: 1px solid @border;
-                border-radius: 12px;
-                gridline-color: @text_muted; /* Biraz daha belirgin grid */
-                alternate-background-color: @surface_alt; /* Slate 50 - çok hafif gri */
+                background-color: @finance_surface;
+                border: 1px solid @finance_outline;
+                border-radius: 6px;
+                gridline-color: @finance_surface_high;
+                alternate-background-color: @finance_surface;
             }
             QTableWidget::item {
                 padding: 5px;
-                border-bottom: 1px solid @surface_alt;
-                border-right: 1px dashed @surface_alt; /* Hafif dikey ayrım */
+                border: none;
             }
             QHeaderView::section {
                 background-color: @surface_alt;
@@ -962,7 +997,7 @@ class CalendarTable(QTableWidget):
                 border: none;
                 border-bottom: 2px solid @border;
                 font-weight: bold;
-                font-family: 'Segoe UI';
+                font-family: 'Inter';
                 font-size: 13px;
             }
             QTableCornerButton::section {
@@ -1045,6 +1080,9 @@ class AppointmentsPage(QWidget):
         # Defensive local import for environments where module-level symbol cache is stale.
         from PyQt6.QtCore import QTimer as _QTimer
         self.db = db
+        self.main_window = main_window
+        self.calendar_personnel_filter = ""
+        self.calendar_location_filter = None
         self.db.ensure_appointment_montage_schema()
         self.hours = list(range(9, 20)) # 09:00 - 19:00
         self._appointments_deleted_col = None
@@ -1093,33 +1131,37 @@ class AppointmentsPage(QWidget):
             }
         """))
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(28, 22, 28, 28)
-        layout.setSpacing(14)
+        layout.setContentsMargins(4, 0, 4, 8)
+        layout.setSpacing(6)
         
         # --- ÜST MENÜ (NAVİGASYON) ---
         toolbar = QFrame()
         toolbar.setObjectName("AppointmentsToolbar")
         toolbar.setMinimumHeight(66)
-        nav_layout = QHBoxLayout(toolbar)
-        nav_layout.setContentsMargins(16, 9, 16, 9)
+        toolbar_layout = QVBoxLayout(toolbar)
+        toolbar_layout.setContentsMargins(8, 4, 8, 4)
+        toolbar_layout.setSpacing(4)
+        nav_layout = QHBoxLayout()
+        toolbar_layout.addLayout(nav_layout)
+        nav_layout.setContentsMargins(0, 0, 0, 0)
         nav_layout.setSpacing(10)
         
         # Navigasyon Grubu
         nav_group = QHBoxLayout()
         btn_prev = QPushButton("\u2039")
-        btn_prev.setFixedSize(40, 40)
+        btn_prev.setFixedSize(32, 32)
         btn_prev.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_prev.setStyleSheet(theme_qss(DesignTokens.get_button_qss("outline", size="sm")))
         btn_prev.clicked.connect(self.prev_week)
         
         btn_today = QPushButton("Bug\u00fcn")
-        btn_today.setFixedHeight(40)
+        btn_today.setFixedHeight(32)
         btn_today.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_today.setStyleSheet(theme_qss(DesignTokens.get_button_qss("outline", size="sm")))
         btn_today.clicked.connect(self.go_today)
         
         btn_next = QPushButton("\u203a")
-        btn_next.setFixedSize(40, 40)
+        btn_next.setFixedSize(32, 32)
         btn_next.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_next.setStyleSheet(theme_qss(DesignTokens.get_button_qss("outline", size="sm")))
         btn_next.clicked.connect(self.next_week)
@@ -1132,30 +1174,122 @@ class AppointmentsPage(QWidget):
         # Tarih Aralığı Label
         title_stack = QVBoxLayout()
         title_stack.setSpacing(2)
-        page_title = QLabel("Randevu Merkezi")
-        page_title.setStyleSheet(theme_qss("font-family: Segoe UI; font-size: 16px; font-weight: bold; color: @text;"))
+        page_title = QLabel("Randevu Merkezi & Takvim")
+        page_title.setStyleSheet(theme_qss("font-family: Inter; font-size: 16px; font-weight: bold; color: @text;"))
         self.lbl_week = QLabel("")
-        self.lbl_week.setStyleSheet(theme_qss("font-family: Segoe UI; font-size: 11px; font-weight: bold; color: @text_muted;"))
+        self.lbl_week.setStyleSheet(theme_qss("font-family: Inter; font-size: 11px; font-weight: bold; color: @text_muted;"))
         title_stack.addWidget(page_title)
         title_stack.addWidget(self.lbl_week)
         nav_layout.addLayout(title_stack)
+
+        view_layout = QHBoxLayout()
+        view_layout.setSpacing(4)
+        view_buttons = []
+        for view_name in ("G\u00fcnl\u00fck", "Haftal\u0131k", "Ayl\u0131k", "Teknisyen"):
+            view_button = QPushButton(view_name)
+            view_button.setCheckable(True)
+            view_button.setFixedHeight(32)
+            view_button.setMinimumWidth(view_button.fontMetrics().horizontalAdvance(view_name) + 24)
+            view_button.setStyleSheet(theme_qss(
+                "QPushButton { background: @surface_alt; color: @text; border: 1px solid @border; "
+                "border-radius: 5px; padding: 0 9px; font-weight: 700; } "
+                "QPushButton:checked { background: @accent; color: @selection_text; border-color: @accent; }"
+            ))
+            view_button.clicked.connect(
+                lambda checked, name=view_name: self._set_calendar_view(name)
+            )
+            view_layout.addWidget(view_button)
+            view_buttons.append(view_button)
+        view_buttons[1].setChecked(True)
+        self.calendar_view_buttons = view_buttons
+        self.calendar_view_name = "Haftal\u0131k"
+        view_layout.addStretch(1)
+        nav_layout.addLayout(view_layout)
         
         nav_layout.addStretch()
         
         btn_add = QPushButton("+ Yeni Randevu")
-        btn_add.setFixedSize(166, 38)
+        btn_add.setFixedSize(150, 32)
         btn_add.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_add.setStyleSheet(theme_qss(DesignTokens.get_button_qss("primary")))
         btn_add.clicked.connect(self.open_add_dialog)
         nav_layout.addWidget(btn_add)
-        btn_planned = QPushButton("Planlanan Randevular")
-        btn_planned.setFixedSize(190, 38)
+        btn_planned = QPushButton("Planlanan Listesi 14")
+        btn_planned.setFixedSize(150, 32)
         btn_planned.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_planned.setStyleSheet(theme_qss(DesignTokens.get_button_qss("secondary")))
         btn_planned.clicked.connect(self.open_planned_appointments_dialog)
         nav_layout.addWidget(btn_planned)
         
         layout.addWidget(toolbar)
+
+        filter_bar = QFrame()
+        filter_bar.setStyleSheet(theme_qss("QFrame { background: @surface; border: 1px solid @border; border-radius: 10px; }"))
+        filter_layout = QHBoxLayout(filter_bar)
+        filter_layout.setContentsMargins(8, 3, 8, 3)
+        filter_layout.setSpacing(6)
+        filter_layout.addWidget(QLabel("Teknisyen"))
+        self.calendar_personnel_combo = QComboBox()
+        self.calendar_personnel_combo.addItem("Tum Teknisyenler", "")
+        try:
+            personnel_rows = self.db.conn.cursor().execute(
+                "SELECT DISTINCT name FROM personnel WHERE COALESCE(active, 1)=1 AND TRIM(COALESCE(name, ''))<>'' ORDER BY name"
+            ).fetchall()
+        except Exception:
+            personnel_rows = []
+        for row in personnel_rows:
+            self.calendar_personnel_combo.addItem(str(row[0]), str(row[0]))
+        self.calendar_personnel_combo.setMinimumWidth(145)
+        filter_layout.addWidget(self.calendar_personnel_combo)
+        filter_layout.addWidget(QLabel("Lokasyon"))
+        self.calendar_location_combo = QComboBox()
+        self.calendar_location_combo.addItem("Tum Lokasyonlar", None)
+        try:
+            locations = self.db.get_stock_locations() if hasattr(self.db, "get_stock_locations") else []
+        except Exception:
+            locations = []
+        for location in locations:
+            label = str(location.get("name") or "Lokasyon")
+            if location.get("vehicle_plate"):
+                label = "{} ({})".format(label, location["vehicle_plate"])
+            self.calendar_location_combo.addItem(label, int(location["id"]))
+        self.calendar_location_combo.setMinimumWidth(145)
+        filter_layout.addWidget(self.calendar_location_combo)
+        filter_layout.addStretch(1)
+        self.btn_calendar_refresh = QPushButton("Listeyi Yenile")
+        self.btn_calendar_refresh.clicked.connect(lambda: self.schedule_refresh(0))
+        self.btn_calendar_refresh.setStyleSheet(theme_qss(DesignTokens.get_button_qss("outline", size="sm")))
+        filter_layout.addWidget(self.btn_calendar_refresh)
+        self.calendar_personnel_combo.currentIndexChanged.connect(self._apply_calendar_filters)
+        self.calendar_location_combo.currentIndexChanged.connect(self._apply_calendar_filters)
+        nav_layout.removeWidget(btn_add)
+        nav_layout.removeWidget(btn_planned)
+        filter_layout.insertWidget(4, btn_add)
+        filter_layout.insertWidget(5, btn_planned)
+        toolbar_layout.addWidget(filter_bar)
+
+        kpi_row = QHBoxLayout()
+        kpi_row.setSpacing(10)
+        self.appointment_kpi_values = []
+        for title, value, accent in [
+            ("Bugun Planlanan", "0 Randevu", "@finance_primary"),
+            ("Saha Ekipleri", "0 G\u00f6revli", "@finance_secondary"),
+            ("Haftalik Tamamlanma", "%0", "@finance_secondary"),
+            ("Acil SLA Bildirimi", "0 Servis", "@finance_tertiary"),
+        ]:
+            card = QFrame()
+            card.setStyleSheet(theme_qss("background: @finance_surface; border: 1px solid @finance_outline; border-radius: 8px;"))
+            card_layout = QVBoxLayout(card)
+            card_layout.setContentsMargins(12, 8, 12, 8)
+            heading = QLabel(title)
+            heading.setStyleSheet(theme_qss("color: @finance_text_muted; font-size: 10px; font-weight: 800; border: none;"))
+            amount = QLabel(value)
+            amount.setStyleSheet(theme_qss(f"color: {accent}; font-size: 18px; font-weight: 900; border: none;"))
+            card_layout.addWidget(heading)
+            card_layout.addWidget(amount)
+            self.appointment_kpi_values.append(amount)
+            kpi_row.addWidget(card, 1)
+        layout.addLayout(kpi_row)
 
         
         # --- ANA EKRAN (SOL: TAKVİM | SAĞ: İŞLEM PANELİ) ---
@@ -1186,7 +1320,7 @@ class AppointmentsPage(QWidget):
             hour_item.setFlags(Qt.ItemFlag.ItemIsEnabled)
             hour_item.setBackground(qc("surface_alt"))
             hour_item.setForeground(qc("disabled_text"))
-            hour_item.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+            hour_item.setFont(QFont(DesignTokens.MONO_FONT_NAME, 10))
             self.table.setItem(i, 0, hour_item)
             
         self.table.itemDropped.connect(self.handle_drop)
@@ -1201,10 +1335,19 @@ class AppointmentsPage(QWidget):
         side_layout.setContentsMargins(14, 14, 14, 14)
         side_layout.setSpacing(10)
         
-        lbl_side_title = QLabel(" Bugünün İşlemleri")
-        lbl_side_title.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
-        lbl_side_title.setStyleSheet(theme_qss("color: @text; border: none;"))
-        side_layout.addWidget(lbl_side_title)
+        self.lbl_side_title = QLabel(" Bug\u00fcn\u00fcn \u0130\u015flemleri")
+        self.lbl_side_title.setFont(QFont(DesignTokens.FONT_NAME, 12, QFont.Weight.Bold))
+        self.lbl_side_title.setStyleSheet(theme_qss("color: @text; border: none;"))
+        self.lbl_side_count = QLabel("0 Randevu")
+        self.lbl_side_count.setStyleSheet(theme_qss(
+            "background: @surface_alt; color: @text_muted; border-radius: 4px; "
+            "padding: 2px 7px; font-size: 10px; font-weight: bold;"
+        ))
+        side_title_row = QHBoxLayout()
+        side_title_row.addWidget(self.lbl_side_title)
+        side_title_row.addStretch()
+        side_title_row.addWidget(self.lbl_side_count)
+        side_layout.addLayout(side_title_row)
         
         # İşlem alanı (Scrollable)
         self.side_scroll = QScrollArea()
@@ -1220,12 +1363,89 @@ class AppointmentsPage(QWidget):
         
         self.side_scroll.setWidget(self.side_container)
         side_layout.addWidget(self.side_scroll)
+        self._build_technician_status(side_layout)
         
         main_content.addWidget(self.side_panel, 1) # 1 birim genişlik
         
         layout.addLayout(main_content)
         
         self.apply_theme_styles()
+
+    def _set_calendar_view(self, view_name):
+        self.calendar_view_name = str(view_name)
+        for button in getattr(self, "calendar_view_buttons", []):
+            button.setChecked(button.text() == self.calendar_view_name)
+        if self.calendar_view_name == "Teknisyen":
+            self.calendar_personnel_combo.setFocus()
+
+    def _apply_calendar_filters(self, _index=None):
+        self.calendar_personnel_filter = str(self.calendar_personnel_combo.currentData() or "")
+        self.calendar_location_filter = self.calendar_location_combo.currentData()
+        self.schedule_refresh(0)
+
+    def _build_technician_status(self, parent_layout):
+        panel = QFrame()
+        panel.setMaximumHeight(220)
+        panel.setStyleSheet(theme_qss("QFrame { background: @surface; border: 1px solid @border; border-radius: 10px; }"))
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(10, 9, 10, 9)
+        layout.setSpacing(6)
+        try:
+            rows = self.db.conn.cursor().execute(
+                "SELECT name, role FROM personnel WHERE COALESCE(active, 1)=1 AND TRIM(COALESCE(name, ''))<>'' ORDER BY name LIMIT 3"
+            ).fetchall()
+            active_count = int(self.db.conn.cursor().execute(
+                "SELECT COUNT(*) FROM personnel WHERE COALESCE(active, 1)=1 AND TRIM(COALESCE(name, ''))<>''"
+            ).fetchone()[0] or 0)
+            total_count = int(self.db.conn.cursor().execute(
+                "SELECT COUNT(*) FROM personnel WHERE TRIM(COALESCE(name, ''))<>''"
+            ).fetchone()[0] or 0)
+        except Exception:
+            rows = []
+            active_count = 0
+            total_count = 0
+        title_row = QHBoxLayout()
+        title = QLabel("Teknisyen Durumu")
+        title.setStyleSheet(theme_qss("color: @text; font-size: 12px; font-weight: 800; border: none;"))
+        count = QLabel("{}/{} Aktif".format(active_count, total_count))
+        count.setStyleSheet(theme_qss("color: @success; font-size: 10px; font-weight: 700; border: none;"))
+        title_row.addWidget(title)
+        title_row.addStretch(1)
+        title_row.addWidget(count)
+        layout.addLayout(title_row)
+        for row in rows:
+            name = str(row[0] or "")
+            role = str(row[1] or "Teknisyen")
+            member = QFrame()
+            member.setStyleSheet(theme_qss("QFrame { background: @surface_alt; border: none; border-radius: 7px; }"))
+            member_layout = QHBoxLayout(member)
+            member_layout.setContentsMargins(8, 4, 8, 4)
+            labels = QVBoxLayout()
+            name_label = QLabel(name)
+            name_label.setStyleSheet(theme_qss("color: @text; font-size: 10px; font-weight: 700; border: none;"))
+            role_label = QLabel(role)
+            role_label.setStyleSheet(theme_qss("color: @text_muted; font-size: 9px; border: none;"))
+            labels.addWidget(name_label)
+            labels.addWidget(role_label)
+            member_layout.addLayout(labels, 1)
+            state = QLabel("Aktif")
+            state.setStyleSheet(theme_qss("color: @success; font-size: 9px; font-weight: 700; border: none;"))
+            member_layout.addWidget(state)
+            layout.addWidget(member)
+        if not rows:
+            empty = QLabel("Aktif teknisyen kaydi bulunamadi.")
+            empty.setStyleSheet(theme_qss("color: @text_muted; font-size: 10px; border: none;"))
+            layout.addWidget(empty)
+        self.btn_open_field_service_map = QPushButton("Canli Saha Haritasini Ac")
+        self.btn_open_field_service_map.setStyleSheet(theme_qss(DesignTokens.get_button_qss("secondary", size="sm")))
+        self.btn_open_field_service_map.clicked.connect(self.open_field_service_map)
+        layout.addWidget(self.btn_open_field_service_map)
+        parent_layout.addWidget(panel)
+
+    def open_field_service_map(self):
+        switch_page = getattr(self.main_window, "switch_page", None)
+        if callable(switch_page):
+            switch_page(61)
 
     def apply_theme_styles(self):
         if hasattr(self, "side_panel"):
@@ -1255,8 +1475,24 @@ class AppointmentsPage(QWidget):
                     font-size: 11px;
                 }
             """))
+            QTimer.singleShot(0, self._style_appointment_header)
             if not getattr(self, "_refresh_in_progress", False):
                 self.schedule_refresh(0)
+
+    def _style_appointment_header(self):
+        if not hasattr(self, "table"):
+            return
+        self.table.horizontalHeader().setStyleSheet(theme_qss("""
+            QHeaderView::section {
+                background-color: @finance_surface_alt;
+                color: @finance_text_muted;
+                padding: 10px 8px;
+                border: none;
+                border-bottom: 1px solid @finance_outline;
+                font-weight: bold;
+                font-size: 11px;
+            }
+        """))
 
     def refresh_calendar(self):
         self._refresh_in_progress = True
@@ -1276,7 +1512,7 @@ class AppointmentsPage(QWidget):
                 for i in range(7):
                     d = self.monday + timedelta(days=i)
                     date_disp = format_date(d, self.db)
-                    headers.append(f"{day_names[i+1]} {date_disp}")
+                    headers.append(f"{day_names[i+1]}\n{date_disp}")
                 self.table.setHorizontalHeaderLabels(headers)
                 
                 # Tabloyu temizle
@@ -1304,20 +1540,38 @@ class AppointmentsPage(QWidget):
                 curs = self.db.conn.cursor()
                 deleted_col = self._get_deleted_col() or None
                 query = """
-                    SELECT id, customer_name, date, time, description, color, personnel_name 
+                    SELECT id, customer_name, date, time, description, color, personnel_name, status, urgency
                     FROM appointments 
                     WHERE date BETWEEN ? AND ?
                 """
+                query_params = [start_str, end_str]
                 if deleted_col:
                     query = query.replace(
                         "WHERE date BETWEEN ? AND ?",
                         f"WHERE date BETWEEN ? AND ? AND ({deleted_col}=0 OR {deleted_col} IS NULL)",
                     )
-                curs.execute(query, (start_str, end_str))
+                if self.calendar_personnel_filter:
+                    query += " AND COALESCE(personnel_name, '')=?"
+                    query_params.append(self.calendar_personnel_filter)
+                if self.calendar_location_filter:
+                    query += " AND EXISTS (SELECT 1 FROM appointment_plan_items api WHERE api.appointment_id=appointments.id AND api.source_location_id=?)"
+                    query_params.append(int(self.calendar_location_filter))
+                curs.execute(query, tuple(query_params))
                 
                 rows = curs.fetchall()
+                today_str = datetime.now().strftime("%Y-%m-%d")
+                today_count = sum(1 for row_data in rows if str(row_data[2]) == today_str)
+                personnel_count = len({str(row_data[6] or "").strip() for row_data in rows if str(row_data[6] or "").strip()})
+                urgent_count = sum(1 for row_data in rows if row_data[8] in ('Acil', 'Kritik'))
+                completed_count = sum(1 for row_data in rows if str(row_data[7] or '').casefold().startswith('tamam'))
+                completion_percent = round(completed_count * 100 / len(rows)) if rows else 0
+                if len(self.appointment_kpi_values) == 4:
+                    self.appointment_kpi_values[0].setText(f"{today_count} Randevu")
+                    self.appointment_kpi_values[1].setText(f"{personnel_count} G\u00f6revli")
+                    self.appointment_kpi_values[2].setText(f"%{completion_percent}")
+                    self.appointment_kpi_values[3].setText(f"{urgent_count} Servis")
                 for r in rows:
-                    app_id, cust, date_val, time_val, desc, color, pers = r
+                    app_id, cust, date_val, time_val, desc, color, pers, _status, _urgency = r
                     desc = desc or ''
                     dt = datetime.strptime(date_val, "%Y-%m-%d")
                     col = (dt - self.monday).days + 1
@@ -1486,7 +1740,18 @@ class AppointmentsPage(QWidget):
             curs = self.db.conn.cursor()
             deleted_col = self._get_deleted_col() or None
             query = """
-                SELECT id, customer_name, time, description, status, color
+                SELECT id, customer_name, time, description, status, color,
+                       COALESCE(personnel_name, ''),
+                       COALESCE((
+                           SELECT sl.name
+                           FROM appointment_plan_items api
+                           JOIN stock_locations sl ON sl.id = COALESCE(
+                               api.source_location_id, api.vehicle_location_id
+                           )
+                           WHERE api.appointment_id = appointments.id
+                           ORDER BY api.id
+                           LIMIT 1
+                       ), '')
                 FROM appointments
                 WHERE date = ?
                 ORDER BY time ASC
@@ -1499,6 +1764,7 @@ class AppointmentsPage(QWidget):
             curs.execute(query, (today_str,))
             
             rows = curs.fetchall()
+            self.lbl_side_count.setText("{} Randevu".format(len(rows)))
             
             if not rows:
                 lbl_empty = QLabel("Bugün için kayıtlı\nrandevu bulunamadı.")
@@ -1508,7 +1774,7 @@ class AppointmentsPage(QWidget):
                 return
             
             for r in rows:
-                app_id, cust, time, desc, status, color = r
+                app_id, cust, time, desc, status, color, personnel_name, location_name = r
                 desc = desc or ''
                 status = status or 'Bekliyor'
                 
@@ -1517,6 +1783,7 @@ class AppointmentsPage(QWidget):
                 card.doubleClicked.connect(self.open_edit_dialog)
                 
                 status_colors = {
+                    'Planlandi': tc("accent"),
                     'Gidildi': tc("success"),
                     'Gidilmedi': tc("danger"),
                     'İşlemde': tc("warning"),
@@ -1547,12 +1814,13 @@ class AppointmentsPage(QWidget):
                 # Üst Satır (Saat + Status)
                 top = QHBoxLayout()
                 lbl_time = QLabel(f" {time}")
-                lbl_time.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+                lbl_time.setFont(QFont(DesignTokens.FONT_NAME, 10, QFont.Weight.Bold))
                 lbl_time.setStyleSheet(theme_qss("color: @text_muted; border: none; background: transparent;"))
                 top.addWidget(lbl_time)
                 top.addStretch()
                 
                 st_display = {
+                    'Planlandi': 'Planland\u0131',
                     'Bekliyor': 'Bekliyor',
                     'Gidildi': 'Geldi',
                     'Gidilmedi': 'Gelmedi',
@@ -1561,17 +1829,23 @@ class AppointmentsPage(QWidget):
                     'İptal': ' İptal'
                 }
                 lbl_st = QLabel(st_display.get(status, status))
-                lbl_st.setStyleSheet(theme_qss(f"""
-                    background-color: {border_color}20;
-                    color: {border_color if status != 'Bekliyor' else tc('disabled_text')};
-                    padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; border: none;
-                """))
+                if status == 'Planlandi':
+                    lbl_st.setStyleSheet(theme_qss(
+                        "background: @accent; color: @selection_text; padding: 2px 8px; "
+                        "border-radius: 4px; font-size: 10px; font-weight: bold; border: none;"
+                    ))
+                else:
+                    lbl_st.setStyleSheet(theme_qss(f"""
+                        background-color: {border_color}20;
+                        color: {border_color if status != 'Bekliyor' else tc('disabled_text')};
+                        padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; border: none;
+                    """))
                 top.addWidget(lbl_st)
                 c_layout.addLayout(top)
                 
                 # Müşteri
                 lbl_c = QLabel(cust)
-                lbl_c.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+                lbl_c.setFont(QFont(DesignTokens.FONT_NAME, 11, QFont.Weight.Bold))
                 lbl_c.setStyleSheet(theme_qss("color: @text; border: none; background: transparent;"))
                 lbl_c.setWordWrap(True)
                 c_layout.addWidget(lbl_c)
@@ -1581,6 +1855,20 @@ class AppointmentsPage(QWidget):
                 lbl_d = QLabel(short_desc)
                 lbl_d.setStyleSheet(theme_qss("color: @text_muted; font-size: 11px; border: none; background: transparent;"))
                 c_layout.addWidget(lbl_d)
+
+                details = []
+                if location_name:
+                    details.append("\u2302 " + str(location_name))
+                if personnel_name:
+                    details.append("\u2659 Teknisyen: " + str(personnel_name))
+                if details:
+                    lbl_meta = QLabel("\n".join(details))
+                    lbl_meta.setWordWrap(True)
+                    lbl_meta.setStyleSheet(theme_qss(
+                        "color: @text_muted; background: @surface_alt; "
+                        "border-radius: 4px; padding: 4px; font-size: 10px;"
+                    ))
+                    c_layout.addWidget(lbl_meta)
                 
                 # İşlem Butonları (Grid şeklinde 2 satır)
                 if status not in ["Tamamlandı", "İptal"]:
@@ -1591,7 +1879,7 @@ class AppointmentsPage(QWidget):
                     row1.setSpacing(5)
                     
                     if status == "Bekliyor":
-                        b_ok = self.create_outcome_btn("Gidildi", tc("success"), app_id)
+                        b_ok = self.create_outcome_btn("Gidildi", tc("success"), app_id, display_text="Yola \u00c7\u0131k\u0131ld\u0131")
                         b_no = self.create_outcome_btn("Gidilmedi", tc("danger"), app_id)
                         row1.addWidget(b_ok)
                         row1.addWidget(b_no)
@@ -1609,6 +1897,19 @@ class AppointmentsPage(QWidget):
                     b_cancel = self.create_outcome_btn("İptal", tc("disabled_text"), app_id)
                     row2.addWidget(b_done)
                     row2.addWidget(b_cancel)
+                    b_details = QPushButton("Detay G\u00f6r")
+                    b_details.setCursor(Qt.CursorShape.PointingHandCursor)
+                    b_details.setFixedHeight(28)
+                    b_details.setStyleSheet(theme_qss(
+                        "QPushButton { background: @surface_alt; color: @text; "
+                        "border: 1px solid @border; border-radius: 4px; "
+                        "font-size: 10px; font-weight: bold; } "
+                        "QPushButton:hover { border-color: @accent; color: @accent; }"
+                    ))
+                    b_details.clicked.connect(
+                        lambda _checked=False, aid=app_id: self.open_edit_dialog(aid)
+                    )
+                    row2.addWidget(b_details)
                     btns_grid.addLayout(row2)
                     
                     c_layout.addLayout(btns_grid)
@@ -1618,8 +1919,8 @@ class AppointmentsPage(QWidget):
         except Exception as e:
             logger.error(f"AppointmentsPage side panel error: {e}")
 
-    def create_outcome_btn(self, text, color, app_id):
-        btn = QPushButton(text)
+    def create_outcome_btn(self, text, color, app_id, display_text=None):
+        btn = QPushButton(display_text or text)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
         btn.setFixedHeight(28)
         btn.setStyleSheet(theme_qss(f"""

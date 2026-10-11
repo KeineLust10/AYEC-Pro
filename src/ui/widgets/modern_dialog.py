@@ -251,6 +251,23 @@ class ModernDialog(QtDialog):
             }
             #ModernDialogCard QLabel {
                 color: @text;
+                background: transparent;
+                border: none;
+            }
+            #ModernDialogCard QLabel#TransactionHeaderSubtitle {
+                color: @text_muted;
+                font-size: 11px;
+            }
+            #ModernDialogCard QLabel#TransactionAmountValue {
+                color: @text;
+                font: 700 36px 'JetBrains Mono';
+            }
+            #ModernDialogCard QLabel#TransactionAmountRate {
+                color: @text_muted;
+            }
+            #ModernDialogCard QLabel#TransactionAmountTry {
+                color: @success;
+                font-weight: 700;
             }
             #ModernDialogCard QLineEdit,
             #ModernDialogCard QTextEdit,
@@ -788,6 +805,26 @@ class ModernDialog(QtDialog):
                             background-color: @surface;
                             border: 1px solid @border;
                             border-radius: 12px;
+                        }
+                        #ModernDialogCard QLabel {
+                            color: @text;
+                            background: transparent;
+                            border: none;
+                        }
+                        #ModernDialogCard QLabel#TransactionHeaderSubtitle {
+                            color: @text_muted;
+                            font-size: 11px;
+                        }
+                        #ModernDialogCard QLabel#TransactionAmountValue {
+                            color: @text;
+                            font: 700 36px 'JetBrains Mono';
+                        }
+                        #ModernDialogCard QLabel#TransactionAmountRate {
+                            color: @text_muted;
+                        }
+                        #ModernDialogCard QLabel#TransactionAmountTry {
+                            color: @success;
+                            font-weight: 700;
                         }
                         """
                     )

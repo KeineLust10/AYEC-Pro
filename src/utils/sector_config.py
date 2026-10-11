@@ -33,11 +33,11 @@ SECTOR_INFO = {
 
 SECTOR_PAGES: Dict[SectorType, Set[int]] = {
     SectorType.OTOMOTIV: {
-        40, 41, 42, 60, 62, 30, 150, 210,
+        40, 41, 42, 43, 60, 62, 30, 150, 210,
         21, 25, 26, 90, 120,
         140, 145, 146, 147, 51, 66,
         313, 314,
-        101, 105, 106, 115,
+        100, 101, 105, 106, 115,
         10, 130, 135, 160, 180, 261, 70,
     },
     SectorType.TEKNIK_SERVIS: {
@@ -45,7 +45,7 @@ SECTOR_PAGES: Dict[SectorType, Set[int]] = {
         21, 25, 26, 90, 120,
         50, 51, 66, 140, 145, 146, 147, 150, 250, 300,
         313, 314,
-        101, 105, 106, 115,
+        100, 101, 105, 106, 115,
         10, 130, 135, 160, 180, 200, 202, 261, 70,
     },
 }
@@ -57,7 +57,7 @@ SECTOR_MENU_GROUPS: Dict[SectorType, Dict[str, List[int]]] = {
         "Servis Y\u00f6netimi": [41, 60, 62, 30, 170],
         "Müşteri": [21, 25, 26, 90, 120],
         "Ticari": [66, 140, 145, 150],
-        "Finans": [101, 105, 106, 115],
+        "Finans": [100, 101, 105, 106, 115],
         "Sistem": [10, 130, 135, 160, 180, 261, 70],
     },
     SectorType.TEKNIK_SERVIS: {
@@ -66,7 +66,7 @@ SECTOR_MENU_GROUPS: Dict[SectorType, Dict[str, List[int]]] = {
         "Müşteri": [21, 25, 26, 90, 120],
         "Ticari": [50, 66, 140, 145, 150, 250, 300],
         "Projeler": [200, 202],
-        "Finans": [101, 105, 106, 115],
+        "Finans": [100, 101, 105, 106, 115],
         "Sistem": [10, 130, 135, 160, 180, 261, 70],
     },
 }
@@ -79,7 +79,7 @@ SECTOR_MENU_GROUPS[SectorType.OTOMOTIV] = {
     "M\u00fc\u015fteri": [21, 25, 26, 90, 120],
     "Stok / Sipari\u015f": [60, 51, 66],
     "Teklif Y\u00f6netimi": [150, 313, 314],
-    "Finans": [101, 105, 106, 115],
+    "Finans": [100, 101, 105, 106, 115],
     "Sistem": [10, 130, 135, 160, 180, 261, 70],
 }
 
@@ -91,7 +91,7 @@ SECTOR_MENU_GROUPS[SectorType.TEKNIK_SERVIS] = {
     "Stok / Sipari\u015f": [50, 51, 66, 250, 300],
     "Teklif Y\u00f6netimi": [150, 313, 314],
     "Projeler": [200, 202],
-    "Finans": [101, 105, 106, 115],
+    "Finans": [100, 101, 105, 106, 115],
     "Sistem": [10, 130, 135, 160, 180, 261, 70],
 }
 

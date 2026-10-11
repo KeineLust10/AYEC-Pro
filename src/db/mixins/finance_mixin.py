@@ -198,6 +198,7 @@ class FinanceMixin:
                 ("loan_reminder", "11:00", 1, 0),
                 ("check_reminder", "11:30", 1, 0),
                 ("stock_critical", "15:00", 1, 0),
+                ("service_delivery", "17:30", 1, 0),
             ]
 
             for alert_type, trigger_time, is_enabled, is_critical in default_alerts:

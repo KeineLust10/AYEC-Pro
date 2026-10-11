@@ -189,7 +189,8 @@ class AlertSchedulerService(QObject):
             type_names = {
                 'loan_reminder': '💳 Kredi Taksit Hatırlatması',
                 'check_reminder': '📄 Çek/Senet Hatırlatması',
-                'stock_critical': '📦 Kritik Stok Uyarısı'
+                'stock_critical': '\U0001f4e6 Kritik Stok Uyarisi',
+                'service_delivery': 'Servis Teslim Uyarisi'
             }
             
             title = type_names.get(alert_data['type'], 'Uyarı')

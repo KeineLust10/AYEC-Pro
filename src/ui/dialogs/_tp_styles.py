@@ -754,7 +754,7 @@ class _TpStyles:
         layout.setContentsMargins(8, 6, 8, 8)
         layout.setSpacing(4)
         title_label = QLabel(title)
-        title_label.setFont(QFont(DesignTokens.FONT_FAMILY, 10, QFont.Weight.Bold))
+        title_label.setFont(QFont(DesignTokens.FONT_NAME, 10, QFont.Weight.Bold))
         title_label.setStyleSheet(
             theme_qss(
                 "color: @warning; background: transparent; border: none; letter-spacing: 0.2px;"

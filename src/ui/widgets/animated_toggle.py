@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import QWidget, QCheckBox
 from PyQt6.QtCore import Qt, QVariantAnimation, QEasingCurve, QRectF, QAbstractAnimation, QSize
-from PyQt6.QtGui import QPainter, QColor, QPen
+from PyQt6.QtGui import QPainter, QColor, QPen, QPainterPath
 
 class AnimatedToggle(QCheckBox):
     def __init__(self, parent=None, active_color="#2563EB", handle_color="#FFFFFF", bg_color="#94A3B8"):
@@ -52,11 +52,39 @@ class AnimatedToggle(QCheckBox):
     def paintEvent(self, event):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        if self.property("referenceCheckbox"):
+            from src.utils.theme_colors import tc
+            side = max(8.0, min(14.0, float(self.width() - 2), float(self.height() - 2)))
+            rect = QRectF((self.width() - side) / 2, (self.height() - side) / 2, side, side)
+            accent = QColor(tc("accent", default=self._active_color.name()))
+            border = accent if self.isChecked() else QColor(tc("finance_outline", default=self._border_color.name()))
+            fill = accent if self.isChecked() else QColor(tc("finance_canvas", default=self._bg_color.name()))
+            if not self.isEnabled():
+                p.setOpacity(0.55)
+            p.setPen(QPen(border, 1))
+            p.setBrush(fill)
+            p.drawRoundedRect(rect, 2, 2)
+            if self.isChecked():
+                pen = QPen(QColor(tc("selection_text", default=self._handle_color.name())), 1.6)
+                pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+                pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+                p.setPen(pen)
+                path = QPainterPath()
+                path.moveTo(rect.left() + side * 0.23, rect.top() + side * 0.51)
+                path.lineTo(rect.left() + side * 0.43, rect.top() + side * 0.72)
+                path.lineTo(rect.left() + side * 0.79, rect.top() + side * 0.28)
+                p.drawPath(path)
+            return
         
         # Draw Background
         rect = QRectF(0, 0, self.width(), self.height())
         bg = self._active_color if self.isChecked() else self._bg_color
         border = QColor("#1D4ED8") if self.isChecked() else self._border_color
+        active_token = self.property("activeThemeToken")
+        if active_token:
+            from src.utils.theme_colors import tc
+            bg = QColor(tc(str(active_token))) if self.isChecked() else QColor(tc("finance_outline"))
+            border = bg
         if not self.isEnabled():
             bg = self._disabled_color
             border = QColor("#94A3B8")

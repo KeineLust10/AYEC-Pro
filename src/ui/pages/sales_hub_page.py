@@ -3,11 +3,12 @@
 from PyQt6.QtWidgets import QTabWidget, QVBoxLayout, QWidget
 from PyQt6.QtGui import QFont
 
-from src.ui.pages.new_transaction_v2_page import NewTransactionV2Page
-from src.ui.pages.pc_builder_page import PCBuilderPage
-from src.ui.pages.smart_home_sales_page import SmartHomeSalesPage
 from src.utils.system_config import SystemConfig
 from src.utils.theme_colors import theme_qss
+
+NewTransactionV2Page = None
+PCBuilderPage = None
+SmartHomeSalesPage = None
 
 
 class SalesHubPage(QWidget):
@@ -42,7 +43,7 @@ class SalesHubPage(QWidget):
         """))
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 8, 0, 0)
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
         self.tabs = QTabWidget()
@@ -51,41 +52,36 @@ class SalesHubPage(QWidget):
             QTabWidget::pane {
                 border: none;
                 background: transparent;
-                top: 4px;
+                top: 0;
             }
             QTabBar {
                 background: transparent;
             }
             QTabBar::tab {
-                background: @surface;
-                color: @text_muted;
-                border: 1px solid @border;
-                padding: 8px 16px;
-                min-width: 130px;
-                min-height: 36px;
-                border-radius: 8px;
-                margin-right: 6px;
+                background: @finance_surface_lowest;
+                color: @finance_text_muted;
+                border: 1px solid @finance_outline;
+                padding: 4px 14px;
+                min-width: 108px;
+                min-height: 24px;
+                border-radius: 4px;
+                margin-right: 4px;
                 font-weight: 600;
-                font-size: 13px;
+                font-size: 12px;
             }
             QTabBar::tab:selected {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                    stop:0 @accent,
-                    stop:1 @accent_hover);
-                color: @selection_text;
-                border-color: @accent;
-                padding: 8px 16px;
+                background: @finance_primary;
+                color: @finance_primary_text;
+                border-color: @finance_primary;
             }
             QTabBar::tab:hover {
-                color: @text;
-                border-color: @accent;
-                background: @surface_alt;
+                color: @finance_text;
+                border-color: @finance_primary;
+                background: @finance_surface_high;
             }
             QTabBar::tab:selected:hover {
-                color: @selection_text;
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                    stop:0 @accent,
-                    stop:1 @accent_hover);
+                color: @finance_primary_text;
+                background: @finance_primary;
             }
         """))
         tab_bar = self.tabs.tabBar()
@@ -93,7 +89,9 @@ class SalesHubPage(QWidget):
         tab_bar.setExpanding(False)
         tab_bar.setUsesScrollButtons(False)
         tab_bar.setElideMode(tab_bar.elideMode())
-        tab_bar.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+        tab_font = QFont(self.font())
+        tab_font.setWeight(QFont.Weight.DemiBold)
+        tab_bar.setFont(tab_font)
 
         self.tabs.addTab(self._build_placeholder(), "💼  Satış İşlemi")
         if not self.is_automotive:
@@ -103,7 +101,8 @@ class SalesHubPage(QWidget):
         self.tabs.currentChanged.connect(self._ensure_tab_loaded)
         self.tabs.setCurrentIndex(self.initial_tab)
         self._ensure_tab_loaded(self.initial_tab)
-
+        if self.is_automotive:
+            self.tabs.tabBar().hide()
         layout.addWidget(self.tabs)
 
     def _build_placeholder(self):
@@ -123,7 +122,11 @@ class SalesHubPage(QWidget):
 
     def _ensure_tab_loaded(self, index):
         if index == 0 and self.sales_page is None:
-            self.sales_page = NewTransactionV2Page(self.db, self.main_window)
+            was_hidden = self.tabs.tabBar().isHidden()
+            page_class = NewTransactionV2Page
+            if page_class is None:
+                from src.ui.pages.new_transaction_v2_page import NewTransactionV2Page as page_class
+            self.sales_page = page_class(self.db, self.main_window)
             old = self.tabs.widget(0)
             self.tabs.removeTab(0)
             self.tabs.insertTab(0, self.sales_page, "💼  Satış İşlemi")
@@ -131,13 +134,18 @@ class SalesHubPage(QWidget):
                 old.deleteLater()
             self._normalize_tab_titles()
             self.tabs.setCurrentIndex(0)
+            if was_hidden:
+                self.tabs.tabBar().hide()
             return
 
         if self.is_automotive:
             return
 
         if index == 1 and self.smart_home_page is None:
-            self.smart_home_page = SmartHomeSalesPage(self.db, self.main_window)
+            page_class = SmartHomeSalesPage
+            if page_class is None:
+                from src.ui.pages.smart_home_sales_page import SmartHomeSalesPage as page_class
+            self.smart_home_page = page_class(self.db, self.main_window)
             old = self.tabs.widget(1)
             self.tabs.removeTab(1)
             self.tabs.insertTab(1, self.smart_home_page, "🏠  Akıllı Ev Satış")
@@ -148,7 +156,10 @@ class SalesHubPage(QWidget):
             return
 
         if index == 2 and self.pc_builder_page is None:
-            self.pc_builder_page = PCBuilderPage(self.db, self.main_window)
+            page_class = PCBuilderPage
+            if page_class is None:
+                from src.ui.pages.pc_builder_page import PCBuilderPage as page_class
+            self.pc_builder_page = page_class(self.db, self.main_window)
             old = self.tabs.widget(2)
             self.tabs.removeTab(2)
             self.tabs.insertTab(2, self.pc_builder_page, "🖥️  Bilgisayar Topla")

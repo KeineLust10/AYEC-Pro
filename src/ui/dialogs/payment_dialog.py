@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from PyQt6.QtCore import QDate, Qt
+from PyQt6.QtCore import QDate, QSize, Qt
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
     QApplication,
@@ -20,13 +20,17 @@ from PyQt6.QtWidgets import (
     QWidget,
     QScrollArea,
     QSizePolicy,
+    QStyle,
+    QToolButton,
 )
 
 from src.ui.widgets.modern_dialog import ModernDialog
 from src.utils.theme_colors import theme_qss
 from src.utils.currency_helper import CurrencyHelper
+from src.utils.exchange_rate_manager import ExchangeRateManager
 from src.utils.design_system import DesignTokens
 from src.utils.tax_settings import TaxSettings
+from src.ui.widgets.navigation_glyph import navigation_icon
 
 
 
@@ -36,7 +40,7 @@ class ModernPaymentDialog(ModernDialog):
         from src.ui.utils.ui_signal_helpers import on_ui_widget_changed
         on_ui_widget_changed(self, *args)
     def __init__(self, parent, db, customer):
-        super().__init__(title="Tahsilat Al", parent=parent, width=1280, height=860)
+        super().__init__(title="Tahsilat Al", parent=parent, width=960, height=900)
         self.set_wheel_scroll_enabled(True)
         self.db = db
         self.customer = self._normalize_customer(customer)
@@ -51,10 +55,12 @@ class ModernPaymentDialog(ModernDialog):
         self.reference_desc = None
         self.debt_items = []  # List of debt widgets
         self.selected_debts = set()  # Set of selected debt IDs
+        self._debt_selection_initialized = False
 
         self.set_footer_visible(False)
 
         self._build_ui()
+        self._configure_payment_header()
         self._load_balances()
         self._load_debt_items()
         # En yüksek borçlu (negatif bakiyeli) para birimini otomatik seç
@@ -67,6 +73,87 @@ class ModernPaymentDialog(ModernDialog):
                 best_currency = code
         self._apply_selected_currency(best_currency)
         self._apply_selected_method("Nakit")
+
+    def _configure_payment_header(self):
+        """Put customer identity and live exchange rates in the dialog chrome."""
+        header_layout = self.header.layout()
+        header_layout.setContentsMargins(16, 0, 14, 0)
+        if hasattr(self, "logo_label"):
+            self.logo_label.setFixedSize(30, 30)
+
+        identity = QWidget(self.header)
+        identity_layout = QVBoxLayout(identity)
+        identity_layout.setContentsMargins(0, 0, 0, 0)
+        identity_layout.setSpacing(1)
+
+        title_row = QHBoxLayout()
+        title_row.setContentsMargins(0, 0, 0, 0)
+        title_row.setSpacing(8)
+        title = QLabel("Tahsilat Al")
+        title.setStyleSheet(theme_qss("font-size: 14px; font-weight: 900; color: @text;"))
+        brand = QLabel("AYEC FINTECH v2.4")
+        brand.setStyleSheet(theme_qss(
+            "font-size: 8px; font-weight: 800; color: @finance_breadcrumb_active; "
+            "background: @finance_active_bg; border: 1px solid @finance_outline; "
+            "border-radius: 3px; padding: 2px 5px;"
+        ))
+        title_row.addWidget(title)
+        title_row.addWidget(brand)
+        title_row.addStretch(1)
+
+        person = QLabel("{}  \u2022  {}".format(
+            self.customer.get("name", ""), self.customer.get("phone", "") or "-"
+        ))
+        person.setStyleSheet(theme_qss("font-size: 10px; color: @text_muted;"))
+        identity_layout.addLayout(title_row)
+        identity_layout.addWidget(person)
+
+        header_layout.removeWidget(self.lbl_title)
+        self.lbl_title.hide()
+        header_layout.insertWidget(2, identity)
+
+        try:
+            usd_rate = ExchangeRateManager.get_current_rate(self.db, "USD") or 0
+            eur_rate = ExchangeRateManager.get_current_rate(self.db, "EUR") or 0
+            rates_text = "USD: {:,.4f}  |  EUR: {:,.2f} TL".format(usd_rate, eur_rate)
+        except Exception:
+            rates_text = "USD / EUR"
+        rates = QLabel(rates_text)
+        rates.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        rates.setStyleSheet(theme_qss(
+            "font-family: 'JetBrains Mono'; font-size: 9px; color: @text_muted; "
+            "background: @surface; border: 1px solid @border; border-radius: 8px; padding: 7px 10px;"
+        ))
+        rates.setFixedSize(216, 42)
+        header_layout.insertWidget(4, rates)
+
+        window_controls = QWidget(self.header)
+        controls_layout = QHBoxLayout(window_controls)
+        controls_layout.setContentsMargins(0, 0, 0, 0)
+        controls_layout.setSpacing(2)
+        for label, standard_icon, slot in (
+            ("Minimize", QStyle.StandardPixmap.SP_TitleBarMinButton, lambda: self.showMinimized()),
+            ("Maximize", QStyle.StandardPixmap.SP_TitleBarMaxButton, self._toggle_dialog_maximized),
+        ):
+            control = QPushButton()
+            control.setIcon(self.style().standardIcon(standard_icon))
+            control.setFixedSize(22, 22)
+            control.setCursor(Qt.CursorShape.PointingHandCursor)
+            control.setAccessibleName(label)
+            control.setStyleSheet(theme_qss(
+                "QPushButton { background: transparent; color: @text_muted; border: 1px solid @border; "
+                "border-radius: 4px; font-size: 11px; } QPushButton:hover { color: @accent; border-color: @accent; }"
+            ))
+            control.clicked.connect(lambda _=False, action=slot: action())
+            controls_layout.addWidget(control)
+        header_layout.insertWidget(5, window_controls)
+        self.header.setFixedHeight(62)
+
+    def _toggle_dialog_maximized(self):
+        if self.isMaximized():
+            self.showNormal()
+        else:
+            self.showMaximized()
 
     def _normalize_customer(self, customer):
         if customer is None:
@@ -127,67 +214,27 @@ class ModernPaymentDialog(ModernDialog):
         root.addWidget(card)
 
         layout = QVBoxLayout(card)
-        layout.setContentsMargins(18, 14, 18, 18)
-        layout.setSpacing(12)
-
-        # Header
-        header = QHBoxLayout()
-        head_left = QVBoxLayout()
-        head_left.setContentsMargins(0, 0, 0, 0)
-        head_left.setSpacing(4)
-        title = QLabel("Tahsilat Al")
-        title.setStyleSheet(
-            theme_qss("font-size: 24px; font-weight: 900; color: @text;")
-        )
-        customer_name = self.customer.get("name", "")
-        customer_phone = self.customer.get("phone", "") or "-"
-        customer_lbl = QLabel(f"{customer_name}  |  {customer_phone}")
-        customer_lbl.setStyleSheet(theme_qss("font-size: 13px; color: @text;"))
-        head_left.addWidget(title)
-        head_left.addWidget(customer_lbl)
-        header.addLayout(head_left)
-        header.addStretch()
-
-        btn_close = QPushButton("×")
-        btn_close.setFixedSize(34, 34)
-        btn_close.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_close.setStyleSheet(
-            theme_qss(
-                """
-                QPushButton {
-                    background: @surface_alt;
-                    color: @text_muted;
-                    border: none;
-                    border-radius: 17px;
-                    font-size: 18px;
-                    font-weight: 900;
-                }
-                QPushButton:hover {
-                    background: @danger;
-                    color: @selection_text;
-                }
-                """
-            )
-        )
-        btn_close.clicked.connect(self.reject)
-        header.addWidget(btn_close)
-        layout.addLayout(header)
+        layout.setContentsMargins(14, 10, 14, 14)
+        layout.setSpacing(9)
 
         content_row = QHBoxLayout()
-        content_row.setSpacing(14)
+        content_row.setSpacing(34)
 
         left_panel = QWidget()
+        left_panel.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         left_col = QVBoxLayout(left_panel)
         left_col.setContentsMargins(0, 0, 0, 0)
-        left_col.setSpacing(14)
+        left_col.setSpacing(8)
 
         right_panel = QWidget()
+        right_panel.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         right_col = QVBoxLayout(right_panel)
         right_col.setContentsMargins(0, 0, 0, 0)
-        right_col.setSpacing(12)
+        right_col.setSpacing(8)
+        right_col.setAlignment(Qt.AlignmentFlag.AlignTop)
 
-        content_row.addWidget(left_panel, 5)
-        content_row.addWidget(right_panel, 6)
+        content_row.addWidget(left_panel, 1)
+        content_row.addWidget(right_panel, 1)
         layout.addLayout(content_row, 1)
 
         currencies_title = QLabel("Para Birimi Seçimi")
@@ -197,42 +244,91 @@ class ModernPaymentDialog(ModernDialog):
         left_col.addWidget(currencies_title)
 
         self.currency_cards_layout = QGridLayout()
-        self.currency_cards_layout.setHorizontalSpacing(12)
-        self.currency_cards_layout.setVerticalSpacing(12)
+        self.currency_cards_layout.setHorizontalSpacing(8)
+        self.currency_cards_layout.setVerticalSpacing(8)
+        for column in range(3):
+            self.currency_cards_layout.setColumnStretch(column, 1)
         left_col.addLayout(self.currency_cards_layout)
 
         # Sol panel - Ödeme tutarı ve yöntemi
         amount_title = QLabel("Tahsilat Tutarı")
         amount_title.setStyleSheet(
-            theme_qss("font-size: 11px; font-weight: 800; color: @text_muted;")
+            theme_qss("font-size: 11px; font-weight: 800; color: @text_muted; background: transparent;")
         )
         left_col.addWidget(amount_title)
+        left_col.addSpacing(16)
+
+        amount_field = QFrame()
+        amount_field.setObjectName("PaymentAmountField")
+        amount_field.setFixedHeight(46)
+        amount_field.setStyleSheet(theme_qss(
+            "QFrame#PaymentAmountField { background: @surface; border: 2px solid @accent; border-radius: 12px; }"
+        ))
+        amount_field_layout = QHBoxLayout(amount_field)
+        amount_field_layout.setContentsMargins(12, 0, 12, 0)
+        amount_field_layout.setSpacing(8)
 
         self.inp_amount = QLineEdit()
         self.inp_amount.setPlaceholderText("0,00")
-        self.inp_amount.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.inp_amount.setFixedHeight(70)
+        self.inp_amount.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self.inp_amount.setFixedHeight(38)
         self.inp_amount.setStyleSheet(
             theme_qss(
                 """
                 QLineEdit {
-                    background: @surface;
-                    border: 2px solid @border;
-                    border-radius: 16px;
-                    padding: 12px;
+                    background: transparent;
+                    border: none;
+                    border-radius: 0;
+                    padding: 0;
                     color: @text;
-                    font-size: 24px;
-                    font-weight: 900;
-                }
-                QLineEdit:focus {
-                    border-color: @accent;
-                    background: @surface_alt;
+                    font-family: 'JetBrains Mono';
+                    font-size: 18px;
+                    font-weight: 800;
                 }
                 """
             )
         )
         self.inp_amount.textChanged.connect(self._on_amount_changed)
-        left_col.addWidget(self.inp_amount)
+        amount_field_layout.addWidget(self.inp_amount, 1)
+        self.lbl_amount_currency = QLabel()
+        self.lbl_amount_currency.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.lbl_amount_currency.setStyleSheet(theme_qss(
+            "font-family: 'JetBrains Mono'; font-size: 11px; font-weight: 800; "
+            "color: @finance_breadcrumb_active; background: transparent; border: none;"
+        ))
+        amount_field_layout.addWidget(self.lbl_amount_currency)
+        left_col.addWidget(amount_field)
+
+        quick_amounts = QHBoxLayout()
+        quick_amounts.setSpacing(6)
+        quick_label = QLabel("H\u0131zl\u0131 Ekle:")
+        quick_label.setStyleSheet(theme_qss("font-size: 9px; color: @text_muted;"))
+        quick_amounts.addWidget(quick_label)
+        self.quick_amount_buttons = {}
+        for amount in (10, 20, 50, 100):
+            button = QPushButton("+{}".format(amount))
+            button.setFixedHeight(24)
+            button.setCursor(Qt.CursorShape.PointingHandCursor)
+            button.setStyleSheet(theme_qss(
+                "QPushButton { background: @surface_alt; color: @text_muted; "
+                "border: 1px solid @border; border-radius: 5px; padding: 0 7px; font-size: 9px; }"
+                "QPushButton:hover { color: @accent; border-color: @accent; }"
+            ))
+            button.clicked.connect(lambda _=False, value=amount: self._add_quick_amount(value))
+            quick_amounts.addWidget(button)
+            self.quick_amount_buttons[amount] = button
+        quick_amounts.addStretch(1)
+        self.btn_select_all_debts = QPushButton("T\u00fcm\u00fcn\u00fc Kapat")
+        self.btn_select_all_debts.setFixedHeight(24)
+        self.btn_select_all_debts.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_select_all_debts.setStyleSheet(theme_qss(
+            "QPushButton { background: @finance_active_bg; color: @finance_breadcrumb_active; "
+            "border: 1px solid @finance_outline; border-radius: 5px; padding: 0 7px; font-size: 9px; }"
+        ))
+        self.btn_select_all_debts.clicked.connect(self._select_all_debts)
+        quick_amounts.addWidget(self.btn_select_all_debts)
+        left_col.addLayout(quick_amounts)
+        left_col.addSpacing(16)
 
         method_title = QLabel("Ödeme Yöntemi")
         method_title.setStyleSheet(
@@ -241,15 +337,20 @@ class ModernPaymentDialog(ModernDialog):
         left_col.addWidget(method_title)
 
         self.method_row = QHBoxLayout()
-        self.method_row.setSpacing(10)
+        self.method_row.setSpacing(6)
         left_col.addLayout(self.method_row)
         self._build_method_cards()
+        left_col.addSpacing(8)
 
         form = QGridLayout()
         form.setHorizontalSpacing(12)
-        form.setVerticalSpacing(12)
-        form.addWidget(self._label("Kur"), 0, 0)
-        form.addWidget(self._label("Tarih"), 0, 1)
+        form.setVerticalSpacing(4)
+        rate_title = self._label("Kur")
+        rate_title.setFixedHeight(12)
+        date_title = self._label("Tarih")
+        date_title.setFixedHeight(12)
+        form.addWidget(rate_title, 0, 0)
+        form.addWidget(date_title, 0, 1)
 
         self.lbl_rate = QLabel("1,0000")
         self.lbl_rate.setFixedHeight(46)
@@ -272,32 +373,31 @@ class ModernPaymentDialog(ModernDialog):
         self.date_edit = QDateEdit(QDate.currentDate())
         self.date_edit.setCalendarPopup(True)
         self.date_edit.setDisplayFormat("dd.MM.yyyy")
-        self.date_edit.setFixedHeight(46)
+        self.date_edit.setFixedHeight(40)
+        self.lbl_rate.setFixedHeight(40)
         self.date_edit.setStyleSheet(theme_qss(self._date_qss()))
 
         form.addWidget(self.lbl_rate, 1, 0)
         form.addWidget(self.date_edit, 1, 1)
-        left_col.addLayout(form)
-
         notes_title = QLabel("İşlem Notu")
         notes_title.setStyleSheet(
             theme_qss("font-size: 11px; font-weight: 800; color: @text_muted;")
         )
-        left_col.addWidget(notes_title)
+        notes_title.setFixedHeight(12)
 
         self.inp_notes = QTextEdit()
         self.inp_notes.setPlaceholderText(
             "İşlemle ilgili notunuzu buraya ekleyebilirsiniz..."
         )
-        self.inp_notes.setFixedHeight(100)
+        self.inp_notes.setFixedHeight(38)
         self.inp_notes.setStyleSheet(
             theme_qss(
                 """
                 QTextEdit {
                     background: @surface_alt;
                     border: 1px solid @border;
-                    border-radius: 14px;
-                    padding: 12px;
+                    border-radius: 8px;
+                    padding: 8px;
                     color: @text;
                     font-size: 13px;
                 }
@@ -308,13 +408,28 @@ class ModernPaymentDialog(ModernDialog):
                 """
             )
         )
-        left_col.addWidget(self.inp_notes)
+        form_notes = QVBoxLayout()
+        form_notes.setContentsMargins(0, 0, 0, 0)
+        form_notes.setSpacing(2)
+        form_notes.addLayout(form)
+        form_notes.addWidget(notes_title)
+        form_notes.addWidget(self.inp_notes)
+        form_notes.addSpacing(10)
+        left_col.addLayout(form_notes)
 
-        debt_section_title = QLabel("Borç Kalemleri")
+        debt_header = QHBoxLayout()
+        debt_section_title = QLabel("BOR\u00c7 KALEMLER\u0130 & FATURA E\u015eLE\u015eT\u0130RME")
         debt_section_title.setStyleSheet(
-            theme_qss("font-size: 12px; font-weight: 800; color: @text_muted;")
+            theme_qss("font-size: 13px; font-weight: 900; color: @text_muted;")
         )
-        right_col.addWidget(debt_section_title)
+        self.lbl_debt_count = QLabel("0 Kalem Bulundu")
+        self.lbl_debt_count.setStyleSheet(
+            theme_qss("font-family: 'JetBrains Mono'; font-size: 11px; color: @text_muted;")
+        )
+        debt_header.addWidget(debt_section_title)
+        debt_header.addStretch(1)
+        debt_header.addWidget(self.lbl_debt_count)
+        right_col.addLayout(debt_header)
 
         self.debt_scroll = QScrollArea()
         self.debt_scroll.setWidgetResizable(True)
@@ -326,9 +441,9 @@ class ModernPaymentDialog(ModernDialog):
             Qt.ScrollBarPolicy.ScrollBarAsNeeded
         )
         self.debt_scroll.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
         )
-        self.debt_scroll.setMinimumHeight(360)
+        self.debt_scroll.setFixedHeight(146)
         self.debt_scroll.setStyleSheet(
             theme_qss("""
             QScrollArea { background: @surface_alt; border: 1px solid @border; border-radius: 18px; }
@@ -349,77 +464,115 @@ class ModernPaymentDialog(ModernDialog):
 
         self.debt_container = QWidget()
         self.debt_layout = QVBoxLayout(self.debt_container)
-        self.debt_layout.setContentsMargins(12, 12, 12, 12)
-        self.debt_layout.setSpacing(10)
+        self.debt_layout.setContentsMargins(20, 0, 0, 0)
+        self.debt_layout.setSpacing(0)
         self.debt_layout.addStretch()
         self.debt_scroll.setWidget(self.debt_container)
-        right_col.addWidget(self.debt_scroll, 1)
+        right_col.addWidget(self.debt_scroll)
+        right_col.addSpacing(215)
 
         self.lbl_selected_total = QLabel("Seçili Toplam: 0,00")
         self.lbl_selected_total.setStyleSheet(
-            theme_qss("font-size: 16px; font-weight: 900; color: @accent;")
+            theme_qss(
+                "font-family: 'JetBrains Mono'; font-size: 10px; font-weight: 700; color: @text_muted; "
+                "background: @surface; border-top: 1px solid @border; padding: 4px 8px;"
+            )
         )
+        self.lbl_selected_total.setFixedHeight(24)
         self.lbl_selected_total.setAlignment(Qt.AlignmentFlag.AlignRight)
-        right_col.addWidget(self.lbl_selected_total)
-
         vat_frame = QFrame()
+        vat_frame.setObjectName("PaymentVatSummary")
+        vat_frame.setFixedHeight(118)
         vat_frame.setStyleSheet(
             theme_qss("""
-            QFrame {
+            QFrame#PaymentVatSummary {
                 background: @surface_alt;
                 border: 1px solid @border;
                 border-radius: 14px;
-                padding: 12px;
+                padding: 0;
             }
         """)
         )
         vat_layout = QVBoxLayout(vat_frame)
-        vat_layout.setSpacing(10)
-        vat_layout.setContentsMargins(15, 15, 15, 15)
+        vat_layout.setSpacing(4)
+        vat_layout.setContentsMargins(8, 8, 8, 8)
 
         vat_header = QHBoxLayout()
-        vat_header.addWidget(self._label("KDV Hesaplama"))
+        vat_header.addWidget(self._label("KDV Da\u011f\u0131l\u0131m\u0131"))
         vat_header.addStretch()
 
         self.combo_vat_rate = QComboBox()
-        self.combo_vat_rate.addItems(["%20", "%18", "%10", "%8", "%1", "KDV Hariç"])
+        self.combo_vat_rate.addItems(["%0", "%10", "%20", "%18", "%8", "%1", "KDV Hari\u00e7"])
         default_vat_text = TaxSettings.combo_text(self.db)
         if self.combo_vat_rate.findText(default_vat_text) < 0:
             self.combo_vat_rate.insertItem(0, default_vat_text)
         self.combo_vat_rate.setCurrentText(default_vat_text)
         self.combo_vat_rate.setStyleSheet(theme_qss(self._combo_qss()))
         self.combo_vat_rate.currentTextChanged.connect(self._calculate_vat)
-        self.combo_vat_rate.setFixedWidth(120)
+        self.combo_vat_rate.setFixedSize(104, 24)
         vat_header.addWidget(self.combo_vat_rate)
         vat_layout.addLayout(vat_header)
 
         vat_grid = QGridLayout()
-        vat_grid.setHorizontalSpacing(12)
-        vat_grid.setVerticalSpacing(8)
+        vat_grid.setHorizontalSpacing(8)
+        vat_grid.setVerticalSpacing(4)
 
         vat_grid.addWidget(self._label("Net Tutar"), 0, 0)
         self.lbl_net_amount = QLabel("0,00")
+        self.lbl_net_amount.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.lbl_net_amount.setStyleSheet(
-            theme_qss("font-size: 14px; font-weight: 700; color: @text;")
+            theme_qss("font-size: 12px; font-weight: 700; color: @text; background-color: transparent;")
         )
         vat_grid.addWidget(self.lbl_net_amount, 1, 0)
 
         vat_grid.addWidget(self._label("KDV Tutarı"), 0, 1)
         self.lbl_vat_amount = QLabel("0,00")
+        self.lbl_vat_amount.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.lbl_vat_amount.setStyleSheet(
-            theme_qss("font-size: 14px; font-weight: 700; color: @warning;")
+            theme_qss("font-size: 12px; font-weight: 700; color: @warning; background-color: transparent;")
         )
         vat_grid.addWidget(self.lbl_vat_amount, 1, 1)
 
         vat_grid.addWidget(self._label("GENEL TOPLAM"), 0, 2)
         self.lbl_total_with_vat = QLabel("0,00")
+        self.lbl_total_with_vat.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self.lbl_total_with_vat.setStyleSheet(
-            theme_qss("font-size: 16px; font-weight: 900; color: @success;")
+            theme_qss("font-size: 14px; font-weight: 900; color: @success; background-color: transparent;")
         )
         vat_grid.addWidget(self.lbl_total_with_vat, 1, 2)
 
         vat_layout.addLayout(vat_grid)
         right_col.addWidget(vat_frame)
+
+        payment_preview = QFrame()
+        payment_preview.setFixedHeight(58)
+        payment_preview.setObjectName("PaymentBalancePreview")
+        payment_preview.setStyleSheet(theme_qss(
+            "QFrame#PaymentBalancePreview { background: @surface_alt; border: 1px solid @border; border-radius: 8px; }"
+        ))
+        preview_layout = QHBoxLayout(payment_preview)
+        preview_layout.setContentsMargins(10, 6, 10, 6)
+        preview_layout.setSpacing(8)
+        preview_text = QVBoxLayout()
+        preview_text.setContentsMargins(0, 0, 0, 0)
+        preview_text.setSpacing(1)
+        preview_title = QLabel("Tahsil Edilecek Net Bakiye")
+        preview_title.setStyleSheet(theme_qss("font-size: 9px; font-weight: 700; color: @text_muted; background: transparent; border: none;"))
+        self.lbl_net_balance_preview = QLabel("0,00")
+        self.lbl_net_balance_preview.setStyleSheet(theme_qss(
+            "font-family: 'JetBrains Mono'; font-size: 16px; font-weight: 900; color: @text; background: transparent; border: none;"
+        ))
+        preview_text.addWidget(preview_title)
+        preview_text.addWidget(self.lbl_net_balance_preview)
+        preview_layout.addLayout(preview_text)
+        preview_layout.addStretch(1)
+        self.lbl_try_equivalent = QLabel("0,00 TL")
+        self.lbl_try_equivalent.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.lbl_try_equivalent.setStyleSheet(theme_qss(
+            "font-family: 'JetBrains Mono'; font-size: 11px; font-weight: 800; color: @success; background: transparent; border: none;"
+        ))
+        preview_layout.addWidget(self.lbl_try_equivalent)
+        right_col.addWidget(payment_preview)
 
         # Taksit Bölümü
         self.installment_frame = QFrame()
@@ -440,7 +593,7 @@ class ModernPaymentDialog(ModernDialog):
         inst_header = QHBoxLayout()
         self.chk_installment = QCheckBox("Taksitli Ödeme")
         self.chk_installment.setStyleSheet(
-            theme_qss("font-size: 13px; font-weight: 700; color: @text;")
+            theme_qss("font-size: 13px; font-weight: 700; color: @text; background: transparent;")
         )
         self.chk_installment.toggled.connect(self._toggle_installment)
         inst_header.addWidget(self.chk_installment)
@@ -543,8 +696,9 @@ class ModernPaymentDialog(ModernDialog):
 
     def _label(self, text):
         lbl = QLabel(text)
+        lbl.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         lbl.setStyleSheet(
-            theme_qss("font-size: 11px; font-weight: 800; color: @text_muted;")
+            theme_qss("font-size: 11px; font-weight: 800; color: @text_muted; background-color: transparent;")
         )
         return lbl
 
@@ -566,26 +720,14 @@ class ModernPaymentDialog(ModernDialog):
         """
 
     def _build_currency_cards(self):
-        """Varsayılan dövizi her zaman, diğerlerini sadece bakiye varsa göster."""
+        """Show supported currencies in a single reference-aligned card row."""
         while self.currency_cards_layout.count():
             item = self.currency_cards_layout.takeAt(0)
             self._dispose_layout_item(item)
 
-        default_currency = CurrencyHelper.get_code(self.db)
-        visible_codes = []
-        for code in ("TRY", "USD", "EUR"):
-            balance = float(self.customer_balances.get(code, 0.0) or 0.0)
-            if code == default_currency or abs(balance) > 0.0001:
-                visible_codes.append(code)
-
-        if not visible_codes:
-            visible_codes = [default_currency]
-
-        for idx, code in enumerate(visible_codes):
-            row = idx // 2
-            col = idx % 2
+        for idx, code in enumerate(("USD", "EUR", "TRY")):
             self.currency_cards_layout.addWidget(
-                self._create_currency_card(code), row, col
+                self._create_currency_card(code), 0, idx
             )
 
     def _create_currency_card(self, code):
@@ -595,7 +737,9 @@ class ModernPaymentDialog(ModernDialog):
         card = QFrame()
         card.setObjectName(f"CurrencyCard_{code}")
         card.setCursor(Qt.CursorShape.PointingHandCursor)
-        card.setFixedHeight(100)
+        card.setFixedHeight(74)
+        card.setMinimumWidth(0)
+        card.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
 
         # Borç durumuna göre renk
         has_debt = balance < -0.01
@@ -626,8 +770,8 @@ class ModernPaymentDialog(ModernDialog):
         )
 
         layout = QVBoxLayout(card)
-        layout.setContentsMargins(16, 14, 16, 14)
-        layout.setSpacing(6)
+        layout.setContentsMargins(9, 7, 9, 7)
+        layout.setSpacing(1)
 
         # Para birimi adı
         lbl_code = QLabel(code)
@@ -635,7 +779,7 @@ class ModernPaymentDialog(ModernDialog):
             theme_qss(f"""
             background: transparent;
             border: none;
-            font-size: 13px;
+            font-size: 10px;
             font-weight: 800;
             color: {text_color};
         """)
@@ -643,22 +787,17 @@ class ModernPaymentDialog(ModernDialog):
         layout.addWidget(lbl_code)
 
         # Bakiye tutarı
-        display_balance = CurrencyHelper.convert_amount(
-            self.db,
-            abs(balance),
-            from_currency=code,
-            to_currency=self.selected_currency,
-        )
+        display_balance = abs(balance)
         lbl_amount = QLabel(
             CurrencyHelper.format_amount(
-                display_balance, currency_code=self.selected_currency
+                display_balance, currency_code=code
             )
         )
         lbl_amount.setStyleSheet(
             theme_qss(f"""
             background: transparent;
             border: none;
-            font-size: 24px;
+            font-size: 16px;
             font-weight: 900;
             color: {text_color};
         """)
@@ -669,7 +808,7 @@ class ModernPaymentDialog(ModernDialog):
         if abs(balance) < 0.01:
             status_text = "Bakiye Kapalı"
         elif balance < 0:
-            status_text = f"Borç: {CurrencyHelper.format_amount(display_balance, currency_code=self.selected_currency)}"
+            status_text = f"Bor\u00e7: {CurrencyHelper.format_amount(display_balance, currency_code=code)}"
         else:
             status_text = f"Fazla Ödeme"
 
@@ -694,10 +833,23 @@ class ModernPaymentDialog(ModernDialog):
 
     def _build_method_cards(self):
         methods = ["Nakit", "Kredi Kartı", "Havale / EFT", "Çek / Senet"]
+        icons = {
+            "Nakit": "money",
+            "Kredi Kart\u0131": "card",
+            "Havale / EFT": "bank",
+            "\u00c7ek / Senet": "document",
+        }
+        self._method_icon_kinds = icons
         for method in methods:
-            btn = QPushButton(method)
+            btn = QToolButton()
+            btn.setText(method)
+            btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+            btn.setIconSize(QSize(16, 16))
+            btn.setIcon(navigation_icon(icons[method], 16, "text_muted"))
+            btn.setCheckable(True)
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            btn.setMinimumHeight(50)
+            btn.setMinimumHeight(54)
+            btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             btn.clicked.connect(
                 lambda _=False, value=method: self._apply_selected_method(value)
             )
@@ -734,6 +886,9 @@ class ModernPaymentDialog(ModernDialog):
                 seen_ids.add(debt_id)
                 unique_items.append(debt)
             self.debt_items = unique_items
+            self.debt_items.sort(
+                key=lambda debt: str(debt[5] or "") if len(debt) > 5 else ""
+            )
             self._refresh_debt_list()
         except Exception as e:
             print(f"Borç kalemleri yüklenirken hata: {e}")
@@ -757,10 +912,53 @@ class ModernPaymentDialog(ModernDialog):
             seen_ids.add(debt_id)
             filtered_debts.append(debt)
 
+        if not self._debt_selection_initialized:
+            self.selected_debts = {
+                debt[0] for debt in filtered_debts if debt and debt[0] is not None
+            }
+            self._debt_selection_initialized = True
+
+        if hasattr(self, "lbl_debt_count"):
+            self.lbl_debt_count.setText("{} Kalem Bulundu".format(len(filtered_debts)))
+
         visible_debt_ids = {debt[0] for debt in filtered_debts}
         self.selected_debts = {
             debt_id for debt_id in self.selected_debts if debt_id in visible_debt_ids
         }
+
+        table_header = QWidget()
+        table_header.setObjectName("PaymentDebtTableHeader")
+        table_header.setFixedHeight(26)
+        table_header.setStyleSheet(theme_qss(
+            "QWidget#PaymentDebtTableHeader { background: @surface; border-bottom: 1px solid @border; }"
+        ))
+        table_header_layout = QHBoxLayout(table_header)
+        table_header_layout.setContentsMargins(6, 2, 6, 2)
+        table_header_layout.setSpacing(6)
+        for text, width, alignment in (
+            ("Se\u00e7", 18, Qt.AlignmentFlag.AlignCenter),
+            ("Tarih / Ref", 102, Qt.AlignmentFlag.AlignLeft),
+        ):
+            header_cell = QLabel(text)
+            header_cell.setFixedWidth(width)
+            header_cell.setAlignment(alignment | Qt.AlignmentFlag.AlignVCenter)
+            header_cell.setStyleSheet(theme_qss(
+                "font-size: 12px; font-weight: 800; color: @text_muted; background: transparent; border: none;"
+            ))
+            table_header_layout.addWidget(header_cell)
+        description_header = QLabel("\u0130\u015flem / Hizmet Tan\u0131m\u0131")
+        description_header.setStyleSheet(theme_qss(
+            "font-size: 12px; font-weight: 800; color: @text_muted; background: transparent; border: none;"
+        ))
+        table_header_layout.addWidget(description_header, 1)
+        amount_header = QLabel("Tutar")
+        amount_header.setFixedWidth(86)
+        amount_header.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        amount_header.setStyleSheet(theme_qss(
+            "font-size: 12px; font-weight: 800; color: @text_muted; background: transparent; border: none;"
+        ))
+        table_header_layout.addWidget(amount_header)
+        self.debt_layout.addWidget(table_header)
 
         if not filtered_debts:
             no_debt_lbl = QLabel("Açık borç bulunmamaktadır.")
@@ -774,7 +972,9 @@ class ModernPaymentDialog(ModernDialog):
                 debt_widget = self._create_debt_item_widget(debt)
                 self.debt_layout.addWidget(debt_widget)
 
+        self.debt_layout.addWidget(self.lbl_selected_total)
         self.debt_layout.addStretch()
+        self._update_selected_total()
         self.debt_container.adjustSize()
         self.debt_container.updateGeometry()
         self.debt_scroll.viewport().update()
@@ -815,25 +1015,23 @@ class ModernPaymentDialog(ModernDialog):
         frame.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum
         )
-        frame.setStyleSheet(
-            theme_qss("""
-            QFrame {
-                background: @surface_alt;
-                border: 1px solid @border;
-                border-radius: 12px;
-            }
-            QFrame:hover {
-                border-color: @accent;
-            }
-        """)
-        )
+        frame.setStyleSheet(theme_qss(f"""
+            QFrame#DebtItem_{debt_id} {{
+                background: transparent;
+                border: none;
+                border-bottom: 1px solid @border;
+                border-radius: 0;
+            }}
+            QFrame#DebtItem_{debt_id}:hover {{ background: @surface; }}
+        """))
 
         main_layout = QVBoxLayout(frame)
-        main_layout.setContentsMargins(12, 12, 12, 12)
-        main_layout.setSpacing(8)
+        main_layout.setContentsMargins(6, 1, 6, 1)
+        main_layout.setSpacing(0)
 
         # Üst satır - Checkbox + Özet bilgi
         header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(0, 4, 0, 4)
 
         checkbox = QCheckBox()
         checkbox.setChecked(debt_id in self.selected_debts)
@@ -842,29 +1040,37 @@ class ModernPaymentDialog(ModernDialog):
         )
         header_layout.addWidget(checkbox)
 
+        date_ref = QWidget()
+        date_ref_layout = QVBoxLayout(date_ref)
+        date_ref_layout.setContentsMargins(0, 0, 0, 0)
+        date_ref_layout.setSpacing(1)
+        date_ref.setStyleSheet(theme_qss("background: transparent;"))
+        date_text = str(created_at or "-")[:10]
+        if len(date_text) == 10 and date_text[4] == "-":
+            date_text = "{}.{}.{}".format(date_text[8:10], date_text[5:7], date_text[0:4])
+        lbl_date = QLabel(date_text)
+        lbl_date.setStyleSheet(theme_qss(
+            "font-family: 'JetBrains Mono'; font-size: 12px; color: @text_muted; background: transparent;"
+        ))
+        lbl_ref = QLabel("#{}".format(tracking_no or "-"))
+        lbl_ref.setStyleSheet(theme_qss(
+            "font-family: 'JetBrains Mono'; font-size: 11px; color: @finance_breadcrumb_active; background: transparent;"
+        ))
+        date_ref_layout.addWidget(lbl_date)
+        date_ref_layout.addWidget(lbl_ref)
+        date_ref.setFixedWidth(102)
+        header_layout.addWidget(date_ref)
+
         # Açıklama
         desc_text = description or "Borç Kaydı"
         if len(desc_text) > 56:
             desc_text = desc_text[:53] + "..."
         lbl_desc = QLabel(desc_text)
         lbl_desc.setStyleSheet(
-            theme_qss("font-size: 13px; font-weight: 700; color: @text;")
+            theme_qss("font-size: 13px; font-weight: 700; color: @text; background: transparent;")
         )
         lbl_desc.setWordWrap(True)
         header_layout.addWidget(lbl_desc, 1)
-
-        lbl_currency = QLabel(str(currency or "TRY").upper())
-        lbl_currency.setStyleSheet(
-            theme_qss("""
-            font-size: 11px;
-            font-weight: 800;
-            color: @selection_text;
-            background: @accent;
-            border-radius: 10px;
-            padding: 4px 8px;
-        """)
-        )
-        header_layout.addWidget(lbl_currency)
 
         remaining_amount = self._get_debt_remaining_amount(debt)
         display_amount = CurrencyHelper.convert_amount(
@@ -879,13 +1085,14 @@ class ModernPaymentDialog(ModernDialog):
             )
         )
         lbl_amount.setStyleSheet(
-            theme_qss("font-size: 14px; font-weight: 900; color: @warning;")
+            theme_qss("font-family: 'JetBrains Mono'; font-size: 13px; font-weight: 800; color: @text; background: transparent;")
         )
-        header_layout.addWidget(lbl_amount)
+        lbl_amount.setFixedWidth(86)
+        lbl_amount.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
         # Detay butonu
         btn_toggle = QPushButton("▼")
-        btn_toggle.setFixedSize(28, 28)
+        btn_toggle.setFixedSize(18, 18)
         btn_toggle.setStyleSheet(
             theme_qss("""
             QPushButton {
@@ -900,6 +1107,7 @@ class ModernPaymentDialog(ModernDialog):
         """)
         )
         header_layout.addWidget(btn_toggle)
+        header_layout.addWidget(lbl_amount)
 
         main_layout.addLayout(header_layout)
 
@@ -1125,6 +1333,7 @@ class ModernPaymentDialog(ModernDialog):
     def _update_selected_total(self):
         """Seçili borçların toplamını hesapla ve göster"""
         total = 0.0
+        total_try = 0.0
 
         for debt in self.debt_items:
             debt_id, _amount, currency, _, _, _, _ = debt
@@ -1136,9 +1345,19 @@ class ModernPaymentDialog(ModernDialog):
                     from_currency=currency,
                     to_currency=self.selected_currency,
                 )
+                total_try += CurrencyHelper.convert_amount(
+                    self.db,
+                    remaining_amount,
+                    from_currency=currency,
+                    to_currency="TRY",
+                )
 
         symbol = self._symbol(self.selected_currency)
-        self.lbl_selected_total.setText(f"Seçili Toplam: {symbol}{total:,.2f}")
+        try_symbol = self._symbol("TRY")
+        self.lbl_selected_total.setText(
+            f"Se\u00e7ilen Kalemler Toplam\u0131: {total:,.2f} {symbol} "
+            f"({total_try:,.2f} {try_symbol})"
+        )
 
         if total > 0:
             self.inp_amount.setText(
@@ -1148,11 +1367,17 @@ class ModernPaymentDialog(ModernDialog):
     def _apply_selected_currency(self, currency):
         self.selected_currency = currency or CurrencyHelper.get_code(self.db)
         self.selected_exchange_rate = self._get_rate(self.selected_currency)
+        if hasattr(self, "lbl_amount_currency"):
+            self.lbl_amount_currency.setText(
+                "{} {}".format(self._symbol(self.selected_currency), self.selected_currency)
+            )
         self.lbl_rate.setText(
             f"{self.selected_exchange_rate:,.4f}".replace(",", "X")
             .replace(".", ",")
             .replace("X", ".")
         )
+        for amount, button in getattr(self, "quick_amount_buttons", {}).items():
+            button.setText("+{} {}".format(amount, self._symbol(self.selected_currency)))
 
         # Kartları yeniden çiz
         self._build_currency_cards()
@@ -1160,24 +1385,30 @@ class ModernPaymentDialog(ModernDialog):
         # Borç listesini güncelle
         self._refresh_debt_list()
         self._update_selected_total()
+        self._update_net_balance_preview()
 
     def _apply_selected_method(self, method):
         self.selected_method = method
         for name, button in self.method_buttons.items():
             is_active = name == self.selected_method
+            button.setChecked(is_active)
+            button.setIcon(navigation_icon(
+                self._method_icon_kinds[name], 16,
+                "selection_text" if is_active else "text_muted",
+            ))
             button.setStyleSheet(
                 theme_qss(
                     f"""
-                    QPushButton {{
+                    QToolButton {{
                         background: {"@accent" if is_active else "@surface_alt"};
                         color: {"@selection_text" if is_active else "@text"};
                         border: 1px solid {"@accent" if is_active else "@border"};
                         border-radius: 12px;
-                        padding: 10px 12px;
-                        font-size: 12px;
+                        padding: 5px 4px;
+                        font-size: 11px;
                         font-weight: 800;
                     }}
-                    QPushButton:hover {{
+                    QToolButton:hover {{
                         border-color: @accent;
                         background: {"@accent" if is_active else "@surface"};
                     }}
@@ -1202,8 +1433,43 @@ class ModernPaymentDialog(ModernDialog):
     def _on_amount_changed(self):
         """Tutar değiştiğinde KDV hesapla"""
         self._calculate_vat()
+        self._update_net_balance_preview()
         if self.chk_installment.isChecked():
             self._calculate_installment()
+
+    def _update_net_balance_preview(self):
+        if not hasattr(self, "lbl_net_balance_preview"):
+            return
+        amount_text = self.inp_amount.text().strip().replace(".", "").replace(",", ".")
+        try:
+            amount = float(amount_text or 0.0)
+        except Exception:
+            amount = 0.0
+        self.lbl_net_balance_preview.setText(
+            CurrencyHelper.format_amount(amount, currency_code=self.selected_currency)
+        )
+        try:
+            equivalent = amount * float(self.selected_exchange_rate or 1.0)
+        except Exception:
+            equivalent = amount
+        self.lbl_try_equivalent.setText(
+            "{:,.2f} TL".format(equivalent).replace(",", "X").replace(".", ",").replace("X", ".")
+        )
+
+    def _add_quick_amount(self, increment):
+        amount_text = self.inp_amount.text().strip().replace(".", "").replace(",", ".")
+        try:
+            amount = float(amount_text or 0.0) + float(increment)
+        except Exception:
+            amount = float(increment)
+        self.inp_amount.setText(
+            "{:,.2f}".format(amount).replace(",", "X").replace(".", ",").replace("X", ".")
+        )
+
+    def _select_all_debts(self):
+        checkboxes = self.debt_container.findChildren(QCheckBox)
+        for checkbox in checkboxes:
+            checkbox.setChecked(True)
 
     def handle_save(self):
         amount_str = self.inp_amount.text().strip().replace(".", "").replace(",", ".")

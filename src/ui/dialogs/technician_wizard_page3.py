@@ -12,6 +12,8 @@ from PyQt6.QtCore import Qt, QDate, QEvent
 from PyQt6.QtGui import QFont
 
 from src.ui.widgets.modern_inputs import ValidatedLineEdit, ModernComboBox
+from src.ui.widgets.reference_date_edit import ReferenceDateEdit
+from src.ui.widgets.financial_reference_controls import FinancialReferenceActionButton
 from src.utils.theme_colors import theme_qss
 from src.utils.status_utils import CANONICAL_DEVICE_STATUSES, normalize_device_status
 from src.utils.validators import Validators
@@ -55,7 +57,7 @@ class TechnicianWizardPage3(QWidget):
         
         # Page Title
         title = QLabel("Par\u00e7a Kullan\u0131m\u0131 ve Durum G\u00fcncelleme")
-        title.setFont(QFont(DesignTokens.FONT_FAMILY, 11, QFont.Weight.Bold))
+        title.setFont(QFont(DesignTokens.FONT_NAME, 11, QFont.Weight.Bold))
         title.setStyleSheet(theme_qss("color: @text; font-weight: bold; border: none; background: transparent;"))
         main_layout.addWidget(title)
         
@@ -74,6 +76,8 @@ class TechnicianWizardPage3(QWidget):
         # Parts section
         self.parts_group = self.create_parts_section()
         main_layout.addWidget(self.parts_group)
+        for editor in (self.inp_labor, self.inp_part_cost, self.inp_cargo, self.date_warranty):
+            editor.setFont(QFont(DesignTokens.MONO_FONT_NAME, 9))
 
     def _wire_ui_signals(self):
         self.combo_status.currentIndexChanged.connect(self._on_ui_widget_changed)
@@ -230,7 +234,7 @@ class TechnicianWizardPage3(QWidget):
         """Create status and delivery section"""
         group = QGroupBox("\U0001f4e6 Servis Durumu ve Teslimat")
         group.setTitle("Servis Durumu ve Teslimat")
-        group.setFont(QFont(DesignTokens.FONT_FAMILY, 10, QFont.Weight.Bold))
+        group.setFont(QFont(DesignTokens.FONT_NAME, 10, QFont.Weight.Bold))
         group.setStyleSheet(theme_qss(f"""
             QGroupBox {{
                 background: transparent;
@@ -285,7 +289,7 @@ class TechnicianWizardPage3(QWidget):
         lbl_warranty_end.setStyleSheet(theme_qss(f"color: {DesignTokens.FOREGROUND}; font-weight: 600; border: none; background: transparent;"))
         grid.addWidget(lbl_warranty_end, 2, 0)
         
-        self.date_warranty = QDateEdit()
+        self.date_warranty = ReferenceDateEdit(QDate.currentDate())
         self.date_warranty.setCalendarPopup(True)
         if self.warranty_date:
             try:
@@ -318,7 +322,7 @@ class TechnicianWizardPage3(QWidget):
         """Create finance section"""
         group = QGroupBox("\U0001f4b0 Finansal Bilgiler")
         group.setTitle("Finansal Bilgiler")
-        group.setFont(QFont(DesignTokens.FONT_FAMILY, 10, QFont.Weight.Bold))
+        group.setFont(QFont(DesignTokens.FONT_NAME, 10, QFont.Weight.Bold))
         group.setStyleSheet(theme_qss(f"""
             QGroupBox {{
                 background: transparent;
@@ -354,6 +358,7 @@ class TechnicianWizardPage3(QWidget):
         self.inp_labor = ValidatedLineEdit("0.00", validator_func=Validators.is_numeric)
         self.inp_labor.setText(str(self.device_dict.get('labor_cost', "0.00")))
         self.inp_labor.setStyleSheet(theme_qss(f"color: @text;"))
+        self.inp_labor.setProperty("referenceFont", "mono")
         self.inp_labor.setMinimumHeight(32)
         self.inp_labor.setAccessibleName("servis_ucreti")
         grid.addWidget(self.inp_labor, 1, 0)
@@ -367,6 +372,7 @@ class TechnicianWizardPage3(QWidget):
         self.inp_part_cost = ValidatedLineEdit("0.00")
         self.inp_part_cost.setReadOnly(True)
         self.inp_part_cost.setStyleSheet(theme_qss(f"background: {DesignTokens.BORDER}20; color: {DesignTokens.MUTED_FOREGROUND};"))
+        self.inp_part_cost.setProperty("referenceFont", "mono")
         self.inp_part_cost.setMinimumHeight(32)
         self.inp_part_cost.setAccessibleName("parca_maliyeti")
         grid.addWidget(self.inp_part_cost, 1, 1)
@@ -381,6 +387,7 @@ class TechnicianWizardPage3(QWidget):
         if self.cargo_fee:
             self.inp_cargo.setText(str(self.cargo_fee))
         self.inp_cargo.setStyleSheet(theme_qss(f"color: @text;"))
+        self.inp_cargo.setProperty("referenceFont", "mono")
         self.inp_cargo.setMinimumHeight(32)
         self.inp_cargo.setAccessibleName("kargo_ucreti")
         grid.addWidget(self.inp_cargo, 3, 0)
@@ -407,7 +414,7 @@ class TechnicianWizardPage3(QWidget):
         """Create parts usage section"""
         group = QGroupBox("\U0001f527 Kullan\u0131lan Par\u00e7alar")
         group.setTitle("Kullan\u0131lan Par\u00e7alar")
-        group.setFont(QFont(DesignTokens.FONT_FAMILY, 10, QFont.Weight.Bold))
+        group.setFont(QFont(DesignTokens.FONT_NAME, 10, QFont.Weight.Bold))
         group.setStyleSheet(theme_qss(f"""
             QGroupBox {{
                 background: transparent;
@@ -480,8 +487,11 @@ class TechnicianWizardPage3(QWidget):
         self.table_used_parts.setMinimumHeight(280)
         self.table_used_parts.setMaximumHeight(450)
         self.table_used_parts.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self.table_used_parts.setColumnCount(4)
-        self.table_used_parts.setHorizontalHeaderLabels(["Par\u00e7a / Hizmet", "Tutar", "Tarih", "\u0130\u015flem"])
+        self.table_used_parts.setColumnCount(5)
+        self.table_used_parts.setHorizontalHeaderLabels(["Par\u00e7a / Hizmet", "Tutar", "Tarih", "\u0130\u015flem", "Kaynak Depo"])
+        self.table_used_parts.horizontalHeader().moveSection(4, 1)
+        for column, width in ((1, 110), (2, 168), (3, 56), (4, 112)):
+            self.table_used_parts.setColumnWidth(column, width)
         self.table_used_parts.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.table_used_parts.verticalHeader().setVisible(False)
         self.table_used_parts.setShowGrid(False)
@@ -580,17 +590,24 @@ class TechnicianWizardPage3(QWidget):
             has_quantity = "quantity" in _cols
             has_rate = "exchange_rate" in _cols
             has_price_try = "price_try" in _cols
+            has_location = "stock_location_id" in _cols
+            locations = {}
+            if has_location:
+                location_table = cur.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='stock_locations'").fetchone()
+                if location_table:
+                    locations = dict(cur.execute("SELECT id, name FROM stock_locations").fetchall())
             deleted_col = "is_deleted" if "is_deleted" in _cols else ("is_archived" if "is_archived" in _cols else None)
 
             query = (
                 "SELECT id, part_name, price, created_at, {currency}, "
-                "{quantity}, {rate}, {price_try} FROM used_parts "
+                "{quantity}, {rate}, {price_try}, {location} FROM used_parts "
                 "WHERE tracking_no=? ORDER BY id DESC"
             ).format(
                 currency="COALESCE(currency,'TRY')" if has_currency else "'TRY'",
                 quantity="COALESCE(quantity,1)" if has_quantity else "1",
                 rate="COALESCE(exchange_rate,1)" if has_rate else "1",
                 price_try="COALESCE(price_try,0)" if has_price_try else "0",
+                location="stock_location_id" if has_location else "NULL",
             )
             if deleted_col:
                 query = query.replace("WHERE tracking_no=?", f"WHERE tracking_no=? AND ({deleted_col}=0 OR {deleted_col} IS NULL)")
@@ -611,7 +628,10 @@ class TechnicianWizardPage3(QWidget):
                 stored_rate = float(p[6] or 0)
                 stored_price_try = float(p[7] or 0)
 
-                self.table_used_parts.setItem(row, 0, QTableWidgetItem(str(p[1])))
+                name_item = QTableWidgetItem(str(p[1]))
+                name_item.setData(Qt.ItemDataRole.UserRole, p[0])
+                self.table_used_parts.setItem(row, 0, name_item)
+                self.table_used_parts.setItem(row, 4, QTableWidgetItem(str(locations.get(p[8], "-"))))
                 self.table_used_parts.setItem(
                     row,
                     1,
@@ -622,10 +642,17 @@ class TechnicianWizardPage3(QWidget):
                     ),
                 )
                 self.table_used_parts.setItem(row, 2, QTableWidgetItem(str(p[3])))
+                for column in (1, 2):
+                    item = self.table_used_parts.item(row, column)
+                    item.setFont(QFont(DesignTokens.MONO_FONT_NAME, 9))
+                    item.setToolTip(item.text())
 
                 # Delete button
-                btn_del = QPushButton("\U0001f5d1")
-                btn_del.setFixedSize(35, 35)
+                btn_del = FinancialReferenceActionButton("", "delete", stacked=False, centered_inline=True)
+                btn_del.setFixedSize(28, 28)
+                btn_del.setAccessibleName("delete_used_part")
+                btn_del.setToolTip("Parcayi Sil")
+                btn_del.setEnabled(not getattr(self.window(), "read_only", False))
                 btn_del.setStyleSheet(theme_qss("""
                     QPushButton { background: @danger; color: @selection_text; border-radius: 4px; }
                     QPushButton:hover { background: @danger; }

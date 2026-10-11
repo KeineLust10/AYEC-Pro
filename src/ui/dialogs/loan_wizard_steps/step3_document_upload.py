@@ -105,7 +105,42 @@ class DropZoneWidget(QFrame):
     def setup_ui(self, title, subtitle):
         self.setMinimumHeight(120)
         self.setObjectName("DropZone")
-        self.setStyleSheet(theme_qss("""
+        self._apply_drop_style(False)
+
+        layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        lbl_icon = QLabel("\U0001f4e5")
+        lbl_icon.setFont(QFont("Segoe UI", 24))
+        lbl_icon.setStyleSheet(theme_qss("background: transparent; border: none;"))
+        lbl_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        lbl_title = QLabel(title)
+        lbl_title.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+        lbl_title.setStyleSheet(theme_qss("color: @text; background: transparent; border: none;"))
+        lbl_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        lbl_subtitle = QLabel(subtitle)
+        lbl_subtitle.setFont(QFont("Segoe UI", 9))
+        lbl_subtitle.setStyleSheet(theme_qss("color: @text_muted; background: transparent; border: none;"))
+        lbl_subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        layout.addWidget(lbl_icon)
+        layout.addWidget(lbl_title)
+        layout.addWidget(lbl_subtitle)
+
+    def _apply_drop_style(self, active):
+        self._drop_active = bool(active)
+        if active:
+            qss = """
+                QFrame#DropZone {
+                    border: 2px dashed @accent;
+                    border-radius: 12px;
+                    background-color: @selection_bg;
+                }
+            """
+        else:
+            qss = """
             QFrame#DropZone {
                 border: 2px dashed @border;
                 border-radius: 12px;
@@ -115,44 +150,27 @@ class DropZoneWidget(QFrame):
                 background-color: @surface_alt;
                 border-color: @accent;
             }
-        """))
-        
-        layout = QVBoxLayout(self)
-        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
-        lbl_icon = QLabel("📥")
-        lbl_icon.setFont(QFont("Segoe UI", 24))
-        lbl_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
-        lbl_title = QLabel(title)
-        lbl_title.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
-        lbl_title.setStyleSheet(theme_qss("color: @text;"))
-        lbl_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
-        lbl_subtitle = QLabel(subtitle)
-        lbl_subtitle.setFont(QFont("Segoe UI", 9))
-        lbl_subtitle.setStyleSheet(theme_qss("color: @text_muted;"))
-        lbl_subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
-        layout.addWidget(lbl_icon)
-        layout.addWidget(lbl_title)
-        layout.addWidget(lbl_subtitle)
+            """
+        self.setStyleSheet(theme_qss(qss))
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():
-            self.setStyleSheet(theme_qss(self.styleSheet().replace("@border", "@accent").replace("@surface_alt", "@selection_bg")))
-            event.accept()
+            self._apply_drop_style(True)
+            event.acceptProposedAction()
         else:
             event.ignore()
 
     def dragLeaveEvent(self, event):
-        self.setStyleSheet(theme_qss(self.styleSheet().replace("@accent", "@border").replace("@selection_bg", "@surface_alt")))
+        self._apply_drop_style(False)
 
     def dropEvent(self, event):
-        self.setStyleSheet(theme_qss(self.styleSheet().replace("@accent", "@border").replace("@selection_bg", "@surface_alt")))
-        files = [u.toLocalFile() for u in event.mimeData().urls()]
+        self._apply_drop_style(False)
+        files = [url.toLocalFile() for url in event.mimeData().urls() if url.isLocalFile()]
         if files:
             self.filesDropped.emit(files)
+            event.acceptProposedAction()
+        else:
+            event.ignore()
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:

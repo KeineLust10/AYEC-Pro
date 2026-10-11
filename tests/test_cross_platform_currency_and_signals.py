@@ -1,3 +1,4 @@
+import json
 import re
 import sqlite3
 import subprocess
@@ -52,6 +53,34 @@ def _configure_web_database(monkeypatch, path):
             supplied or rates[str(currency).upper()]
         ),
     )
+
+
+def test_unlinked_customer_payment_auto_allocation_rebuilds_currency_balance(tmp_path):
+    db = Database(str(tmp_path / "auto-allocation-balance.db"))
+    customer_id = db.add_customer({"name": "Auto Allocation Customer"})
+    assert db.add_currency_transaction(
+        customer_id, 100, "TRY", "DEBIT", exchange_rate=1.0,
+        description="Service debt", tracking_no="AUTO-ALLOC-1",
+    )
+    assert db.add_currency_transaction(
+        customer_id, 60, "TRY", "CREDIT", exchange_rate=1.0,
+        description="Unlinked payment",
+    )
+
+    allocated = db.auto_allocate_unlinked_customer_payments(customer_id, "TRY")
+
+    assert allocated == 1
+    linked_amount = db.cursor.execute(
+        "SELECT SUM(amount) FROM payment_debt_links"
+    ).fetchone()[0]
+    balance = db.cursor.execute(
+        "SELECT balance FROM customer_currency_balances "
+        "WHERE customer_id=? AND currency='TRY'",
+        (customer_id,),
+    ).fetchone()[0]
+    assert float(linked_amount) == pytest.approx(60)
+    assert float(balance) == pytest.approx(-40)
+    db.close()
 
 
 @pytest.mark.parametrize("device_type", ["Device", "Vehicle"])
@@ -146,6 +175,43 @@ def test_mixed_currency_paid_sale_updates_stock_income_and_cost(
     assert tuple(cost[:2]) == pytest.approx((750, 750))
     assert cost[2] == "TRY"
     db.close()
+
+
+def test_sales_hub_applies_discount_before_vat_and_persists_summary(
+    tmp_path, monkeypatch
+):
+    path = tmp_path / "discounted-offer.db"
+    customer_id, part_ids = _sales_database(path)
+    _configure_web_database(monkeypatch, path)
+
+    result = web_main.commit_sales_hub(
+        {
+            "mode": "proforma",
+            "customer_id": customer_id,
+            "customer_name": "Currency Test Customer",
+            "currency": "TRY",
+            "exchange_rate": 1,
+            "rates": {"TRY": 1, "USD": 40, "EUR": 50},
+            "lines": [{"product_id": part_ids[0], "qty": 1}],
+            "vat_rate": 20,
+            "discount_percent": 5,
+            "offer_no": "DISC-1",
+        }
+    )
+
+    db = Database(str(path))
+    row = db.cursor.execute(
+        "SELECT payload_json FROM offers WHERE id=?", (result["offer_id"],)
+    ).fetchone()
+    db.close()
+    payload = json.loads(row[0])
+
+    assert result["subtotal"] == pytest.approx(100)
+    assert result["discount"] == pytest.approx(5)
+    assert result["vat_amount"] == pytest.approx(19)
+    assert result["total"] == pytest.approx(114)
+    assert payload["discount_percent"] == pytest.approx(5)
+    assert payload["discount_try"] == pytest.approx(5)
 
 
 def test_web_offer_update_replaces_items_without_creating_duplicate(
@@ -339,6 +405,192 @@ def test_customer_payment_preserves_currency_rate_and_open_debt(
     assert tuple(map(float, transaction[2:])) == pytest.approx(
         (rate, expected_try, payment - debt)
     )
+
+
+def test_customer_payment_allocates_to_selected_invoice_debt(
+    tmp_path, monkeypatch
+):
+    path = tmp_path / "selected-payment-debt.db"
+    customer_id, _part_ids = _sales_database(path)
+    _configure_web_database(monkeypatch, path)
+    with sqlite3.connect(path) as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO customer_currency_balances "
+            "(customer_id,currency,balance,last_updated) VALUES (?,?,?,?)",
+            (customer_id, "TRY", -100, "2026-10-07"),
+        )
+        conn.execute(
+            "INSERT INTO currency_transactions "
+            "(customer_id,transaction_type,amount,currency,exchange_rate,try_equivalent,"
+            "description,tracking_no,created_at,current_balance,is_invoiced) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            (customer_id, "DEBIT", 100, "TRY", 1, 100, "Invoice debt", "INV-42", "2026-10-07", -100, 0),
+        )
+        debt_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+    result = web_main.record_customer_payment(
+        {
+            "customer_id": customer_id,
+            "currency": "TRY",
+            "amount": 35,
+            "exchange_rate": 1,
+            "debt_transaction_id": debt_id,
+            "reference": "INV-42",
+            "description": "Selected invoice payment",
+            "payment_method": "Bank",
+        }
+    )
+
+    assert result["allocated_debt_id"] == debt_id
+    assert result["allocated_debt_remaining"] == pytest.approx(65)
+    assert result["reference"] == "INV-42"
+    with sqlite3.connect(path) as conn:
+        allocation = conn.execute(
+            "SELECT payment_txn_id,debt_txn_id,amount FROM payment_debt_links"
+        ).fetchone()
+    assert allocation[0] == result["currency_transaction_id"]
+    assert allocation[1] == debt_id
+    assert allocation[2] == pytest.approx(35)
+    assert web_main.customer_open_debt_items(customer_id, "TRY")[0]["remaining"] == pytest.approx(65)
+
+
+def test_customer_payment_cannot_overpay_one_selected_invoice(
+    tmp_path, monkeypatch
+):
+    path = tmp_path / "selected-payment-limit.db"
+    customer_id, _part_ids = _sales_database(path)
+    _configure_web_database(monkeypatch, path)
+    with sqlite3.connect(path) as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO customer_currency_balances "
+            "(customer_id,currency,balance,last_updated) VALUES (?,?,?,?)",
+            (customer_id, "TRY", -200, "2026-10-07"),
+        )
+        for reference in ("INV-1", "INV-2"):
+            conn.execute(
+                "INSERT INTO currency_transactions "
+                "(customer_id,transaction_type,amount,currency,exchange_rate,try_equivalent,"
+                "description,tracking_no,created_at,current_balance,is_invoiced) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                (customer_id, "DEBIT", 100, "TRY", 1, 100, "Invoice debt", reference, "2026-10-07", -100, 0),
+            )
+        first_debt_id = conn.execute(
+            "SELECT id FROM currency_transactions WHERE tracking_no='INV-1'"
+        ).fetchone()[0]
+
+    with pytest.raises(ValueError, match="a\\u015famaz"):
+        web_main.record_customer_payment(
+            {
+                "customer_id": customer_id,
+                "currency": "TRY",
+                "amount": 150,
+                "exchange_rate": 1,
+                "debt_transaction_id": first_debt_id,
+                "description": "Overpayment attempt",
+            }
+        )
+
+    with sqlite3.connect(path) as conn:
+        assert conn.execute(
+            "SELECT COUNT(*) FROM currency_transactions WHERE transaction_type='CREDIT'"
+        ).fetchone()[0] == 0
+        assert conn.execute("SELECT COUNT(*) FROM payment_debt_links").fetchone()[0] == 0
+
+
+def test_customer_payment_allocates_across_selected_invoices_in_desktop_order(
+    tmp_path, monkeypatch
+):
+    path = tmp_path / "selected-multi-payment.db"
+    customer_id, _part_ids = _sales_database(path)
+    _configure_web_database(monkeypatch, path)
+    with sqlite3.connect(path) as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO customer_currency_balances "
+            "(customer_id,currency,balance,last_updated) VALUES (?,?,?,?)",
+            (customer_id, "TRY", -120, "2026-10-07"),
+        )
+        for reference, amount in (("INV-1", 50), ("INV-2", 70)):
+            conn.execute(
+                "INSERT INTO currency_transactions "
+                "(customer_id,transaction_type,amount,currency,exchange_rate,try_equivalent,"
+                "description,tracking_no,created_at,current_balance,is_invoiced) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                (customer_id, "DEBIT", amount, "TRY", 1, amount, "Invoice debt", reference, "2026-10-07", -amount, 0),
+            )
+        debt_ids = [row[0] for row in conn.execute(
+            "SELECT id FROM currency_transactions WHERE tracking_no IN ('INV-1','INV-2') ORDER BY id"
+        )]
+
+    result = web_main.record_customer_payment(
+        {
+            "customer_id": customer_id,
+            "currency": "TRY",
+            "amount": 75,
+            "exchange_rate": 1,
+            "selected_debt_ids": debt_ids,
+            "description": "Selected invoices payment",
+        }
+    )
+
+    assert result["selected_debt_ids"] == debt_ids
+    assert [(item["debt_id"], item["amount"]) for item in result["allocations"]] == [
+        (debt_ids[0], 50), (debt_ids[1], 25)
+    ]
+    with sqlite3.connect(path) as conn:
+        linked = conn.execute(
+            "SELECT debt_txn_id,amount FROM payment_debt_links ORDER BY debt_txn_id"
+        ).fetchall()
+    assert linked == [(debt_ids[0], 50), (debt_ids[1], 25)]
+
+    automatic = web_main.record_customer_payment(
+        {
+            "customer_id": customer_id,
+            "currency": "TRY",
+            "amount": 45,
+            "exchange_rate": 1,
+            "description": "Automatic FIFO payment",
+        }
+    )
+    assert automatic["allocations"] == [
+        {"debt_id": debt_ids[1], "amount": 45.0, "remaining_after": 0.0}
+    ]
+
+
+def test_web_open_debt_items_show_partial_and_unpaid_service_remainders(
+    tmp_path, monkeypatch
+):
+    path = tmp_path / "open-debt-items.db"
+    customer_id, _part_ids = _sales_database(path)
+    _configure_web_database(monkeypatch, path)
+    with sqlite3.connect(path) as conn:
+        conn.execute(
+            "INSERT INTO currency_transactions "
+            "(customer_id,transaction_type,amount,currency,exchange_rate,try_equivalent,"
+            "description,tracking_no,created_at,current_balance) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (customer_id, "DEBIT", 100, "USD", 40, 4000, "Service invoice", "SRV-001", "2026-10-01", -100),
+        )
+        conn.execute(
+            "INSERT INTO currency_transactions "
+            "(customer_id,transaction_type,amount,currency,exchange_rate,try_equivalent,"
+            "description,tracking_no,created_at,current_balance) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (customer_id, "CREDIT", 25, "USD", 40, 1000, "Partial payment", "SRV-001", "2026-10-02", -75),
+        )
+        conn.execute(
+            "INSERT INTO currency_transactions "
+            "(customer_id,transaction_type,amount,currency,exchange_rate,try_equivalent,"
+            "description,tracking_no,created_at,current_balance) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (customer_id, "DEBIT", 50, "USD", 40, 2000, "Second service invoice", "SRV-002", "2026-10-03", -50),
+        )
+
+    items = web_main.customer_open_debt_items(customer_id, "USD")
+
+    assert [(item["tracking_no"], item["remaining"]) for item in items] == [
+        ("SRV-002", 50),
+        ("SRV-001", 75),
+    ]
 
 
 def test_web_finance_mobile_contract_and_action_bindings():

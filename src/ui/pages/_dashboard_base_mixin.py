@@ -1,10 +1,20 @@
 # -*- coding: utf-8 -*-
 
+import time
+
 from PyQt6.QtCore import QTimer
 from src.utils.system_config import SystemConfig
 from src.utils.logger import logger
 
 class DashboardBaseMixin:
+    def refresh_data_if_stale(self, minimum_interval=10):
+        now = time.monotonic()
+        last_refresh = getattr(self, "_last_dashboard_refresh_monotonic", 0.0)
+        if now - last_refresh < max(0.0, float(minimum_interval)):
+            return False
+        self.refresh_data()
+        return True
+
     def _resolve_technician_panel_class(self):
         cache_name = "_technician_panel_class_cache"
         cache = getattr(self, cache_name, {})
@@ -92,6 +102,8 @@ class DashboardBaseMixin:
 
             if hasattr(self, "_refresh_today_appointments"):
                 self._refresh_today_appointments()
+
+            self._last_dashboard_refresh_monotonic = time.monotonic()
             
         except Exception as e:
             logger.error(f"Dashboard refresh error: {e}")

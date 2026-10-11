@@ -75,8 +75,8 @@ class AIAssistantPage(QWidget):
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(40, 50, 40, 50)
-        layout.setSpacing(30)
+        layout.setContentsMargins(32, 24, 32, 24)
+        layout.setSpacing(18)
 
         header = QHBoxLayout()
         title_vbox = QVBoxLayout()
@@ -97,18 +97,27 @@ class AIAssistantPage(QWidget):
 
         self.welcome_frame = QFrame()
         self.welcome_frame.setObjectName("Card")
+        self.welcome_frame.setMinimumHeight(164)
         welcome_layout = QVBoxLayout(self.welcome_frame)
+        welcome_layout.setContentsMargins(20, 18, 20, 18)
+        welcome_layout.setSpacing(8)
 
         self.welcome_title = QLabel("Nasıl yardımcı olabilirim?")
         self.welcome_title.setFont(QFont("Segoe UI", 18, QFont.Weight.Bold))
+        self.welcome_title.setText(
+            "<div style='font-size:18pt;font-weight:700'>Nas\u0131l yard\u0131mc\u0131 olabilirim?</div>"
+            "<div style='font-size:11pt;font-weight:400;margin-top:8px'>A\u015fa\u011f\u0131daki \u00f6nerilen sorulardan birini se\u00e7ebilir veya kendi sorunuzu yazabilirsiniz.</div>"
+        )
+        self.welcome_title.setMinimumHeight(94)
         self.welcome_text = QLabel(
             "Aşağıdaki önerilen sorulardan birini seçebilir veya kendi sorunuzu yazabilirsiniz."
         )
         self.welcome_text.setFont(QFont("Segoe UI", 11))
         self.welcome_text.setWordWrap(True)
+        self.welcome_text.setMinimumHeight(38)
 
         welcome_layout.addWidget(self.welcome_title)
-        welcome_layout.addWidget(self.welcome_text)
+        self.welcome_text.hide()
         layout.addWidget(self.welcome_frame)
 
         self.suggestions_label = QLabel("ÖNERİLEN SORULAR")
@@ -130,6 +139,7 @@ class AIAssistantPage(QWidget):
             btn = QPushButton(question)
             btn.setObjectName("SuggestionChip")
             btn.setFont(QFont("Segoe UI", 10))
+            btn.setMinimumHeight(42)
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.clicked.connect(lambda checked, k=key: self.show_answer(k))
             suggestions_grid.addWidget(btn, i // 2, i % 2)
@@ -187,9 +197,9 @@ class AIAssistantPage(QWidget):
                 """
             )
         )
-        self.welcome_title.setStyleSheet(theme_qss("color: @text;"))
-        self.welcome_text.setStyleSheet(theme_qss("color: @text_muted;"))
-        self.suggestions_label.setStyleSheet(theme_qss("color: @text_muted; letter-spacing: 1px;"))
+        self.welcome_title.setStyleSheet(theme_qss("color: @text; background: transparent;"))
+        self.welcome_text.setStyleSheet(theme_qss("color: @text_muted; background: transparent;"))
+        self.suggestions_label.setStyleSheet(theme_qss("color: @text_muted; letter-spacing: 1px; background: transparent;"))
         for btn in self.suggestion_buttons:
             btn.setStyleSheet(
                 theme_qss(
@@ -210,7 +220,7 @@ class AIAssistantPage(QWidget):
                     """
                 )
             )
-        self.search_label.setStyleSheet(theme_qss("color: @text_muted; letter-spacing: 1px;"))
+        self.search_label.setStyleSheet(theme_qss("color: @text_muted; letter-spacing: 1px; background: transparent;"))
         self.search_input.setStyleSheet(
             theme_qss(
                 """

@@ -31,6 +31,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 from PyQt6.QtGui import QColor, QPalette
+from PyQt6.QtCore import Qt
 
 
 class AppearanceModeManager:
@@ -49,6 +50,7 @@ class AppearanceModeManager:
     _PROP_LAST_STYLE = "_ayec_last_appearance_style"
     _PROP_CLASSIC_SKIP_TRANSFORM = "_ayec_classic_skip_transform"
     _PROP_MODE_BASE_STYLE = "_ayec_mode_base_stylesheet"
+    _ORIGINAL_UI_EFFECTS = None
 
     @classmethod
     def normalize(cls, value):
@@ -96,6 +98,8 @@ class AppearanceModeManager:
             pass
         # Classic mode keeps a stable high-contrast tooltip/text foreground;
         # do not let the modern light-theme token override it.
+        tokens["surface"] = "#FFFFFF"
+        tokens["surface_alt"] = "#E7EEF7"
         tokens["text"] = "#111827"
         return tokens
 
@@ -125,8 +129,14 @@ class AppearanceModeManager:
             background: transparent;
             color: {text};
         }}
-        QPushButton, QToolButton, QLineEdit, QTextEdit, QPlainTextEdit,
-        QComboBox, QSpinBox, QDoubleSpinBox, QDateEdit, QTimeEdit {{
+        QPushButton, QToolButton {{
+            background-color: {surface};
+            color: {text};
+            border: 1px solid {border};
+            border-radius: 0px;
+        }}
+        QLineEdit, QTextEdit, QPlainTextEdit, QComboBox,
+        QSpinBox, QDoubleSpinBox, QDateEdit, QTimeEdit {{
             background-color: {surface};
             color: {text};
             border: 1px solid {border};
@@ -561,10 +571,15 @@ class AppearanceModeManager:
 
         original_margins = widget.property(cls._PROP_ORIG_MARGINS)
         original_spacing = widget.property(cls._PROP_ORIG_SPACING)
-        if isinstance(original_margins, tuple) and len(original_margins) == 4:
-            layout.setContentsMargins(*original_margins)
+        if isinstance(original_margins, (tuple, list)) and len(original_margins) == 4:
+            if classic:
+                compact_margins = tuple(min(8, max(0, int(value))) for value in original_margins)
+                layout.setContentsMargins(*compact_margins)
+            else:
+                layout.setContentsMargins(*original_margins)
         if isinstance(original_spacing, int):
-            layout.setSpacing(original_spacing)
+            compact_spacing = 4 if original_spacing < 0 else min(4, max(0, original_spacing))
+            layout.setSpacing(compact_spacing if classic else original_spacing)
 
     @classmethod
     def _apply_widget_effect(cls, widget, classic):
@@ -622,6 +637,24 @@ class AppearanceModeManager:
         if app is None:
             return cls.MODERN
         resolved = cls.normalize(mode if mode is not None else cls.current(db))
+        effect_names = (
+            "UI_AnimateCombo",
+            "UI_AnimateMenu",
+            "UI_AnimateToolBox",
+            "UI_AnimateTooltip",
+            "UI_FadeMenu",
+            "UI_FadeTooltip",
+        )
+        if cls._ORIGINAL_UI_EFFECTS is None:
+            cls._ORIGINAL_UI_EFFECTS = {
+                name: QApplication.isEffectEnabled(getattr(Qt.UIEffect, name))
+                for name in effect_names
+                if hasattr(Qt.UIEffect, name)
+            }
+        for name, was_enabled in cls._ORIGINAL_UI_EFFECTS.items():
+            effect = getattr(Qt.UIEffect, name, None)
+            if effect is not None:
+                QApplication.setEffectEnabled(effect, False if resolved == cls.CLASSIC else was_enabled)
         app.setProperty("appearanceMode", resolved)
         app.setProperty("skipThemeTransform", False)
         tooltip_palette = QPalette(app.palette())

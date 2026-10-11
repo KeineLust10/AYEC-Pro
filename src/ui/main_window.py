@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import logging
-from PyQt6.QtWidgets import QApplication, QDialog, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget
+from PyQt6.QtWidgets import QApplication, QDialog, QFrame, QLabel, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget
 from PyQt6.QtCore import QTimer, Qt, pyqtSignal
 
 # Import Mixins
@@ -134,9 +134,18 @@ class MainWindow(QMainWindow, MainWindowBaseMixin, MainWindowNavMixin, MainWindo
         
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
-        self.main_layout = QHBoxLayout(self.central_widget)
+        self.shell_layout = QVBoxLayout(self.central_widget)
+        self.shell_layout.setContentsMargins(0, 0, 0, 0)
+        self.shell_layout.setSpacing(0)
+
+        self.app_header = AppHeader(self)
+        self.shell_layout.addWidget(self.app_header)
+
+        self.body_container = QWidget()
+        self.main_layout = QHBoxLayout(self.body_container)
         self.main_layout.setContentsMargins(0, 0, 0, 0)
         self.main_layout.setSpacing(0)
+        self.shell_layout.addWidget(self.body_container, 1)
         
         self.app_sidebar = AppSidebar(self)
         self.main_layout.addWidget(self.app_sidebar)
@@ -146,9 +155,6 @@ class MainWindow(QMainWindow, MainWindowBaseMixin, MainWindowNavMixin, MainWindo
         self.right_layout.setContentsMargins(0, 0, 0, 0)
         self.right_layout.setSpacing(0)
         
-        self.app_header = AppHeader(self)
-        self.right_layout.addWidget(self.app_header)
-        
         self.app_top_nav = AppTopNavBar(self)
         self.right_layout.addWidget(self.app_top_nav)
         
@@ -157,6 +163,8 @@ class MainWindow(QMainWindow, MainWindowBaseMixin, MainWindowNavMixin, MainWindo
         
         self.main_layout.addWidget(self.right_container)
         self.main_layout.setStretch(1, 1)
+
+        self._build_shell_status_bar()
         
         self._install_startup_placeholder()
         self.apply_theme_on_startup()
@@ -165,13 +173,88 @@ class MainWindow(QMainWindow, MainWindowBaseMixin, MainWindowNavMixin, MainWindo
         self.schedule_ui_task("immediate", self.apply_display_profile, "startup.apply_display_profile")
         self.schedule_ui_task("soon", self._load_initial_page, "startup.load_initial_page")
 
+    def _set_service_list_shell(self, enabled):
+        enabled = bool(enabled)
+        if getattr(self, "_service_list_shell_active", False) == enabled:
+            return
+        if enabled:
+            self._service_list_previous_minimum_width = self.minimumWidth()
+            self.setMinimumWidth(991)
+            # Keep the shared header in the shell so navigation never shifts vertically.
+        else:
+            self.setMinimumWidth(getattr(self, "_service_list_previous_minimum_width", 1280))
+            if self.app_header.parentWidget() is not self.central_widget:
+                self.right_layout.removeWidget(self.app_header)
+                self.app_header.setParent(self.central_widget)
+                self.shell_layout.insertWidget(0, self.app_header)
+        self._service_list_shell_active = enabled
+        self.app_header.setVisible(True)
+
+    def _build_shell_status_bar(self):
+        """Render the persistent enterprise status strip shown in the design references."""
+        bar = QFrame(self.central_widget)
+        self.shell_status_bar = bar
+        bar.setObjectName("ShellStatusBar")
+        bar.setFixedHeight(16)
+        bar.setStyleSheet(theme_qss(
+            "QFrame#ShellStatusBar { background: @window; border-top: 1px solid @border; }"
+        ))
+        row = QHBoxLayout(bar)
+        row.setContentsMargins(16, 0, 16, 0)
+        row.setSpacing(12)
+
+        self.shell_database_status = QLabel("ERP Core Yerel Veritabani Hazir")
+        self.shell_database_status.setStyleSheet(theme_qss(
+            "color: @text; font-size: 11px; font-weight: 600;"
+        ))
+        row.addWidget(self.shell_database_status)
+        row.addWidget(self._status_separator())
+
+        rate_text = "USD kuru: --"
+        try:
+            row_data = self.db.conn.execute(
+                "SELECT selling_rate FROM exchange_rates WHERE currency = ? "
+                "ORDER BY created_at DESC LIMIT 1",
+                ("USD",),
+            ).fetchone()
+            if row_data and row_data[0] is not None:
+                rate_text = f"USD kuru: {float(row_data[0]):.2f} TL"
+        except Exception:
+            pass
+        rate_label = QLabel(rate_text)
+        rate_label.setStyleSheet(theme_qss(
+            "color: @text_muted; font: 10px 'JetBrains Mono';"
+        ))
+        row.addWidget(rate_label)
+        row.addStretch(1)
+
+        version = QLabel("AYEC PRO Finans Konsolu v2.0.4 Premium Enterprise")
+        version.setStyleSheet(theme_qss(
+            "color: @text_muted; font: 10px 'JetBrains Mono';"
+        ))
+        row.addWidget(version)
+        self.shell_layout.addWidget(bar)
+
+    def _status_separator(self):
+        separator = QLabel("|")
+        separator.setStyleSheet(theme_qss("color: @border; font-size: 11px;"))
+        return separator
+
     def resizeEvent(self, event):
         self.reposition_fab()
+        sidebar = getattr(self, "app_sidebar", None)
+        if sidebar is not None and hasattr(sidebar, "apply_responsive_width"):
+            sidebar.apply_responsive_width()
         if hasattr(self, "toast"):
             self.toast.reposition_toasts()
         super().resizeEvent(event)
 
     def closeEvent(self, event):
+        license_service = getattr(self, "license_service", None)
+        if license_service is not None and not license_service.shutdown():
+            event.ignore()
+            QTimer.singleShot(250, self.close)
+            return
         self._is_closing = True
         if hasattr(self.db, "unsubscribe_setting_changes"):
             self.db.unsubscribe_setting_changes(self._relay_runtime_setting_change)
@@ -229,7 +312,7 @@ class MainWindow(QMainWindow, MainWindowBaseMixin, MainWindowNavMixin, MainWindo
 
         startup_timer = QTimer(self)
         startup_timer.setSingleShot(True)
-        startup_timer.setInterval(15000)
+        startup_timer.setInterval(0)
 
         def run_first_sync():
             if self._is_closing:
@@ -321,17 +404,16 @@ class MainWindow(QMainWindow, MainWindowBaseMixin, MainWindowNavMixin, MainWindo
                         pass
                 self._start_web_sync_event_listener()
                 try:
-                    from src.utils.license_manager import LicenseManager
-                    license_ok, _license_message, _license_payload = (
-                        LicenseManager(self.db).refresh_server_entitlement(
-                            sync_username,
-                            sync_password,
-                            tenant_id or sync_tenant_id,
-                        )
+                    self.license_service.refresh_server_entitlement_async(
+                        sync_username,
+                        sync_password,
+                        tenant_id or sync_tenant_id,
+                        on_complete=lambda license_ok, message, _payload: (
+                            self._handle_server_license_refresh_result(
+                                license_ok, message
+                            )
+                        ),
                     )
-                    lock_screen = getattr(self, "lock_screen", None)
-                    if license_ok and lock_screen is not None and lock_screen.isVisible():
-                        lock_screen.accept()
                 except Exception as license_error:
                     logger.info("Server license refresh skipped after sync: %s", license_error)
                 self._refresh_after_web_sync()
@@ -359,7 +441,10 @@ class MainWindow(QMainWindow, MainWindowBaseMixin, MainWindowNavMixin, MainWindo
                     self.update_manager.check_for_updates()
             else:
                 error = str(details.get("error") or "Senkronizasyon tamamlanamad\u0131.")
-                logger.warning("Desktop web synchronization failed: %s", error)
+                if silent and "Sunucu oturumu bulunamad" in error:
+                    logger.info("Desktop web sync skipped: no server session is connected.")
+                else:
+                    logger.warning("Desktop web synchronization failed: %s", error)
                 if "Sunucu oturumu bulunamad" in error and not silent:
                     self._open_web_sync_login()
                 elif not silent:
@@ -401,20 +486,27 @@ class MainWindow(QMainWindow, MainWindowBaseMixin, MainWindowNavMixin, MainWindo
         if payload.get("type") != "license_updated" or self._is_closing:
             return
         try:
-            from src.utils.license_manager import LicenseManager
-
-            ok, message, _details = LicenseManager(self.db).refresh_server_entitlement()
-            if not ok:
-                logger.info("Live license refresh was not applied: %s", message)
-                return
-            lock_screen = getattr(self, "lock_screen", None)
-            if lock_screen is not None and lock_screen.isVisible():
-                lock_screen.accept()
-            self.show_notification(
-                "Lisans bilgisi yonetim merkezinden guncellendi.", "success"
+            self.license_service.refresh_server_entitlement_async(
+                on_complete=lambda ok, message, _details: (
+                    self._handle_server_license_refresh_result(
+                        ok, message, notify=True
+                    )
+                )
             )
         except Exception as error:
             logger.info("Live license event could not be applied: %s", error)
+
+    def _handle_server_license_refresh_result(self, ok, message, notify=False):
+        if not ok:
+            logger.info("Server license refresh was not applied: %s", message)
+            return
+        lock_screen = getattr(self, "lock_screen", None)
+        if lock_screen is not None and lock_screen.isVisible():
+            lock_screen.accept()
+        if notify and not self._is_closing:
+            self.show_notification(
+                "Lisans bilgisi yonetim merkezinden guncellendi.", "success"
+            )
 
     def _queue_web_sync_from_event(self):
         if self._is_closing or self._web_sync_event_pending:
@@ -559,15 +651,18 @@ class MainWindow(QMainWindow, MainWindowBaseMixin, MainWindowNavMixin, MainWindo
 
         if key == "color_theme_full":
             normalized = ThemeManager.normalize_theme_name(value)
-            if normalized != getattr(self, "_current_theme_name", "AYEC"):
+            if normalized != getattr(self, "_current_theme_name", "Koyu Mavi"):
                 self.apply_theme(normalized)
             return
 
         if key == "assistant_fab_enabled":
             assistant_fab = getattr(self, "assistant_fab", None)
             enabled = str(value) == "1"
+            self._assistant_fab_enabled = enabled
             if assistant_fab is not None:
-                assistant_fab.setVisible(enabled)
+                assistant_fab.setVisible(
+                    enabled and int(getattr(self, "_current_page_index", -1)) not in {146, 147}
+                )
                 if enabled:
                     self.reposition_fab()
             if not enabled:

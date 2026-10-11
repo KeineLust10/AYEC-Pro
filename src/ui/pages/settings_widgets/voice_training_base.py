@@ -30,6 +30,7 @@ class VoiceTrainingWidget(QWidget):
     """
     def __init__(self, db, main_window=None):
         super().__init__()
+        self.setStyleSheet("VoiceTrainingWidget QLabel { border: none; background: transparent; }")
         self.db = db
         self.main_window = main_window
         self.config_path = os.path.join(PathHelper.get_app_data_dir(), "asistan_ayarlari.json")
@@ -59,7 +60,7 @@ class VoiceTrainingWidget(QWidget):
                 "action": {"type": "builtin", "name": "panel_ac"},
             },
             "Yeni Servis Aç": {
-                "triggers": ["yeni servis aç", "servis kaydı oluştur", "servis formunu aç"],
+                "triggers": ["yeni servis a\u00e7", "yeni servis kayd\u0131 a\u00e7", "servis kayd\u0131 olu\u015ftur", "servis formunu a\u00e7"],
                 "action": {"type": "builtin", "name": "servis_ac"},
             },
             "Bugünkü Randevular": {
@@ -147,7 +148,7 @@ class VoiceTrainingWidget(QWidget):
                 "action": {"type": "builtin", "name": "assistant_help"},
             },
             "Genel Bakış": {
-                "triggers": ["genel bakış aç", "dashboard aç", "ana ekranı aç"],
+                "triggers": ["genel bak\u0131\u015f a\xe7", "genel dashboard a\xe7", "ana ekran\u0131 a\xe7"],
                 "action": {"type": "page", "index": 40},
             },
             "Stok Sayfası": {
@@ -168,22 +169,98 @@ class VoiceTrainingWidget(QWidget):
             for config in scenarios.values()
             if config.get("action", {}).get("type") == "page"
         }
+        page_aliases = {
+            40: ["ana ekran", "ba\u015flang\u0131\xe7 ekran\u0131", "\xf6zet ekran\u0131"],
+            41: ["servis operasyon panosu", "i\u015f emri panosu", "kanban servis panosu"],
+            42: ["servis kay\u0131tlar\u0131", "servis kay\u0131t listesi", "a\xe7\u0131k servisler"],
+            43: ["servis durum paneli", "i\u015f durumu paneli"],
+            21: ["m\xfc\u015fteriler", "m\xfc\u015fteri kay\u0131tlar\u0131", "cari m\xfc\u015fteriler"],
+            50: ["stoklar", "par\xe7a stoklar\u0131", "envanter y\xf6netimi"],
+            51: ["stok depo yerleri", "stok raflar\u0131", "depo lokasyonlar\u0131"],
+            30: ["randevu listesi", "servis randevu takvimi", "takvim"],
+            62: ["servis teknisyen paneli", "teknisyen i\u015f paneli"],
+            61: ["saha servis haritas\u0131", "teknisyen haritas\u0131"],
+            100: ["finans ekran\u0131", "mali dashboard"],
+            101: ["gelir gider", "gelir gider ekran\u0131", "kasa hareketleri"],
+            105: ["banka ekran\u0131", "banka listesi", "hesaplar\u0131m"],
+            106: ["\xe7ekler", "senetler", "\xe7ek ve senetler"],
+            115: ["fatura olu\u015ftur", "e fatura", "fatura ekran\u0131"],
+            150: ["sat\u0131\u015f ekran\u0131", "sat\u0131\u015f merkezi", "yeni teklif ve sat\u0131\u015f"],
+            313: ["teklif listesi", "olu\u015fturulan teklifler"],
+            314: ["teklif raporlar\u0131", "teklif analizleri"],
+            200: ["projeler", "proje listesi", "proje ekran\u0131"],
+            202: ["ar\u015fivlenmi\u015f projeler", "eski projeler"],
+            201: ["servis i\u015f raporlar\u0131", "i\u015f takip raporlar\u0131"],
+            60: ["ara\xe7 par\xe7a sto\u011fu", "otomotiv sto\u011fu", "ara\xe7 yedek par\xe7alar\u0131"],
+            65: ["kargo takip", "garanti takibi", "lojistik ekran\u0131"],
+            66: ["emanet cihazlar", "konsinye cihazlar"],
+            90: ["hat\u0131rlat\u0131c\u0131 listesi", "hat\u0131rlatmalar"],
+            10: ["personel listesi", "\xe7al\u0131\u015fanlar", "kullan\u0131c\u0131 personel ekran\u0131"],
+            130: ["ayarlar", "program ayarlar\u0131", "sistem yap\u0131land\u0131rmas\u0131"],
+            135: ["uygulama loglar\u0131", "sistem kay\u0131tlar\u0131", "hata kay\u0131tlar\u0131"],
+            180: ["yedek al", "yedekleme ekran\u0131", "yedekleri y\xf6net"],
+            70: ["yard\u0131m", "destek ekran\u0131", "teknik destek"],
+            160: ["bilgi bankas\u0131", "teknik bilgiler", "yard\u0131m makaleleri"],
+            170: ["yapay zeka asistan\u0131", "ai asistan", "asistan ekran\u0131"],
+            120: ["duyurular", "\u015firket duyurular\u0131", "bildirimler"],
+            140: ["hizmet tan\u0131mlar\u0131", "hizmetler", "servis t\xfcrleri"],
+            145: ["markalar", "cihaz markalar\u0131", "marka y\xf6netimi"],
+            146: ["\xfcr\xfcn gruplar\u0131", "\xfcr\xfcn kategorileri", "stok kategorileri"],
+            147: ["rapor \u015fablonlar\u0131", "rapor kal\u0131plar\u0131"],
+            25: ["bak\u0131m anla\u015fmalar\u0131", "s\xf6zle\u015fmeler", "m\xfc\u015fteri s\xf6zle\u015fmeleri"],
+            26: ["i\u015f ortaklar\u0131", "tedarik\xe7iler", "\xe7al\u0131\u015fma ortaklar\u0131"],
+            210: ["ara\xe7 bak\u0131mlar\u0131", "ara\xe7 servis takibi", "filo bak\u0131m\u0131"],
+            250: ["mobil k\u0131lavuz", "telefon k\u0131lavuzu", "teknik mobil rehber"],
+            261: ["kullan\u0131m rehberi", "program k\u0131lavuzu", "nas\u0131l kullan\u0131l\u0131r"],
+            300: ["bilgisayar toplay\u0131c\u0131", "pc toplama", "bilgisayar yap\u0131land\u0131rma"],
+        }
+
+        page_scenarios = {}
+        for scenario in scenarios.values():
+            action = scenario.get("action", {})
+            page_id = action.get("index") if action.get("type") == "page" else None
+            if page_id is not None:
+                page_scenarios[int(page_id)] = scenario
+
         for page_id, page_name in sorted(PAGE_NAMES.items()):
-            if int(page_id) not in PAGE_MAPPING or int(page_id) in linked_pages:
+            page_id = int(page_id)
+            if page_id not in PAGE_MAPPING or page_id == 62:
                 continue
             label = str(page_name or "").strip()
             if not label:
                 continue
-            scenario_name = f"{label} Sayfas\u0131"
-            voice_label = label.casefold()
-            scenarios[scenario_name] = {
-                "triggers": [
+            voice_labels = [label.casefold(), *page_aliases.get(page_id, [])]
+            triggers = []
+            for voice_label in voice_labels:
+                triggers.extend([
                     f"{voice_label} a\u00e7",
                     f"{voice_label} sayfas\u0131n\u0131 a\u00e7",
+                    f"{voice_label} ekran\u0131n\u0131 a\u00e7",
                     f"{voice_label} ekran\u0131na git",
-                ],
-                "action": {"type": "page", "index": int(page_id)},
-            }
+                    f"{voice_label} men\u00fcs\u00fcn\u00fc a\u00e7",
+                    f"bana {voice_label} g\u00f6ster",
+                    f"{voice_label} ekran\u0131n\u0131 g\u00f6ster",
+                    f"{voice_label} sayfas\u0131na ge\u00e7",
+                ])
+            scenario = page_scenarios.get(page_id)
+            if scenario is None:
+                scenario_name = f"{label} Sayfas\u0131"
+                scenario = {"triggers": [], "action": {"type": "page", "index": page_id}}
+                scenarios[scenario_name] = scenario
+            existing = set(scenario.get("triggers", []))
+            for trigger in triggers:
+                if trigger not in existing:
+                    scenario["triggers"].append(trigger)
+                    existing.add(trigger)
+
+        technician_scenario = scenarios.get("Teknisyen Paneli")
+        if technician_scenario:
+            technician_scenario["triggers"].extend([
+                "servis teknisyen panelini a\u00e7",
+                "teknisyen i\u015f panelini g\u00f6ster",
+                "teknisyen ekran\u0131na ge\u00e7",
+                "servis teknisyen ekran\u0131n\u0131 a\u00e7",
+            ])
         return scenarios
 
     def _build_stat_card(self, title, value, accent):
@@ -203,10 +280,10 @@ class VoiceTrainingWidget(QWidget):
         layout.setSpacing(4)
 
         value_lbl = QLabel(value)
-        value_lbl.setFont(QFont("Segoe UI", 13, QFont.Weight.Bold))
-        value_lbl.setStyleSheet(theme_qss("color: @text;"))
+        value_lbl.setFont(QFont(DesignTokens.FONT_NAME, 13, QFont.Weight.Bold))
+        value_lbl.setStyleSheet(theme_qss("color: @text; border: none; background: transparent;"))
         title_lbl = QLabel(title)
-        title_lbl.setStyleSheet(theme_qss("color: @text_muted; font-size: 11px; font-weight: 600;"))
+        title_lbl.setStyleSheet(theme_qss("color: @text_muted; font-size: 11px; font-weight: 600; border: none; background: transparent;"))
         title_lbl.setWordWrap(True)
 
         layout.addWidget(value_lbl)
@@ -256,10 +333,10 @@ class VoiceTrainingWidget(QWidget):
         title_row = QHBoxLayout()
         title_text = QVBoxLayout()
         lbl_commands = QLabel("Sesli Senaryo Merkezi")
-        lbl_commands.setFont(QFont("Segoe UI", 13, QFont.Weight.Bold))
-        lbl_commands.setStyleSheet(theme_qss("color: @text;"))
+        lbl_commands.setFont(QFont(DesignTokens.FONT_NAME, 13, QFont.Weight.Bold))
+        lbl_commands.setStyleSheet(theme_qss("color: @text; border: none; background: transparent;"))
         lbl_commands_info = QLabel("Senaryolar sayfada dağınık görünmez. Ekleme, düzenleme ve test işlemleri modern pencereden yapılır.")
-        lbl_commands_info.setStyleSheet(theme_qss("color: @text_muted; font-size: 11px; font-weight: 600;"))
+        lbl_commands_info.setStyleSheet(theme_qss("color: @text_muted; font-size: 11px; font-weight: 600; border: none; background: transparent;"))
         lbl_commands_info.setWordWrap(True)
         title_text.addWidget(lbl_commands)
         title_text.addWidget(lbl_commands_info)
@@ -333,10 +410,10 @@ class VoiceTrainingWidget(QWidget):
 
         suggested_head = QHBoxLayout()
         suggested_title = QLabel("Önerilen En Güçlü Komutlar")
-        suggested_title.setFont(QFont("Segoe UI", 13, QFont.Weight.Bold))
-        suggested_title.setStyleSheet(theme_qss("color: @text;"))
+        suggested_title.setFont(QFont(DesignTokens.FONT_NAME, 13, QFont.Weight.Bold))
+        suggested_title.setStyleSheet(theme_qss("color: @text; border: none; background: transparent;"))
         suggested_info = QLabel("Günlük operasyonda en çok zaman kazandıran hazır sesli komutlar.")
-        suggested_info.setStyleSheet(theme_qss("color: @text_muted; font-size: 11px; font-weight: 600;"))
+        suggested_info.setStyleSheet(theme_qss("color: @text_muted; font-size: 11px; font-weight: 600; border: none; background: transparent;"))
         suggested_info.setWordWrap(True)
         suggested_text_col = QVBoxLayout()
         suggested_text_col.addWidget(suggested_title)
@@ -394,7 +471,7 @@ class VoiceTrainingWidget(QWidget):
         schedule_layout.setContentsMargins(20, 20, 20, 20)
         schedule_layout.setSpacing(16)
         lbl_schedule = QLabel("Zamanlanmış Uyarılar")
-        lbl_schedule.setFont(QFont("Segoe UI", 13, QFont.Weight.Bold))
+        lbl_schedule.setFont(QFont(DesignTokens.FONT_NAME, 13, QFont.Weight.Bold))
         lbl_schedule.setStyleSheet(theme_qss("color: @text;"))
         schedule_layout.addWidget(lbl_schedule)
         schedule_info = QLabel("Aşağıdaki uyarı saatlerini ve aktiflik durumlarını yönetin.")
@@ -480,7 +557,7 @@ class VoiceTrainingWidget(QWidget):
         dnd_layout.setContentsMargins(20, 20, 20, 20)
         dnd_layout.setSpacing(16)
         lbl_dnd = QLabel("Sessiz Saatler")
-        lbl_dnd.setFont(QFont("Segoe UI", 13, QFont.Weight.Bold))
+        lbl_dnd.setFont(QFont(DesignTokens.FONT_NAME, 13, QFont.Weight.Bold))
         lbl_dnd.setStyleSheet(theme_qss("color: @text;"))
         dnd_layout.addWidget(lbl_dnd)
         dnd_info = QLabel("Bildirimlerin susturulacağı saat aralığını belirleyin.")
@@ -646,12 +723,28 @@ class VoiceTrainingWidget(QWidget):
             if name in defaults and not item.get("action"):
                 item["action"] = defaults[name]["action"].copy()
             sanitized[name] = item
+        trigger_owners = {
+            str(trigger).casefold(): name
+            for name, cfg in sanitized.items()
+            for trigger in cfg.get("triggers", [])
+        }
         for name, cfg in defaults.items():
-            if name not in sanitized:
-                sanitized[name] = {
-                    "triggers": list(cfg["triggers"]),
-                    "action": cfg["action"].copy(),
-                }
+            current = sanitized.get(name)
+            if current is None:
+                current = {"triggers": [], "action": cfg["action"].copy()}
+                sanitized[name] = current
+            if current.get("action") != cfg["action"]:
+                continue
+            for trigger in cfg["triggers"]:
+                normalized_trigger = str(trigger).casefold()
+                owner = trigger_owners.get(normalized_trigger)
+                if owner is not None and owner != name:
+                    continue
+                if normalized_trigger not in {
+                    str(item).casefold() for item in current.get("triggers", [])
+                }:
+                    current.setdefault("triggers", []).append(trigger)
+                trigger_owners[normalized_trigger] = name
         return sanitized
 
     def _init_action_options(self, combo):
@@ -854,6 +947,9 @@ class VoiceTrainingWidget(QWidget):
                 elif alert_type == 'stock_critical':
                     self.time_stock.setTime(qt_time)
                     self.chk_stock_enabled.setChecked(is_enabled)
+                elif alert_type == 'service_delivery':
+                    self.time_service.setTime(qt_time)
+                    self.chk_service_enabled.setChecked(is_enabled)
         except Exception as e:
             logger.error(f"Error loading scheduled alerts: {e}")
         
@@ -861,7 +957,7 @@ class VoiceTrainingWidget(QWidget):
         try:
             dnd_start = self.db.get_setting('quiet_hours_start', '19:00')
             dnd_end = self.db.get_setting('quiet_hours_end', '08:30')
-            critical_override = self.db.get_setting('critical_override_dnd', '0') == '1'
+            critical_override = self.db.get_setting('critical_override_dnd', '1') == '1'
             
             hour, minute = map(int, dnd_start.split(':'))
             self.time_dnd_start.setTime(QTime(hour, minute))
@@ -880,6 +976,7 @@ class VoiceTrainingWidget(QWidget):
             loan_time = self.time_loan.time().toString("HH:mm")
             check_time = self.time_check.time().toString("HH:mm")
             stock_time = self.time_stock.time().toString("HH:mm")
+            service_time = self.time_service.time().toString("HH:mm")
             
             self.db.update_scheduled_alert('loan_reminder', 
                 trigger_time=loan_time, 
@@ -892,6 +989,9 @@ class VoiceTrainingWidget(QWidget):
             self.db.update_scheduled_alert('stock_critical', 
                 trigger_time=stock_time, 
                 is_enabled=self.chk_stock_enabled.isChecked())
+            self.db.update_scheduled_alert('service_delivery',
+                trigger_time=service_time,
+                is_enabled=self.chk_service_enabled.isChecked())
         except Exception as e:
             logger.error(f"Error saving scheduled alerts: {e}")
         

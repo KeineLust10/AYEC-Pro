@@ -14,11 +14,18 @@ from PyQt6.QtCore import QCoreApplication, qInstallMessageHandler
 from PyQt6.QtWidgets import QApplication
 
 from src.ui.dialogs.add_customer_dialog import AddCustomerDialog
+from src.ui.dialogs.add_device_dialog import AddDeviceDialog
 from src.ui.dialogs.new_service_dialog import NewServiceDialog
 
 
 app = QApplication.instance() or QApplication(sys.argv)
 app.setQuitOnLastWindowClosed(False)
+
+
+def test_add_device_dialog_value_lookup_uses_default_for_missing_data():
+    assert AddDeviceDialog._device_value(None, "tracking_no", "") == ""
+    assert AddDeviceDialog._device_value({}, "tracking_no", "fallback") == "fallback"
+    assert AddDeviceDialog._device_value({"tracking_no": "A-1"}, "tracking_no") == "A-1"
 
 
 def _qt_test_message_filter(_msg_type, _context, message):

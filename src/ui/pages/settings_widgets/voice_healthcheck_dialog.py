@@ -36,7 +36,7 @@ class VoiceHealthcheckResultDialog(ModernDialog):
         layout.setSpacing(14)
 
         title = QLabel("Sesli Asistan Sağlık Testi")
-        title.setFont(QFont("Segoe UI", 15, QFont.Weight.Bold))
+        title.setFont(QFont(DesignTokens.FONT_NAME, 15, QFont.Weight.Bold))
         title.setStyleSheet(theme_qss("color: @text;"))
         layout.addWidget(title)
 

@@ -3,7 +3,9 @@ import sqlite3
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QPushButton
+from PyQt6.QtCore import Qt
+from PyQt6.QtTest import QTest
 
 from src.db.mixins.services_mixin import ServicesMixin
 from src.ui.dialogs.add_service_definition_dialog import AddServiceDefinitionDialog
@@ -52,6 +54,9 @@ def test_service_schema_migrates_legacy_price_and_saves_three_currencies():
             price_usd=20,
             price_eur=18,
             is_active=0,
+            service_category="Donan\u0131m & Lehim",
+            duration_minutes=180,
+            vat_rate=20,
         )
 
         rows = {row["name"]: row for row in db.get_services_list()}
@@ -60,6 +65,8 @@ def test_service_schema_migrates_legacy_price_and_saves_three_currencies():
         assert rows["Three Currency Labor"]["price_usd"] == 20
         assert rows["Three Currency Labor"]["price_eur"] == 18
         assert rows["Three Currency Labor"]["is_active"] == 0
+        assert rows["Three Currency Labor"]["service_category"] == "Donan\u0131m & Lehim"
+        assert rows["Three Currency Labor"]["duration_minutes"] == 180
     finally:
         db.conn.close()
 
@@ -72,6 +79,8 @@ def test_labor_dialog_and_page_expose_extended_management_fields():
             "price_usd": 7,
             "price_eur": 6,
             "is_active": 0,
+            "service_category": "Saha & Montaj",
+            "duration_minutes": 90,
         }
     )
     db = _Db()
@@ -82,6 +91,8 @@ def test_labor_dialog_and_page_expose_extended_management_fields():
         assert data["price_usd"] == 7
         assert data["price_eur"] == 6
         assert data["is_active"] == 0
+        assert data["service_category"] == "Saha & Montaj"
+        assert data["duration_minutes"] == 90
 
         for index in range(1, 13):
             db.add_service(
@@ -94,11 +105,16 @@ def test_labor_dialog_and_page_expose_extended_management_fields():
             )
         page = ServicesPage(db)
         page.load_services()
-        assert page.table.columnCount() == 8
-        assert page.table.rowCount() == 10
+        assert page.table.columnCount() == 11
+        assert page.table.rowCount() == 6
         assert page.total_count == 12
         assert page.btn_next.isEnabled()
-        assert page.table.cellWidget(0, 6).text() == "D\u00fczenle"
+        page.header_select_all.setCheckState(Qt.CheckState.Checked)
+        assert all(page.table.cellWidget(row, 1).isChecked() for row in range(6))
+        assert len(page._selected_rows()) == 6
+        page.header_select_all.setCheckState(Qt.CheckState.Unchecked)
+        assert not any(page.table.cellWidget(row, 1).isChecked() for row in range(6))
+        assert page.table.cellWidget(0, 10).findChild(QPushButton).toolTip() == "D\u00fczenle"
         output_rows = page._collect_service_rows()
         assert len(output_rows) == 12
         assert list(output_rows[0]) == [
@@ -111,9 +127,23 @@ def test_labor_dialog_and_page_expose_extended_management_fields():
 
         page.next_page()
         assert page.current_page == 2
-        assert page.table.rowCount() == 2
+        assert page.table.rowCount() == 6
     finally:
         dialog.close()
         if page is not None:
             page.close()
         db.conn.close()
+
+
+def test_closed_services_page_cancels_delayed_initial_query():
+    db = _Db()
+    calls = []
+    original_get_services = db.get_services_list
+    db.get_services_list = lambda: calls.append("query") or original_get_services()
+    page = ServicesPage(db)
+
+    page.close()
+    QTest.qWait(150)
+
+    assert calls == []
+    db.conn.close()

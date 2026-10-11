@@ -94,6 +94,14 @@ def main() -> int:
             "server-windows-install.ps1",
             "AYEC_START.cmd",
             "AYEC_START.ps1",
+            "RESET_ADMIN_PASSWORD.cmd",
+            "RESET_ADMIN_PASSWORD.ps1",
+            "set_super_admin_password.py",
+            "reset_admin_password.sh",
+            "CLEANUP_SERVER.ps1",
+            "CHECK_ADMIN_LOGIN.cmd",
+            "CHECK_ADMIN_LOGIN.ps1",
+            "check_admin_login_runtime.py",
             "setup_server.sh",
             "start_server.sh",
         ):
@@ -118,6 +126,9 @@ def main() -> int:
             "3. Run: .venv\\Scripts\\python.exe -m pip install -r requirements.txt\n"
             "4. Copy the production ayecpro.db into data\\ayecpro.db.\n"
             "5. Double-click AYEC_START.cmd. It prepares the runtime, resets the Admin password, and starts the Web server.\n\n"
+            "To reset only the Admin password later, double-click RESET_ADMIN_PASSWORD.cmd.\n"
+            "On Linux, run: bash ./reset_admin_password.sh\n"
+            "Run either reset command from the deployed server folder after the AYEC Python environment is installed.\n\n"
             "Set AYEC_PUBLIC_URL=https://panel.ayecpro.com in the server environment.\n"
             "Set AYEC_LICENSE_API_URL=https://lisans.ayecpro.com for license checks.\n"
             "Bind panel.ayecpro.com and lisans.ayecpro.com to HTTPS in IIS before enabling public login.\n\n"

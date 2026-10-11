@@ -2,7 +2,8 @@
 
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QFormLayout,
                              QComboBox, QLineEdit, QTableWidget, QTableWidgetItem, QPushButton,
-                             QLabel, QFrame, QHeaderView, QSizePolicy)
+                             QLabel, QFrame, QHeaderView, QSizePolicy, QFileDialog, QDialog,
+                             QInputDialog, QMessageBox, QTextBrowser)
 from src.utils.theme_colors import theme_qss
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from src.finance.invoice_mapper import InvoiceMapper
@@ -14,6 +15,8 @@ from src.utils.tax_settings import TaxSettings
 from src.utils.secure_setting_store import SecureSettingStore
 from datetime import datetime
 import json
+import uuid
+from html import escape as html_escape
 
 
 class InvoiceSenderThread(QThread):
@@ -53,145 +56,13 @@ class InvoiceCreationPage(QWidget):
         )
 
     def init_ui(self):
-        self.setWindowTitle("AYEC Pro | E-Fatura Oluştur")
-        self.layout = QVBoxLayout(self)
-        self.layout.setContentsMargins(20, 16, 20, 16)
-        self.layout.setSpacing(10)
-
-        page_title = QLabel("E-Fatura Olustur")
-        self.page_title = page_title
-        page_title.setStyleSheet(theme_qss("font-size: 24px; font-weight: 800; color: @text;"))
-        title_row = QHBoxLayout()
-        title_row.addWidget(page_title)
-        title_row.addStretch(1)
-        self.btn_integration = QPushButton("Entegrasyon Ayarlari")
-        self.btn_integration.clicked.connect(self.open_integration_settings)
-        title_row.addWidget(self.btn_integration)
-        self.layout.addLayout(title_row)
-
-        # 1. Müşteri Bilgileri Grubu
-        self.client_group = QGroupBox("Müşteri Bilgileri")
-        self.client_layout = QFormLayout(self.client_group)
-        self.client_layout.setContentsMargins(12, 10, 12, 10)
-        self.client_layout.setVerticalSpacing(8)
-        
-        self.cmb_customer = QComboBox()
-        self.cmb_customer.setPlaceholderText("Müşteri Seçin...")
-        self.cmb_customer.currentIndexChanged.connect(self.on_customer_change)
-        
-        self.inp_vkn = QLineEdit()
-        self.inp_vkn.setReadOnly(True)
-        self.inp_addr = QLineEdit()
-        self.inp_addr.setReadOnly(True)
-        
-        self.client_layout.addRow("Müşteri Seç:", self.cmb_customer)
-        self.client_layout.addRow("Vergi/TC No:", self.inp_vkn)
-        self.client_layout.addRow("Adres:", self.inp_addr)
-        
-
-        # 2. Fatura Kalemleri (Ürün/Hizmet)
-        self.items_table = QTableWidget(0, 6)
-        headers = ["Ürün/Hizmet", "Miktar", "Birim", "Birim Fiyat", "KDV %", "Tutar"]
-        self.items_table.setHorizontalHeaderLabels(headers)
-        self.items_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        self.items_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-        self.items_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
-        self.items_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
-        self.items_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
-        self.items_table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
-        self.items_table.setMinimumHeight(220)
-        self.items_table.setMaximumHeight(290)
-        self.items_table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        self.items_table.verticalHeader().setDefaultSectionSize(34)
-        self.items_table.cellChanged.connect(self.calculate_totals)
-        
-        btn_layout = QHBoxLayout()
-        self.btn_add_item = QPushButton("+ Yeni Satır Ekle")
-        self.btn_add_item.clicked.connect(self.add_row)
-        self.btn_remove_item = QPushButton("- Satır Sil")
-        self.btn_remove_item.clicked.connect(self.remove_row)
-        
-        btn_layout.addWidget(self.btn_add_item)
-        btn_layout.addWidget(self.btn_remove_item)
-        btn_layout.addStretch()
-        self.layout.addLayout(btn_layout)
-
-        # 3. Toplamlar Paneli
-        self.total_panel = QFrame()
-        self.total_panel.setStyleSheet(theme_qss("background-color: @surface_alt; border-radius: 8px; padding: 10px;"))
-        self.total_layout = QFormLayout(self.total_panel)
-        self.total_layout.setContentsMargins(12, 10, 12, 10)
-        self.total_layout.setVerticalSpacing(8)
-        
-        self.lbl_subtotal = QLabel(CurrencyHelper.format_try_for_display(0, db=self.db))
-        self.lbl_vat = QLabel(CurrencyHelper.format_try_for_display(0, db=self.db))
-        self.lbl_total = QLabel(CurrencyHelper.format_try_for_display(0, db=self.db))
-        self.lbl_total.setStyleSheet(theme_qss("font-weight: bold; font-size: 16px; color: @accent_hover;"))
-        
-        self.total_layout.addRow("Ara Toplam:", self.lbl_subtotal)
-        self.total_layout.addRow("Toplam KDV:", self.lbl_vat)
-        self.total_layout.addRow("GENEL TOPLAM:", self.lbl_total)
-        
-        # Banka / Kasa Seçimi Ekleniyor
-        self.cmb_bank = QComboBox()
-        self.cmb_bank.addItem("Kasa/Banka Seçmeyin", -1)
-        try:
-            if hasattr(self.db, 'get_bank_accounts'):
-                for b in self.db.get_bank_accounts():
-                    b_name = b.get('bank_name') if isinstance(b, dict) else b[1]
-                    b_id = b.get('id') if isinstance(b, dict) else b[0]
-                    self.cmb_bank.addItem(b_name, b_id)
-        except Exception:
-            pass
-        self.total_layout.addRow("Tahsilat Kasası:", self.cmb_bank)
-        
-        self.total_panel.setMinimumWidth(300)
-        self.total_panel.setMaximumWidth(340)
-
-        top_row = QHBoxLayout()
-        top_row.setSpacing(16)
-        top_row.addWidget(self.client_group, 1)
-        top_row.addWidget(self.total_panel, 0, Qt.AlignmentFlag.AlignTop)
-        self.layout.addLayout(top_row)
-
-        self.layout.addWidget(self.items_table, 0)
-
-        # 4. Gönder Butonu
-        self.btn_send = QPushButton("🚀 E-Faturayı Resmileştir ve Gönder")
-        self.btn_send.setStyleSheet(theme_qss("""
-            QPushButton { 
-                height: 50px; background-color: @accent_hover; color: @selection_text; border-radius: 8px; font-weight: bold; font-size: 14px;
-            }
-            QPushButton:hover { background-color: @accent; }
-        """))
-        self.btn_send.clicked.connect(self.send_invoice)
-        self.layout.addWidget(self.btn_send)
-        self.layout.addStretch(1)
-        
-        # Init with one row
-        self.add_row()
-        self._normalize_ui_texts()
-
-    def _normalize_ui_texts(self):
-        """Repair legacy mojibake strings after widget creation."""
         self.setWindowTitle("AYEC Pro | E-Fatura Olu\u015ftur")
-        self.page_title.setText("E-Fatura Olu\u015ftur")
-        self.client_group.setTitle("M\u00fc\u015fteri Bilgileri")
-        self.cmb_customer.setPlaceholderText("M\u00fc\u015fteri Se\u00e7in...")
-        customer_label = self.client_layout.labelForField(self.cmb_customer)
-        if customer_label:
-            customer_label.setText("M\u00fc\u015fteri Se\u00e7:")
-        bank_label = self.total_layout.labelForField(self.cmb_bank)
-        if bank_label:
-            bank_label.setText("Tahsilat Kasas\u0131:")
-        if self.cmb_bank.count() and self.cmb_bank.itemData(0) == -1:
-            self.cmb_bank.setItemText(0, "Kasa/Banka Se\u00e7meyin")
-        self.btn_add_item.setText("+ Yeni Sat\u0131r Ekle")
-        self.btn_remove_item.setText("- Sat\u0131r Sil")
-        self.btn_send.setText("\U0001f680 E-Faturay\u0131 Resmile\u015ftir ve G\u00f6nder")
-        self.items_table.setHorizontalHeaderLabels(
-            ["\u00dcr\u00fcn/Hizmet", "Miktar", "Birim", "Birim Fiyat", "KDV %", "Tutar"]
-        )
+        from src.ui.pages.invoice_composer_ui import build_invoice_composer
+
+        build_invoice_composer(self)
+        self.on_currency_change()
+        self.add_row()
+        self.calculate_totals()
 
     def open_integration_settings(self):
         from src.ui.dialogs.einvoice_integration_dialog import EInvoiceIntegrationDialog
@@ -250,124 +121,262 @@ class InvoiceCreationPage(QWidget):
 
     def add_row(self):
         row = self.items_table.rowCount()
+        self.items_table.blockSignals(True)
         self.items_table.insertRow(row)
-        self.items_table.setItem(row, 0, QTableWidgetItem("Hizmet"))
-        self.items_table.setItem(row, 1, QTableWidgetItem("1"))
-        self.items_table.setItem(row, 2, QTableWidgetItem("Adet"))
-        self.items_table.setItem(row, 3, QTableWidgetItem("0.00"))
-        vat_percent = TaxSettings.get_percent(self.db)
-        self.items_table.setItem(
-            row,
-            4,
-            QTableWidgetItem(f"{vat_percent:g}"),
+        values = (
+            f"{row + 1:02d}", "Hizmet", "", "1", "Adet", "0.00", "0.0",
+            f"{TaxSettings.get_percent(self.db):g}", "0.00", "0.00",
         )
-        self.items_table.setItem(row, 5, QTableWidgetItem("0.00")) # Total
-        
-    def remove_row(self):
-        row = self.items_table.currentRow()
-        if row >= 0:
-            self.items_table.removeRow(row)
+        for column, value in enumerate(values):
+            item = QTableWidgetItem(value)
+            if column in (0, 8, 9):
+                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            self.items_table.setItem(row, column, item)
+        remove_button = QPushButton("\u00d7")
+        remove_button.setToolTip("Sat\u0131r\u0131 sil")
+        remove_button.setProperty("invoice_row", row)
+        remove_button.clicked.connect(
+            lambda _checked=False, button=remove_button: self.remove_row(button.property("invoice_row"))
+        )
+        remove_button.setStyleSheet(theme_qss(
+            "QPushButton { color: @danger; background: transparent; border: none; font-size: 16px; }"
+        ))
+        self.items_table.setCellWidget(row, 10, remove_button)
+        self.items_table.blockSignals(False)
+        self.calculate_totals()
+
+    def remove_row(self, row=None):
+        row_index = self.items_table.currentRow() if row is None else int(row)
+        if 0 <= row_index < self.items_table.rowCount():
+            self.items_table.removeRow(row_index)
+            for index in range(self.items_table.rowCount()):
+                self.items_table.item(index, 0).setText(f"{index + 1:02d}")
+                button = self.items_table.cellWidget(index, 10)
+                if button is not None:
+                    button.setProperty("invoice_row", index)
             self.calculate_totals()
 
     def get_float(self, row, col):
         try:
             item = self.items_table.item(row, col)
-            return float(item.text().replace(',', '.')) if item else 0.0
-        except Exception:
+            return float(item.text().replace(",", ".")) if item else 0.0
+        except (TypeError, ValueError):
             return 0.0
 
+    @staticmethod
+    def get_float_from_text(value):
+        try:
+            return float(str(value or "").replace(",", ".").strip())
+        except (TypeError, ValueError):
+            return 0.0
+
+    @staticmethod
+    def _format_invoice_amount(amount, db, currency):
+        code = str(currency or "TRY").upper()
+        value = float(amount or 0)
+        formatted = CurrencyHelper.format_amount(abs(value), db=db, currency_code=code)
+        symbol = CurrencyHelper.get_symbol(db, code)
+        suffix = " " + symbol
+        number = formatted[:-len(suffix)] if formatted.endswith(suffix) else formatted
+        if code in {"USD", "EUR"}:
+            sign = "-" if value < 0 else ""
+            return f"{sign}{symbol}{number}"
+        return ("-" if value < 0 else "") + formatted
+
     def calculate_totals(self):
+        if not hasattr(self, "items_table"):
+            return
         subtotal = 0.0
+        discount_total = 0.0
         vat_total = 0.0
-        
+        units_total = 0.0
+        discounted_rows = 0
         self.items_table.blockSignals(True)
-        for i in range(self.items_table.rowCount()):
-            qty = self.get_float(i, 1)
-            price = self.get_float(i, 3)
-            vat_rate = self.get_float(i, 4)
-            
-            amount = qty * price
-            vat = amount * (vat_rate / 100.0)
-            
-            self.items_table.setItem(i, 5, QTableWidgetItem(f"{amount:.2f}"))
-            
-            subtotal += amount
+        for row in range(self.items_table.rowCount()):
+            quantity = self.get_float(row, 3)
+            unit_price = self.get_float(row, 5)
+            discount_rate = min(max(self.get_float(row, 6), 0.0), 100.0)
+            vat_rate = max(self.get_float(row, 7), 0.0)
+            gross = quantity * unit_price
+            discount = gross * discount_rate / 100.0
+            taxable = gross - discount
+            vat = taxable * vat_rate / 100.0
+            total = taxable + vat
+            self.items_table.setItem(row, 8, QTableWidgetItem(f"{vat:.2f}"))
+            self.items_table.setItem(row, 9, QTableWidgetItem(f"{total:.2f}"))
+            for column in (8, 9):
+                item = self.items_table.item(row, column)
+                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            subtotal += taxable
+            discount_total += discount
             vat_total += vat
-            
-        grand_total = subtotal + vat_total
-        self.current_total_try = grand_total
-        self.lbl_subtotal.setText(
-            CurrencyHelper.format_try_for_display(subtotal, db=self.db)
-        )
-        self.lbl_vat.setText(
-            CurrencyHelper.format_try_for_display(vat_total, db=self.db)
-        )
-        self.lbl_total.setText(
-            CurrencyHelper.format_try_for_display(grand_total, db=self.db)
-        )
+            units_total += quantity
+            discounted_rows += int(discount_rate > 0)
         self.items_table.blockSignals(False)
+
+        grand_total = subtotal + vat_total
+        currency = str(getattr(self, "current_currency_code", "TRY") or "TRY").upper()
+        rate = 1.0 if currency == "TRY" else self.get_float_from_text(self.exchange_rate.text())
+        if currency != "TRY" and rate <= 0:
+            rate = CurrencyHelper._get_rate(self.db, currency)
+        self.current_total_try = grand_total * (rate or 0.0)
+        self.lbl_subtotal.setText(self._format_invoice_amount(subtotal + discount_total, self.db, currency))
+        self.lbl_discount.setText(self._format_invoice_amount(-discount_total, self.db, currency))
+        self.lbl_taxable.setText(self._format_invoice_amount(subtotal, self.db, currency))
+        self.lbl_vat.setText(self._format_invoice_amount(vat_total, self.db, currency))
+        total_text = self._format_invoice_amount(grand_total, self.db, currency)
+        if currency in {"USD", "EUR"}:
+            total_text += " " + currency
+        self.lbl_total.setText(total_text)
+        self.lbl_total_try.setText(CurrencyHelper.format_amount(self.current_total_try, db=self.db, currency_code="TRY"))
+        self.item_count_label.setText(f"{self.items_table.rowCount()} Kalem Listelendi")
+        self.total_units_label.setText(f"Toplam Miktar: {units_total:g} Birim")
+        self.discounted_rows_label.setText(f"\u0130skonto Yap\u0131lan Sat\u0131r: {discounted_rows}")
+        self.rate_footer_label.setText(f"Para Birimi Kuru: {rate:.4f} {currency}")
+        self.summary_currency_badge.setText(f"{currency} / TRY")
 
     def refresh_financial_defaults(self):
         vat_percent = TaxSettings.get_percent(self.db)
         self.items_table.blockSignals(True)
         try:
             for row in range(self.items_table.rowCount()):
-                self.items_table.setItem(
-                    row,
-                    4,
-                    QTableWidgetItem(f"{vat_percent:g}"),
-                )
+                self.items_table.setItem(row, 7, QTableWidgetItem(f"{vat_percent:g}"))
         finally:
             self.items_table.blockSignals(False)
         self.calculate_totals()
 
+    def on_currency_change(self, *_args):
+        code = str(self.currency_select.currentData() or "TRY").upper()
+        self.current_currency_code = code
+        rate = 1.0 if code == "TRY" else CurrencyHelper._get_rate(self.db, code)
+        self.exchange_rate.setText(f"{rate:.4f}" if rate > 0 else "0.0000")
+        self.summary_currency_badge.setText(f"{code} / TRY")
+        if hasattr(self, "items_table"):
+            self.calculate_totals()
+
     def send_invoice(self):
-        # 1. Gather Data
         cust_name = self.cmb_customer.currentText()
         if not cust_name:
             show_warning(self, "Hata", "L\u00fctfen m\u00fc\u015fteri se\u00e7in.")
             return
-
-        items = []
-        for i in range(self.items_table.rowCount()):
-            items.append({
-                "name": self.items_table.item(i, 0).text(),
-                "quantity": self.get_float(i, 1),
-                "unit": self.items_table.item(i, 2).text(),
-                "unit_price": self.get_float(i, 3),
-                "vat_rate": self.get_float(i, 4)
-            })
-            
-        # Prepare Data for Mapper
-        raw_data = {
-            "receiver": {
-                "name": cust_name,
-                "tax_id": self.inp_vkn.text(),
-                "address": self.inp_addr.text(),
-                "email": "" # Could add field
-            },
-            "items": items,
-            "currency": self.current_currency_code
-        }
-        
         try:
-            # 2. Map to JSON (Official Format)
-            json_payload = self.mapper.to_json(raw_data)
-            
-            # 3. Send Async
+            json_payload = self.mapper.to_json(self.build_invoice_data())
             self.btn_send.setEnabled(False)
-            self.btn_send.setText("Gönderiliyor... ⏳")
-            
+            self.btn_send.setText("G\u00f6nderiliyor...")
             self.worker = InvoiceSenderThread(self.client, json_payload)
             self.worker.finished.connect(self.on_send_finished)
             self.worker.start()
-            
         except Exception as e:
             show_error(self, "Veri Hatas\u0131", f"Fatura olu\u015fturulamad\u0131:\n{e}")
 
+    def build_invoice_data(self):
+        items = []
+        for row in range(self.items_table.rowCount()):
+            name_item = self.items_table.item(row, 1)
+            name = name_item.text().strip() if name_item else ""
+            if not name:
+                continue
+            items.append({
+                "name": name,
+                "stock_code": self.items_table.item(row, 2).text() if self.items_table.item(row, 2) else "",
+                "quantity": self.get_float(row, 3),
+                "unit": self.items_table.item(row, 4).text() if self.items_table.item(row, 4) else "Adet",
+                "unit_price": self.get_float(row, 5),
+                "discount_rate": self.get_float(row, 6),
+                "vat_rate": self.get_float(row, 7),
+            })
+        return {
+            "receiver": {
+                "name": self.cmb_customer.currentText(),
+                "tax_id": self.inp_vkn.text(),
+                "tax_office": self.tax_office.text(),
+                "address": self.inp_addr.text(),
+                "email": "",
+            },
+            "items": items,
+            "currency": self.current_currency_code,
+            "currency_rate": self.get_float_from_text(self.exchange_rate.text()),
+            "invoice_date": self.invoice_date.date().toString("yyyy-MM-dd"),
+            "invoice_time": self.invoice_time.time().toString("HH:mm"),
+            "scenario": self.invoice_scenario.currentText(),
+            "type": self.invoice_type.currentText().split(" ")[0],
+            "dispatch_reference": self.inp_delivery_reference.text(),
+            "notes": self.invoice_notes.toPlainText(),
+            "order_reference": self.inp_order_reference.text(),
+            "due_date": self.due_date.date().toString("yyyy-MM-dd"),
+            "payment_channel": self.payment_channel.currentText(),
+            "bank_account_id": self.cmb_bank.currentData(),
+            "auto_reconcile": self.chk_auto_reconcile.isChecked(),
+        }
+
+    def open_linked_order_picker(self):
+        value, accepted = QInputDialog.getText(
+            self,
+            "\u0130rsaliye / Sipari\u015f Referans\u0131",
+            "Ba\u011fl\u0131 belge numaras\u0131n\u0131 girin:",
+            text=self.inp_delivery_reference.text(),
+        )
+        if accepted:
+            self.inp_delivery_reference.setText(value.strip())
+
+    def _invoice_preview_text(self):
+        data = self.build_invoice_data()
+        lines = [
+            "E-FATURA TASLAK \u00d6N\u0130ZLEMES\u0130",
+            f"M\u00fc\u015fteri: {data['receiver']['name']}",
+            f"VKN/TCKN: {data['receiver']['tax_id']}",
+            f"Tarih: {data['invoice_date']} {data['invoice_time']}",
+            f"Senaryo / Tip: {data['scenario']} / {data['type']}",
+            "",
+        ]
+        for index, item in enumerate(data["items"], 1):
+            lines.append(
+                f"{index:02d}. {item['name']} | {item['quantity']:g} {item['unit']} | "
+                f"{item['unit_price']:.2f} {data['currency']} | KDV %{item['vat_rate']:g}"
+            )
+        lines.extend(["", f"Toplam: {self.lbl_total.text()}", f"Not: {data['notes']}"])
+        return "\n".join(lines)
+
+    def preview_invoice(self):
+        QMessageBox.information(self, "PDF G\u00f6r", self._invoice_preview_text())
+
+    def save_draft(self):
+        try:
+            payload = self.mapper.to_json(self.build_invoice_data())
+            draft_id = f"DRAFT-{uuid.uuid4()}"
+            self.db.cursor.execute(
+                "INSERT INTO e_invoices (uuid, status, receiver_name, json_data) VALUES (?, ?, ?, ?)",
+                (draft_id, "DRAFT", self.cmb_customer.currentText(), json.dumps(payload, ensure_ascii=True)),
+            )
+            self.db.conn.commit()
+            show_success(self, "Taslak Kaydedildi", f"Taslak belge: {draft_id}")
+        except Exception as exc:
+            show_error(self, "Taslak Kaydedilemedi", str(exc))
+
+    def export_proforma(self):
+        path, _selected = QFileDialog.getSaveFileName(
+            self, "Proforma PDF Kaydet", "proforma.pdf", "PDF Files (*.pdf)"
+        )
+        if not path:
+            return
+        try:
+            from PyQt6.QtPrintSupport import QPrinter
+            from PyQt6.QtGui import QTextDocument
+
+            document = QTextDocument()
+            body = "<br>".join(html_escape(line) for line in self._invoice_preview_text().splitlines())
+            document.setHtml(f"<h2>Proforma Fatura</h2><p>{body}</p>")
+            printer = QPrinter(QPrinter.PrinterMode.HighResolution)
+            printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
+            printer.setOutputFileName(path)
+            document.print(printer)
+            show_success(self, "Proforma Haz\u0131r", f"PDF kaydedildi: {path}")
+        except Exception as exc:
+            show_error(self, "PDF Olu\u015fturulamad\u0131", str(exc))
+
     def on_send_finished(self, success, resp):
         self.btn_send.setEnabled(True)
-        self.btn_send.setText("🚀 E-Faturayı Resmileştir ve Gönder")
+        self.btn_send.setText("E-Faturay\u0131 Resmile\u015ftir ve G\u00f6nder (F12)")
         
         if success:
             uuid = resp.get('uuid', '---')
@@ -400,7 +409,7 @@ class InvoiceCreationPage(QWidget):
             try:
                 # --- FINANSAL TETİKLEYİCİ (TRIGGER) ---
                 # Resmi Fatura Kesildi -> Kasaya İşle
-                if hasattr(self.db, "add_transaction"):
+                if self.chk_auto_reconcile.isChecked() and hasattr(self.db, "add_transaction"):
                     total_amount = float(self.current_total_try or 0.0)
                     desc = f"E-Fatura Geliri ({uuid})"
                     bank_id = self.cmb_bank.currentData()

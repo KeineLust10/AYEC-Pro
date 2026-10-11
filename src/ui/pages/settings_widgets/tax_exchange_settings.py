@@ -188,6 +188,7 @@ class TaxExchangeSettingsWidget(QWidget):
         rate_form.addRow(rate_actions)
         self.lbl_rate_status = QLabel("")
         self.lbl_rate_status.setWordWrap(True)
+        self.lbl_rate_status.setMinimumHeight(32)
         self.lbl_rate_status.setStyleSheet(
             theme_qss("font-size: 11px; color: @text_muted;")
         )

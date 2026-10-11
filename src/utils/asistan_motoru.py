@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 
 import json
+import ctypes
+import inspect
 import logging
 import os
 import re
@@ -17,7 +19,6 @@ except Exception:
     pass
 
 import time
-import pyttsx3
 try:
     import speech_recognition as sr
     _diag_logger.info("Asistan Motoru: speech_recognition yüklendi.")
@@ -36,8 +37,99 @@ except Exception:
 from src.utils.path_helper import PathHelper
 
 logger = logging.getLogger("AYEC_TTS")
+MIN_COMMAND_CONFIDENCE = 0.35
+MAX_COMMAND_PHRASE_SECONDS = 15
 _qt_player_bridge = None
 _tts_lock = threading.Lock()
+_tts_generation_lock = threading.Lock()
+_tts_generation = 0
+_tts_playback_active = False
+_tts_mic_cooldown_until = 0.0
+_active_tts_process = None
+
+
+def _tts_generation_is_current(generation):
+    if generation is None:
+        return True
+    with _tts_generation_lock:
+        return generation == _tts_generation
+
+
+def _tts_capture_snapshot():
+    """Return speech generation and playback state for microphone echo filtering."""
+    with _tts_generation_lock:
+        suppress_capture = _tts_playback_active or time.monotonic() < _tts_mic_cooldown_until
+        return _tts_generation, suppress_capture
+
+
+def _discard_microphone_chunk(source):
+    """Drain buffered speaker echo while assistant playback suppresses capture."""
+    stream = getattr(source, "stream", None)
+    read = getattr(stream, "read", None)
+    chunk_size = int(getattr(source, "CHUNK", 0) or 0)
+    if not callable(read) or chunk_size <= 0:
+        return False
+    audio_stream = getattr(stream, "pyaudio_stream", stream)
+    get_read_available = getattr(audio_stream, "get_read_available", None)
+    if callable(get_read_available):
+        drained = False
+        for _ in range(64):
+            try:
+                available = max(0, int(get_read_available()))
+                if available == 0:
+                    break
+                read(min(chunk_size, available))
+                drained = True
+            except Exception:
+                break
+        return drained
+    try:
+        read(chunk_size)
+        return True
+    except Exception:
+        return False
+
+
+def _configure_microphone_recognizer(recognizer):
+    """Tune phrase detection for conversational speech while keeping VAD adaptive."""
+    recognizer.dynamic_energy_threshold = True
+    recognizer.dynamic_energy_adjustment_ratio = 1.2
+    recognizer.pause_threshold = 0.85
+    recognizer.phrase_threshold = 0.2
+    recognizer.non_speaking_duration = 0.35
+
+
+def _listen_for_microphone_phrase(recognizer, source):
+    return recognizer.listen(source, timeout=2, phrase_time_limit=MAX_COMMAND_PHRASE_SECONDS)
+
+
+def stop_tts_playback():
+    """Cancel pending synthesis and stop the active local audio playback."""
+    global _tts_generation, _tts_playback_active, _tts_mic_cooldown_until, _active_tts_process
+    with _tts_generation_lock:
+        _tts_generation += 1
+        _tts_playback_active = False
+        _tts_mic_cooldown_until = time.monotonic() + 0.65
+    process = _active_tts_process
+    if process is not None and process.poll() is None:
+        try:
+            process.terminate()
+        except Exception:
+            pass
+    if os.name == "nt":
+        try:
+            mci = ctypes.windll.winmm.mciSendStringW
+            mci("stop tts_audio", None, 0, None)
+            mci("close tts_audio", None, 0, None)
+        except Exception:
+            pass
+    try:
+        bridge = _qt_player_bridge
+        if bridge is not None:
+            bridge.stop_requested.emit()
+    except Exception:
+        pass
+    return True
 
 
 def _normalize_tr_text(text):
@@ -150,6 +242,7 @@ def _extract_intent_target(text, phrases):
 
 class _QtTTSPlayerBridge(QObject):
     play_requested = pyqtSignal(str)
+    stop_requested = pyqtSignal()
 
     def __init__(self):
         super().__init__()
@@ -166,6 +259,7 @@ class _QtTTSPlayerBridge(QObject):
             self.player.errorOccurred.connect(self._on_error)
 
         self.play_requested.connect(self.play_file)
+        self.stop_requested.connect(self._finalize_current)
 
     @pyqtSlot(str)
     def play_file(self, filepath):
@@ -252,10 +346,13 @@ def _cleanup(filepath):
         pass
 
 
-def _play_mp3(filepath):
+def _play_mp3(filepath, generation=None):
     """MP3 dosyasını ayrı bir süreçte veya in-process oynatır."""
     if not os.path.exists(filepath):
         logger.warning("[TTS] Dosya bulunamadı: %s", filepath)
+        return False
+    if not _tts_generation_is_current(generation):
+        _cleanup(filepath)
         return False
 
     # Windows üzerinde öncelikle kararlı olan MCI (Windows native) oynatmayı dene
@@ -274,6 +371,9 @@ def _play_mp3(filepath):
             if res == 0:
                 play_res = mci('play tts_audio wait', None, 0, None)
                 mci('close tts_audio', None, 0, None)
+                if not _tts_generation_is_current(generation):
+                    _cleanup(filepath)
+                    return False
                 if play_res == 0:
                     logger.info("[TTS] MCI playback completed")
                     _cleanup(filepath)
@@ -284,8 +384,15 @@ def _play_mp3(filepath):
         except Exception as e:
             logger.error("[TTS] MCI playback exception: %s", e)
 
+    if not _tts_generation_is_current(generation):
+        _cleanup(filepath)
+        return False
+
     # Dondurulmuş (EXE) modda MCI başarısız olduysa Qt Multimedia Bridge dene
     if getattr(sys, "frozen", False):
+        if not _tts_generation_is_current(generation):
+            _cleanup(filepath)
+            return False
         try:
             logger.info("[TTS] Frozen mod: Qt in-process bridge deneniyor...")
             bridge = _get_qt_player_bridge()
@@ -332,13 +439,33 @@ def _play_mp3(filepath):
             "sys.exit(0 if not timed_out['v'] else 1)\n"
         )
 
-        result = subprocess.run(
+        global _active_tts_process
+        process = subprocess.Popen(
             [pythonw, "-c", player_script, filepath],
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
-            timeout=35,
             **_subprocess_window_kwargs(),
         )
+        _active_tts_process = process
+        deadline = time.monotonic() + 35.0
+        while process.poll() is None:
+            if not _tts_generation_is_current(generation) or time.monotonic() >= deadline:
+                process.terminate()
+                try:
+                    process.wait(timeout=2)
+                except Exception:
+                    process.kill()
+                    process.wait()
+                break
+            time.sleep(0.05)
+        stdout, stderr = process.communicate()
+        if _active_tts_process is process:
+            _active_tts_process = None
+        if not _tts_generation_is_current(generation):
+            _cleanup(filepath)
+            return False
+        result = subprocess.CompletedProcess(process.args, process.returncode, stdout, stderr)
         if result.returncode == 0:
             logger.info("[TTS] Qt Multimedia subprocess OK")
             _cleanup(filepath)
@@ -360,49 +487,6 @@ def _play_mp3(filepath):
     return False
 
 
-def _select_turkish_pyttsx3_voice(engine):
-    """pyttsx3 motorunda Türkçe sesi bulup ayarlar."""
-    voices = engine.getProperty("voices")
-    if not voices:
-        return False
-
-    tr_keywords = [
-        "turkish",
-        "türkçe",
-        "turkce",
-        "türkçe",
-        "tr-tr",
-        "tr_tr",
-        "tolga",
-        "yelda",
-        "hakan",
-        "filiz",
-        "emel",
-        "microsoft server speech text to speech voice (tr-tr",
-    ]
-
-    for voice in voices:
-        v_name = voice.name.lower()
-        v_id = voice.id.lower()
-        if any(key in v_name or key in v_id for key in tr_keywords):
-            engine.setProperty("voice", voice.id)
-            return True
-
-    if os.name == "nt":
-        for voice in voices:
-            if "tr" in voice.id.lower():
-                engine.setProperty("voice", voice.id)
-                return True
-
-    for voice in voices:
-        for lang in getattr(voice, "languages", []):
-            if "tr" in str(lang).lower():
-                engine.setProperty("voice", voice.id)
-                return True
-
-    return False
-
-
 def sesli_cevap(metin):
     """Basit sesli yanıt."""
     sesli_cevap_ver_async(metin, engine_type="auto")
@@ -411,6 +495,7 @@ def sesli_cevap(metin):
 class BulutAsistan(QThread):
     tetik_sinyali = pyqtSignal(str, str)
     hata_sinyali = pyqtSignal(str)
+    hazir_sinyali = pyqtSignal()
 
     def __init__(self):
         super().__init__()
@@ -420,6 +505,8 @@ class BulutAsistan(QThread):
         self.last_wake_word = ""
         self.last_wake_time = 0.0
         self.wake_timeout_seconds = 10.0
+        self.followup_mode = False
+        self._ready_notified = False
 
     def varsayilan_ayarlar_olustur(self):
         if os.path.exists(self.ayarlar_yolu):
@@ -482,12 +569,62 @@ class BulutAsistan(QThread):
         return False
 
     def _wake_is_recent(self):
-        return (time.time() - self.last_wake_time) <= self.wake_timeout_seconds
+        return bool(getattr(self, "followup_mode", False)) or (
+            time.time() - self.last_wake_time
+        ) <= self.wake_timeout_seconds
 
     def _match_builtin_intent(self, normalized_text, text_without_wake):
         text = _normalize_tr_text(text_without_wake or normalized_text or "")
         if not text:
             return None
+
+        accessibility_commands = (
+            (("son soyledigimi geri al", "son girdigimi geri al"), "voice_undo"),
+            (("forma devam et", "formdaki eksikleri soyle", "hangi alanlar kaldi"), "voice_form_status"),
+            (("formu bastan al", "formu sifirla", "formu temizle"), "voice_form_reset"),
+            (("ekrani oku", "bu ekrani oku", "sayfayi oku"), "voice_read_screen"),
+            (("form hatalarini oku", "dogrulama hatalarini oku", "formu kontrol et"), "voice_read_form_feedback"),
+            (("aktif alani oku", "bu alani oku", "secili alani oku"), "voice_read_field"),
+            (("sonraki alan", "sonraki alana gec", "ileri alan"), "voice_focus_next"),
+            (("onceki alan", "onceki alana gec", "geri alan"), "voice_focus_previous"),
+            (("dikte modunu ac", "dikteye basla", "yazmaya basla"), "voice_dictation_on"),
+            (("dikteyi bitir", "dikte modunu kapat", "yazmayi bitir"), "voice_dictation_off"),
+            (("alani temizle", "bu alani sil", "kutuyu temizle"), "voice_clear_field"),
+            (("son kelimeyi sil", "bir onceki kelimeyi sil", "son sozcugu sil"), "voice_delete_word"),
+            (("imleci basa al", "alanin basina git"), "voice_cursor_start"),
+            (("imleci sona al", "alanin sonuna git"), "voice_cursor_end"),
+            (("virgul koy", "virgul ekle"), "voice_insert_comma"),
+            (("nokta koy", "nokta ekle"), "voice_insert_period"),
+            (("yeni satir", "alt satira gec"), "voice_insert_newline"),
+            (("asagi kaydir", "ekrani asagi indir"), "voice_scroll_down"),
+            (("yukari kaydir", "ekrani yukari cikar"), "voice_scroll_up"),
+            (("sonraki kayit", "sonraki satir", "listede ileri git"), "voice_next_record"),
+            (("onceki kayit", "onceki satir", "listede geri git"), "voice_previous_record"),
+            (("secili kaydi ac", "bu kaydi ac", "secili satiri ac"), "voice_open_record"),
+            (("geri don", "onceki sayfaya don", "bir onceki ekrana don"), "voice_navigate_back"),
+            (("son degisikligi geri al", "son yaptigimi geri al", "degisikligi geri al"), "voice_undo"),
+            (("bekleyen islemi iptal et", "onay istegini iptal et", "sunu iptal et"), "voice_cancel_pending"),
+            (("yanitini tekrar et", "son soyledigini tekrar et", "tekrar soyle"), "voice_repeat_last"),
+            (("sonraki komutlar", "diger komutlari oku", "yetenege devam et"), "voice_help_next"),
+            (("konusmayi durdur", "sesi durdur", "asistan sus", "sesli yaniti kes"), "voice_stop_speech"),
+        )
+        for phrases, intent in accessibility_commands:
+            if any(phrase in text for phrase in phrases):
+                return (intent, "")
+
+        named_clear = re.search(r"(.+?)\s+alanini\s+temizle\b", text)
+        if named_clear:
+            return ("voice_clear_named_field", named_clear.group(1).strip())
+
+        for prefix in ("bu ekranda ara ", "sayfada ara ", "ekranda ara ", "burada ara "):
+            if text.startswith(prefix):
+                return ("voice_search_screen", text[len(prefix):].strip())
+
+        if text in {"teklif olustur", "yeni teklif", "teklif ekranini ac", "teklif olusturma ekranini ac"}:
+            return ("open_page", "150")
+
+        if "stok" in text and any(term in text for term in ("ocr", "resimden aktar", "faturayi tara", "goruntuden aktar")):
+            return ("voice_open_stock_ocr", "")
 
         if any(phrase in text for phrase in ["gelismis finansal ozet", "nakit akis ozeti", "vade ozetini soyle"]):
             return ("financial_summary", "")
@@ -500,6 +637,9 @@ class BulutAsistan(QThread):
             "evet tamam",
             "onayla",
             "onayliyorum",
+            "evet onayliyorum",
+            "evet devam et",
+            "onay veriyorum",
             "uygula",
             "tamam",
             "yap",
@@ -508,7 +648,10 @@ class BulutAsistan(QThread):
         }:
             return ("confirm_yes", "")
 
-        if text in {"hayir", "hayır", "iptal", "vazgec", "vazgeç", "uygulama", "uygulama istemiyorum"}:
+        if text in {
+            "hayir", "iptal", "vazgec", "uygulama", "uygulama istemiyorum",
+            "hayir onaylamiyorum", "onaylamiyorum", "vazgeciyorum",
+        }:
             return ("confirm_no", "")
 
         if "kritik stok" in text or "eksik stok" in text:
@@ -560,16 +703,58 @@ class BulutAsistan(QThread):
         if "musteri 360" in text or "musteri cari hesap" in text:
             return ("customer_360", _extract_customer_360_target(text))
 
-        if "teknisyen paneli" in text or text == "panel ac":
+        if "indirim tavsiyesi" in text or "indirim onerisi" in text:
+            target = text
+            for phrase in ("icin indirim tavsiyesi ver", "indirim tavsiyesi ver", "indirim tavsiyesi", "icin indirim onerisi ver", "indirim onerisi ver", "indirim onerisi"):
+                target = target.replace(phrase, " ")
+            return ("discount_advice", re.sub(r"\s+", " ", target).strip().title())
+
+        note_match = re.search(r"(?:toplanti\s+)?notu\s+al\s+(.+)$", text)
+        if note_match:
+            return ("add_quick_note_voice", note_match.group(1).strip())
+
+        reminder_match = re.search(r"(.+?)\s+(?:icin\s+)?(?:odeme\s+)?hatirlatici\s+(?:ekle|olustur)$", text)
+        if reminder_match:
+            return ("add_reminder_voice", reminder_match.group(1).strip())
+
+        select_match = re.search(r"^(.+?)\s+(?:adli\s+)?(?:musteriyi\s+)?sec(?:\s+ve\s+ilerle)?$", text)
+        if select_match:
+            target = re.sub(r"['\u2019](?:yi|i|yu|u)$", "", select_match.group(1)).strip()
+            target = re.sub(r"^(?:(?:teknisyen\s+)?paneli|panel)\s+acildiktan\s+sonra\s+", "", target)
+            if target and target not in {"teknisyen paneli", "servis paneli"}:
+                return ("select_service_device", target.title())
+
+        if BulutAsistan._is_technician_panel_open_request(text):
             return ("panel_ac", "")
 
         if "zam" in text and "stok" in text:
             yuzde = _parse_turkish_percentage(text)
             if yuzde:
-                return ("apply_zam", f"Stoklara %{yuzde}")
-            return ("apply_zam", text.title())
+                return ("apply_zam", f"Stoklara %{yuzde} {text}")
+            return ("apply_zam", "")
 
         return None
+
+    @staticmethod
+    def _is_technician_panel_open_request(text):
+        """Match only a standalone request to open the technician panel."""
+        normalized = _normalize_tr_text(text)
+        words = normalized.split()
+        while words and words[0] in {"hey", "merhaba", "selam", "asistan", "lutfen"}:
+            words.pop(0)
+        while words and words[-1] in {"lutfen", "rica", "ederim"}:
+            words.pop()
+        phrase = " ".join(words)
+        return phrase in {
+            "teknisyen panelini ac",
+            "teknisyen paneli ac",
+            "teknisyen panelini goster",
+            "teknisyen paneli goster",
+            "panel ac",
+            "paneli ac",
+            "teknisyen paneli",
+            "teknisyen",
+        }
 
     def _normalize_settings(self, raw):
         if not isinstance(raw, dict):
@@ -619,12 +804,36 @@ class BulutAsistan(QThread):
 
         return normalized
 
+    @staticmethod
+    def _find_configured_trigger(settings, text):
+        matches = []
+        for _, config in settings.items():
+            for trigger in config.get("triggers", []):
+                if not trigger:
+                    continue
+                start = text.find(trigger)
+                if start < 0:
+                    continue
+                end = start + len(trigger)
+                left_boundary = start == 0 or not (text[start - 1].isalnum() or text[start - 1] == "_")
+                right_boundary = end == len(text) or not (text[end].isalnum() or text[end] == "_")
+                if left_boundary and right_boundary:
+                    matches.append((len(trigger), config, trigger))
+        if not matches:
+            return None
+        best_length = max(item[0] for item in matches)
+        best = [item for item in matches if item[0] == best_length]
+        actions = {
+            (str(item[1].get("action") or ""), repr(item[1].get("action_payload")))
+            for item in best
+        }
+        if len(actions) > 1:
+            return (None, None)
+        return (best[0][1], best[0][2])
+
     def stop(self):
         self.is_running = False
-        if self.isRunning() and not self.wait(3000):
-            logger.warning("Voice assistant listener did not stop within timeout; terminating thread.")
-            self.terminate()
-            self.wait(1000)
+        self.requestInterruption()
 
     def _pause(self, seconds):
         deadline = time.time() + seconds
@@ -633,15 +842,45 @@ class BulutAsistan(QThread):
 
     def run(self):
         recognizer = sr.Recognizer()
-        request_error_notified = False
+        _configure_microphone_recognizer(recognizer)
         mic_error_notified = False
+        try:
+            from src.utils.offline_turkish_asr import OfflineTurkishASR
+
+            offline_asr = OfflineTurkishASR()
+        except Exception as e:
+            if isinstance(e, FileNotFoundError):
+                message = (
+                    "\u00c7evrim d\u0131\u015f\u0131 T\u00fcrk\u00e7e konu\u015fma modeli bulunamad\u0131. "
+                    "tools/setup/prepare_offline_asr.py arac\u0131n\u0131 \u00e7al\u0131\u015ft\u0131r\u0131n."
+                )
+            elif isinstance(e, ImportError):
+                message = (
+                    "Ses tan\u0131ma bile\u015fenleri uygulama paketinde eksik. "
+                    "Program\u0131n ses bile\u015fenlerini g\u00fcncelleyin."
+                )
+            else:
+                message = f"Ses tan\u0131ma motoru ba\u015flat\u0131lamad\u0131: {e}"
+            logger.error("Offline Turkish ASR could not start: %s", e)
+            self.hata_sinyali.emit(message)
+            return
+
+        quiet_timeouts = 0
         while self.is_running:
             try:
                 with sr.Microphone() as source:
                     mic_error_notified = False
                     try:
                         recognizer.adjust_for_ambient_noise(source, duration=1)
-                        logger.info("Asistan aktif: dinliyor...")
+                        logger.info(
+                            "Voice input ready: device=%s sample_rate=%s energy_threshold=%.1f",
+                            source.device_index,
+                            source.SAMPLE_RATE,
+                            recognizer.energy_threshold,
+                        )
+                        if not self._ready_notified:
+                            self._ready_notified = True
+                            self.hazir_sinyali.emit()
                     except Exception as e:
                         logger.error("Mikrofon ayarı yapılamadı: %s", e)
                         self._pause(2)
@@ -651,20 +890,49 @@ class BulutAsistan(QThread):
                         if not self.is_running:
                             break
                         try:
-                            audio = recognizer.listen(source, timeout=2, phrase_time_limit=5)
-                            metin = recognizer.recognize_google(audio, language="tr-TR").lower()
-                            logger.info("Duyuldu: %s", metin)
-                            self.komut_coz(metin)
+                            capture_generation, playback_active = _tts_capture_snapshot()
+                            if playback_active:
+                                _discard_microphone_chunk(source)
+                                self._pause(0.15)
+                                continue
+                            audio = _listen_for_microphone_phrase(recognizer, source)
+                            quiet_timeouts = 0
+                            if not self.is_running:
+                                break
+                            current_generation, playback_active = _tts_capture_snapshot()
+                            if playback_active or current_generation != capture_generation:
+                                logger.debug("Ignored microphone audio overlapping assistant speech")
+                                continue
+                            audio_duration = len(audio.frame_data) / max(
+                                1, audio.sample_rate * audio.sample_width
+                            )
+                            logger.info(
+                                "Voice phrase captured: device=%s duration=%.2fs",
+                                source.device_index,
+                                audio_duration,
+                            )
+                            recognition = offline_asr.transcribe_with_confidence(audio)
+                            if not self.is_running:
+                                break
+                            metin = str(recognition.get("text") or "").lower().strip()
+                            confidence = float(recognition.get("confidence", 0.0))
+                            logger.info("Voice recognition result: text=%r confidence=%.3f", metin, confidence)
+                            if metin and confidence < MIN_COMMAND_CONFIDENCE:
+                                logger.info("Low-confidence speech was not executed")
+                                self.tetik_sinyali.emit("assistant_unclear", metin)
+                            elif metin:
+                                self.komut_coz(metin)
                         except sr.WaitTimeoutError:
+                            quiet_timeouts += 1
+                            if quiet_timeouts % 15 == 0:
+                                logger.info(
+                                    "Microphone is open with no detected phrase: device=%s energy_threshold=%.1f",
+                                    source.device_index,
+                                    recognizer.energy_threshold,
+                                )
                             continue
                         except sr.UnknownValueError:
                             continue
-                        except sr.RequestError as e:
-                            logger.error("Google API Hatası: %s", e)
-                            if not request_error_notified:
-                                self.hata_sinyali.emit("Ses tanima servisine ulasilamadi. Internet baglantisini kontrol edin.")
-                                request_error_notified = True
-                            self._pause(5)
                         except Exception as e:
                             logger.error("Dinleme hatası: %s", e)
             except AttributeError:
@@ -698,8 +966,25 @@ class BulutAsistan(QThread):
     def komut_coz(self, metin):
         try:
             ayarlar = self._normalize_settings(self._load_settings())
+            original_text = str(metin or "").strip()
             normalized_text = _normalize_tr_text(metin)
             if not normalized_text:
+                return
+
+            if getattr(self, "dictation_mode", False):
+                voice_intent = self._match_builtin_intent(normalized_text, normalized_text)
+                if voice_intent and voice_intent[0].startswith("voice_"):
+                    parametre = voice_intent[1]
+                    if voice_intent[0] == "voice_search_screen":
+                        match = re.match(
+                            r"(?i)^(?:bu ekranda ara|sayfada ara|ekranda ara|burada ara)\s+",
+                            original_text,
+                        )
+                        if match:
+                            parametre = original_text[match.end():].strip()
+                    self.tetik_sinyali.emit(voice_intent[0], parametre)
+                else:
+                    self.tetik_sinyali.emit("assistant_chat", str(metin or "").strip())
                 return
 
             immediate_intent = self._match_builtin_intent(normalized_text, normalized_text)
@@ -714,7 +999,56 @@ class BulutAsistan(QThread):
             # ozeti" usable when speech recognition drops the wake word.
             direct_intent = self._match_builtin_intent(normalized_text, normalized_text)
             if direct_intent:
-                self.tetik_sinyali.emit(direct_intent[0], direct_intent[1])
+                parametre = direct_intent[1]
+                if direct_intent[0] == "voice_search_screen":
+                    match = re.match(
+                        r"(?i)^(?:bu ekranda ara|sayfada ara|ekranda ara|burada ara)\s+",
+                        original_text,
+                    )
+                    if match:
+                        parametre = original_text[match.end():].strip()
+                self.tetik_sinyali.emit(direct_intent[0], parametre)
+                self.last_wake_time = time.time() if direct_intent[0] == "panel_ac" else 0.0
+                self.last_wake_word = ""
+                return
+
+            # Exact user-configured commands should work without a wake word.
+            # Previously these were checked only after the wake-word gate, so
+            # ordinary commands such as "yeni servis ac" were silently dropped.
+            configured_match = BulutAsistan._find_configured_trigger(ayarlar, normalized_text)
+            if configured_match:
+                cfg, matched_trigger = configured_match
+                if cfg is None:
+                    self.tetik_sinyali.emit("assistant_unclear", original_text)
+                    return
+                action = cfg.get("action")
+                payload = cfg.get("action_payload")
+                if action == "panel_ac" and not self._is_technician_panel_open_request(normalized_text):
+                    self.tetik_sinyali.emit("assistant_chat", original_text)
+                    return
+                if isinstance(payload, dict) and payload.get("type") == "page":
+                    page_index = payload.get("index", "")
+                    remaining = normalized_text.replace(matched_trigger, "").strip()
+                    if payload.get("auto_search") and remaining:
+                        self.tetik_sinyali.emit("open_page_search", f"{page_index}|{remaining}")
+                    else:
+                        self.tetik_sinyali.emit("open_page", str(page_index))
+                else:
+                    self.tetik_sinyali.emit(str(action or ""), "")
+                self.last_wake_time = time.time() if action == "panel_ac" else 0.0
+                self.last_wake_word = ""
+                return
+
+            configured_trigger = any(
+                trigger and trigger in normalized_text
+                for config in ayarlar.values()
+                for trigger in config.get("triggers", [])
+            )
+            if not configured_trigger and any(
+                token in normalized_text.split()
+                for token in ("ac", "acabilir", "goster", "getir", "git")
+            ):
+                self.tetik_sinyali.emit("assistant_chat", original_text)
                 self.last_wake_time = 0.0
                 self.last_wake_word = ""
                 return
@@ -736,180 +1070,117 @@ class BulutAsistan(QThread):
                     self.tetik_sinyali.emit("wake_ack", "")
                     return
             elif not self._wake_is_recent():
+                # Resolve exact visible menu/control names without waking the
+                # conversational model. Unknown ambient speech stays inert.
+                self.tetik_sinyali.emit("assistant_named_target", original_text)
                 return
 
             text_without_wake = normalized_text.replace(matched_wake, "").strip() if matched_wake else normalized_text
+            raw_without_wake = original_text
+            if matched_wake:
+                raw_without_wake = re.sub(
+                    r"(?i)(?<!\w)" + re.escape(matched_wake) + r"(?!\w)",
+                    "",
+                    raw_without_wake,
+                    count=1,
+                ).strip()
+                raw_without_wake = re.sub(r"^[\s,;:.-]+|[\s,;:.-]+$", "", raw_without_wake)
 
             builtin_intent = self._match_builtin_intent(normalized_text, text_without_wake)
             if builtin_intent:
-                self.tetik_sinyali.emit(builtin_intent[0], builtin_intent[1])
+                parametre = builtin_intent[1]
+                if builtin_intent[0] == "voice_search_screen":
+                    match = re.match(
+                        r"(?i)^(?:bu ekranda ara|sayfada ara|ekranda ara|burada ara)\s+",
+                        raw_without_wake,
+                    )
+                    if match:
+                        parametre = raw_without_wake[match.end():].strip()
+                self.tetik_sinyali.emit(builtin_intent[0], parametre)
                 self.last_wake_time = 0.0
                 self.last_wake_word = ""
                 return
 
-            for _, cfg in ayarlar.items():
-                aksiyon = cfg.get("action")
-                payload = cfg.get("action_payload")
-                triggers = sorted(cfg.get("triggers", []), key=lambda item: len(str(item or "")), reverse=True)
-                matched_trigger = None
-
-                for kelime in triggers:
-                    pattern = r"(?<!\w)" + re.escape(kelime) + r"(?!\w)"
-                    if re.search(pattern, normalized_text, flags=re.IGNORECASE):
-                        matched_trigger = kelime
-                        break
-
-                if not matched_trigger:
-                    for kelime in triggers:
-                        if kelime in normalized_text:
-                            matched_trigger = kelime
-                            break
-
-                if matched_trigger:
-                    kalan = text_without_wake.replace(matched_trigger, "").strip()
-                    if isinstance(payload, dict) and payload.get("type") == "page":
-                        try:
-                            page_index = payload.get("index")
-                            auto_search = bool(payload.get("auto_search"))
-                            if auto_search and kalan:
-                                self.tetik_sinyali.emit("open_page_search", f"{page_index}|{kalan}")
-                            else:
-                                self.tetik_sinyali.emit("open_page", str(page_index))
-                        except Exception:
-                            self.tetik_sinyali.emit("open_page", str(payload.get("index", "")))
-                    else:
-                        self.tetik_sinyali.emit(str(aksiyon or ""), kalan.title())
-                    self.last_wake_time = 0.0
-                    self.last_wake_word = ""
+            configured_match = BulutAsistan._find_configured_trigger(ayarlar, normalized_text)
+            if configured_match:
+                cfg, matched_trigger = configured_match
+                if cfg is None:
+                    self.tetik_sinyali.emit("assistant_unclear", raw_without_wake)
                     return
+                action = cfg.get("action")
+                payload = cfg.get("action_payload")
+                remaining = text_without_wake.replace(matched_trigger, "").strip()
+                if isinstance(payload, dict) and payload.get("type") == "page":
+                    page_index = payload.get("index")
+                    if payload.get("auto_search") and remaining:
+                        self.tetik_sinyali.emit("open_page_search", f"{page_index}|{remaining}")
+                    else:
+                        self.tetik_sinyali.emit("open_page", str(page_index))
+                else:
+                    self.tetik_sinyali.emit(str(action or ""), remaining.title())
+                self.last_wake_time = 0.0
+                self.last_wake_word = ""
+                return
+            self.tetik_sinyali.emit("assistant_chat", raw_without_wake)
+            self.last_wake_time = 0.0
+            self.last_wake_word = ""
         except Exception as e:
             logger.error("Komut çözme hatası: %s", e)
 
 
 def sesli_cevap_ver_async(metin, engine_type="auto", voice=None, rate=None, pitch=None, efekt_aktif=False):
-    """
-    Generate speech with Premium/Edge TTS only.
-
-    The ``efekt_aktif`` argument is retained for backward compatibility.
-    """
+    """Generate Turkish speech with the isolated local EMA voice model."""
     del efekt_aktif
-
     if not metin:
         return
-    engine_choice = str(engine_type or "auto").strip().lower()
-
-    def _try_edge_tts():
-        """Edge TTS ile Türkçe sentez ve oynatma."""
-        try:
-            import asyncio
-            import edge_tts
-            import re as _re
-
-            logger.info("[TTS] Edge TTS başlatılıyor... metin=%s...", metin[:50])
-
-            edge_voice = "tr-TR-AhmetNeural"
-            if voice and "Neural" in str(voice) and str(voice).startswith("tr-"):
-                edge_voice = str(voice)
-
-            edge_rate = str(rate).strip() if rate else "+0%"
-            if not _re.match(r"^[+-]\d+%$", edge_rate):
-                edge_rate = "+0%"
-
-            edge_pitch = str(pitch).strip() if pitch else "-5Hz"
-            if not _re.match(r"^[+-]\d+Hz$", edge_pitch):
-                edge_pitch = "-5Hz"
-
-            logger.info("[TTS] Edge params: voice=%s, rate=%s, pitch=%s", edge_voice, edge_rate, edge_pitch)
-
-            temp_path = os.path.join(tempfile.gettempdir(), f"ayec_tts_{threading.current_thread().ident}.mp3")
-            try:
-                if os.path.exists(temp_path):
-                    os.remove(temp_path)
-            except Exception:
-                pass
-
-            async def _synthesize():
-                comm = edge_tts.Communicate(metin, edge_voice, rate=edge_rate, pitch=edge_pitch)
-                await comm.save(temp_path)
-
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                loop.run_until_complete(_synthesize())
-            finally:
-                loop.close()
-
-            if os.path.exists(temp_path) and os.path.getsize(temp_path) > 100:
-                logger.info("[TTS] Edge TTS MP3 oluşturuldu: %s bytes", os.path.getsize(temp_path))
-                return _play_mp3(temp_path)
-
-            logger.warning("[TTS] Edge TTS: dosya oluşturulamadı")
-            _cleanup(temp_path)
-            return False
-        except ImportError as e:
-            logger.error("[TTS] edge_tts import hatası: %s", e)
-            return False
-        except Exception as e:
-            logger.exception("[TTS] Edge TTS hatası: %s", e)
-            return False
-
-    def _try_system_tts():
-        """Speak through the local operating-system voice."""
-        com_initialized = False
-        engine = None
-        try:
-            if os.name == "nt":
-                try:
-                    import pythoncom
-
-                    pythoncom.CoInitialize()
-                    com_initialized = True
-                except Exception as exc:
-                    logger.debug("[TTS] COM initialization fallback: %s", exc)
-
-            engine = pyttsx3.init()
-            _select_turkish_pyttsx3_voice(engine)
-            current_rate = int(engine.getProperty("rate") or 180)
-            rate_match = re.match(r"^([+-])(\d+)%$", str(rate or "+0%").strip())
-            if rate_match:
-                percentage = int(rate_match.group(2))
-                if rate_match.group(1) == "-":
-                    percentage *= -1
-                current_rate = max(80, min(320, int(current_rate * (1 + percentage / 100))))
-            engine.setProperty("rate", current_rate)
-            engine.setProperty("volume", 1.0)
-            engine.say(str(metin))
-            engine.runAndWait()
-            engine.stop()
-            logger.info("[TTS] System voice speech completed")
-            return True
-        except Exception as exc:
-            logger.exception("[TTS] System voice error: %s", exc)
-            return False
-        finally:
-            if engine is not None:
-                try:
-                    engine.stop()
-                except Exception:
-                    pass
-            if com_initialized:
-                try:
-                    import pythoncom
-
-                    pythoncom.CoUninitialize()
-                except Exception:
-                    pass
+    global _tts_generation, _tts_playback_active
+    stop_tts_playback()
+    with _tts_generation_lock:
+        _tts_generation += 1
+        generation = _tts_generation
+        _tts_playback_active = True
+    engine_choice = str(engine_type or "ema-lightning").strip().lower()
+    legacy_choices = {"auto", "system", "edge", "premium"}
+    if engine_choice not in legacy_choices | {"freya", "local", "qwen", "ema", "ema-lightning"}:
+        logger.warning("[TTS] Unknown engine '%s'; using local EMA Turkish TTS", engine_choice)
 
     def _run_tts():
+        global _tts_mic_cooldown_until
         with _tts_lock:
-            logger.info("[TTS] Speech started with engine=%s", engine_choice)
-            if engine_choice == "system":
-                _try_system_tts()
+            if not _tts_generation_is_current(generation):
                 return
-            if engine_choice in {"auto", "edge", "premium"} and _try_edge_tts():
-                logger.info("[TTS] Premium/Edge speech completed")
-                return
-            logger.warning("[TTS] Edge speech unavailable; using system voice fallback")
-            _try_system_tts()
+            temp_path = os.path.join(
+                tempfile.gettempdir(),
+                f"ayec_ema_{threading.current_thread().ident}.wav",
+            )
+            try:
+                from src.utils.local_turkish_tts import synthesize_to_file
+
+                logger.info("[TTS] Local EMA Turkish speech synthesis started")
+                synthesize_to_file(metin, temp_path, voice=voice)
+                if not _tts_generation_is_current(generation):
+                    return
+                if os.path.exists(temp_path) and os.path.getsize(temp_path) > 100:
+                    try:
+                        accepts_generation = len(inspect.signature(_play_mp3).parameters) > 1
+                    except (TypeError, ValueError):
+                        accepts_generation = True
+                    played = (
+                        _play_mp3(temp_path, generation)
+                        if accepts_generation
+                        else _play_mp3(temp_path)
+                    )
+                    if played:
+                        logger.info("[TTS] Local EMA Turkish speech completed")
+                        return
+                logger.error("[TTS] Local Turkish speech file could not be played")
+            except Exception as exc:
+                logger.exception("[TTS] EMA Turkish speech failed; no system voice fallback is enabled: %s", exc)
+            finally:
+                _cleanup(temp_path)
+                with _tts_generation_lock:
+                    if generation == _tts_generation:
+                        _tts_playback_active = False
+                        _tts_mic_cooldown_until = time.monotonic() + 0.65
 
     threading.Thread(target=_run_tts, daemon=True).start()

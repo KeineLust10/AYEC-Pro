@@ -6,7 +6,7 @@ import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PyQt6.QtWidgets import QApplication, QWidget
+from PyQt6.QtWidgets import QApplication, QLabel, QWidget
 
 # Yolu ayarla
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -57,7 +57,11 @@ class TestUIScenarios(unittest.TestCase):
         self.assertEqual(page.table.rowCount(), 1)
         
         # Tablodaki veri doğru mu?
-        self.assertEqual(page.table.item(0, 1).text(), "Test UI User")
+        self.assertEqual(page.table.item(0, 1).text(), "#001")
+        identity = page.table.cellWidget(0, 2)
+        self.assertIsNotNone(identity)
+        names = [label.text() for label in identity.findChildren(QLabel)]
+        self.assertIn("Test UI User", names)
 
     def test_stock_page_init(self):
         """Stok sayfasının başlatılması"""

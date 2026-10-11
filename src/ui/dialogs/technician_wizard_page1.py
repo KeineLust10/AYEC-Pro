@@ -189,13 +189,13 @@ class TechnicianWizardPage1(QWidget):
         group.setStyleSheet(self._group_qss())
 
         layout = QVBoxLayout(group)
-        layout.setContentsMargins(0, 4, 0, 0)
+        layout.setContentsMargins(6, 6, 6, 6)
         layout.setSpacing(2)
 
         grid = QGridLayout()
         grid.setContentsMargins(0, 0, 0, 0)
         grid.setHorizontalSpacing(14)
-        grid.setVerticalSpacing(10)
+        grid.setVerticalSpacing(6)
 
         saved_accs = [
             s.strip().upper()
@@ -290,7 +290,7 @@ class TechnicianWizardPage1(QWidget):
         grid = QGridLayout()
         grid.setContentsMargins(0, 0, 0, 0)
         grid.setHorizontalSpacing(14)
-        grid.setVerticalSpacing(10)
+        grid.setVerticalSpacing(6)
 
         saved_accs = [s.strip().upper() for s in (self.accessories_str or "").split(",") if s.strip()]
         labels = (
@@ -314,7 +314,7 @@ class TechnicianWizardPage1(QWidget):
     def create_toggle_item(self, text, checked=False):
         container = QWidget()
         container.setObjectName("ClassicAccessoryToggleItem")
-        container.setFixedHeight(34)
+        container.setFixedHeight(26)
         container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         if self._is_classic_appearance():
             container.setStyleSheet("""
@@ -330,12 +330,15 @@ class TechnicianWizardPage1(QWidget):
                     border: none;
                 }
             """)
+        else:
+            container.setStyleSheet(theme_qss("QWidget#ClassicAccessoryToggleItem{background:@finance_canvas;border:1px solid @finance_outline;border-radius:4px;}QWidget#ClassicAccessoryToggleItem QLabel{background:transparent;color:@finance_text;border:none;font-size:10px;}"))
         h_layout = QHBoxLayout(container)
         h_layout.setContentsMargins(6, 3, 6, 3)
         h_layout.setSpacing(6)
 
         toggle = AnimatedToggle()
-        toggle.setFixedSize(46, 24)
+        toggle.setFixedSize(18, 18)
+        toggle.setProperty("referenceCheckbox", True)
         toggle.setChecked(checked)
         toggle.setCursor(Qt.CursorShape.PointingHandCursor)
         toggle.setAccessibleName(f"aksesuar_toggle_{text.lower().replace(' ', '_')}")
@@ -350,7 +353,7 @@ class TechnicianWizardPage1(QWidget):
             )
         )
         label.setCursor(Qt.CursorShape.PointingHandCursor)
-        label.mousePressEvent = lambda event, t=toggle: t.toggle()
+        label.mousePressEvent = lambda event, t=toggle: t.toggle() if t.isEnabled() else None
         label.setAccessibleName(f"aksesuar_etiket_{text.lower().replace(' ', '_')}")
 
         h_layout.addWidget(toggle)
@@ -405,7 +408,7 @@ class TechnicianWizardPage1(QWidget):
         group.setStyleSheet(self._group_qss())
 
         layout = QVBoxLayout(group)
-        layout.setContentsMargins(0, 4, 0, 0)
+        layout.setContentsMargins(6, 6, 6, 6)
         layout.setSpacing(6)
 
         self.photos_grid = QGridLayout()
@@ -417,9 +420,9 @@ class TechnicianWizardPage1(QWidget):
 
         btn_gallery = QPushButton("Galeriyi A\u00e7")
         btn_gallery.setMinimumWidth(240)
-        btn_gallery.setFixedHeight(36)
+        btn_gallery.setFixedHeight(28)
         btn_gallery.setFont(QFont(DesignTokens.FONT_FAMILY, 10, QFont.Weight.DemiBold))
-        btn_gallery.setStyleSheet(theme_qss(DesignTokens.get_button_qss("primary", size="sm")))
+        btn_gallery.setStyleSheet(theme_qss("QPushButton{background:@accent;color:@selection_text;border:1px solid @finance_outline;border-radius:4px;padding:0 6px;min-height:24px;font-size:10px;}"))
         btn_gallery.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_gallery.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         btn_gallery.clicked.connect(self.open_gallery)
@@ -441,7 +444,7 @@ class TechnicianWizardPage1(QWidget):
                 photo_paths[index] if index < len(photo_paths) else "",
                 thumb_size,
             )
-            self.photos_grid.addWidget(thumb, index // 3, index % 3)
+            self.photos_grid.addWidget(thumb, 0, index)
 
     def _get_photo_paths(self):
         paths = []
@@ -506,7 +509,8 @@ class TechnicianWizardPage1(QWidget):
             painter.end()
             label.setPixmap(rounded)
         else:
-            label.setText("\U0001f5bc")
+            label.setText("\u25a1")
+            label.setToolTip("Fotograf kaydi yok")
             label.setStyleSheet(
                 theme_qss(
                     "color: @text_muted; font-size: 18px; border: none; background: transparent;"

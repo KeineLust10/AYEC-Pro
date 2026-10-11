@@ -100,9 +100,29 @@ class StockLocationMixin:
                 """,
                 (now,),
             )
-            main_id = cur.execute(
+            main_row = cur.execute(
                 "SELECT id FROM stock_locations WHERE location_type='main' ORDER BY id LIMIT 1"
-            ).fetchone()[0]
+            ).fetchone()
+            if main_row is None:
+                depot_row = cur.execute(
+                    "SELECT id FROM stock_locations WHERE name='Ana Depo' ORDER BY id LIMIT 1"
+                ).fetchone()
+                if depot_row is None:
+                    cur.execute(
+                        "INSERT INTO stock_locations (name, location_type, active, created_at) "
+                        "VALUES ('Ana Depo', 'main', 1, ?)",
+                        (now,),
+                    )
+                    main_row = cur.execute(
+                        "SELECT id FROM stock_locations WHERE name='Ana Depo' LIMIT 1"
+                    ).fetchone()
+                else:
+                    main_row = depot_row
+                    cur.execute(
+                        "UPDATE stock_locations SET location_type='main' WHERE id=?",
+                        (main_row[0],),
+                    )
+            main_id = int(main_row[0])
             used_parts_table = cur.execute(
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='used_parts'"
             ).fetchone()
@@ -331,18 +351,6 @@ class StockLocationMixin:
         self.ensure_stock_location_schema()
         cur = self.conn.cursor()
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        source_row = cur.execute(
-            "SELECT name, vehicle_plate FROM stock_locations WHERE id=?", (source_id,)
-        ).fetchone()
-        target_row = cur.execute(
-            "SELECT name, vehicle_plate FROM stock_locations WHERE id=?", (target_id,)
-        ).fetchone()
-        source_label = str(source_row[0] or source_id) if source_row else str(source_id)
-        target_label = str(target_row[0] or target_id) if target_row else str(target_id)
-        if source_row and source_row[1]:
-            source_label += " ({})".format(source_row[1])
-        if target_row and target_row[1]:
-            target_label += " ({})".format(target_row[1])
         reference = datetime.now().strftime("TRF-%Y%m%d-%H%M%S-%f")
         try:
             cur.execute("BEGIN IMMEDIATE")
@@ -377,22 +385,6 @@ class StockLocationMixin:
                 target_qty = float(target_row[0] if target_row else 0)
                 self._set_location_balance(cur, part_id, source_id, source_qty - quantity, now)
                 self._set_location_balance(cur, part_id, target_id, target_qty + quantity, now)
-                cur.execute(
-                    """
-                    INSERT INTO stock_movements(part_id, movement_type, amount, new_stock, description, created_at)
-                    VALUES (?, 'Cikis', ?, ?, ?, ?)
-                    """,
-                    (part_id, quantity, source_qty - quantity,
-                     "Transfer cikisi: {} -> {}".format(source_label, target_label), now),
-                )
-                cur.execute(
-                    """
-                    INSERT INTO stock_movements(part_id, movement_type, amount, new_stock, description, created_at)
-                    VALUES (?, 'Giris', ?, ?, ?, ?)
-                    """,
-                    (part_id, quantity, target_qty + quantity,
-                     "Transfer girisi: {} -> {}".format(source_label, target_label), now),
-                )
                 cur.execute(
                     "INSERT INTO stock_transfer_lines(transfer_id, part_id, quantity, unit) VALUES (?, ?, ?, ?)",
                     (transfer_id, part_id, quantity, unit),

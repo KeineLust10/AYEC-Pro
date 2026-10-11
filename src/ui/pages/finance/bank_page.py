@@ -4,6 +4,7 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QTabWidget, QLabe
 from PyQt6.QtGui import QFont
 
 from src.utils.theme_colors import theme_qss
+from src.utils.design_system import DesignTokens
 from src.ui.pages.finance.bank_accounts_widget import BankAccountsWidget
 from src.ui.pages.finance.bank_loans_widget import LoansWidget
 
@@ -17,25 +18,16 @@ class BankPage(QWidget):
 
     def init_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 10, 10, 10)
-
-        # Header
-        header_layout = QHBoxLayout()
-        title = QLabel("Banka & Finans Yönetimi")
-        title.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
-        header_layout.addWidget(title)
-        header_layout.addStretch()
-        layout.addLayout(header_layout)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
         # Tabs
         self.tabs = QTabWidget()
         self.tabs.setObjectName("FinanceTabs")
         self.tabs.setStyleSheet(theme_qss("""
             QTabWidget#FinanceTabs::pane {
-                border: 1px solid @border;
-                background: @surface;
-                border-radius: 15px;
-                top: -15px;
+                border: 0;
+                background: @finance_canvas;
             }
             QTabBar::tab {
                 background: @surface_alt;
@@ -56,6 +48,7 @@ class BankPage(QWidget):
                 background: @border;
             }
         """))
+        self.tabs.tabBar().hide()
         layout.addWidget(self.tabs)
 
         # Tab 1: Hesap Listesi
@@ -65,6 +58,8 @@ class BankPage(QWidget):
         # Tab 2: Krediler
         self.loans_tab = LoansWidget(self.db, self.main_window)
         self.tabs.addTab(self.loans_tab, "Krediler")
+        self.accounts_tab.btn_loans.clicked.connect(lambda: self.tabs.setCurrentIndex(1))
+        self.loans_tab.btn_accounts.clicked.connect(lambda: self.tabs.setCurrentIndex(0))
 
     def refresh_data(self):
         if hasattr(self.accounts_tab, 'load_data'):

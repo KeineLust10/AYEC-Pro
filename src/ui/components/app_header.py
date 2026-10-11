@@ -2,14 +2,15 @@ import logging
 import os
 
 from PyQt6.QtCore import Qt, QPoint, QSize, QRect, QEvent
-from PyQt6.QtGui import QIcon, QPixmap
-from PyQt6.QtWidgets import QApplication, QComboBox, QHBoxLayout, QLabel, QPushButton, QStyle, QWidget
+from PyQt6.QtGui import QIcon, QPixmap, QColor, QPainter, QFont
+from PyQt6.QtWidgets import QApplication, QFrame, QHBoxLayout, QLabel, QPushButton, QStyle, QToolButton, QWidget, QMenu
 
 from src.ui.components.notification_center import NotificationBell, NotificationPanel
 from src.ui.widgets.breadcrumb import Breadcrumb
+from src.ui.widgets.modern_inputs import ModernComboBox
 from src.utils.auth_manager import AuthManager
 from src.utils.appearance_mode import AppearanceModeManager
-from src.utils.theme_colors import theme_qss
+from src.utils.theme_colors import theme_qss, tc
 from src.utils.theme_manager import ThemeManager
 
 logger = logging.getLogger(__name__)
@@ -27,7 +28,7 @@ class AppHeader(QWidget):
         self.main_window = main_window
         self.db = main_window.db
 
-        self.setFixedHeight(50)
+        self.setFixedHeight(70)
         self.setObjectName("AppHeader")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
 
@@ -76,8 +77,8 @@ class AppHeader(QWidget):
 
     def init_ui(self):
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(12, 0, 8, 0)
-        layout.setSpacing(10)
+        layout.setContentsMargins(8, 0, 6, 0)
+        layout.setSpacing(6)
 
         # ── Logo / İkon ──────────────────────────────────────────────────────
         self.lbl_logo = QLabel()
@@ -86,21 +87,34 @@ class AppHeader(QWidget):
         _icon_path = os.path.join(
             os.path.dirname(__file__), "..", "..", "assets", "app_icon.png"
         )
-        if os.path.exists(_icon_path):
+        window_icon = self.main_window.windowIcon()
+        if not window_icon.isNull():
+            self.lbl_logo.setPixmap(window_icon.pixmap(QSize(22, 22)))
+        elif os.path.exists(_icon_path):
             self.lbl_logo.setPixmap(QPixmap(_icon_path))
         else:
             self.lbl_logo.setText("*")
             self.lbl_logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.lbl_logo)
 
+        self.lbl_brand_pro = QLabel('PRO')
+        self.lbl_brand_pro.setObjectName('HeaderBrandPro')
+        layout.addWidget(self.lbl_brand_pro)
+        self.brand_separator = QFrame()
+        self.brand_separator.setFixedSize(1, 18)
+        layout.addWidget(self.brand_separator)
+
         self.btn_back = QPushButton("< Geri")
         self.btn_back.setObjectName("HeaderActionButton")
-        self.btn_back.setFixedHeight(34)
-        self.btn_back.setMinimumWidth(72)
+        self.btn_back.setFixedHeight(24)
+        self.btn_back.setMinimumWidth(56)
         self.btn_back.setToolTip("Onceki sayfaya don")
         self.btn_back.setEnabled(False)
         self.btn_back.clicked.connect(self._go_back)
         layout.addWidget(self.btn_back)
+        self.breadcrumb_separator = QFrame()
+        self.breadcrumb_separator.setFixedSize(1, 18)
+        layout.addWidget(self.breadcrumb_separator)
 
         # ── Uygulama adı ─────────────────────────────────────────────────────
         self.lbl_app_name = QLabel("AYEC Pro")
@@ -110,13 +124,28 @@ class AppHeader(QWidget):
 
         layout.addSpacing(4)
 
+        self.lbl_module_path = QLabel("")
+        self.lbl_module_path.setObjectName("HeaderModulePath")
+        self.lbl_module_path.setStyleSheet(theme_qss(
+            "color: @text_muted; font-size: 12px; font-weight: 500;"
+        ))
+        self.lbl_module_path.hide()
+        layout.addWidget(self.lbl_module_path)
+
         self.breadcrumb = Breadcrumb(self.main_window)
         layout.addWidget(self.breadcrumb, 1)
+
+        self.btn_invoice_integration = QPushButton("\u2699  Entegrasyon Ayarlar\u0131")
+        self.btn_invoice_integration.setObjectName("InvoiceHeaderIntegration")
+        self.btn_invoice_integration.setFixedSize(148, 48)
+        self.btn_invoice_integration.clicked.connect(self._open_einvoice_integration_settings)
+        self.btn_invoice_integration.hide()
+        layout.addWidget(self.btn_invoice_integration)
 
         # --- Update Button ---
         self.btn_update = QPushButton("G\u00fcncelleme")
         self.btn_update.setObjectName("UpdateHeaderBtn")
-        self.btn_update.setFixedHeight(34)
+        self.btn_update.setFixedHeight(26)
         self.btn_update.hide()
         self.btn_update.clicked.connect(self.on_update_clicked)
         layout.addWidget(self.btn_update)
@@ -130,7 +159,7 @@ class AppHeader(QWidget):
 
         self.btn_web_sync = QPushButton("\u21bb")
         self.btn_web_sync.setObjectName("HeaderIconButton")
-        self.btn_web_sync.setFixedSize(34, 34)
+        self.btn_web_sync.setFixedSize(26, 26)
         self.btn_web_sync.setToolTip("Web ve mobil verilerini \u015fimdi senkronize et")
         self.btn_web_sync.clicked.connect(
             lambda: self.main_window.start_web_sync(silent=False)
@@ -138,15 +167,21 @@ class AppHeader(QWidget):
         layout.addWidget(self.btn_web_sync)
 
         self.notification_bell = NotificationBell()
+        self.notification_bell.setFixedSize(26, 26)
+        self.notification_bell.badge.move(10, 0)
+        self.notification_bell.badge.setStyleSheet(theme_qss(
+            'background: @finance_action_expense; color: @finance_action_expense_text; '
+            'border: none; border-radius: 6px; font-weight: 700; font-size: 10px; padding: 0;'
+        ))
         self.notification_bell.clicked.connect(self.open_notification_panel)
         layout.addWidget(self.notification_bell)
         app = QApplication.instance()
         if app is not None:
             app.installEventFilter(self)
 
-        self.btn_interface_edit = QPushButton("Arayüz Düzenle")
+        self.btn_interface_edit = QPushButton("Aray\u00fcz D\u00fczenle")
         self.btn_interface_edit.setObjectName("HeaderActionButton")
-        self.btn_interface_edit.setFixedHeight(34)
+        self.btn_interface_edit.setFixedHeight(26)
         self.btn_interface_edit.clicked.connect(self.main_window.open_interface_layout_editor)
         if not self._can_show_interface_editor():
             self.btn_interface_edit.hide()
@@ -154,7 +189,7 @@ class AppHeader(QWidget):
 
         self.btn_settings = QPushButton()
         self.btn_settings.setObjectName("HeaderIconButton")
-        self.btn_settings.setFixedSize(34, 34)
+        self.btn_settings.setFixedSize(26, 26)
         self.btn_settings.setToolTip("Sistem Ayarlar\u0131")
         self.btn_settings.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView))
         self.btn_settings.setIconSize(self.btn_settings.size() * 0.52)
@@ -163,19 +198,21 @@ class AppHeader(QWidget):
 
         self.btn_shortcuts = QPushButton("\u2605")
         self.btn_shortcuts.setObjectName("HeaderIconButton")
-        self.btn_shortcuts.setFixedSize(34, 34)
+        self.btn_shortcuts.setFixedSize(26, 26)
         self.btn_shortcuts.setToolTip("Genel Bak\u0131\u015f k\u0131sayollar\u0131")
         self.btn_shortcuts.clicked.connect(self.main_window.toggle_dashboard_shortcuts)
         layout.addWidget(self.btn_shortcuts)
 
         self.btn_theme_toggle = QPushButton()
         self.btn_theme_toggle.setObjectName("HeaderIconButton")
-        self.btn_theme_toggle.setFixedSize(34, 34)
+        self.btn_theme_toggle.setFixedSize(26, 26)
         self.btn_theme_toggle.clicked.connect(self.main_window.toggle_theme_from_header)
         layout.addWidget(self.btn_theme_toggle)
 
-        self.cmb_theme = QComboBox()
+        self.cmb_theme = ModernComboBox()
         self.cmb_theme.setObjectName("HeaderCombo")
+        self.cmb_theme.setFixedHeight(34)
+        self.cmb_theme.set_reference_chevron()
         self.cmb_theme.setMinimumWidth(120)
         self.cmb_theme.setMaximumWidth(180)
         self.cmb_theme.addItems(ThemeManager.get_available_themes(self.db))
@@ -183,30 +220,306 @@ class AppHeader(QWidget):
         layout.addWidget(self.cmb_theme)
 
 
-
         # ── Pencere kontrol butonları (Frameless) ────────────────────────────
         layout.addSpacing(6)
 
-        self.btn_minimize = QPushButton("-")
+        self.btn_minimize = QPushButton()
         self.btn_minimize.setObjectName("WinMinBtn")
-        self.btn_minimize.setFixedSize(30, 30)
+        self.btn_minimize.setFixedSize(24, 24)
+        self.btn_minimize.setIconSize(QSize(14, 14))
         self.btn_minimize.setToolTip("Küçült")
         self.btn_minimize.clicked.connect(self.main_window.window_minimize)
         layout.addWidget(self.btn_minimize)
 
-        self.btn_maximize = QPushButton("□")
+        self.btn_maximize = QPushButton()
         self.btn_maximize.setObjectName("WinMaxBtn")
-        self.btn_maximize.setFixedSize(30, 30)
+        self.btn_maximize.setFixedSize(24, 24)
+        self.btn_maximize.setIconSize(QSize(14, 14))
         self.btn_maximize.setToolTip("Büyüt / Geri Al")
         self.btn_maximize.clicked.connect(self.main_window.window_maximize_restore)
         layout.addWidget(self.btn_maximize)
 
-        self.btn_close = QPushButton("x")
+        self.btn_close = QPushButton()
         self.btn_close.setObjectName("WinCloseBtn")
-        self.btn_close.setFixedSize(30, 30)
+        self.btn_close.setFixedSize(24, 24)
+        self.btn_close.setIconSize(QSize(14, 14))
         self.btn_close.setToolTip("Kapat")
         self.btn_close.clicked.connect(self.main_window.window_close)
         layout.addWidget(self.btn_close)
+        self._update_window_control_icons()
+
+        self.service_profile = QToolButton(self)
+        self.service_profile.setFixedSize(42, 38)
+        self.service_profile.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        self.service_profile.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        company_name = self.db.get_setting("company_name", "Aslan Computer") or "Aslan Computer"
+        self.service_profile.setText("")
+        self.service_profile.setToolTip(company_name)
+        avatar = QPixmap(36, 36)
+        avatar.fill(Qt.GlobalColor.transparent)
+        avatar_painter = QPainter(avatar)
+        avatar_painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        avatar_painter.setPen(QColor("#0ea5e9"))
+        avatar_painter.setBrush(QColor("#0b1220"))
+        avatar_painter.drawRoundedRect(1, 1, 34, 34, 9, 9)
+        avatar_painter.setPen(QColor("#bae6fd"))
+        avatar_painter.setFont(QFont("Inter", 11, QFont.Weight.Bold))
+        avatar_painter.drawText(avatar.rect(), Qt.AlignmentFlag.AlignCenter, "AS")
+        avatar_painter.end()
+        self.service_profile.setIcon(QIcon(avatar))
+        self.service_profile.setIconSize(QSize(36, 36))
+        self.service_profile.setStyleSheet(theme_qss(
+            "QToolButton { color: @text; background: transparent; border: none; "
+            "text-align: left; font-size: 12px; font-weight: 700; padding: 0 4px; } "
+            "QToolButton:hover { background: @surface_alt; border-radius: 7px; }"
+        ))
+        self.service_profile_menu = QMenu(self.service_profile)
+        self.service_profile_menu.setMinimumWidth(250)
+        for title, callback in (
+            ("Sistem Ayarlar\u0131", self.btn_settings.click),
+            ("Genel Bak\u0131\u015f K\u0131sayollar\u0131", self.btn_shortcuts.click),
+            ("Temay\u0131 De\u011fi\u015ftir", self.btn_theme_toggle.click),
+            ("Web ve mobil verilerini e\u015fle", self.btn_web_sync.click),
+            ("Bildirimleri a\u00e7", self.open_notification_panel),
+        ):
+            self.service_profile_menu.addAction(title, callback)
+        if self._can_show_interface_editor():
+            self.service_profile_menu.addAction(
+                "Aray\u00fcz d\u00fczenleyicisi", self.main_window.open_interface_layout_editor
+            )
+        self.service_profile_menu.addSeparator()
+        self.service_profile_menu.addAction("K\u00fc\u00e7\u00fclt", self.btn_minimize.click)
+        self.service_profile_menu.addAction("B\u00fcy\u00fct / Geri Al", self.btn_maximize.click)
+        self.service_profile_menu.addAction("Pencereyi Kapat", self.btn_close.click)
+        self.service_profile.setMenu(self.service_profile_menu)
+        self.service_profile.hide()
+        layout.addWidget(self.service_profile)
+
+        for control in (self.btn_minimize, self.btn_maximize, self.btn_close):
+            layout.removeWidget(control)
+            layout.addWidget(control)
+
+        layout.setContentsMargins(15, 0, 15, 0)
+        layout.setSpacing(8)
+        self.lbl_brand_pro.hide()
+        self.breadcrumb_separator.hide()
+        self.lbl_logo.setFixedSize(10, 10)
+        self.lbl_logo.clear()
+        self.lbl_logo.setText("\u25cf")
+        self.lbl_logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_logo.setStyleSheet(theme_qss(
+            "QLabel { color: @accent; border: none; font-size: 10px; font-weight: 800; }"
+        ))
+        self.lbl_app_name.setText("AYEC PRO")
+        self.lbl_app_name.setFixedWidth(82)
+        self.lbl_app_name.setStyleSheet(theme_qss("color: @text; font-size: 14px; font-weight: 800;"))
+        self.btn_back.setFixedSize(80, 32)
+        self.btn_back.setText("\u2190  Geri")
+        self.btn_back.setStyleSheet(theme_qss(
+            "QPushButton { background: transparent; color: @text; border: 1px solid @finance_outline; "
+            "border-radius: 7px; font-size: 12px; font-weight: 600; padding: 0 8px; } "
+            "QPushButton:hover { background: @surface_alt; border-color: @accent; }"
+        ))
+        left_header_items = (
+            self.btn_back, self.lbl_logo, self.lbl_app_name, self.lbl_module_path, self.breadcrumb
+        )
+        for widget in left_header_items:
+            layout.removeWidget(widget)
+        for index, widget in enumerate(left_header_items):
+            layout.insertWidget(index, widget, 1 if widget is self.breadcrumb else 0)
+        self.reference_traffic_lights = QWidget(self)
+        self.reference_traffic_lights.setFixedSize(83, 20)
+        lights_layout = QHBoxLayout(self.reference_traffic_lights)
+        lights_layout.setContentsMargins(7, 0, 7, 0)
+        lights_layout.setSpacing(15)
+        for color in ("#fb7185", "#fbbf24", "#34d399"):
+            light = QFrame(self.reference_traffic_lights)
+            light.setFixedSize(13, 13)
+            light.setStyleSheet(f"background:{color};border:0;border-radius:6px;")
+            lights_layout.addWidget(light)
+        layout.insertWidget(0, self.reference_traffic_lights)
+        self.service_header_spacer = QWidget(self)
+        self.service_header_spacer.setFixedWidth(124)
+        layout.insertWidget(4, self.service_header_spacer)
+        self.brand_separator.hide()
+        self.breadcrumb.setMinimumWidth(0)
+        self._apply_service_header_presentation()
+
+    def _open_einvoice_integration_settings(self):
+        pages = getattr(self.main_window, "pages", {})
+        page = pages.get(115) if isinstance(pages, dict) else None
+        if page is None and hasattr(self.main_window, "content_area"):
+            page = self.main_window.content_area.currentWidget()
+        callback = getattr(page, "open_integration_settings", None)
+        if callable(callback):
+            callback()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._apply_service_header_presentation()
+        self._apply_compact_width_presentation()
+
+    def _apply_compact_width_presentation(self):
+        if not hasattr(self, "service_profile"):
+            return
+        page_id = getattr(self.main_window, "_current_page_index", None)
+        compact = self.width() < 1400
+        layout = self.layout()
+        if compact:
+            layout.setContentsMargins(8, 0, 8, 0)
+            layout.setSpacing(4)
+            self.lbl_app_name.setFixedWidth(64)
+            self.btn_web_sync.setFixedSize(24, 24)
+            self.notification_bell.setFixedSize(24, 24)
+            self.btn_settings.setFixedSize(24, 24)
+            self.btn_shortcuts.hide()
+            self.btn_theme_toggle.hide()
+            self.btn_interface_edit.hide()
+            for control in (self.btn_minimize, self.btn_maximize, self.btn_close):
+                control.setFixedSize(24, 24)
+                control.show()
+            self.cmb_theme.setFixedWidth(118)
+            self.service_profile.setFixedSize(42, 38)
+            self.service_profile.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+            self.service_profile.setToolTip("Profil ve ek eylemler")
+            self.breadcrumb.assistant_btn.setFixedSize(32, 32)
+            self.breadcrumb.assistant_btn.setText("\U0001f916")
+            self.breadcrumb.assistant_btn.show()
+            self.breadcrumb.user_lbl.hide()
+            self.breadcrumb.mute_btn.hide()
+            self.btn_back.show()
+            self.btn_web_sync.show()
+            self.notification_bell.show()
+            self.cmb_theme.show()
+            self.service_profile.show()
+        else:
+            layout.setContentsMargins(15, 0, 15, 0)
+            layout.setSpacing(8)
+            self.lbl_app_name.setMinimumWidth(0)
+            self.lbl_app_name.setMaximumWidth(16777215)
+            self.lbl_app_name.setFixedWidth(82)
+            self.btn_web_sync.setFixedSize(26, 26)
+            self.notification_bell.setFixedSize(26, 26)
+            self.btn_settings.setFixedSize(26, 26)
+            self.cmb_theme.setMinimumWidth(120)
+            self.cmb_theme.setMaximumWidth(180)
+            self.service_profile.setFixedSize(42, 38)
+            self.service_profile.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+            self.btn_shortcuts.setVisible(True)
+            self.btn_theme_toggle.setVisible(True)
+            self.btn_interface_edit.setVisible(self._can_show_interface_editor())
+            self.btn_minimize.show()
+            self.btn_maximize.show()
+            self.btn_close.show()
+
+    def _update_window_control_icons(self):
+        icon_color = QColor(tc("text"))
+
+        def tinted_icon(pixmap_id):
+            pixmap = self.style().standardIcon(pixmap_id).pixmap(QSize(16, 16))
+            painter = QPainter(pixmap)
+            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
+            painter.fillRect(pixmap.rect(), icon_color)
+            painter.end()
+            return QIcon(pixmap)
+
+        self.btn_minimize.setIcon(tinted_icon(QStyle.StandardPixmap.SP_TitleBarMinButton))
+        maximize_icon = (
+            QStyle.StandardPixmap.SP_TitleBarNormalButton
+            if self.main_window.isMaximized()
+            else QStyle.StandardPixmap.SP_TitleBarMaxButton
+        )
+        self.btn_maximize.setIcon(tinted_icon(maximize_icon))
+        self.btn_close.setIcon(tinted_icon(QStyle.StandardPixmap.SP_TitleBarCloseButton))
+
+    def _apply_service_header_presentation(self):
+        if not hasattr(self, "service_profile"):
+            return
+        self._apply_shared_header_presentation()
+        return
+
+    def _apply_shared_header_presentation(self):
+        """Keep the same app bar controls and geometry on every menu."""
+        layout = self.layout()
+        self.setFixedHeight(70)
+        layout.setContentsMargins(12, 0, 12, 0)
+        layout.setSpacing(6)
+
+        while layout.count():
+            layout.takeAt(0)
+        self.reference_traffic_lights.hide()
+        self.service_header_spacer.hide()
+        for widget in (
+            self.btn_back, self.lbl_logo, self.lbl_brand_pro,
+            self.brand_separator, self.breadcrumb_separator,
+            self.lbl_app_name, self.lbl_module_path, self.breadcrumb,
+            self.btn_invoice_integration,
+            self.btn_web_sync, self.btn_update,
+            self.notification_bell, self.btn_interface_edit, self.btn_settings,
+            self.btn_shortcuts, self.btn_theme_toggle, self.cmb_theme,
+            self.service_profile,
+            self.btn_minimize, self.btn_maximize, self.btn_close,
+        ):
+            layout.addWidget(widget, 1 if widget is self.breadcrumb else 0)
+        self._shared_header_layout_ready = True
+
+        self.btn_back.setFixedSize(68, 32)
+        self.btn_back.setText("\u2190  Geri")
+        self.btn_back.setStyleSheet(theme_qss(
+            "QPushButton#HeaderActionButton { background: @surface_alt; color: @text; "
+            "border: 1px solid @border; border-radius: 6px; font-size: 12px; font-weight: 600; }"
+        ))
+        self.lbl_logo.setPixmap(QPixmap())
+        self.lbl_logo.setText("\u25cf")
+        self.lbl_logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_logo.setFixedSize(24, 24)
+        self.lbl_logo.setStyleSheet(theme_qss(
+            "QLabel { color: @accent; background: transparent; border: none; "
+            "font-size: 10px; font-weight: 800; }"
+        ))
+        self.lbl_logo.setFixedSize(10, 20)
+        self.lbl_brand_pro.hide()
+        self.brand_separator.hide()
+        self.lbl_app_name.setText("AYEC Pro")
+        self.lbl_app_name.setFixedWidth(72)
+        self.lbl_app_name.setStyleSheet(theme_qss(
+            "QLabel#AppNameLabel { color: @text; font-size: 13px; font-weight: 800; }"
+        ))
+        self.lbl_module_path.hide()
+        self.breadcrumb_separator.hide()
+        self.btn_invoice_integration.hide()
+
+        for widget in (
+            self.lbl_logo, self.btn_back,
+            self.lbl_app_name, self.breadcrumb, self.service_profile,
+            self.btn_web_sync, self.btn_update,
+            self.notification_bell, self.btn_settings, self.btn_shortcuts,
+            self.btn_theme_toggle, self.cmb_theme, self.btn_minimize,
+            self.btn_maximize, self.btn_close,
+        ):
+            widget.show()
+        self.lbl_brand_pro.hide()
+        self.brand_separator.hide()
+        self.btn_interface_edit.setVisible(self._can_show_interface_editor())
+        self.btn_update.setVisible(self.btn_update.text().strip() not in ("", "G\u00fcncelleme"))
+        self.cmb_theme.setFixedSize(112, 32)
+        self.btn_web_sync.setFixedSize(26, 26)
+        self.notification_bell.setFixedSize(26, 26)
+        self.btn_settings.setFixedSize(26, 26)
+        self.btn_shortcuts.setFixedSize(26, 26)
+        self.btn_theme_toggle.setFixedSize(26, 26)
+        self.btn_interface_edit.setFixedHeight(30)
+        self.btn_minimize.setFixedSize(22, 22)
+        self.btn_maximize.setFixedSize(22, 22)
+        self.btn_close.setFixedSize(22, 22)
+        self.service_profile.setFixedSize(42, 38)
+        self.service_profile.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        self.breadcrumb.setMinimumWidth(0)
+        self.breadcrumb.setMaximumWidth(16777215)
+        self.breadcrumb.search_input.setMinimumWidth(120)
+        self.breadcrumb.search_input.setMaximumWidth(340)
+        self.btn_web_sync.setVisible(True)
+        return
 
     def set_web_sync_state(self, running=False, success=None, detail=""):
         if not hasattr(self, "btn_web_sync"):
@@ -251,18 +564,20 @@ class AppHeader(QWidget):
         return theme_qss(
             """
             QPushButton#HeaderIconButton {
-                background-color: @surface_alt;
-                color: @text;
-                border: 1px solid @border;
-                border-radius: 17px;
+                background-color: @finance_surface_lowest;
+                color: @finance_text_muted;
+                border: 1px solid @finance_outline;
+                border-radius: 4px;
                 font-size: 12px;
                 font-weight: 700;
                 padding: 0px;
             }
             QPushButton#HeaderIconButton:hover {
-                background-color: @window;
-                border-color: @accent;
+                background-color: @finance_surface_high;
+                color: @finance_text;
+                border-color: @finance_primary;
             }
+            QPushButton#HeaderIconButton:pressed { background-color: @finance_active_bg; }
             """
         )
 
@@ -293,18 +608,20 @@ class AppHeader(QWidget):
         return theme_qss(
             """
             QPushButton#HeaderActionButton {
-                background-color: @surface_alt;
-                color: @text;
-                border: 1px solid @border;
-                border-radius: 10px;
+                background-color: @finance_surface_lowest;
+                color: @finance_text;
+                border: 1px solid @finance_outline;
+                border-radius: 4px;
                 font-size: 12px;
                 font-weight: 800;
-                padding: 0 14px;
+                padding: 0 10px;
             }
             QPushButton#HeaderActionButton:hover {
-                background-color: @window;
-                border-color: @accent;
+                background-color: @finance_surface_high;
+                border-color: @finance_primary;
             }
+            QPushButton#HeaderActionButton:pressed { background-color: @finance_active_bg; }
+            QPushButton#HeaderActionButton:disabled { color: @finance_text_muted; }
             """
         )
 
@@ -347,6 +664,8 @@ class AppHeader(QWidget):
             logger.warning("Notification panel open failed: %s", e, exc_info=True)
 
     def eventFilter(self, obj, event):
+        if obj is self.main_window and event.type() == QEvent.Type.WindowStateChange:
+            self._update_window_control_icons()
         if event.type() == QEvent.Type.MouseButtonPress:
             panel = getattr(self, "_notification_panel", None)
             if panel is not None and panel.isVisible():
@@ -393,8 +712,9 @@ class AppHeader(QWidget):
             }
             QComboBox#HeaderCombo::drop-down {
                 border-left: 1px solid @border;
-                width: 22px;
+                width: 16px;
             }
+            QComboBox#HeaderCombo::down-arrow { image: none; width: 0; height: 0; }
             QComboBox#HeaderCombo QAbstractItemView {
                 background-color: @surface;
                 color: @text;
@@ -416,36 +736,37 @@ class AppHeader(QWidget):
         return theme_qss(
             """
             QComboBox#HeaderCombo {
-                background-color: @surface_alt;
-                color: @text;
-                border: 1px solid @border;
-                border-radius: 10px;
-                padding: 6px 12px;
+                background-color: @finance_surface_lowest;
+                color: @finance_text;
+                border: 1px solid @finance_outline;
+                border-radius: 4px;
+                padding: 4px 16px 4px 8px;
                 min-height: 18px;
             }
             QComboBox#HeaderCombo:hover {
-                border-color: @accent;
+                border-color: @finance_primary;
             }
             QComboBox#HeaderCombo::drop-down {
                 border: none;
-                width: 22px;
+                width: 16px;
             }
+            QComboBox#HeaderCombo::down-arrow { image: none; width: 0; height: 0; }
             QComboBox#HeaderCombo QAbstractItemView {
-                background-color: @surface;
-                color: @text;
-                border: 1px solid @border;
-                selection-background-color: @selection_bg;
-                selection-color: @selection_text;
+                background-color: @finance_surface_lowest;
+                color: @finance_text;
+                border: 1px solid @finance_outline;
+                selection-background-color: @finance_primary;
+                selection-color: @finance_primary_text;
             }
             QComboBox#HeaderCombo QAbstractItemView::item {
-                color: @text;
+                color: @finance_text;
                 background-color: transparent;
                 padding: 4px;
             }
             QComboBox#HeaderCombo QAbstractItemView::item:hover,
             QComboBox#HeaderCombo QAbstractItemView::item:selected {
-                background-color: @selection_bg;
-                color: @selection_text;
+                background-color: @finance_primary;
+                color: @finance_primary_text;
             }
             """
         )
@@ -483,28 +804,54 @@ class AppHeader(QWidget):
                 theme_qss(
                     """
                     QWidget#AppHeader {
-                        background-color: @surface;
-                        border-bottom: 1px solid @border;
+                        background-color: @finance_surface_lowest;
+                        border-bottom: 1px solid @finance_outline;
                     }
+                QLabel#HeaderBrandPro { color: @finance_primary; font-size: 11px; font-weight: 700; }
+                QFrame { background-color: @finance_outline; border: none; }
                     """
                 )
             )
         self.lbl_app_name.setStyleSheet(
             (
-                theme_qss("QLabel#AppNameLabel { color: @text; font-size: 12px; font-weight: 800; }")
+                theme_qss("QLabel#AppNameLabel { color: @text; font-size: 14px; font-weight: 800; }")
                 if classic
-                else theme_qss("QLabel#AppNameLabel { color: @text; font-size: 13px; font-weight: 800; }")
+                else theme_qss("QLabel#AppNameLabel { color: @text; font-size: 14px; font-weight: 800; }")
             )
         )
+        self.btn_back.setFixedSize(80, 32)
+        self.btn_back.setText("\u2190  Geri")
+        self.lbl_logo.setFixedSize(10, 10)
+        self.lbl_logo.setText("\u25cf")
+        self.lbl_logo.setStyleSheet(theme_qss(
+            "QLabel { color: @accent; border: none; font-size: 10px; font-weight: 800; }"
+        ))
+        self.lbl_app_name.setText("AYEC PRO")
+        self.lbl_app_name.setFixedWidth(82)
+        self.brand_separator.setFixedSize(1, 20)
+        self.breadcrumb_separator.setFixedSize(1, 18)
+        self.lbl_brand_pro.setStyleSheet(theme_qss(
+            'QLabel#HeaderBrandPro { color: @finance_primary; font-size: 11px; font-weight: 700; '
+            'padding: 2px 5px; background: @finance_active_bg; border: 1px solid @finance_outline; '
+            'border-radius: 4px; }'
+        ))
+        for separator in (self.brand_separator, self.breadcrumb_separator):
+            separator.setStyleSheet(theme_qss('background: @finance_outline; border: none;'))
         self.btn_settings.setStyleSheet(self._button_style())
         self.btn_shortcuts.setStyleSheet(self._button_style())
         self.btn_theme_toggle.setStyleSheet(self._button_style())
         self.btn_web_sync.setStyleSheet(self._button_style())
         self.btn_interface_edit.setStyleSheet(self._action_button_style())
+        self.btn_back.setStyleSheet(theme_qss(
+            "QPushButton { background: transparent; color: @text; border: 1px solid @finance_outline; "
+            "border-radius: 7px; font-size: 12px; font-weight: 600; padding: 0 8px; } "
+            "QPushButton:hover { background: @surface_alt; border-color: @accent; }"
+        ))
         self.cmb_theme.setStyleSheet(self._combo_style())
         self.btn_minimize.setStyleSheet(self._win_btn_style("minimize"))
         self.btn_maximize.setStyleSheet(self._win_btn_style("maximize"))
         self.btn_close.setStyleSheet(self._win_btn_style("close"))
+        self._update_window_control_icons()
 
     def _win_btn_style(self, kind: str) -> str:
         if self._is_classic_appearance():
@@ -527,53 +874,20 @@ class AppHeader(QWidget):
                 }}
                 QPushButton:pressed {{ background: @selection_bg; }}
             """)
-        if kind == "close":
-            return """
-                QPushButton#WinCloseBtn {
-                    background: transparent;
-                    color: #aaaaaa;
-                    border: none;
-                    border-radius: 15px;
-                    font-size: 13px;
-                    font-weight: 700;
-                }
-                QPushButton#WinCloseBtn:hover {
-                    background: #e74c3c;
-                    color: #ffffff;
-                }
-                QPushButton#WinCloseBtn:pressed { background: #c0392b; }
-            """
-        elif kind == "maximize":
-            return """
-                QPushButton#WinMaxBtn {
-                    background: transparent;
-                    color: #aaaaaa;
-                    border: none;
-                    border-radius: 15px;
-                    font-size: 13px;
-                }
-                QPushButton#WinMaxBtn:hover {
-                    background: #2ecc71;
-                    color: #ffffff;
-                }
-                QPushButton#WinMaxBtn:pressed { background: #27ae60; }
-            """
-        else:
-            return """
-                QPushButton#WinMinBtn {
-                    background: transparent;
-                    color: #aaaaaa;
-                    border: none;
-                    border-radius: 15px;
-                    font-size: 15px;
-                    font-weight: 300;
-                }
-                QPushButton#WinMinBtn:hover {
-                    background: #f39c12;
-                    color: #ffffff;
-                }
-                QPushButton#WinMinBtn:pressed { background: #d68910; }
-            """
+        hover = '@finance_action_expense' if kind == 'close' else '@finance_surface_high'
+        hover_text = '@finance_action_expense_text' if kind == 'close' else '@finance_text'
+        return theme_qss(f'''
+            QPushButton {{
+                background: @finance_surface_container;
+                color: @finance_text;
+                border: 1px solid @finance_outline;
+                border-radius: 4px;
+                font-size: 13px;
+                font-weight: 600;
+            }}
+            QPushButton:hover {{ background: {hover}; color: {hover_text}; }}
+            QPushButton:pressed {{ background: {hover}; color: {hover_text}; }}
+        ''')
 
     def show_update_button(self, version, status, progress=0):
         self.btn_update.update_status = status

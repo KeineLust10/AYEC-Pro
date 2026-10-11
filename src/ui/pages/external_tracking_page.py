@@ -13,15 +13,24 @@ from src.utils.logger import logger
 from PyQt6.QtGui import QFont, QColor, QPixmap
 from datetime import datetime
 import os
+import unicodedata
+import html
 
 from src.utils.toast_notification import show_success, show_error, show_info
 from src.utils.date_utils import format_turkish_date
 
 from src.ui.widgets.modern_dialog import ModernDialog
+from src.ui.widgets.loaner_summary_visuals import LoanerMetricIcon
 from src.utils.design_system import DesignTokens
 from src.ui.widgets.modern_inputs import ValidatedLineEdit, ModernComboBox
 from src.ui.dialogs.unified_documents_center_dialog import UnifiedDocumentsCenterDialog
 from src.utils.context_menu_settings import is_context_menu_enabled
+
+
+def _normalize_external_status(value):
+    text = str(value or "").casefold().replace("\u0131", "i")
+    decomposed = unicodedata.normalize("NFKD", text)
+    return "".join(char for char in decomposed if not unicodedata.combining(char))
 
 
 class ExternalTrackingDialog(ModernDialog):
@@ -286,6 +295,9 @@ class ExternalTrackingPage(QWidget):
     def __init__(self, db):
         super().__init__()
         self.db = db
+        self.records = []
+        self.current_page = 0
+        self.page_size = 4
         self.setup_ui()
         self.refresh_data()
 
@@ -293,21 +305,22 @@ class ExternalTrackingPage(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
-        self.setStyleSheet(theme_qss("background-color: @surface_alt;"))
+        self.setObjectName("ExternalTrackingPage")
+        self.setStyleSheet(theme_qss("QWidget#ExternalTrackingPage { background-color: @background; }"))
 
         # Modern Header with Gradient
         self.header_frame = QFrame()
-        self.header_frame.setFixedHeight(140)
+        self.header_frame.setObjectName("ExternalTrackingHeader")
+        self.header_frame.setFixedHeight(106)
         self.header_frame.setStyleSheet(theme_qss("""
-            QFrame {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                    stop:0 #1e293b, stop:0.5 #334155, stop:1 #475569);
-                border-bottom: 3px solid @warning;
+            QFrame#ExternalTrackingHeader {
+                background: @finance_surface;
+                border-bottom: 1px solid @finance_outline;
             }
         """))
         
         header_layout = QHBoxLayout(self.header_frame)
-        header_layout.setContentsMargins(40, 20, 40, 20)
+        header_layout.setContentsMargins(24, 12, 24, 12)
         
         # Left side - Title & Description
         title_vbox = QVBoxLayout()
@@ -315,20 +328,33 @@ class ExternalTrackingPage(QWidget):
         
         # Icon + Title
         title_row = QHBoxLayout()
-        icon_lbl = QLabel("📦")
-        icon_lbl.setStyleSheet(theme_qss("font-size: 42px; background: transparent; border: none;"))
+        icon_lbl = LoanerMetricIcon("truck", "finance_primary")
+        icon_lbl.setFixedSize(42, 42)
         title_row.addWidget(icon_lbl)
         
-        lbl_title = QLabel("Lojistik & Garanti Yönetimi")
-        lbl_title.setFont(QFont("Segoe UI", 28, QFont.Weight.Bold))
-        lbl_title.setStyleSheet(theme_qss("color: white; background: transparent; border: none;"))
+        lbl_title = QLabel("Lojistik & Garanti Y\u00f6netimi")
+        title_font = QFont(self.font())
+        title_font.setPointSize(18)
+        title_font.setWeight(QFont.Weight.Bold)
+        lbl_title.setFont(title_font)
+        lbl_title.setStyleSheet(theme_qss("color: @finance_text; background: transparent; border: none;"))
         title_row.addWidget(lbl_title)
+        sla_badge = QLabel("V2.5 SLA SYNC")
+        sla_badge.setStyleSheet(theme_qss(
+            "color: @accent; background: @surface_alt; border: 1px solid @border; "
+            "border-radius: 5px; padding: 4px 7px; font-size: 10px; font-weight: 800;"
+        ))
+        title_row.addWidget(sla_badge)
         title_row.addStretch()
         title_vbox.addLayout(title_row)
         
-        lbl_sub = QLabel("Anlaşmalı servisler ve garanti süreçlerinin merkezi takip sistemi")
-        lbl_sub.setFont(QFont("Segoe UI", 13))
-        lbl_sub.setStyleSheet(theme_qss("color: #94a3b8; background: transparent; border: none; margin-left: 55px;"))
+        lbl_sub = QLabel("Anla\u015fmal\u0131 servisler ve garanti s\u00fcre\u00e7lerinin merkezi takip sistemi")
+        subtitle_font = QFont(DesignTokens.FONT_NAME)
+        subtitle_font.setPixelSize(13)
+        lbl_sub.setFont(subtitle_font)
+        lbl_sub.setWordWrap(True)
+        lbl_sub.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        lbl_sub.setStyleSheet(theme_qss("color: @finance_text_muted; background: transparent; border: none; margin-left: 55px;"))
         title_vbox.addWidget(lbl_sub)
         self.lbl_title = lbl_title
         self.lbl_sub = lbl_sub
@@ -336,90 +362,121 @@ class ExternalTrackingPage(QWidget):
         header_layout.addLayout(title_vbox)
         header_layout.addStretch()
 
-        # Excel Buttons
+        header_commands = QVBoxLayout()
+        header_commands.setSpacing(6)
+        primary_commands = QHBoxLayout()
+        primary_commands.setSpacing(6)
+        self.cargo_sync_button = QPushButton("Kargo API Sync")
+        self.cargo_sync_button.setEnabled(False)
+        self.cargo_sync_button.setToolTip("Kargo saglayici API baglantisi bu modulde henuz mevcut degil.")
+        manifest = QPushButton("Toplu Kargo Fi\u015fi")
+        manifest.clicked.connect(self.print_cargo_manifest)
+        report = QPushButton("Excel / Rapor")
+        report.clicked.connect(self.export_to_csv)
+        for command in (self.cargo_sync_button, manifest, report):
+            command.setMinimumHeight(30)
+            command.setStyleSheet(theme_qss(DesignTokens.get_button_qss("secondary", size="sm")))
+            primary_commands.addWidget(command)
+        header_commands.addLayout(primary_commands)
         excel_layout = QHBoxLayout()
-        excel_layout.setSpacing(12)
+        excel_layout.setSpacing(6)
         
         def _hbtn(icon, tooltip):
             b = QPushButton(icon)
-            b.setFixedSize(40, 40)
+            b.setFixedSize(74, 32)
             b.setToolTip(tooltip)
             b.setCursor(Qt.CursorShape.PointingHandCursor)
             b.setStyleSheet(
-                theme_qss(DesignTokens.get_icon_btn_qss())
+                theme_qss(DesignTokens.get_button_qss("secondary", size="sm") + "QPushButton { padding: 0; min-height: 26px; font-size: 10px; }")
             )
             return b
 
-        btn_import = _hbtn("\U0001f4e5", "Excel \u0130\u00e7e Aktar")
+        btn_import = _hbtn("\u0130\u00e7e Aktar", "Excel \u0130\u00e7e Aktar")
         btn_import.clicked.connect(self.import_from_csv)
         excel_layout.addWidget(btn_import)
 
-        btn_export = _hbtn("\U0001f4e4", "Excel D\u0131\u015fa Aktar")
-        btn_export.clicked.connect(self.export_to_csv)
-        excel_layout.addWidget(btn_export)
-
-        btn_docs = _hbtn("\U0001f5c2\ufe0f", "Belge Merkezi")
+        btn_docs = _hbtn("Belgeler", "Belge Merkezi")
         btn_docs.clicked.connect(self.open_documents_center)
         excel_layout.addWidget(btn_docs)
 
-        header_layout.addLayout(excel_layout)
-
-        self.btn_multi = _hbtn("\U0001f532", "\u00c7oklu Se\u00e7im")
+        self.btn_multi = _hbtn("\u00c7oklu Se\u00e7im", "\u00c7oklu Se\u00e7im")
         self.btn_multi.setCheckable(True)
         self.btn_multi.clicked.connect(self.toggle_multiselect)
-        header_layout.addWidget(self.btn_multi)
+        excel_layout.addWidget(self.btn_multi)
 
-        btn_add = QPushButton("➕ Yeni Takip Başlat")
-        btn_add.setFixedSize(240, 50)
+        btn_add = QPushButton("+ Yeni Takip Ba\u015flat")
+        btn_add.setFixedSize(180, 36)
         btn_add.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_add.setStyleSheet(theme_qss(DesignTokens.get_button_qss("warning")))
-        
-        # Add shadow to button
-        shadow_add = QGraphicsDropShadowEffect()
-        shadow_add.setColor(QColor(245, 158, 11, 100))
-        shadow_add.setBlurRadius(20)
-        shadow_add.setOffset(0, 4)
-        btn_add.setGraphicsEffect(shadow_add)
+        btn_add.setStyleSheet(theme_qss(DesignTokens.get_button_qss("primary", size="sm")))
         
         btn_add.clicked.connect(self.add_record)
-        header_layout.addWidget(btn_add)
+        excel_layout.insertWidget(0, btn_add)
+        header_commands.addLayout(excel_layout)
+        header_layout.addLayout(header_commands)
         
         layout.addWidget(self.header_frame)
 
         # Content Area
         content = QWidget()
         content_layout = QVBoxLayout(content)
-        content_layout.setContentsMargins(30, 30, 30, 30)
-        content_layout.setSpacing(25)
+        content_layout.setContentsMargins(16, 16, 16, 16)
+        content_layout.setSpacing(12)
 
         # Statistics Cards Row
         stats_layout = QHBoxLayout()
-        stats_layout.setSpacing(20)
+        stats_layout.setSpacing(10)
         
         # We'll populate these after loading data
         self.stats_layout = stats_layout
         content_layout.addLayout(stats_layout)
 
+        filter_bar = QFrame()
+        filter_bar.setObjectName("ExternalTrackingFilters")
+        filter_bar.setStyleSheet(theme_qss(
+            "QFrame#ExternalTrackingFilters { background: @finance_surface; border: 1px solid @finance_outline; border-radius: 6px; }"
+        ))
+        filter_layout = QHBoxLayout(filter_bar)
+        filter_layout.setContentsMargins(12, 10, 12, 10)
+        filter_layout.setSpacing(8)
+        self.search = QLineEdit()
+        self.search.setPlaceholderText("Kargo takip no, emanet no, m\u00fc\u015fteri veya yetkili servis ara...")
+        self.search.setMinimumHeight(38)
+        self.search.setStyleSheet(theme_qss(
+            "QLineEdit { background: @finance_surface_alt; border: 1px solid @finance_outline; border-radius: 6px; padding: 0 10px; color: @finance_text; }"
+        ))
+        self.search.textChanged.connect(self._filters_changed)
+        filter_layout.addWidget(self.search, 1)
+        self.status_filter = ModernComboBox()
+        self.status_filter.addItem("Durum: T\u00fcm\u00fc", "")
+        self.service_filter = ModernComboBox()
+        self.service_filter.addItem("Yetkili Servis: T\u00fcm\u00fc", "")
+        self.month_filter = ModernComboBox()
+        self.month_filter.addItem("T\u00fcm Aylar", "")
+        for control in (self.status_filter, self.service_filter, self.month_filter):
+            control.setMinimumHeight(38)
+            control.setStyleSheet(theme_qss(DesignTokens.get_combobox_qss()))
+            control.set_reference_chevron()
+            filter_layout.addWidget(control)
+        self.status_filter.currentIndexChanged.connect(self._filters_changed)
+        self.service_filter.currentIndexChanged.connect(self._filters_changed)
+        self.month_filter.currentIndexChanged.connect(self._filters_changed)
+        content_layout.addWidget(filter_bar)
+
         # Table Container
         table_frame = QFrame()
-        table_frame.setStyleSheet(theme_qss(DesignTokens.get_card_qss(hover=False)))
-        
-        # Shadow effect
-        shadow = QGraphicsDropShadowEffect()
-        shadow.setBlurRadius(20)
-        shadow.setColor(QColor(0, 0, 0, 15))
-        shadow.setOffset(0, 5)
-        table_frame.setGraphicsEffect(shadow)
+        table_frame.setObjectName("ExternalTrackingTableFrame")
+        table_frame.setStyleSheet(theme_qss("QFrame#ExternalTrackingTableFrame { background: @finance_surface; border: 1px solid @finance_outline; border-radius: 6px; }"))
         
         table_layout = QVBoxLayout(table_frame)
         table_layout.setContentsMargins(0, 0, 0, 0)
 
         # Table
         self.table = QTableWidget()
-        self.table.setColumnCount(7)
+        self.table.setColumnCount(9)
         self.table.setHorizontalHeaderLabels([
-            "Emanet No", "Müşteri & Ürün", "Dış Servis / Yer", 
-            "Gidiş Tarihi", "Kargo Takip", "Durum", "İşlemler"
+            "Takip No /\nServis No", "M\u00fc\u015fteri & \u00dcr\u00fcn", "D\u0131\u015f Servis / Yer",
+            "G\u00f6nderim\nTarihi", "Kargo Takip", "Durum", "\u0130\u015flemler",
+            "Garanti\nKapsam\u0131", "Maliyet /\nTutar"
         ])
         
         # Modern Table Style
@@ -429,13 +486,21 @@ class ExternalTrackingPage(QWidget):
         
         # Column width adjustments
         header_view.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-        self.table.setColumnWidth(0, 100)  # Emanet No
+        self.table.setColumnWidth(0, 130)  # Tracking and external service references
         self.table.setColumnWidth(1, 230)  # Müşteri & Ürün
-        self.table.setColumnWidth(2, 200)  # Dış Servis / Yer
+        self.table.setColumnWidth(2, 140)  # External service and location
         self.table.setColumnWidth(3, 110)  # Gidiş Tarihi
-        self.table.setColumnWidth(4, 180)  # Kargo Takip
-        self.table.setColumnWidth(5, 150)  # Durum
-        header_view.setSectionResizeMode(6, QHeaderView.ResizeMode.Stretch)
+        self.table.setColumnWidth(4, 174)  # Cargo tracking
+        self.table.setColumnWidth(5, 120)  # Status
+        header_view.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        header_view.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
+        header_view.setSectionResizeMode(6, QHeaderView.ResizeMode.Fixed)
+        self.table.setColumnWidth(6, 150)
+        self.table.setColumnWidth(7, 124)
+        self.table.setColumnWidth(8, 110)
+        header_view.moveSection(header_view.visualIndex(7), 5)
+        header_view.moveSection(header_view.visualIndex(8), 6)
+        header_view.moveSection(header_view.visualIndex(6), 8)
 
         self.table.verticalHeader().setDefaultSectionSize(70)  # Satır yüksekliği azaltıldı
         self.table.verticalHeader().setVisible(False)
@@ -443,13 +508,35 @@ class ExternalTrackingPage(QWidget):
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.table.setShowGrid(False)
-        self.table.setAlternatingRowColors(True)
+        self.table.setWordWrap(True)
+        self.table.setTextElideMode(Qt.TextElideMode.ElideNone)
+        self.table.setAlternatingRowColors(False)
         self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.table.customContextMenuRequested.connect(self.open_context_menu)
         self.table.cellDoubleClicked.connect(self.open_selected_record)
         
         table_layout.addWidget(self.table)
         content_layout.addWidget(table_frame)
+        self.sync_footer = QLabel()
+        self.sync_footer.setStyleSheet(theme_qss("color: @text_muted; padding: 8px 2px; font-size: 10px; font-weight: 700;"))
+        footer_layout = QHBoxLayout()
+        footer_layout.addWidget(self.sync_footer, 1)
+        self.page_label = QLabel("1 / 1")
+        self.page_label.setMinimumWidth(52)
+        self.page_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.page_label.setStyleSheet(theme_qss("color: @text; font-weight: 700;"))
+        self.previous_page = QPushButton("<")
+        self.next_page = QPushButton(">")
+        for button in (self.previous_page, self.next_page):
+            button.setFixedSize(34, 30)
+            button.setStyleSheet(theme_qss(DesignTokens.get_button_qss("secondary", size="sm") + "QPushButton { padding: 0; min-height: 24px; }"))
+        self.previous_page.clicked.connect(lambda: self._change_page(-1))
+        self.next_page.clicked.connect(lambda: self._change_page(1))
+        footer_layout.addWidget(self.previous_page)
+        footer_layout.addWidget(self.page_label)
+        footer_layout.addWidget(self.next_page)
+        content_layout.addLayout(footer_layout)
+        content_layout.addStretch(1)
         
         layout.addWidget(content)
         self.apply_theme_styles()
@@ -466,13 +553,111 @@ class ExternalTrackingPage(QWidget):
     def refresh_theme(self):
         self.apply_theme_styles()
 
+    def _update_filter_options(self, records):
+        filters = (
+            (self.status_filter, "Durum: T\u00fcm\u00fc", 9),
+            (self.service_filter, "Yetkili Servis: T\u00fcm\u00fc", 4),
+        )
+        for combo, default_label, column in filters:
+            previous = combo.currentData()
+            combo.blockSignals(True)
+            combo.clear()
+            combo.addItem(default_label, "")
+            for value in sorted({str(row[column] or "").strip() for row in records if row[column]}):
+                combo.addItem(value, value)
+            selected = combo.findData(previous)
+            combo.setCurrentIndex(selected if selected >= 0 else 0)
+            combo.blockSignals(False)
+
+        previous_month = self.month_filter.currentData()
+        self.month_filter.blockSignals(True)
+        self.month_filter.clear()
+        self.month_filter.addItem("T\u00fcm Aylar", "")
+        months = sorted({str(row[6] or "")[:7] for row in records if row[6]}, reverse=True)
+        for month in months:
+            self.month_filter.addItem(month, month)
+        selected_month = self.month_filter.findData(previous_month)
+        self.month_filter.setCurrentIndex(selected_month if selected_month >= 0 else 0)
+        self.month_filter.blockSignals(False)
+
+    def _filters_changed(self, *_args):
+        self.current_page = 0
+        self._apply_filters()
+
+    def _change_page(self, delta):
+        self.current_page += delta
+        self._apply_filters()
+
+    def _apply_filters(self, *_args):
+        query = self.search.text().strip().casefold()
+        status = self.status_filter.currentData()
+        service = self.service_filter.currentData()
+        month = self.month_filter.currentData()
+        matching_rows = []
+        for row_index, record in enumerate(self.records):
+            matches = (
+                (not query or query in " ".join(str(value or "") for value in record).casefold())
+                and (not status or str(record[9] or "") == status)
+                and (not service or str(record[4] or "") == service)
+                and (not month or str(record[6] or "").startswith(month))
+            )
+            if matches:
+                matching_rows.append(row_index)
+        total_pages = max(1, (len(matching_rows) + self.page_size - 1) // self.page_size)
+        self._matching_rows = list(matching_rows)
+        self.current_page = max(0, min(self.current_page, total_pages - 1))
+        start = self.current_page * self.page_size
+        page_rows = set(matching_rows[start:start + self.page_size])
+        for row_index in range(len(self.records)):
+            self.table.setRowHidden(row_index, row_index not in page_rows)
+        visible_count = len(page_rows)
+        self.table.setFixedHeight(self.table.horizontalHeader().height() + max(1, visible_count) * 112 + 4)
+        if hasattr(self, "sync_footer"):
+            self.sync_footer.setText(
+                f"G\u00f6sterilen {visible_count} / {len(matching_rows)} kay\u0131t"
+            )
+            self.page_label.setText(f"{self.current_page + 1} / {total_pages}")
+            self.previous_page.setEnabled(self.current_page > 0)
+            self.next_page.setEnabled(self.current_page + 1 < total_pages)
+
     def open_documents_center(self):
         dlg = UnifiedDocumentsCenterDialog(self.db, None, self)
         dlg.exec()
 
+    @staticmethod
+    def _cargo_manifest_html(records):
+        headings = ("Takip No", "Musteri / Cihaz", "Yetkili Servis", "Gonderim", "Gidis Kargo", "Donus Kargo", "Durum")
+        body = []
+        for record in records:
+            values = (record[1], "{} / {}".format(record[2] or '-', record[3] or '-'),
+                      record[4], record[6], record[7], record[8], record[9])
+            body.append("<tr>{}</tr>".format("".join("<td>{}</td>".format(html.escape(str(value or '-'))) for value in values)))
+        return ('<html><head><style>body{{font-family:Inter;font-size:10pt}}table{{width:100%;border-collapse:collapse}}'
+                'td,th{{border:1px solid #888;padding:6px;text-align:left}}</style></head><body>'
+                '<h2>Lojistik / Toplu Kargo Fisi</h2><p>{} kayit</p><table><tr>{}</tr>{}</table></body></html>').format(
+                    len(records), "".join("<th>{}</th>".format(value) for value in headings), "".join(body))
+
+    def print_cargo_manifest(self):
+        indices = self._selected_rows() or getattr(self, "_matching_rows", list(range(len(self.records))))
+        records = [self.records[index] for index in indices if 0 <= index < len(self.records)]
+        if not records:
+            show_warning(self, "Kargo fisi icin kayit secin veya filtreleri degistirin.")
+            return
+        from PyQt6.QtPrintSupport import QPrinter, QPrintPreviewDialog
+        from PyQt6.QtGui import QTextDocument
+        printer = QPrinter(QPrinter.PrinterMode.HighResolution)
+        document = QTextDocument(self)
+        document.setHtml(self._cargo_manifest_html(records))
+        preview = QPrintPreviewDialog(printer, self)
+        preview.setWindowTitle("Toplu Kargo Fisi")
+        preview.paintRequested.connect(document.print)
+        preview.exec()
+
     def refresh_data(self):
         try:
-            records = self.db.get_external_trackings()
+            records = list(self.db.get_external_trackings() or [])
+            self.records = records
+            self._update_filter_options(records)
             
             # Update Statistics Cards
             while self.stats_layout.count():
@@ -481,105 +666,151 @@ class ExternalTrackingPage(QWidget):
                     item.widget().deleteLater()
             
             total_count = len(records)
-            active_count = sum(1 for r in records if r[9] not in ["Müşteriye Teslim Edildi", "Geri Geldi"])
-            completed_count = sum(1 for r in records if r[9] == "Müşteriye Teslim Edildi")
+            external_statuses = {"kargoya verildi", "servise ulasti", "onarimda", "dis serviste"}
+            pending_statuses = {"onay bekliyor", "iade bekleniyor"}
+            received_statuses = {"geri geldi", "teslim alindi", "musteriye hazir"}
+            normalized_statuses = [_normalize_external_status(row[9]) for row in records]
+            active_count = sum(status in external_statuses for status in normalized_statuses)
+            pending_count = sum(status in pending_statuses for status in normalized_statuses)
+            received_count = sum(status in received_statuses for status in normalized_statuses)
             
             # Create stat cards
-            self.stats_layout.addWidget(self.create_stat_card("Toplam Kayıt", str(total_count), "📦", tc("accent")))
-            self.stats_layout.addWidget(self.create_stat_card("Aktif Takip", str(active_count), "🔄", tc("warning")))
-            self.stats_layout.addWidget(self.create_stat_card("Teslim Edilen", str(completed_count), "✅", tc("success")))
-            self.stats_layout.addStretch()
+            self.stats_layout.addWidget(self.create_stat_card("Toplam Kay\u0131t", str(total_count), "clipboard", "@finance_text"), 1)
+            self.stats_layout.addWidget(self.create_stat_card("D\u0131\u015f Serviste (Aktif)", str(active_count), "outbound", "@finance_tertiary"), 1)
+            self.stats_layout.addWidget(self.create_stat_card("Onay Bekleyen", str(pending_count), "clock", "@finance_primary"), 1)
+            self.stats_layout.addWidget(self.create_stat_card("Teslim Al\u0131nan", str(received_count), "check", "@finance_secondary"), 1)
             
             # Update Table
             self.table.setRowCount(len(records))
             
             for i, r in enumerate(records):
                 # r: id, internal, cust, prod, serv, serv_no, date, out_cargo, in_cargo, status, notes
+                self.table.setRowHeight(i, 112)
                 
                 # Emanet No
-                item_no = QTableWidgetItem(str(r[1] or "-"))
-                item_no.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+                item_no = QTableWidgetItem(f"{r[1] or '-'}\nServis: {r[5] or '-'}")
+                tracking_font = QFont(DesignTokens.MONO_FONT_NAME)
+                tracking_font.setPixelSize(11)
+                tracking_font.setWeight(QFont.Weight.Bold)
+                item_no.setFont(tracking_font)
+                item_no.setToolTip(item_no.text())
                 self.table.setItem(i, 0, item_no)
                 
                 # Müşteri & Ürün
-                cust_prod = f"<b style='font-size: 13px;'>{r[2]}</b><br><span style='color: @text_muted; font-size: 11px;'>{r[3]}</span>"
-                lbl_cp = QLabel(cust_prod)
-                lbl_cp.setMargin(8)
-                lbl_cp.setStyleSheet(theme_qss("border: none; background: transparent;"))
-                self.table.setCellWidget(i, 1, lbl_cp)
+                cust_prod = f"{r[2] or '-'}\n{r[3] or '-'}"
+                item_cp = QTableWidgetItem(cust_prod)
+                item_cp.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+                self.table.setItem(i, 1, item_cp)
 
                 # Servis Info
-                serv_info = f"<b style='font-size: 12px;'>{r[4]}</b><br><span style='color: @text_muted; font-size: 10px;'>No: {r[5]}</span>"
-                lbl_serv = QLabel(serv_info)
-                lbl_serv.setMargin(8)
-                lbl_serv.setStyleSheet(theme_qss("border: none; background: transparent;"))
-                self.table.setCellWidget(i, 2, lbl_serv)
+                serv_info = f"{r[4] or '-'}\nNo: {r[5] or '-'}"
+                item_serv = QTableWidgetItem(serv_info)
+                item_serv.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+                self.table.setItem(i, 2, item_serv)
 
                 # Tarih
                 date_item = QTableWidgetItem(format_turkish_date(str(r[6] or ""), "short"))
-                date_item.setFont(QFont("Segoe UI", 11))
+                date_font = QFont(tracking_font)
+                date_font.setBold(False)
+                date_item.setFont(date_font)
+                date_item.setToolTip(str(r[6] or ''))
                 self.table.setItem(i, 3, date_item)
                 
                 # Kargo
-                cargo = f"<span style='font-size: 10px;'>↗ {r[7] or '-'}<br>↙ {r[8] or '-'}</span>"
+                cargo = "Gidis: {}\nDonus: {}".format(r[7] or '-', r[8] or '-')
                 lbl_cargo = QLabel(cargo)
+                lbl_cargo.setTextFormat(Qt.TextFormat.PlainText)
+                lbl_cargo.setFont(QFont(DesignTokens.MONO_FONT_NAME))
+                lbl_cargo.setToolTip(cargo)
                 lbl_cargo.setMargin(8)
-                lbl_cargo.setStyleSheet(theme_qss("border: none; background: transparent; color: @text_muted;"))
+                lbl_cargo.setWordWrap(True)
+                lbl_cargo.setStyleSheet(theme_qss("border: none; background: transparent; color: @finance_text_muted; font-size: 12px;"))
                 self.table.setCellWidget(i, 4, lbl_cargo)
+                fields = set(r.keys()) if hasattr(r, "keys") else set()
+                coverage = str(r['warranty_coverage'] or '-') if 'warranty_coverage' in fields else '-'
+                cost = str(r['repair_cost']) if 'repair_cost' in fields and r['repair_cost'] is not None else '-'
+                coverage_item = QTableWidgetItem(coverage)
+                cost_item = QTableWidgetItem(cost)
+                cost_item.setFont(tracking_font)
+                if cost != '-':
+                    cost_item.setToolTip(cost)
+                if coverage == '-':
+                    coverage_item.setToolTip("Garanti kapsami kaydedilmemis.")
+                if cost == '-':
+                    cost_item.setToolTip("Maliyet kaydedilmemis; sifir tutar varsayilmadi.")
+                self.table.setItem(i, 7, coverage_item)
+                self.table.setItem(i, 8, cost_item)
 
                 status_palette = {
-                    "Onarımda": (DesignTokens.STATUS_WARNING_BG, DesignTokens.STATUS_WARNING_FG),
-                    "İade Bekleniyor": (DesignTokens.MUTED, tc("text")),
-                    "Hazır": (DesignTokens.STATUS_SUCCESS_BG, DesignTokens.STATUS_SUCCESS_FG),
-                    "Geri Geldi": (DesignTokens.STATUS_INFO_BG, DesignTokens.STATUS_INFO_FG),
-                    "Kargoya Verildi": (tc("danger_bg"), tc("danger")),
-                    "Servise Ulaştı": (tc("surface_alt"), tc("accent_pressed")),
-                    "Müşteriye Teslim Edildi": (DesignTokens.STATUS_SUCCESS_BG, tc("success")),
-                    "Hazırlanıyor": (DesignTokens.MUTED, DesignTokens.MUTED_FOREGROUND)
+                    "Onar\u0131mda": ("@warning_bg", "@warning"),
+                    "\u0130ade Bekleniyor": ("@finance_surface_alt", "@finance_primary"),
+                    "Onay Bekliyor": ("@finance_surface_alt", "@finance_primary"),
+                    "D\u0131\u015f Serviste": ("@danger_bg", "@finance_tertiary"),
+                    "Haz\u0131r": ("@success_bg", "@finance_secondary"),
+                    "Geri Geldi": ("@success_bg", "@finance_secondary"),
+                    "Teslim Al\u0131nd\u0131": ("@success_bg", "@finance_secondary"),
+                    "M\u00fc\u015fteriye Haz\u0131r": ("@success_bg", "@finance_secondary"),
+                    "Kargoya Verildi": ("@danger_bg", "@finance_tertiary"),
+                    "Servise Ula\u015ft\u0131": ("@finance_surface_alt", "@finance_primary"),
+                    "M\u00fc\u015fteriye Teslim Edildi": ("@success_bg", "@finance_secondary"),
+                    "Haz\u0131rlan\u0131yor": ("@finance_surface_alt", "@finance_text_muted"),
                 }
-                st_bg, st_fg = status_palette.get(r[9], (DesignTokens.MUTED, DesignTokens.MUTED_FOREGROUND))
+                normalized_palette = {
+                    _normalize_external_status(key): value
+                    for key, value in status_palette.items()
+                }
+                st_bg, st_fg = normalized_palette.get(
+                    _normalize_external_status(r[9]),
+                    ("@finance_surface_alt", "@finance_text_muted"),
+                )
                 st_lbl = QLabel(str(r[9] or "-"))
                 st_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                st_lbl.setWordWrap(True)
+                st_lbl.setMaximumHeight(42)
                 st_lbl.setStyleSheet(theme_qss(f"""
                     QLabel {{
                         background-color: {st_bg};
                         color: {st_fg};
-                        border-radius: 10px;
+                        border: none;
+                        border-radius: 4px;
+                        min-height: 28px;
                         padding: 6px 10px;
                         font-weight: 800;
                         font-size: 11px;
                     }}
                 """))
-                self.table.setCellWidget(i, 5, st_lbl)
+                status_cell = QWidget()
+                status_cell.setStyleSheet(theme_qss("background: @surface; border: none;"))
+                status_layout = QHBoxLayout(status_cell)
+                status_layout.setContentsMargins(6, 0, 6, 0)
+                status_layout.addWidget(st_lbl, 0, Qt.AlignmentFlag.AlignVCenter)
+                self.table.setItem(i, 5, QTableWidgetItem(str(r[9] or '-')))
+                self.table.setCellWidget(i, 5, status_cell)
 
                 btn_container = QWidget()
-                btn_container.setStyleSheet(theme_qss(f"""
-                    QWidget {{
-                        background-color: {DesignTokens.SECONDARY};
-                        border: 1px solid {DesignTokens.BORDER};
-                        border-radius: 12px;
-                    }}
-                """))
+                btn_container.setStyleSheet("QWidget { background: transparent; border: none; }")
                 btn_layout = QHBoxLayout(btn_container)
-                btn_layout.setContentsMargins(8, 8, 8, 8)
-                btn_layout.setSpacing(8)
+                btn_layout.setContentsMargins(4, 8, 4, 8)
+                btn_layout.setSpacing(4)
                 
-                btn_edit = QPushButton("✏️ Düzenle")
-                btn_edit.setFixedSize(110, 44)
+                btn_edit = QPushButton("D\u00fczenle")
+                btn_edit.setFixedSize(74, 30)
                 btn_edit.setCursor(Qt.CursorShape.PointingHandCursor)
-                btn_edit.setStyleSheet(theme_qss(DesignTokens.get_button_qss("primary", size="sm")))
+                btn_edit.setStyleSheet(theme_qss(DesignTokens.get_button_qss("secondary", size="sm") + "QPushButton { padding: 0; min-height: 26px; }"))
                 btn_edit.clicked.connect(lambda ch, rec=r: self.edit_record(rec))
                 btn_layout.addWidget(btn_edit)
                 
-                btn_delete = QPushButton("🗑️")
+                btn_delete = QPushButton("Sil")
                 btn_delete.setToolTip("Sil")
-                btn_delete.setFixedSize(44, 44)
+                btn_delete.setFixedSize(36, 30)
                 btn_delete.setCursor(Qt.CursorShape.PointingHandCursor)
-                btn_delete.setStyleSheet(theme_qss(DesignTokens.get_button_qss("destructive", size="sm")))
+                btn_delete.setStyleSheet(theme_qss("QPushButton { background: @finance_surface_alt; color: @danger; border: 1px solid @finance_outline; border-radius: 4px; padding: 0; min-height: 26px; }"))
                 btn_delete.clicked.connect(lambda ch, rec_id=r[0]: self.delete_record(rec_id))
                 btn_layout.addWidget(btn_delete)
                 
                 self.table.setCellWidget(i, 6, btn_container)
+
+            self._apply_filters()
 
         except Exception as e:
             logger.error(f"ExternalTrackingPage refresh_data error: {e}")
@@ -597,58 +828,26 @@ class ExternalTrackingPage(QWidget):
             self.btn_multi.setToolTip("\u00c7oklu Se\u00e7im")
     
     def create_stat_card(self, title, value, icon, color):
-        """Modern istatistik kartı oluştur"""
+        """Create a compact token-driven operational metric."""
         card = QFrame()
-        card.setFixedHeight(100)
-        card.setStyleSheet(theme_qss(f"""
-            QFrame {{
-                background-color: @surface;
-                border-radius: 12px;
-                border-left: 4px solid {color};
-                border-right: 1px solid @border;
-                border-top: 1px solid @border;
-                border-bottom: 1px solid @border;
-            }}
-        """))
-        
-        # Shadow
-        shadow = QGraphicsDropShadowEffect()
-        shadow.setBlurRadius(25)
-        shadow.setColor(QColor(0, 0, 0, 30))
-        shadow.setOffset(0, 6)
-        card.setGraphicsEffect(shadow)
-        
-        layout = QHBoxLayout(card)
-        layout.setContentsMargins(20, 15, 20, 15)
-        layout.setSpacing(15)
-        
-        # Icon
-        icon_lbl = QLabel(icon)
-        icon_lbl.setFixedSize(50, 50)
-        icon_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        icon_lbl.setStyleSheet(theme_qss(f"""
-            background-color: {color}20;
-            color: {color};
-            font-size: 24px;
-            border-radius: 25px;
-        """))
-        layout.addWidget(icon_lbl)
-        
-        # Text
-        text_layout = QVBoxLayout()
-        text_layout.setSpacing(2)
-        
-        val_lbl = QLabel(value)
-        val_lbl.setStyleSheet(theme_qss("font-size: 24px; font-weight: 800; color: @text; border: none; background: transparent;"))
-        
+        card.setObjectName("ExternalTrackingMetric")
+        card.setFixedHeight(120)
+        card.setStyleSheet(theme_qss("QFrame#ExternalTrackingMetric { background: @finance_surface; border: 1px solid @finance_outline; border-radius: 6px; } QLabel { border: none; background: transparent; }"))
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(6)
+        heading = QHBoxLayout()
         title_lbl = QLabel(title.upper())
-        title_lbl.setStyleSheet(theme_qss("font-size: 11px; font-weight: 700; color: @text_muted; border: none; background: transparent; letter-spacing: 0.5px;"))
-        
-        text_layout.addWidget(val_lbl)
-        text_layout.addWidget(title_lbl)
-        layout.addLayout(text_layout)
-        layout.addStretch()
-        
+        title_lbl.setStyleSheet(theme_qss("font-size: 11px; font-weight: 700; color: @finance_text_muted; background: transparent; border: none;"))
+        heading.addWidget(title_lbl, 1)
+        heading.addWidget(LoanerMetricIcon(icon, color.lstrip("@")))
+        layout.addLayout(heading)
+        val_lbl = QLabel(value)
+        val_lbl.setStyleSheet(theme_qss(f"font-size: 26px; font-weight: 800; color: {color}; border: none; background: transparent;"))
+        layout.addWidget(val_lbl)
+        subtitle = QLabel({"clipboard": "Garanti Havuzu", "outbound": "Kargoda / Serviste", "clock": "Fiyat / Onay", "check": "Teslim / Hazir"}[icon])
+        subtitle.setStyleSheet(theme_qss("background: @finance_surface_alt; color: @finance_text_muted; border: none; padding: 4px 6px; font-size: 11px;"))
+        layout.addWidget(subtitle)
         return card
     
     def delete_record(self, record_id):
@@ -674,7 +873,7 @@ class ExternalTrackingPage(QWidget):
 
     def open_selected_record(self, row, _column=0):
         try:
-            records = self.db.get_external_trackings()
+            records = self.records
             if 0 <= row < len(records):
                 self.edit_record(records[row])
         except Exception as e:
@@ -689,7 +888,7 @@ class ExternalTrackingPage(QWidget):
         if self.table.selectionMode() == QAbstractItemView.SelectionMode.SingleSelection:
             self.table.selectRow(row)
         try:
-            records = self.db.get_external_trackings()
+            records = self.records
             selected_rows = self._selected_rows() or [row]
             valid_rows = [r for r in selected_rows if 0 <= r < len(records)]
             if not valid_rows:
@@ -725,7 +924,7 @@ class ExternalTrackingPage(QWidget):
             if not selected_rows:
                 show_warning(self, "Disa aktarmak icin en az bir kayit secin.")
                 return
-            records = self.db.get_external_trackings() or []
+            records = self.records
             export_rows = []
             for row in selected_rows:
                 if 0 <= row < len(records):
@@ -873,7 +1072,7 @@ class ExternalTrackingPage(QWidget):
             if not path:
                 return
 
-            records = self.db.get_external_tracking() or []
+            records = [self.records[index] for index in getattr(self, "_matching_rows", range(len(self.records)))]
             if not records:
                 show_warning(self, "Disa aktarilacak kayit bulunamadi.")
                 return
@@ -881,8 +1080,15 @@ class ExternalTrackingPage(QWidget):
             import pandas as pd
             dict_rows = []
             for s in records:
-                if isinstance(s, dict) or hasattr(s, "keys"):
-                    dict_rows.append(dict(s))
+                if isinstance(s, dict):
+                    aliases = {
+                        "id": "id", "internal_no": "internal_tracking_no", "customer": "customer_name",
+                        "product": "product_name", "service": "external_service_name",
+                        "service_no": "external_service_no", "date": "sent_date",
+                        "out_cargo": "outbound_cargo_no", "in_cargo": "inbound_cargo_no",
+                        "status": "status", "notes": "notes",
+                    }
+                    dict_rows.append({key: s.get(key, s.get(alias, "")) for key, alias in aliases.items()})
                 else:
                     dict_rows.append({
                         "id": s[0], "internal_no": s[1], "customer": s[2], "product": s[3],

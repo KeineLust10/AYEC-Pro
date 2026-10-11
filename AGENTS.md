@@ -81,3 +81,12 @@ Do not read or print large source files in a single command.
 - Keep each source-reading chunk focused on one function, class section, or issue.
 - Do not use whole-file output commands for source code, including `Get-Content` without a bounded range.
 - Continue investigation and edits in small verified steps, then run focused tests for the changed behavior.
+
+## Model Selection Strategy
+
+- Match model strength to task complexity: use GPT-6 Astra for high-complexity visual matching, complete pages, architecture, and major refactors.
+- Use GPT-5.6 Sol for medium/high feature work, integrations, and substantial component changes.
+- Use GPT-5.6 Terra for medium/low layout, styling, forms, and focused fixes.
+- Use GPT-5.6 Luna for low-risk repetitive edits, copy changes, and formatting.
+- For multi-stage work, select the appropriate model for each stage and move to a stronger model when complexity increases.
+- Do not use a stronger model than the task requires. If the runtime does not expose model switching, continue with the available model and apply the matching reasoning depth.

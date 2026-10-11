@@ -21,38 +21,13 @@ from src.utils.theme_manager import ThemeManager
 from src.utils.security_manager import SecurityManager
 from src.utils import message_helper
 from src.ui.widgets.animated_toggle import AnimatedToggle
-from src.ui.pages.quick_notes_settings_widget import QuickNotesSettingsWidget
 from src.utils.design_system import DesignTokens
 from src.utils.appearance_mode import AppearanceModeManager
 from src.ui.widgets.modern_dialog import ModernDialog
 
 # Modülerleştirilmiş widget'lar (alias vererek dahili sınıflarla çakışmayı önler)
 from src.ui.pages.settings_widgets.company_settings import CompanySettingsWidget
-from src.ui.pages.settings_widgets.sms_settings import SMSSettingsWidget as SMSSettingsWidgetMod, SMSTemplatesWidget as SMSTemplatesWidgetMod, TemplateEditDialog
-from src.ui.pages.settings_widgets.background_settings import BackgroundSettingsWidget as BackgroundSettingsWidgetMod
-from src.ui.pages.settings_widgets.bank_settings import BankSettingsWidget as BankSettingsWidgetMod
-from src.ui.pages.settings_widgets.cargo_settings import CargoSettingsWidget as CargoSettingsWidgetMod
-from src.ui.pages.settings_widgets.stock_settings import StockSettingsWidget as StockSettingsWidgetMod
-from src.ui.pages.settings_widgets.language_settings import LanguageSettingsWidget as LanguageSettingsWidgetMod
-from src.ui.pages.settings_widgets.license_settings import LicenseManagementWidget
-from src.ui.pages.settings_widgets.telegram_settings import TelegramSettingsWidget
-from src.ui.pages.settings_widgets.remote_settings import RemoteSettingsWidget
-from src.ui.pages.settings_widgets.smtp_settings import SMTPSettingsWidget as SMTPSettingsWidgetMod
-from src.ui.pages.settings_widgets.backup_settings import BackupSettingsWidget
-try:
-    from src.ui.pages.settings_widgets.user_management import UserManagementWidget
-except ImportError as exc:
-    # Keep the Settings screen available when an optional security dependency
-    # is missing; the User Management page will show a controlled placeholder.
-    UserManagementWidget = None
-    import logging
-    logging.getLogger("AYECProLogger").warning("User Management unavailable: %s", exc)
-from src.ui.pages.settings_widgets.whatsapp_settings import WhatsAppSettingsWidget
-from src.ui.pages.settings_widgets.integration_hub import IntegrationHubWidget
-from src.ui.pages.settings_widgets.voice_training_widget import VoiceTrainingWidget
-from src.ui.pages.settings_widgets.system_identity_settings import SystemIdentitySettingsWidget
-from src.ui.pages.settings_widgets.management_center_settings import ManagementCenterSettingsWidget
-from src.ui.pages.settings_widgets.tax_exchange_settings import TaxExchangeSettingsWidget
+import importlib
 from src.utils.logger import logger
 
 # --- STYLING CONSTANTS ---
@@ -67,7 +42,6 @@ BORDER_COLOR = tc("border")
 
 
 from src.ui.pages.settings_sidebar import PremiumSettingsSidebar, PlaceholderWidget
-from src.ui.pages.settings_widgets.gemini_settings_widget import GeminiSettingsWidget
 
 class SettingsPage(QWidget):
     """
@@ -75,11 +49,83 @@ class SettingsPage(QWidget):
     Sol tarafta menü, sağ tarafta içerik.
     """
     def __init__(self, db, main_window=None):
-        super().__init__()
+        super().__init__(main_window)
         self.setObjectName("SettingsPage")
         self.db = db
         self.main_window = main_window
+        self._shell_menu = None
         self.init_ui()
+        self._shell_menu = getattr(getattr(main_window, "app_sidebar", None), "side_menu", None)
+        if self._shell_menu is not None:
+            self._shell_menu.navigation_layout_about_to_change.connect(self._restore_shell_sidebar)
+            self._shell_menu.navigation_layout_changed.connect(self._sync_shell_sidebar)
+            self._shell_menu.installEventFilter(self)
+
+    def _shell_sidebar_width(self):
+        menu = getattr(getattr(self.main_window, "app_sidebar", None), "side_menu", None)
+        if menu is not None and hasattr(menu, "expanded_width_for_window"):
+            return menu.expanded_width_for_window()
+        viewport_width = self.main_window.width() if self.main_window is not None else 0
+        return 260 if viewport_width and viewport_width <= 1366 else 300
+
+    def _restore_shell_sidebar(self):
+        if self.main_window is not None:
+            self.main_window._settings_header_mode = False
+        self.sidebar.hide()
+        if hasattr(self, "settings_page_selector"):
+            self.settings_page_selector.show()
+        shell_sidebar = getattr(self.main_window, "app_sidebar", None)
+        if shell_sidebar is not None:
+            shell_sidebar.show()
+        app_header = getattr(self.main_window, "app_header", None)
+        if app_header is not None:
+            app_header.setFixedHeight(70)
+            breadcrumb = getattr(app_header, "breadcrumb", None)
+            search_input = getattr(breadcrumb, "search_input", None)
+            if search_input is not None:
+                search_input.setVisible(breadcrumb.width() >= 700 and self.main_window.width() >= 1400)
+
+    def _sync_shell_sidebar(self):
+        if getattr(self, "_syncing_shell_sidebar", False):
+            return
+        self._syncing_shell_sidebar = True
+        try:
+            if not self.isVisible():
+                self._restore_shell_sidebar()
+                return
+            if self.main_window is not None:
+                self.main_window._settings_header_mode = False
+            use_embedded_navigation = self.main_window is not None and self.main_window.width() >= 1366
+            telegram_navigation = hasattr(self, "content_area") and self.content_area.currentIndex() == 16
+            self.sidebar.setVisible(use_embedded_navigation and not telegram_navigation)
+            self.settings_page_selector.setVisible(not use_embedded_navigation and not telegram_navigation)
+            if use_embedded_navigation:
+                self.sidebar.list_widget.scrollToTop()
+            shell_sidebar = getattr(self.main_window, "app_sidebar", None)
+            if shell_sidebar is not None:
+                shell_sidebar.show()
+            app_header = getattr(self.main_window, "app_header", None)
+            if app_header is not None:
+                app_header.setFixedHeight(70)
+                breadcrumb = getattr(app_header, "breadcrumb", None)
+                search_input = getattr(breadcrumb, "search_input", None)
+                if search_input is not None:
+                    search_input.setVisible(breadcrumb.width() >= 700 and self.main_window.width() >= 1400)
+        finally:
+            self._syncing_shell_sidebar = False
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._sync_shell_sidebar()
+
+    def hideEvent(self, event):
+        self._restore_shell_sidebar()
+        super().hideEvent(event)
+
+    def eventFilter(self, watched, event):
+        if watched is getattr(self, "_shell_menu", None) and event.type() in (QEvent.Type.Show, QEvent.Type.Hide, QEvent.Type.Resize):
+            QTimer.singleShot(0, self._sync_shell_sidebar)
+        return super().eventFilter(watched, event)
 
     def is_classic_appearance(self):
         return AppearanceModeManager.current(self.db) == AppearanceModeManager.CLASSIC
@@ -198,8 +244,13 @@ class SettingsPage(QWidget):
 
         # --- Left Sidebar ---
         current_user = getattr(self.main_window, "current_user", {}) or {}
-        self.sidebar = PremiumSettingsSidebar(self.change_page, db=self.db, current_user=current_user)
-        main_layout.addWidget(self.sidebar)
+        self.sidebar = PremiumSettingsSidebar(
+            self.change_page,
+            db=self.db,
+            current_user=current_user,
+            parent=self,
+        )
+        self.sidebar.set_embedded(True, width=260)
 
         # --- Right Content ---
         self.content_area = QStackedWidget()
@@ -231,7 +282,26 @@ class SettingsPage(QWidget):
                 self.content_area.addWidget(w)
                 self.pages[i] = w # Temporarily store the empty widget
         
-        main_layout.addWidget(self.content_area)
+        content_column = QVBoxLayout()
+        content_column.setContentsMargins(16, 12, 16, 12)
+        content_column.setSpacing(10)
+        self.settings_page_selector = QComboBox(self)
+        self.settings_page_selector.setObjectName("SettingsPageSelector")
+        self.settings_page_selector.setFixedHeight(32)
+        self.settings_page_selector.setMaximumWidth(300)
+        for item in self.sidebar.iter_items():
+            self.settings_page_selector.addItem(item["title"], item["page_id"])
+        self.settings_page_selector.activated.connect(
+            lambda index: self.change_page(self.settings_page_selector.itemData(index))
+        )
+        settings_navigation = QHBoxLayout()
+        settings_navigation.setContentsMargins(0, 0, 0, 0)
+        settings_navigation.addStretch(1)
+        settings_navigation.addWidget(self.settings_page_selector)
+        content_column.addLayout(settings_navigation, 0)
+        content_column.addWidget(self.content_area, 1)
+        main_layout.addWidget(self.sidebar, 0)
+        main_layout.addLayout(content_column, 1)
         
         # Select default
         # Select default (Firma Ayarları - Index in list widget needs to be calculated)
@@ -248,40 +318,33 @@ class SettingsPage(QWidget):
         # Lazy Load Logic
         # Strategy: We store the CLASS in a mapping, and instantiate on first access.
         
-        # Import SecuritySettingsWidget here to verify availability
-        try:
-            from src.ui.pages.security_settings_widget import SecuritySettingsWidget
-        except ImportError:
-            # If still failing, provide a dummy to prevent crash
-            SecuritySettingsWidget = None
-
-        # Mapping of Index -> Class
+        # Keep settings feature modules unloaded until their page is opened.
         page_map = {
-            0: BankSettingsWidgetMod,
-            1: SMSSettingsWidgetMod,
-            2: SMTPSettingsWidgetMod,
-            3: SMSTemplatesWidgetMod,
-            4: CompanySettingsWidget, # Already loaded
-            5: CargoSettingsWidgetMod,
-            6: BackgroundSettingsWidgetMod,
-            7: BackupSettingsWidget,
-            8: None, # AuthorizationGroupsWidget removed (redundant)
-            9: LanguageSettingsWidgetMod,
-            10: LicenseManagementWidget,
-            11: SecuritySettingsWidget,
-            12: StockSettingsWidgetMod,
-            13: GeminiSettingsWidget,
-            14: QuickNotesSettingsWidget,
-            16: TelegramSettingsWidget,
-            17: None, # Will load AuditLogPage
-            18: RemoteSettingsWidget,
-            19: UserManagementWidget,
-            20: WhatsAppSettingsWidget,
-            21: IntegrationHubWidget,
-            22: SystemIdentitySettingsWidget,
-            23: VoiceTrainingWidget,
-            24: ManagementCenterSettingsWidget,
-            25: TaxExchangeSettingsWidget,
+            0: ("src.ui.pages.settings_widgets.bank_settings", "BankSettingsWidget"),
+            1: ("src.ui.pages.settings_widgets.sms_settings", "SMSSettingsWidget"),
+            2: ("src.ui.pages.settings_widgets.smtp_settings", "SMTPSettingsWidget"),
+            3: ("src.ui.pages.settings_widgets.sms_settings", "SMSTemplatesWidget"),
+            4: ("src.ui.pages.settings_widgets.company_settings", "CompanySettingsWidget"),
+            5: ("src.ui.pages.settings_widgets.cargo_settings", "CargoSettingsWidget"),
+            6: ("src.ui.pages.settings_widgets.background_settings", "BackgroundSettingsWidget"),
+            7: ("src.ui.pages.settings_widgets.backup_settings", "BackupSettingsWidget"),
+            8: None,
+            9: ("src.ui.pages.settings_widgets.language_settings", "LanguageSettingsWidget"),
+            10: ("src.ui.pages.settings_widgets.license_settings", "LicenseManagementWidget"),
+            11: ("src.ui.pages.security_settings_widget", "SecuritySettingsWidget"),
+            12: ("src.ui.pages.settings_widgets.stock_settings", "StockSettingsWidget"),
+            13: ("src.ui.pages.settings_widgets.gemini_settings_widget", "GeminiSettingsWidget"),
+            14: ("src.ui.pages.quick_notes_settings_widget", "QuickNotesSettingsWidget"),
+            16: ("src.ui.pages.settings_widgets.telegram_settings", "TelegramSettingsWidget"),
+            17: None,
+            18: ("src.ui.pages.settings_widgets.remote_settings", "RemoteSettingsWidget"),
+            19: ("src.ui.pages.settings_widgets.user_management", "UserManagementWidget"),
+            20: ("src.ui.pages.settings_widgets.whatsapp_settings", "WhatsAppSettingsWidget"),
+            21: ("src.ui.pages.settings_widgets.integration_hub", "IntegrationHubWidget"),
+            22: ("src.ui.pages.settings_widgets.system_identity_settings", "SystemIdentitySettingsWidget"),
+            23: ("src.ui.pages.settings_widgets.voice_training_widget", "VoiceTrainingWidget"),
+            24: ("src.ui.pages.settings_widgets.management_center_settings", "ManagementCenterSettingsWidget"),
+            25: ("src.ui.pages.settings_widgets.tax_exchange_settings", "TaxExchangeSettingsWidget"),
         }
         
         # If it's the empty placeholder (QWidget) or we haven't loaded it properly
@@ -301,11 +364,15 @@ class SettingsPage(QWidget):
                 from src.ui.pages.audit_log_page import AuditLogPage
                 new_page = AuditLogPage(self.db)
             else:
-                cls_or_func = page_map.get(row)
-                if not cls_or_func:
+                page_spec = page_map.get(row)
+                if not page_spec:
                     new_page = PlaceholderWidget("Bilinmeyen Modül")
                 else:
                     try:
+                        module_path, class_name = page_spec
+                        cls_or_func = getattr(
+                            importlib.import_module(module_path), class_name
+                        )
                         if row in [4, 6, 10, 24]: # These take main_window
                             new_page = cls_or_func(self.db, self.main_window)
                         else:
@@ -319,23 +386,52 @@ class SettingsPage(QWidget):
                         logger.error(f"Error loading settings page {row}: {e}")
                         new_page = PlaceholderWidget(f"Hata: {e}")
 
+            page_container = new_page
+            if row in (7, 10, 11):
+                page_container = QScrollArea()
+                page_container.setWidgetResizable(True)
+                page_container.setFrameShape(QFrame.Shape.NoFrame)
+                page_container.setHorizontalScrollBarPolicy(
+                    Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+                )
+                page_container.setWidget(new_page)
+
             # Replace the dummy widget in stack
             old_widget = self.content_area.widget(row)
             self.content_area.removeWidget(old_widget)
-            self.content_area.insertWidget(row, new_page)
+            self.content_area.insertWidget(row, page_container)
             
-            self.pages[row] = new_page
+            self.pages[row] = page_container
             self.loaded_indices.add(row)
             if hasattr(new_page, "apply_theme_styles"):
                 try:
                     new_page.apply_theme_styles()
                 except Exception as e:
                     logger.debug(f"Settings child theme refresh skipped: {e}")
-            if self.is_classic_appearance():
+            if self.is_classic_appearance() and not bool(new_page.property("skipThemeTransform")):
                 new_page.setProperty("skipThemeTransform", False)
                 new_page.setStyleSheet(self._content_area_qss())
             
         self.content_area.setCurrentIndex(row)
+        self.settings_page_selector.setVisible(False)
+        selector_index = self.settings_page_selector.findData(row)
+        if selector_index >= 0 and self.settings_page_selector.currentIndex() != selector_index:
+            self.settings_page_selector.blockSignals(True)
+            self.settings_page_selector.setCurrentIndex(selector_index)
+            self.settings_page_selector.blockSignals(False)
+        app_header = getattr(self.main_window, "app_header", None)
+        breadcrumb = getattr(app_header, "breadcrumb", None)
+        if breadcrumb is not None:
+            list_row = self.sidebar.items_map.index(row) if row in self.sidebar.items_map else row
+            item = self.sidebar.list_widget.item(list_row)
+            page_title = item.text() if item is not None else "Ayarlar"
+            if self.content_area.currentIndex() == 14:
+                page_title = "H\u0131zl\u0131 Notlar & Makrolar"
+            breadcrumb.update_path([
+                ("AYEC Pro", None),
+                ("Sistem Ayarlar\u0131", 130),
+                (page_title, None),
+            ])
         # Re-assert enabled state for newly loaded page
         self.enable_all_controls()
         self.apply_theme_styles()

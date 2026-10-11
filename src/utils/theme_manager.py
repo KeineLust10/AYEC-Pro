@@ -52,13 +52,43 @@ class ThemeManager:
     THEMES = THEMES
     DISPLAY_THEMES = DISPLAY_THEMES
     DARK_THEMES = DARK_THEMES
+    REFERENCE_PALETTE_FALLBACKS = {
+        "finance_canvas": "window",
+        "finance_surface": "surface",
+        "finance_surface_lowest": "window",
+        "finance_surface_container": "surface_alt",
+        "finance_surface_alt": "surface_alt",
+        "finance_surface_high": "surface_alt",
+        "finance_outline": "border",
+        "finance_text": "text",
+        "finance_text_muted": "text_muted",
+        "finance_tertiary": "danger",
+        "finance_active_bg": "selection_bg",
+        "finance_success_bg": "success_bg",
+        "finance_warning_bg": "warning_bg",
+        "finance_primary_gradient": "accent",
+    }
+    SOLID_FOREGROUND_TOKENS = {
+        "accent_foreground": "accent",
+        "success_foreground": "success",
+        "danger_foreground": "danger",
+        "warning_foreground": "warning",
+        "finance_primary_text": "finance_primary",
+        "finance_secondary_text": "finance_secondary",
+        "finance_action_income_text": "finance_action_income",
+        "finance_action_expense_text": "finance_action_expense",
+        "finance_action_collection_text": "finance_action_collection",
+    }
 
     _cache = {}
     _style_filter = None
     _combo_click_filter = None
-    _current_theme = "AYEC"
+    _current_theme = "Koyu Mavi"
     _stylesheet_patch_installed = False
     _original_set_stylesheet = None
+    _original_app_set_stylesheet = None
+    _app_stylesheet_raw = None
+    _app_stylesheet_final = None
     _active_theme_anims = []
     _style_repair_in_progress = False
     _refresh_in_progress = False
@@ -273,7 +303,14 @@ class ThemeManager:
             cls._custom_accent_color or "",
             cls._custom_text_color or "",
             cls._interface_scale_percent,
+            cls._application_font_family(),
         )
+
+    @classmethod
+    def _application_font_family(cls):
+        app = QApplication.instance()
+        family = app.font().family().strip() if app is not None else ""
+        return family or "Segoe UI"
 
     @classmethod
     def _activate_runtime_cache(cls, theme_name):
@@ -317,7 +354,7 @@ class ThemeManager:
             return "Koyu Mavi"
         if key in {"sunset", "gunbatimi", "gunbat\u0131m\u0131"}:
             return "Forest"
-        if key in {"midnight", "gece", "yari gece", "koyu mavi", "koyu tema", "dark blue"}:
+        if key in {"midnight", "midnight enterprise slate", "midnight-enterprise-slate", "gece", "yari gece", "koyu mavi", "koyu tema", "dark blue"}:
             return "Koyu Mavi"
         if key in {"ocean", "ocaen", "okyanus", "deniz"}:
             return "Koyu Mavi"
@@ -385,6 +422,22 @@ class ThemeManager:
             val = default
         normalized = cls.normalize_theme_name(theme_name)
 
+        if key in cls.REFERENCE_PALETTE_FALLBACKS and not data.get("palette", {}).get(key):
+            return cls.current_palette(normalized).get(key, default)
+
+        if key == "finance_primary" and not data.get("palette", {}).get(key):
+            return cls.get_palette_color(normalized, "accent", "#3B82F6")
+        if key == "finance_secondary" and not data.get("palette", {}).get(key):
+            return cls.get_palette_color(normalized, "success", "#10B981")
+        action_defaults = {"finance_action_income": "finance_secondary", "finance_action_expense": "danger", "finance_action_collection": "finance_primary"}
+        if key in action_defaults and not data.get("palette", {}).get(key):
+            return cls.get_palette_color(normalized, action_defaults[key])
+
+        if key in cls.SOLID_FOREGROUND_TOKENS and not data.get("palette", {}).get(key):
+            accent = cls.get_palette_color(normalized, "accent", "#3B82F6")
+            background = cls.get_palette_color(normalized, cls.SOLID_FOREGROUND_TOKENS[key], accent)
+            return contrast_text(background)
+
         if cls._custom_accent_color:
             if key in ["accent", "primary", "selection_bg", "accent_hover", "accent_pressed"]:
                 return cls._custom_accent_color
@@ -451,6 +504,7 @@ class ThemeManager:
             or cls._light_fallback("selection_bg", "#3B82F6")
         )
         p.setdefault("accent", accent)
+        p.setdefault("electric_blue", "#0EA5E9")
         p.setdefault("primary", accent)
         p.setdefault("selection_bg", accent)
         p.setdefault("accent_hover", accent)
@@ -461,6 +515,9 @@ class ThemeManager:
         p.setdefault("disabled_bg", p.get("surface_alt"))
         p.setdefault("disabled_text", p.get("text_muted"))
         p.setdefault("button_text", p.get("text"))
+        p.setdefault("finance_primary", accent)
+        p.setdefault("finance_breadcrumb_active", p["finance_primary"])
+        p.setdefault("finance_primary_text", contrast_text(p["finance_primary"]))
 
         semantic_defaults = {
             "success": "#10B981",
@@ -474,6 +531,15 @@ class ThemeManager:
             p.setdefault(f"{key}_pressed", p[key])
             p.setdefault(f"{key}_bg", p.get("surface_alt"))
             p.setdefault(f"{key}_text", p.get("selection_text"))
+
+        p.setdefault("finance_secondary", p["success"])
+        for token, fallback in cls.REFERENCE_PALETTE_FALLBACKS.items():
+            p.setdefault(token, p[fallback])
+        p.setdefault("finance_action_income", p["finance_secondary"])
+        p.setdefault("finance_action_expense", p["danger"])
+        p.setdefault("finance_action_collection", p["finance_primary"])
+        for foreground, background in cls.SOLID_FOREGROUND_TOKENS.items():
+            p.setdefault(foreground, contrast_text(p[background]))
         return p
 
     @classmethod
@@ -496,10 +562,12 @@ class ThemeManager:
         selection_text = p.get("selection_text", "#FFFFFF")
         disabled_bg = p.get("disabled_bg", "#374151")
         disabled_text = p.get("disabled_text", "#6B7280")
+        font_family = cls._application_font_family().replace('"', "").replace(";", "")
         extra_qss = f"""
-QMainWindow, QMainWindow > QWidget {{
+QMainWindow {{
     background-color: {window};
     color: {text};
+    font-family: "{font_family}";
 }}
 QWidget {{
     color: {text};
@@ -627,8 +695,8 @@ QTableWidget::item:alternate, QListWidget::item:alternate {{
     color: {text};
 }}
 QTableWidget::item:hover, QListWidget::item:hover {{
-    background-color: {surface_alt};
-    color: {text};
+    background-color: {selection_bg};
+    color: {selection_text};
 }}
 QTableWidget::item:selected, QListWidget::item:selected,
 QTreeView::item:selected, QTableView::item:selected {{
@@ -653,8 +721,8 @@ QTreeView::item:alternate {{
     color: {text};
 }}
 QTreeView::item:hover {{
-    background-color: {surface_alt};
-    color: {text};
+    background-color: {selection_bg};
+    color: {selection_text};
 }}
 QTreeView::item:selected {{
     background-color: {selection_bg};
@@ -853,6 +921,38 @@ QTimeEdit::up-button:hover, QTimeEdit::down-button:hover,
 QDateTimeEdit::up-button:hover, QDateTimeEdit::down-button:hover {{
     background-color: {selection_bg};
 }}
+QCalendarWidget, QCalendarWidget QWidget {{
+    background-color: {surface};
+    color: {text};
+}}
+QCalendarWidget QWidget#qt_calendar_navigationbar {{
+    background-color: {surface_alt};
+}}
+QCalendarWidget QToolButton, QCalendarWidget QSpinBox {{
+    background-color: {surface_alt};
+    color: {text};
+    border: 1px solid {border};
+    padding: 3px 6px;
+}}
+QCalendarWidget QToolButton:hover {{
+    background-color: {selection_bg};
+    color: {selection_text};
+}}
+QCalendarWidget QAbstractItemView {{
+    background-color: {surface};
+    color: {text};
+    selection-background-color: {selection_bg};
+    selection-color: {selection_text};
+    outline: none;
+}}
+QCalendarWidget QAbstractItemView:disabled {{
+    color: {text_muted};
+}}
+QCalendarWidget QMenu {{
+    background-color: {surface};
+    color: {text};
+    border: 1px solid {border};
+}}
 QToolTip {{
     background-color: {surface_alt};
     color: {text};
@@ -970,7 +1070,6 @@ QFocusFrame {{
         if not qss_text:
             return qss_text
         sanitized = UNSUPPORTED_QSS_DECL_RE.sub("", qss_text)
-        sanitized = cls._strip_table_cell_hover_rules(sanitized)
         return cls._scale_qss_font_sizes(sanitized)
 
     @classmethod
@@ -1039,7 +1138,11 @@ QFocusFrame {{
                 curr = target
                 while curr is not None:
                     class_name = curr.__class__.__name__
-                    if "Wizard" in class_name or "Step" in class_name:
+                    if (
+                        ("Wizard" in class_name or "Step" in class_name)
+                        and not class_name.startswith("TechnicianWizard")
+                        and not class_name.endswith("Stepper")
+                    ):
                         is_wizard = True
                         break
                     if hasattr(curr, "parent"):
@@ -1060,12 +1163,31 @@ QFocusFrame {{
                     return ThemeManager._original_app_set_stylesheet(target, qss)
                 return ThemeManager._original_set_stylesheet(target, qss)
 
+            if isinstance(target, QApplication):
+                if (
+                    cls._app_stylesheet_raw == raw_qss
+                    and cls._app_stylesheet_final is not None
+                    and target.styleSheet() == cls._app_stylesheet_final
+                ):
+                    return None
+            elif (
+                getattr(target, "_theme_applied_raw", None) == raw_qss
+                and getattr(target, "_theme_applied_generation", None) == cls._theme_generation
+                and getattr(target, "_theme_applied_final", None) is not None
+                and target.styleSheet() == getattr(target, "_theme_applied_final", None)
+            ):
+                return None
+
             # Avoid redundant transformation if already processed
-            already_transformed = getattr(target, "_theme_applied_raw", None) == raw_qss
+            if isinstance(target, QApplication):
+                already_transformed = cls._app_stylesheet_raw == raw_qss
+            else:
+                already_transformed = getattr(target, "_theme_applied_raw", None) == raw_qss
 
             try:
                 # Always transform to ensure no @tokens ever reach Qt
                 qss = ThemeManager.transform_qss(raw_qss)
+                qss = ThemeManager._strip_table_cell_hover_rules(qss)
             except Exception as e:
                 logger.debug("transform_qss failed in patched setStyleSheet: %s", e)
                 qss = ThemeManager._sanitize_qss(raw_qss)
@@ -1077,8 +1199,17 @@ QFocusFrame {{
             # Check if this exact result was already applied to avoid Qt flicker/overhead
             if already_transformed and getattr(target, "_theme_applied_final", None) == qss:
                 return None
+            if (
+                isinstance(target, QApplication)
+                and cls._app_stylesheet_raw == raw_qss
+                and cls._app_stylesheet_final == qss
+            ):
+                return None
 
             try:
+                if isinstance(target, QApplication):
+                    cls._app_stylesheet_raw = raw_qss
+                    cls._app_stylesheet_final = qss
                 if isinstance(target, QWidget):
                     setattr(target, "_theme_raw_stylesheet", raw_qss)
                     setattr(target, "_theme_applied_raw", raw_qss)
@@ -1205,7 +1336,9 @@ QFocusFrame {{
         cls._activate_runtime_cache(theme_name)
         cls._install_stylesheet_patch()
         with perf_span(f"theme.apply_raw.{cls._current_theme}"):
-            app.setPalette(cls._build_palette(cls._current_theme))
+            target_palette = cls._build_palette(cls._current_theme)
+            if app.palette() != target_palette:
+                app.setPalette(target_palette)
             app.setStyleSheet(cls.get_stylesheet(cls._current_theme))
         if not refresh_widgets:
             return
@@ -1218,6 +1351,10 @@ QFocusFrame {{
     def apply_theme(cls, app, theme_name, window=None, animate=False, duration_ms=220):
         if not app:
             return
+        from src.utils.reference_typography import apply_reference_font
+        apply_reference_font(app)
+        if cls._base_app_font is not None:
+            cls._base_app_font.setFamily(app.font().family())
         name = cls.normalize_theme_name(theme_name)
         cls._install_style_filter(app)
         animate = False

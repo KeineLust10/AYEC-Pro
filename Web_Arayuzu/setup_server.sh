@@ -27,7 +27,15 @@ elif [[ "${CORE_ONLY:-0}" == "1" ]]; then
 fi
 
 "$VENV/bin/python" -m pip install --requirement "$ROOT/$requirements"
-"$VENV/bin/python" "$ROOT/tools/verify_runtime.py"
+if [[ "$requirements" != "requirements.txt" ]]; then
+  export EASYOCR_MODULE_PATH="$ROOT/ocr-models/EasyOCR"
+  "$VENV/bin/python" "$ROOT/tools/prepare_ocr_models.py" --module-path "$EASYOCR_MODULE_PATH"
+fi
+if [[ "$requirements" != "requirements.txt" ]]; then
+  "$VENV/bin/python" "$ROOT/tools/verify_runtime.py" --require-ocr
+else
+  "$VENV/bin/python" "$ROOT/tools/verify_runtime.py"
+fi
 
 if ! command -v tesseract >/dev/null 2>&1; then
   echo "UYARI: Görsel OCR için tesseract-ocr ve tesseract-ocr-tur sistem paketlerini kurun." >&2

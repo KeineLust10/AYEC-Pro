@@ -20,6 +20,15 @@ class CustomersPage(QWidget, CustomersBaseMixin, CustomersDataMixin, CustomersUI
     Mixin yap\u0131land\u0131rmas\u0131 ile mod\u00fcler hale getirilmi\u015ftir.
     """
 
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, "table"):
+            QTimer.singleShot(0, self._fit_customer_table_columns)
+        if hasattr(self, "customer_toolbar_card"):
+            QTimer.singleShot(0, self._apply_customer_toolbar_responsive_widths)
+        if hasattr(self, "customer_header_action_panel"):
+            QTimer.singleShot(0, self._apply_customer_header_responsive_widths)
+
     @staticmethod
     def _looks_like_partner_row(data):
         try:
@@ -39,7 +48,7 @@ class CustomersPage(QWidget, CustomersBaseMixin, CustomersDataMixin, CustomersUI
 
         # Pagination State
         self.current_page = 0
-        self.limit = 50
+        self.limit = 10
         self.total_count = 0
         self.search_query = None
         self.worker = None

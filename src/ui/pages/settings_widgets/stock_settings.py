@@ -17,6 +17,7 @@ from PyQt6.QtWidgets import (
 )
 
 from src.utils.theme_colors import theme_qss
+from src.utils.design_system import DesignTokens
 
 
 class StockSettingsWidget(QWidget):
@@ -27,8 +28,8 @@ class StockSettingsWidget(QWidget):
         self.db = db
         self.main_window = main_window
         self.setup_ui()
-        self._wire_ui_signals()
         self.load_data()
+        self._wire_ui_signals()
 
     def _spin_style(self):
         return theme_qss(
@@ -104,7 +105,7 @@ class StockSettingsWidget(QWidget):
         root.setSpacing(10)
 
         title = QLabel("Stok Yönetim Ayarları")
-        title.setFont(QFont("Segoe UI", 15, QFont.Weight.Bold))
+        title.setFont(QFont(DesignTokens.FONT_NAME, 15, QFont.Weight.Bold))
         title.setStyleSheet(theme_qss("color: @text;"))
 
         subtitle = QLabel("Minimum stok, otomatik kodlama ve finans entegrasyon davranışını buradan yönetin.")
@@ -188,7 +189,7 @@ class StockSettingsWidget(QWidget):
         actions.addStretch()
 
         btn_save = QPushButton("Kaydet")
-        btn_save.setMinimumWidth(130)
+        btn_save.setFixedSize(130, 40)
         btn_save.setStyleSheet(
             theme_qss("background: @accent; color: @selection_text; border: none; border-radius: 8px; padding: 10px 16px; font-weight: 700;")
         )

@@ -48,16 +48,18 @@ class MainWindowThemeMixin:
         app = QApplication.instance()
         if not app:
             return
+        from src.utils.reference_typography import apply_reference_font
+        apply_reference_font(app)
         try:
             ThemeManager.load_custom_colors(self.db)
             ThemeManager.apply_interface_scale(app, refresh=False)
         except Exception as e:
             logger.warning("Custom theme colors could not be loaded (early): %s", e)
         try:
-            theme_name = self.db.get_setting("color_theme_full", "AYEC")
+            theme_name = self.db.get_setting("color_theme_full", "Koyu Mavi")
         except Exception as e:
             logger.warning("Theme setting could not be read (early): %s", e)
-            theme_name = "AYEC"
+            theme_name = "Koyu Mavi"
         normalized = ThemeManager.normalize_theme_name(theme_name)
         self._current_theme_name = normalized
         ThemeManager._current_theme = normalized
@@ -79,10 +81,10 @@ class MainWindowThemeMixin:
         except Exception as e:
             logger.warning("Custom theme colors could not be loaded: %s", e)
         try:
-            theme_name = self.db.get_setting("color_theme_full", "AYEC")
+            theme_name = self.db.get_setting("color_theme_full", "Koyu Mavi")
         except Exception as e:
             logger.warning("Theme setting could not be read: %s", e)
-            theme_name = "AYEC"
+            theme_name = "Koyu Mavi"
         normalized = ThemeManager.normalize_theme_name(theme_name)
         self._current_theme_name = normalized
         ThemeManager.apply_theme(app, normalized, window=self, animate=False)
@@ -239,14 +241,14 @@ class MainWindowThemeMixin:
     def sync_theme_toggle_button(self):
         """Sync header theme toggle button with current theme."""
         if hasattr(self.app_header, "sync_theme_controls"):
-            self.app_header.sync_theme_controls(getattr(self, "_current_theme_name", "AYEC"))
+            self.app_header.sync_theme_controls(getattr(self, "_current_theme_name", "Koyu Mavi"))
 
     def toggle_theme_from_header(self):
         """Cycle through available themes from header button."""
         themes = ThemeManager.get_available_themes(self.db)
         if not themes:
             return
-        current = ThemeManager.normalize_theme_name(getattr(self, "_current_theme_name", "AYEC"))
+        current = ThemeManager.normalize_theme_name(getattr(self, "_current_theme_name", "Koyu Mavi"))
         try:
             idx = themes.index(current)
         except ValueError:

@@ -290,17 +290,22 @@ def test_customer_csv_import_persists_all_rows_and_accepts_dialog():
             db.close()
 
 
-def test_customer_list_import_button_opens_dialog_and_requests_reload():
+def test_customer_list_import_menu_action_opens_dialog_and_requests_reload():
     db = Database(":memory:", init_mode="full")
     page = CustomersPage(db)
-    import_buttons = [
-        button
-        for button in page.findChildren(QPushButton)
-        if button.toolTip() == "M\u00fc\u015fteri I\u00e7e Aktar"
-    ]
+    import_button = page.customer_toolbar_actions["import"]
 
     try:
-        assert len(import_buttons) == 1
+        page.resize(1920, 1080)
+        page.show()
+        APP.processEvents()
+        assert sum(page.table.columnWidth(column) for column in range(page.table.columnCount())) >= page.table.viewport().width() - 2
+        assert set(page.customer_toolbar_actions) == {
+            "copy", "print", "excel", "pdf", "documents", "import", "fit_columns", "multi_select"
+        }
+        page.customer_toolbar_actions["fit_columns"].click()
+        assert sum(page.table.columnWidth(column) for column in range(page.table.columnCount())) >= page.table.viewport().width() - 2
+        assert not hasattr(page, "customer_options_button")
         with patch(
             "src.ui.pages._customers_func_mixin.QFileDialog.getOpenFileName",
             return_value=("customers.csv", ""),
@@ -314,7 +319,7 @@ def test_customer_list_import_button_opens_dialog_and_requests_reload():
             dialog_class.return_value.exec.return_value = (
                 QDialog.DialogCode.Accepted
             )
-            import_buttons[0].click()
+            import_button.click()
 
         dialog_class.assert_called_once_with(db, "customers.csv", page)
         request_reload.assert_called_once_with()

@@ -1,0 +1,6 @@
+FreyaTTS-small is vendored from https://github.com/freyavoiceai/FreyaTTS
+at commit 146d36c1cb6660646be57d31339db4eed9315de3.
+Its source and model are licensed under Apache-2.0; see FREYATTS-LICENSE.
+The Freya model weights and VoxCPM2 AudioVAE weights are downloaded from
+Hugging Face when the local speech engine is first used. The required AudioVAE
+model code is vendored from VoxCPM 2.0.3 under Apache-2.0; see VOXCPM-LICENSE.

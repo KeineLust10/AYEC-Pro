@@ -294,6 +294,43 @@ class DeviceSelectionDialog(PremiumDialog):
             return
         self.load_data(self._get_active_devices(query))
 
+    @staticmethod
+    def _normalize_voice_target(value):
+        text = str(value or "").lower().translate(str.maketrans({
+            "\u00e7": "c", "\u011f": "g", "\u0131": "i", "\u00f6": "o", "\u015f": "s", "\u00fc": "u",
+        }))
+        return " ".join(text.split())
+
+    def select_by_voice(self, target):
+        query = self._normalize_voice_target(target)
+        if not query:
+            return False, "Hangi musteriyi veya cihazi secmemi istersiniz?"
+
+        matches = []
+        for row in range(self.table.rowCount()):
+            values = [
+                self.table.item(row, column).text()
+                if self.table.item(row, column) is not None
+                else ""
+                for column in range(self.table.columnCount())
+            ]
+            normalized_values = [self._normalize_voice_target(value) for value in values]
+            if any(query in value for value in normalized_values):
+                matches.append(row)
+
+        if not matches:
+            self.inp_search.setText(str(target))
+            return False, f"{target} icin acik servis cihazi bulamadim."
+        if len(matches) > 1:
+            self.inp_search.setText(str(target))
+            return False, "Bu musteriye ait birden fazla cihaz var. Cihaz modelini veya takip numarasini soyleyin."
+
+        row = matches[0]
+        self.table.setCurrentCell(row, 0)
+        self.table.selectRow(row)
+        self.select_and_close()
+        return True, "Cihazi sectim ve teknisyen panelini aciyorum."
+
     def select_and_close(self):
         row = self.table.currentRow()
         if row < 0:

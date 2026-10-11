@@ -2,12 +2,11 @@
 
 
 import sys
+import re
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
                              QLineEdit, QPushButton, QFrame, QGraphicsDropShadowEffect, QScrollArea, QWidget)
 from PyQt6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QSize, QThread, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QColor, QFont, QIcon, QPainter, QLinearGradient, QBrush
-import pyttsx3
-import threading
 import logging
 from src.utils.ai_service import AIService
 from src.ui.widgets.modern_dialog import ModernDialog
@@ -102,7 +101,6 @@ class JarvisAssistantDialog(ModernDialog):
         super().__init__(title="JARVIS CORE", parent=parent, width=450, height=700)
         self.db = db
         self.ai_service = None
-        self.tts_engine = None
         self.query_thread = None
         self.set_footer_visible(False)
         self.setFixedSize(450, 700)
@@ -352,9 +350,10 @@ class JarvisAssistantDialog(ModernDialog):
         self.btn_voice.setText("🔊" if self.voice_enabled else "🔇")
 
     def speak(self, text):
-        if not self.tts_engine: return
-        clean_text = text.replace("<br>", " ").replace("<b>", "").replace("</b>", "")
-        threading.Thread(target=lambda: (self.tts_engine.say(clean_text), self.tts_engine.runAndWait()), daemon=True).start()
+        clean_text = re.sub(r"<[^>]+>", " ", str(text or ""))
+        from src.utils.asistan_motoru import sesli_cevap_ver_async
+
+        sesli_cevap_ver_async(clean_text, engine_type="freya")
 
     def closeEvent(self, event):
         self.closed.emit()

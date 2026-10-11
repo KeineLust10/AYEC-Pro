@@ -55,18 +55,23 @@ DYNAMIC_PAGE_MODULES = (
 )
 
 RUNTIME_PACKAGE_ROOTS = (
+    "av",
     "bcrypt",
     "certifi",
     "cryptography",
+    "ctranslate2",
     "cv2",
     "dateutil",
     "easyocr",
-    "edge_tts",
     "dotenv",
     "fitz",
     "fastapi",
+    "faster_whisper",
+    "einops",
     "google",
+    "huggingface_hub",
     "numpy",
+    "onnxruntime",
     "openpyxl",
     "paddle",
     "paddleocr",
@@ -81,7 +86,6 @@ RUNTIME_PACKAGE_ROOTS = (
     "pytz",
     "pyaudio",
     "pyaudiowpatch",
-    "pyttsx3",
     "pydantic",
     "qrcode",
     "reportlab",
@@ -89,10 +93,13 @@ RUNTIME_PACKAGE_ROOTS = (
     "scipy",
     "skimage",
     "speech_recognition",
+    "safetensors",
+    "soundfile",
     "sqlalchemy",
     "torch",
     "torchvision",
     "torchgen",
+    "tokenizers",
     "tzdata",
     "urllib3",
     "uvicorn",
@@ -257,6 +264,26 @@ def main():
         print("[ERROR] bcrypt bulunamadi. Once requirements.txt yukleyin.")
         return 1
     print(f"[OK] bcrypt {dependency_check.stdout.strip()} bulundu")
+
+    asr_check = subprocess.run(
+        [
+            python_path,
+            "-c",
+            "from faster_whisper import WhisperModel; import ctranslate2",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if asr_check.returncode != 0:
+        detail = (asr_check.stderr or asr_check.stdout).strip()
+        print(
+            "[ERROR] faster-whisper runtime is unavailable. "
+            "Install requirements.txt before building."
+        )
+        if detail:
+            print(detail[-1200:])
+        return 1
+    print("[OK] faster-whisper runtime bulundu")
         
     # Nuitka compilation
     print("[1/3] Nuitka ile Makine Diline Derleme Basliyor...")
@@ -279,7 +306,6 @@ def main():
         "--nofollow-import-to=fitz",
         "--nofollow-import-to=cv2",
         "--nofollow-import-to=easyocr",
-        "--nofollow-import-to=edge_tts",
         "--nofollow-import-to=paddle",
         "--nofollow-import-to=paddleocr",
         "--nofollow-import-to=pdf2docx",
@@ -288,7 +314,6 @@ def main():
         "--nofollow-import-to=pytesseract",
         "--nofollow-import-to=pyaudio",
         "--nofollow-import-to=pyaudiowpatch",
-        "--nofollow-import-to=pyttsx3",
         "--nofollow-import-to=scipy",
         "--nofollow-import-to=skimage",
         "--nofollow-import-to=speech_recognition",
@@ -313,6 +338,10 @@ def main():
         "--windows-icon-from-ico=assets/app_icon.ico",
         "--include-data-dir=assets=assets",
         "--include-data-file=version.txt=version.txt",
+        "--include-data-file=src/vendor/freyatts/char_vocab.json=src/vendor/freyatts/char_vocab.json",
+        "--include-data-file=src/vendor/FREYATTS-LICENSE=src/vendor/FREYATTS-LICENSE",
+        "--include-data-file=src/vendor/VOXCPM-LICENSE=src/vendor/VOXCPM-LICENSE",
+        "--include-data-file=src/vendor/FREYATTS-NOTICE.txt=src/vendor/FREYATTS-NOTICE.txt",
         "--include-module=cProfile",
         "--include-module=doctest",
         "--include-module=profile",
@@ -325,6 +354,7 @@ def main():
         "--include-module=sunau",
         "--include-module=wave",
         "--include-package=unittest",
+        "--include-package=faster_whisper",
         "--include-package=google.protobuf",
         "--include-package=src",
         "--include-package=plugins",

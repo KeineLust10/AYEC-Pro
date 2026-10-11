@@ -9,6 +9,7 @@ import csv
 import hashlib
 import hmac
 import html
+import ipaddress
 import io
 import importlib.util
 import json
@@ -34,11 +35,13 @@ import zlib
 from contextlib import closing
 from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
+from email.utils import formataddr
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from http.cookies import SimpleCookie
 from pathlib import Path, PureWindowsPath
-from urllib.parse import parse_qs, unquote, urlparse
+from urllib.parse import parse_qs, unquote, urlencode, urlparse
 from urllib.request import Request, urlopen
+from urllib.error import HTTPError, URLError
 from xml.etree import ElementTree
 
 
@@ -193,12 +196,15 @@ class SyncEventHub:
 SYNC_EVENT_HUB = SyncEventHub()
 
 TABLES = {
+    "whatsapp_templates",
     "customers", "customer_currency_balances", "customer_notes", "customer_services",
     "devices", "used_parts", "parts", "stock_movements", "services", "service_definitions",
     "appointments", "reminders", "accounting", "currency_transactions", "offers", "offer_items",
     "personnel", "announcements", "contracts", "bank_accounts", "bank_cards", "loans",
-    "checks_notes", "e_invoices", "projects", "project_units", "project_transactions",
+    "checks_notes", "loan_installments", "e_invoices", "projects", "project_units", "project_transactions",
+    "product_bank_mappings",
     "loaner_devices", "loaner_transactions", "logistics", "external_warranty_tracking",
+    "subcontractors", "project_unit_products",
     "vehicle_maintenance_cards", "vehicle_maintenance_items", "customer_vehicles",
     "automotive_service_forms", "automotive_checklist_results", "automotive_damage_records",
     "automotive_checkup_forms", "automotive_quote_forms", "automotive_quote_items",
@@ -208,7 +214,7 @@ TABLES = {
     "automotive_maintenance_template_items", "automotive_parts_requests",
     "automotive_parts_request_items", "automotive_damage_marks", "vehicle_maintenance_photos",
     "device_brands", "knowledge_base", "kb_articles", "audit_logs", "settings", "exchange_rates",
-    "internal_settings", "notifications", "scheduled_alerts", "quick_notes",
+    "internal_settings", "notifications", "scheduled_alerts", "quick_notes", "fast_notes",
     "product_groups",
     "users", "tickets", "company_info", "photos", "logs",
 }
@@ -238,6 +244,17 @@ def ensure_packaged_source() -> Path:
     root_text = str(source_root)
     if root_text not in sys.path:
         sys.path.insert(0, root_text)
+    core_candidates = (
+        source_root / "ayec_core",
+        source_root / "ecosystem" / "src" / "ayec_core",
+        source_root.parent / "ecosystem" / "src" / "ayec_core",
+    )
+    for core_package in core_candidates:
+        if (core_package / "__init__.py").is_file():
+            core_root = str(core_package.parent)
+            if core_root not in sys.path:
+                sys.path.insert(0, core_root)
+            break
     return source_root
 
 
@@ -1349,6 +1366,132 @@ def _legacy_tenant_smtp_settings(tenant_id: str) -> dict:
         "password": str(os.environ.get("AYEC_SMTP_PASSWORD") or os.environ.get("AYECPRO_SMTP_APP_PASSWORD") or values.get("smtp_password") or ""),
         "tls": str(os.environ.get("AYEC_SMTP_TLS") or os.environ.get("AYECPRO_SMTP_TLS") or values.get("smtp_tls") or "1") != "0",
     }
+
+
+def send_smtp_test_message(payload: dict) -> str:
+    host = str(payload.get("host") or "").strip()
+    sender = str(payload.get("sender") or "").strip()
+    recipient = str(payload.get("recipient") or "").strip()
+    username = str(payload.get("username") or "").strip()
+    password = str(payload.get("password") or "")
+    sender_name = str(payload.get("sender_name") or "").strip()
+    auth_required = payload.get("auth_required", True) not in (False, 0, "0", "false", "False")
+    mode = str(payload.get("security") or "starttls").lower()
+    try:
+        port = int(payload.get("port") or 0)
+    except (TypeError, ValueError):
+        raise ValueError("SMTP port must be numeric")
+    try:
+        timeout = max(5, min(60, int(payload.get("timeout") or 12)))
+    except (TypeError, ValueError):
+        raise ValueError("SMTP timeout must be numeric")
+    if not host or not valid_email(sender) or not valid_email(recipient):
+        raise ValueError("SMTP host, sender, and test recipient are required")
+    if not 1 <= port <= 65535 or mode not in {"ssl", "starttls", "none"}:
+        raise ValueError("SMTP port or security mode is invalid")
+    message = EmailMessage()
+    message["Subject"] = "AYEC Pro SMTP connection test"
+    message["From"] = formataddr((sender_name, sender)) if sender_name else sender
+    message["To"] = recipient
+    message.set_content("AYEC Pro SMTP test message. The configured mail connection is working.")
+    try:
+        if mode == "ssl":
+            server = smtplib.SMTP_SSL(host, port, timeout=timeout, context=ssl.create_default_context())
+        else:
+            server = smtplib.SMTP(host, port, timeout=timeout)
+        with server:
+            server.ehlo()
+            if mode == "starttls":
+                server.starttls(context=ssl.create_default_context())
+                server.ehlo()
+            if auth_required:
+                if not username or not password:
+                    raise ValueError("SMTP username and password are required when authentication is enabled")
+                server.login(username, password)
+            server.send_message(message)
+    except (OSError, smtplib.SMTPException) as error:
+        raise ValueError("SMTP test failed: " + str(error)) from error
+    return recipient
+
+
+def test_telegram_bot_connection(payload: dict) -> dict:
+    token = str(payload.get("token") or "").strip()
+    if not re.fullmatch(r"\d+:[A-Za-z0-9_-]+", token):
+        raise ValueError("Enter a valid Telegram bot token first.")
+    request = Request(
+        "https://api.telegram.org/bot%s/getMe" % token,
+        headers={"User-Agent": "AYEC-Pro/1.0"},
+    )
+    try:
+        with urlopen(request, timeout=10) as response:
+            result = json.loads(response.read().decode("utf-8"))
+    except (HTTPError, URLError, TimeoutError, OSError) as error:
+        raise ValueError("Telegram connection failed: " + str(error)) from error
+    if not result.get("ok"):
+        raise ValueError(str(result.get("description") or "Telegram rejected the bot token."))
+    bot = result.get("result") or {}
+    return {"ok": True, "username": str(bot.get("username") or ""), "name": str(bot.get("first_name") or "")}
+
+
+def get_telegram_bot_status(payload: dict) -> dict:
+    token = str(payload.get("token") or "").strip()
+    if not re.fullmatch(r"\d+:[A-Za-z0-9_-]+", token):
+        raise ValueError("Enter a valid Telegram bot token first.")
+    request = Request(
+        "https://api.telegram.org/bot%s/getWebhookInfo" % token,
+        headers={"User-Agent": "AYEC-Pro/1.0"},
+    )
+    try:
+        with urlopen(request, timeout=10) as response:
+            result = json.loads(response.read().decode("utf-8"))
+    except (HTTPError, URLError, TimeoutError, OSError) as error:
+        raise ValueError("Telegram webhook status failed: " + str(error)) from error
+    if not result.get("ok"):
+        raise ValueError(str(result.get("description") or "Telegram could not return webhook status."))
+    info = result.get("result") or {}
+    return {
+        "ok": True,
+        "url": str(info.get("url") or ""),
+        "pending_update_count": max(0, int(info.get("pending_update_count") or 0)),
+        "last_error_message": str(info.get("last_error_message") or ""),
+        "last_error_date": max(0, int(info.get("last_error_date") or 0)),
+    }
+
+
+def update_telegram_bot_webhook(payload: dict) -> dict:
+    token = str(payload.get("token") or "").strip()
+    webhook_url = str(payload.get("url") or "").strip()
+    drop_value = payload.get("drop_pending_updates")
+    drop_pending = drop_value is True or str(drop_value or "").strip().lower() in {"1", "true", "yes", "on"}
+    if not re.fullmatch(r"\d+:[A-Za-z0-9_-]+", token):
+        raise ValueError("Enter a valid Telegram bot token first.")
+    parsed_webhook = urlparse(webhook_url)
+    if parsed_webhook.scheme != "https" or not parsed_webhook.hostname or parsed_webhook.username or parsed_webhook.password or len(webhook_url) > 2048:
+        raise ValueError("Enter a valid HTTPS webhook URL.")
+    data = urlencode({"url": webhook_url, "drop_pending_updates": "true" if drop_pending else "false"}).encode("utf-8")
+    request = Request(
+        "https://api.telegram.org/bot%s/setWebhook" % token,
+        data=data,
+        headers={"User-Agent": "AYEC-Pro/1.0", "Content-Type": "application/x-www-form-urlencoded"},
+    )
+    try:
+        with urlopen(request, timeout=10) as response:
+            result = json.loads(response.read().decode("utf-8"))
+    except (HTTPError, URLError, TimeoutError, OSError) as error:
+        raise ValueError("Telegram webhook update failed: " + str(error)) from error
+    if not result.get("ok"):
+        raise ValueError(str(result.get("description") or "Telegram rejected the webhook update."))
+    return {"ok": True, "drop_pending_updates": drop_pending}
+
+
+def protect_telegram_bot_token(value: object) -> str:
+    from src.utils.secure_setting_store import SecureSettingStore
+
+    token = str(value or "")
+    if not token or SecureSettingStore.is_encrypted(token):
+        return token
+    encrypted = SecureSettingStore._fernet().encrypt(token.encode("utf-8")).decode("ascii")
+    return SecureSettingStore.PREFIX + encrypted
 
 
 def send_license_email(tenant_id: str, recipient: str, subject: str, text: str) -> tuple[bool, str]:
@@ -3122,6 +3265,8 @@ def license_user_from_device(data: dict, allow_provision: bool = False) -> dict:
             # The same e-mail can own separate product tenants. Never silently
             # attach a request to a different product's company record.
             matches = []
+    if not matches:
+        raise PermissionError("Urun bu firma ve donanim icin yetkilendirilmemis.")
     if len(matches) > 1:
         raise ValueError("E-posta birden fazla firmada kayitli. Firma adini kontrol edin.")
     tenant, user = matches[0]
@@ -5862,6 +6007,64 @@ def _open_debt_total(conn: sqlite3.Connection, customer_id: int, currency: str,
     return total
 
 
+def customer_open_debt_items(customer_id: int, currency: str) -> list[dict]:
+    """Return customer debt rows for the web collection allocation picker."""
+    if currency not in {"TRY", "USD", "EUR"}:
+        raise ValueError("Unsupported currency")
+    with closing(db_connect()) as conn:
+        rows = conn.execute(
+            """
+            SELECT d.id, d.amount, d.currency, d.description, d.tracking_no,
+                   d.created_at, d.current_balance,
+                   COALESCE(linked.paid, 0) AS linked_paid,
+                   COALESCE(legacy.paid, 0) AS legacy_paid,
+                   linked.paid IS NOT NULL OR legacy.paid IS NOT NULL AS has_payment_history
+            FROM currency_transactions d
+            LEFT JOIN (
+                SELECT debt_txn_id, SUM(amount) AS paid
+                FROM payment_debt_links GROUP BY debt_txn_id
+            ) linked ON linked.debt_txn_id=d.id
+            LEFT JOIN (
+                SELECT d2.id, SUM(c.amount) AS paid
+                FROM currency_transactions d2
+                JOIN currency_transactions c
+                  ON c.customer_id=d2.customer_id AND c.currency=d2.currency
+                 AND c.transaction_type='CREDIT'
+                 AND (c.tracking_no=d2.tracking_no OR c.tracking_no=d2.tracking_no || '-PAY')
+                 AND NOT EXISTS (
+                     SELECT 1 FROM payment_debt_links p WHERE p.payment_txn_id=c.id
+                 )
+                WHERE d2.transaction_type='DEBIT' GROUP BY d2.id
+            ) legacy ON legacy.id=d.id
+            WHERE d.customer_id=? AND d.currency=? AND d.transaction_type='DEBIT'
+            ORDER BY d.created_at DESC, d.id DESC
+            """,
+            (int(customer_id), currency),
+        ).fetchall()
+    items = []
+    for row in rows:
+        amount = max(0.0, float(row[1] or 0))
+        paid = float(row[7] or 0) + float(row[8] or 0)
+        remaining = (
+            max(0.0, amount - paid)
+            if row[9]
+            else min(amount, max(0.0, -float(row[6] or 0)))
+        )
+        if remaining <= 0.009:
+            continue
+        items.append({
+            "id": int(row[0]),
+            "amount": round(amount, 4),
+            "paid": round(max(0.0, amount - remaining), 4),
+            "remaining": round(remaining, 4),
+            "currency": row[2],
+            "description": str(row[3] or "").strip(),
+            "tracking_no": str(row[4] or "").strip(),
+            "created_at": row[5],
+        })
+    return items
+
+
 def _set_customer_balance(conn: sqlite3.Connection, customer_id: int, currency: str, balance: float, now: datetime) -> None:
     conn.execute(
         """
@@ -6065,6 +6268,7 @@ def commit_sales_hub(data: dict) -> dict:
     rates = data.get("rates") if isinstance(data.get("rates"), dict) else {}
     now = datetime.now()
     vat_percent = max(0.0, min(float(data.get("vat_rate") or 0), 100.0))
+    discount_percent = max(0.0, min(float(data.get("discount_percent") or 0), 100.0))
     with closing(db_connect()) as conn:
         conn.execute("BEGIN IMMEDIATE")
         if not customer_id and customer_name_hint:
@@ -6111,9 +6315,12 @@ def commit_sales_hub(data: dict) -> dict:
                 "line_try": line_try, "line_selected": line_try / selected_rate,
             })
         subtotal_try = round(subtotal_try, 4)
-        vat_try = round(subtotal_try * vat_percent / 100.0, 4)
-        total_try = round(subtotal_try + vat_try, 4)
+        discount_try = round(subtotal_try * discount_percent / 100.0, 4)
+        discounted_subtotal_try = round(subtotal_try - discount_try, 4)
+        vat_try = round(discounted_subtotal_try * vat_percent / 100.0, 4)
+        total_try = round(discounted_subtotal_try + vat_try, 4)
         subtotal = round(subtotal_try / selected_rate, 4)
+        discount = round(discount_try / selected_rate, 4)
         vat_amount = round(vat_try / selected_rate, 4)
         total = round(total_try / selected_rate, 4)
         symbol = {"TRY": "₺", "USD": "$", "EUR": "€"}[currency]
@@ -6130,9 +6337,10 @@ def commit_sales_hub(data: dict) -> dict:
             issuer_company = str(customer.get("company_name") or customer_name or "AYEC Pro").strip()
         result = {
             "ok": True, "mode": mode, "currency": currency, "currency_symbol": symbol,
-            "exchange_rate": selected_rate, "subtotal": subtotal, "vat_amount": vat_amount,
+            "exchange_rate": selected_rate, "subtotal": subtotal, "discount": discount,
+            "discount_percent": discount_percent, "vat_amount": vat_amount,
             "total": total, "subtotal_try": subtotal_try, "vat_amount_try": vat_try,
-            "total_try": total_try,
+            "discount_try": discount_try, "total_try": total_try,
         }
         if mode == "proforma":
             from src.utils.service_work_details import (
@@ -6162,9 +6370,10 @@ def commit_sales_hub(data: dict) -> dict:
                 "contact_name": customer_name, "project_name": str(data.get("project_name") or ""),
                 "template_type": str(data.get("template_type") or "modern"),
                 "currency_code": currency, "currency_symbol": symbol, "exchange_rate": selected_rate,
-                "subtotal": subtotal, "discount": 0, "vat_rate": vat_percent / 100.0,
+                "subtotal": subtotal, "discount": discount, "discount_percent": discount_percent,
+                "vat_rate": vat_percent / 100.0,
                 "vat_amount": vat_amount, "total": total, "subtotal_try": subtotal_try,
-                "discount_try": 0, "vat_amount_try": vat_try, "total_try": total_try,
+                "discount_try": discount_try, "vat_amount_try": vat_try, "total_try": total_try,
                 "status": "Teklif", "source": "Web Sales Hub", "created_at": now.isoformat(timespec="seconds"),
             }
             offer_payload["payload_json"] = json.dumps({**offer_payload, "items": [{"productId": item["part_id"], "name": item["part"].get("name"), "qty": item["qty"], "price": item["unit_selected"], "price_try": item["unit_try"]} for item in lines]}, ensure_ascii=False)
@@ -6518,6 +6727,19 @@ def record_customer_payment(data: dict) -> dict:
     currency = str(data.get("currency") or "TRY").upper()
     if currency not in {"TRY", "USD", "EUR"}:
         raise ValueError("Para birimi TRY, USD veya EUR olmal\u0131d\u0131r")
+    raw_debt_ids = data.get("selected_debt_ids")
+    if raw_debt_ids is None and data.get("debt_transaction_id") not in (None, ""):
+        raw_debt_ids = [data.get("debt_transaction_id")]
+    if raw_debt_ids is None:
+        raw_debt_ids = []
+    if not isinstance(raw_debt_ids, (list, tuple, set)):
+        raise ValueError("Se\u00e7ili bor\u00e7 kalemleri ge\u00e7ersiz")
+    try:
+        selected_debt_ids = list(dict.fromkeys(int(value) for value in raw_debt_ids))
+    except (TypeError, ValueError) as error:
+        raise ValueError("Se\u00e7ili bor\u00e7 kalemleri ge\u00e7ersiz") from error
+    if any(value <= 0 for value in selected_debt_ids) or len(selected_debt_ids) > 500:
+        raise ValueError("Se\u00e7ili bor\u00e7 kalemleri ge\u00e7ersiz")
     try:
         amount = round(float(data.get("amount") or 0), 4)
     except (TypeError, ValueError):
@@ -6546,7 +6768,57 @@ def record_customer_payment(data: dict) -> dict:
         customer = dict(customer_row)
         current = _customer_balance(conn, customer_id, currency)
         reference = str(data.get("reference") or data.get("tracking_no") or "").strip()
-        open_debt = _open_debt_total(conn, customer_id, currency, reference)
+        debt_filter = ""
+        debt_args = [customer_id, currency]
+        if selected_debt_ids:
+            debt_filter = " AND d.id IN ({})".format(",".join("?" for _ in selected_debt_ids))
+            debt_args.extend(selected_debt_ids)
+        debt_rows = conn.execute(
+            """
+            SELECT d.id, d.amount, d.tracking_no, d.current_balance, d.created_at,
+                   COALESCE(linked.paid, 0) AS linked_paid,
+                   COALESCE(legacy.paid, 0) AS legacy_paid,
+                   linked.paid IS NOT NULL OR legacy.paid IS NOT NULL AS has_payment_history
+            FROM currency_transactions d
+            LEFT JOIN (
+                SELECT debt_txn_id, SUM(amount) AS paid
+                FROM payment_debt_links GROUP BY debt_txn_id
+            ) linked ON linked.debt_txn_id=d.id
+            LEFT JOIN (
+                SELECT d2.id, SUM(c.amount) AS paid
+                FROM currency_transactions d2
+                JOIN currency_transactions c
+                  ON c.customer_id=d2.customer_id AND c.currency=d2.currency
+                 AND c.transaction_type='CREDIT'
+                 AND (c.tracking_no=d2.tracking_no OR c.tracking_no=d2.tracking_no || '-PAY')
+                 AND NOT EXISTS (
+                     SELECT 1 FROM payment_debt_links p WHERE p.payment_txn_id=c.id
+                 )
+                WHERE d2.transaction_type='DEBIT' GROUP BY d2.id
+            ) legacy ON legacy.id=d.id
+            WHERE d.customer_id=? AND d.currency=? AND d.transaction_type='DEBIT'
+            """ + debt_filter + " ORDER BY d.created_at ASC, d.id ASC",
+            tuple(debt_args),
+        ).fetchall()
+        if selected_debt_ids and len(debt_rows) != len(selected_debt_ids):
+            raise ValueError("Se\u00e7ili bor\u00e7 kalemlerinden biri bulunamad\u0131")
+        allocation_debts = []
+        for row in debt_rows:
+            debt_amount = max(0.0, float(row[1] or 0))
+            linked_paid = float(row[5] or 0)
+            legacy_paid = float(row[6] or 0)
+            remaining = (
+                max(0.0, debt_amount - linked_paid - legacy_paid)
+                if row[7]
+                else min(debt_amount, max(0.0, -float(row[3] or 0)))
+            )
+            if remaining > 0.009:
+                allocation_debts.append({"id": int(row[0]), "remaining": remaining})
+        open_debt = round(
+            sum(item["remaining"] for item in allocation_debts), 4
+        )
+        if not debt_rows:
+            open_debt = _open_debt_total(conn, customer_id, currency, reference)
         if open_debt <= 0:
             raise ValueError("Bu para biriminde a\u00e7\u0131k bor\u00e7 bulunmuyor")
         if amount > open_debt + 0.0001:
@@ -6575,6 +6847,29 @@ def record_customer_payment(data: dict) -> dict:
             "description": description, "tracking_no": reference,
             "created_at": now.isoformat(timespec="seconds"), "current_balance": updated,
         })
+        remaining_payment = amount
+        allocations = []
+        for debt in allocation_debts:
+            if remaining_payment <= 0.009:
+                break
+            paid = round(min(remaining_payment, debt["remaining"]), 4)
+            if paid <= 0.009:
+                continue
+            debt_remaining_after = round(max(0.0, debt["remaining"] - paid), 4)
+            conn.execute(
+                "INSERT INTO payment_debt_links "
+                "(payment_txn_id,debt_txn_id,amount,created_at) VALUES (?,?,?,?)",
+                (transaction_id, debt["id"], paid, now.isoformat(timespec="seconds")),
+            )
+            conn.execute(
+                "UPDATE currency_transactions SET current_balance=? WHERE id=?",
+                (-debt_remaining_after, debt["id"]),
+            )
+            allocations.append({
+                "debt_id": debt["id"], "amount": paid,
+                "remaining_after": debt_remaining_after,
+            })
+            remaining_payment = round(max(0.0, remaining_payment - paid), 4)
         _set_customer_balance(conn, customer_id, currency, updated, now)
         payment_status = (
             _refresh_service_payment_status(conn, reference) if reference else None
@@ -6587,6 +6882,10 @@ def record_customer_payment(data: dict) -> dict:
         "exchange_rate": rate, "try_equivalent": round(amount * rate, 4),
         "payment_method": method, "reference": reference,
         "payment_status": payment_status,
+        "selected_debt_ids": selected_debt_ids,
+        "allocations": allocations,
+        "allocated_debt_id": selected_debt_ids[0] if len(selected_debt_ids) == 1 else None,
+        "allocated_debt_remaining": allocations[0]["remaining_after"] if len(allocations) == 1 else None,
     }
 
 
@@ -6973,6 +7272,10 @@ def desktop_bootstrap() -> dict:
             "vehicle_quantity": 0,
             "locations": 0,
         }
+        stock_location_balances: list[dict] = []
+        stock_transfer_history: list[dict] = []
+        stock_counts: list[dict] = []
+        stock_kits: list[dict] = []
         if scalar(
             conn,
             "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='stock_locations'",
@@ -7012,6 +7315,94 @@ def desktop_bootstrap() -> dict:
                 ))),
                 "locations": len(stock_locations),
             }
+            stock_location_balances = rows(
+                conn,
+                """
+                SELECT b.part_id,l.id AS location_id,l.name AS location_name,
+                       l.location_type,l.vehicle_plate,p.name AS product_name,
+                       p.code AS product_code,p.barcode,p.category,
+                       p.currency,b.quantity,b.reserved_quantity,b.min_quantity
+                FROM stock_location_balances b
+                JOIN stock_locations l ON l.id=b.location_id
+                JOIN parts p ON p.id=b.part_id
+                WHERE COALESCE(l.active,1)=1
+                  AND COALESCE(p.is_deleted,0)=0
+                  AND (ABS(COALESCE(b.quantity,0))>0.000001
+                       OR ABS(COALESCE(b.reserved_quantity,0))>0.000001
+                       OR ABS(COALESCE(b.min_quantity,0))>0.000001)
+                ORDER BY l.location_type,l.name,p.name
+                """,
+            )
+            if scalar(
+                conn,
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='stock_transfers'",
+                default=0,
+            ) and scalar(
+                conn,
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='stock_transfer_lines'",
+                default=0,
+            ):
+                stock_transfer_history = rows(
+                    conn,
+                    """
+                    SELECT t.id,t.reference_no,t.status,t.note,t.created_by,t.created_at,
+                           source.name AS source_name,target.name AS target_name,
+                           COUNT(line.id) AS line_count,
+                           COALESCE(SUM(line.quantity),0) AS total_quantity
+                    FROM stock_transfers t
+                    LEFT JOIN stock_locations source ON source.id=t.source_location_id
+                    LEFT JOIN stock_locations target ON target.id=t.target_location_id
+                    LEFT JOIN stock_transfer_lines line ON line.transfer_id=t.id
+                    GROUP BY t.id,t.reference_no,t.status,t.note,t.created_by,t.created_at,
+                             source.name,target.name
+                    ORDER BY t.created_at DESC,t.id DESC
+                    LIMIT 250
+                    """,
+                )
+            if scalar(
+                conn,
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='stock_counts'",
+                default=0,
+            ) and scalar(
+                conn,
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='stock_count_lines'",
+                default=0,
+            ):
+                stock_counts = rows(
+                    conn,
+                    """
+                    SELECT c.id,c.location_id,l.name AS location_name,c.status,c.note,
+                           c.created_by,c.created_at,COUNT(line.id) AS line_count,
+                           COALESCE(SUM(line.difference),0) AS total_difference
+                    FROM stock_counts c
+                    LEFT JOIN stock_locations l ON l.id=c.location_id
+                    LEFT JOIN stock_count_lines line ON line.count_id=c.id
+                    GROUP BY c.id,c.location_id,l.name,c.status,c.note,c.created_by,c.created_at
+                    ORDER BY c.created_at DESC,c.id DESC LIMIT 100
+                    """,
+                )
+            if scalar(
+                conn,
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='stock_kits'",
+                default=0,
+            ) and scalar(
+                conn,
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='stock_kit_lines'",
+                default=0,
+            ):
+                stock_kits = rows(
+                    conn,
+                    """
+                    SELECT kit.id,kit.name,kit.active,COUNT(line.id) AS item_count,
+                           GROUP_CONCAT(part.name, ', ') AS item_names
+                    FROM stock_kits kit
+                    LEFT JOIN stock_kit_lines line ON line.kit_id=kit.id
+                    LEFT JOIN parts part ON part.id=line.part_id
+                    WHERE COALESCE(kit.active,1)=1
+                    GROUP BY kit.id,kit.name,kit.active ORDER BY kit.name LIMIT 250
+                    """,
+                )
+
         movements = rows(conn, "SELECT sm.*,p.name product FROM stock_movements sm LEFT JOIN parts p ON p.id=sm.part_id WHERE COALESCE(sm.is_deleted,0)=0 ORDER BY sm.id DESC LIMIT 500")
         finance = rows(conn, "SELECT * FROM accounting WHERE COALESCE(is_deleted,0)=0 ORDER BY date DESC,id DESC LIMIT 1000")
         appointments = rows(conn, "SELECT * FROM appointments ORDER BY date DESC,time DESC LIMIT 1000")
@@ -7048,7 +7439,7 @@ def desktop_bootstrap() -> dict:
         if current_sector not in {"teknik_servis", "otomotiv"}:
             current_sector = "teknik_servis"
         return {
-            "database": str(active_db_path()), "tenant_id": active_tenant_id(), "company_name": active_company_name(), "customers": customers, "stock": stock, "stock_locations": stock_locations, "stock_location_summary": stock_location_summary, "devices": devices,
+            "database": str(active_db_path()), "tenant_id": active_tenant_id(), "company_name": active_company_name(), "customers": customers, "stock": stock, "stock_locations": stock_locations, "stock_location_summary": stock_location_summary, "stock_location_balances": stock_location_balances, "stock_transfer_history": stock_transfer_history, "stock_counts": stock_counts, "stock_kits": stock_kits, "devices": devices,
             "customer_vehicles": customer_vehicles,
             "movements": movements, "finance": finance, "appointments": appointments,
             "offers": offers, "scheduled_alerts": scheduled_alerts, "personnel": personnel,
@@ -7478,8 +7869,11 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
 
     def send_json(self, data, status=200, headers: dict | None = None):
         payload = json.dumps(data, ensure_ascii=False, default=str).encode("utf-8")
-        self._headers(status, "application/json; charset=utf-8", len(payload), headers)
-        self.wfile.write(payload)
+        try:
+            self._headers(status, "application/json; charset=utf-8", len(payload), headers)
+            self.wfile.write(payload)
+        except (BrokenPipeError, ConnectionAbortedError, ConnectionResetError):
+            return
         self._notify_sync_listeners_after_write(status)
 
     def _notify_sync_listeners_after_write(self, status: int) -> None:
@@ -7502,17 +7896,20 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
         )
 
     def send_bytes(self, payload: bytes, content_type: str, status=200, disposition: str | None = None):
-        self.send_response(status)
-        self.send_header("Content-Type", content_type)
-        self.send_header("Content-Length", str(len(payload)))
-        self.send_header("X-Content-Type-Options", "nosniff")
-        self.send_header("X-Frame-Options", "SAMEORIGIN")
-        self.send_header("Referrer-Policy", "same-origin")
-        self.send_header("Cache-Control", "no-store")
-        if disposition:
-            self.send_header("Content-Disposition", disposition)
-        self.end_headers()
-        self.wfile.write(payload)
+        try:
+            self.send_response(status)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(len(payload)))
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("X-Frame-Options", "SAMEORIGIN")
+            self.send_header("Referrer-Policy", "same-origin")
+            self.send_header("Cache-Control", "no-store")
+            if disposition:
+                self.send_header("Content-Disposition", disposition)
+            self.end_headers()
+            self.wfile.write(payload)
+        except (BrokenPipeError, ConnectionAbortedError, ConnectionResetError):
+            return
 
     def send_file(self, target: Path, disposition: str | None = None):
         size = target.stat().st_size
@@ -7526,8 +7923,8 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         if disposition:
             self.send_header("Content-Disposition", disposition)
-        self.end_headers()
         try:
+            self.end_headers()
             with target.open("rb") as source:
                 shutil.copyfileobj(source, self.wfile, length=1024 * 1024)
         except (BrokenPipeError, ConnectionAbortedError, ConnectionResetError):
@@ -7798,8 +8195,70 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
                 payload = desktop_bootstrap()
                 payload["current_user"] = public_user(self.current_user())
                 return self.send_json(payload)
+            if path == "/api/desktop/system-info":
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                database = Path(active_db_path())
+                counts = {"parts": 0, "stock_movements": 0, "accounting_stock": 0}
+                with closing(db_connect()) as conn:
+                    for table, key in (("parts", "parts"), ("stock_movements", "stock_movements")):
+                        if scalar(conn, "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?", (table,)):
+                            where = " WHERE COALESCE(is_deleted,0)=0" if table == "parts" and "is_deleted" in table_columns(conn, table) else ""
+                            counts[key] = int(scalar(conn, f'SELECT COUNT(*) FROM "{table}"{where}') or 0)
+                    if scalar(conn, "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='accounting'"):
+                        counts["accounting_stock"] = int(scalar(conn, "SELECT COUNT(*) FROM accounting WHERE COALESCE(description,'') LIKE '%Stok%'") or 0)
+                exists = database.is_file()
+                startup_enabled = False
+                shell_actions_available = os.name == "nt"
+                if shell_actions_available:
+                    try:
+                        from src.utils.windows_shortcuts import is_in_windows_startup
+
+                        startup_enabled = is_in_windows_startup()
+                    except Exception:
+                        shell_actions_available = False
+                return self.send_json({
+                    "database": str(database),
+                    "exists": exists,
+                    "size_mb": round(database.stat().st_size / (1024 * 1024), 2) if exists else 0,
+                    "counts": counts,
+                    "startup_enabled": startup_enabled,
+                    "shell_actions_available": shell_actions_available,
+                })
+            if path == "/api/desktop/security-settings":
+                user = self.current_user()
+                if not user:
+                    return self.send_json({"error": "Authentication required"}, 401)
+                with closing(db_connect()) as conn:
+                    return self.send_json({
+                        "app_lock_active": setting_value(conn, "app_lock_active") == "1",
+                        "app_password_configured": bool(setting_value(conn, "app_password")),
+                        "tech_lock_active": setting_value(conn, "tech_lock_active") == "1",
+                        "tech_password_configured": bool(setting_value(conn, "tech_password")),
+                        "admin_password_configured": bool(setting_value(conn, "admin_pass")),
+                        "security_question": setting_value(conn, "security_question"),
+                        "auto_login": bool(scalar(conn, "SELECT auto_login FROM users WHERE id=?", (int(user["id"]),), default=0)),
+                    })
             if path == "/api/desktop/exchange-rates":
                 return self.send_json({"ok": True, "rates": exchange_rates(refresh=query.get("refresh", ["1"])[0] != "0")})
+            if path == "/api/desktop/customer/open-debts":
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                try:
+                    customer_id = int(query.get("customer_id", ["0"])[0])
+                except (TypeError, ValueError):
+                    customer_id = 0
+                currency = str(query.get("currency", ["TRY"])[0]).upper()
+                if customer_id <= 0:
+                    return self.send_json({"error": "Customer is required"}, 400)
+                try:
+                    return self.send_json({
+                        "customer_id": customer_id,
+                        "currency": currency,
+                        "items": customer_open_debt_items(customer_id, currency),
+                    })
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
             if path == "/api/desktop/dialogs":
                 data = json.loads(DIALOGS_MANIFEST.read_text(encoding="utf-8")) if DIALOGS_MANIFEST.exists() else {"summary": {}, "dialogs": []}
                 return self.send_json(data)
@@ -8198,6 +8657,386 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
                 return self.send_json({"error": "Oturum açmanız gerekiyor.", "code": "AUTH_REQUIRED"}, 401)
             if not self.same_origin():
                 return self.send_json({"error": "İstek kaynağı doğrulanamadı."}, 403)
+            if path == "/api/desktop/security-settings":
+                if not role_is_admin(user.get("role")):
+                    return self.send_json({"error": "Administrator access required"}, 403)
+                body = self.read_json()
+                try:
+                    from src.utils.password_security import hash_password, validate_new_password
+                    app_active = bool(body.get("app_lock_active"))
+                    tech_active = bool(body.get("tech_lock_active"))
+                    app_password = str(body.get("app_password") or "").strip()
+                    tech_password = str(body.get("tech_password") or "").strip()
+                    admin_password = str(body.get("admin_password") or "").strip()
+                    question = str(body.get("security_question") or "").strip()
+                    answer = str(body.get("security_answer") or "").strip()
+                    with closing(db_connect()) as conn:
+                        for enabled, new_password, setting_key, label in (
+                            (app_active, app_password, "app_password", "Application"),
+                            (tech_active, tech_password, "tech_password", "Technician"),
+                        ):
+                            current_password = setting_value(conn, setting_key)
+                            if enabled and new_password and len(new_password) < 4:
+                                return self.send_json({"error": f"{label} password must be at least 4 characters"}, 400)
+                            if enabled and not (new_password or current_password):
+                                return self.send_json({"error": f"Set a {label.lower()} password before enabling its lock"}, 400)
+                            if new_password:
+                                upsert_setting(conn, "settings", setting_key, hash_password(new_password))
+                            elif current_password and not current_password.startswith(("$2a$", "$2b$", "$2y$")):
+                                upsert_setting(conn, "settings", setting_key, hash_password(current_password))
+                        if admin_password:
+                            password_error = validate_new_password(admin_password)
+                            if password_error:
+                                return self.send_json({"error": str(password_error)}, 400)
+                            if len(admin_password) < 4:
+                                return self.send_json({"error": "Admin password must be at least 4 characters"}, 400)
+                            upsert_setting(conn, "settings", "admin_pass", hash_password(admin_password))
+                        if bool(question) != bool(answer):
+                            return self.send_json({"error": "Recovery question and answer must be provided together"}, 400)
+                        upsert_setting(conn, "settings", "app_lock_active", "1" if app_active else "0")
+                        upsert_setting(conn, "settings", "tech_lock_active", "1" if tech_active else "0")
+                        if question and answer:
+                            import hashlib
+                            upsert_setting(conn, "settings", "security_question", question)
+                            upsert_setting(conn, "settings", "security_answer_hash", hashlib.sha256(answer.lower().encode()).hexdigest())
+                        if scalar(conn, "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='users'"):
+                            columns = table_columns(conn, "users")
+                            if "auto_login" in columns:
+                                conn.execute("UPDATE users SET auto_login=? WHERE id=?", (1 if body.get("auto_login") else 0, int(user["id"])))
+                        conn.commit()
+                    return self.send_json({"ok": True})
+                except Exception as error:
+                    return self.send_json({"error": str(error)}, 400)
+            if path == "/api/desktop/stock/location-management":
+                location_db = None
+                try:
+                    payload = self.read_json()
+                    from src.database import Database
+                    location_db = Database(
+                        db_name=str(active_db_path()), init_mode="connection_only"
+                    )
+                    action = str(payload.get("action") or "").strip()
+                    if action == "create-location":
+                        name = str(payload.get("name") or "").strip()[:120]
+                        location_type = str(payload.get("location_type") or "warehouse").strip()
+                        vehicle_plate = str(payload.get("vehicle_plate") or "").strip()[:30]
+                        if not name or location_type not in {"warehouse", "vehicle", "site"}:
+                            return self.send_json({"error": "Depo adi ve gecerli bir konum turu girin."}, 400)
+                        location_id = location_db.create_stock_location(
+                            name, location_type, vehicle_plate or None
+                        )
+                        return self.send_json({"ok": True, "location_id": location_id})
+                    if action == "transfer-stock":
+                        source_id = int(payload.get("source_location_id") or 0)
+                        target_id = int(payload.get("target_location_id") or 0)
+                        lines = payload.get("lines") or []
+                        if not isinstance(lines, list) or not lines or len(lines) > 100:
+                            return self.send_json({"error": "1-100 arasi stok satiri secin."}, 400)
+                        location_ids = {int(item.get("id") or 0) for item in location_db.get_stock_locations()}
+                        if source_id not in location_ids or target_id not in location_ids:
+                            return self.send_json({"error": "Aktif kaynak ve hedef konum secin."}, 400)
+                        if source_id == target_id:
+                            return self.send_json({"error": "Kaynak ve hedef konum farkli olmali."}, 400)
+                        clean_by_part = {}
+                        for line in lines:
+                            part_id = int(line.get("part_id") or 0)
+                            quantity = float(line.get("quantity") or 0)
+                            if part_id <= 0 or not 0 < quantity < 1_000_000_000:
+                                return self.send_json({"error": "Urun ve gecerli transfer miktari girin."}, 400)
+                            entry = clean_by_part.setdefault(part_id, {"part_id": part_id, "quantity": 0.0, "unit": str(line.get("unit") or "Adet")[:20]})
+                            entry["quantity"] += quantity
+                            if not 0 < entry["quantity"] < 1_000_000_000:
+                                return self.send_json({"error": "Toplam transfer miktari gecersiz."}, 400)
+                        part_ids = tuple(clean_by_part)
+                        placeholders = ",".join("?" for _ in part_ids)
+                        location_db.cursor.execute(
+                            f"SELECT id FROM parts WHERE COALESCE(is_deleted,0)=0 AND id IN ({placeholders})",
+                            part_ids,
+                        )
+                        available_part_ids = {int(row[0]) for row in location_db.cursor.fetchall()}
+                        if available_part_ids != set(part_ids):
+                            return self.send_json({"error": "Aktif urun kaydi bulunamadi."}, 400)
+                        clean_lines = list(clean_by_part.values())
+                        transfer_id, reference = location_db.transfer_stock(
+                            source_id,
+                            target_id,
+                            clean_lines,
+                            str(payload.get("note") or "")[:500],
+                            str(user.get("username") or user.get("name") or "Web")[:120],
+                        )
+                        return self.send_json({"ok": True, "transfer_id": transfer_id, "reference": reference})
+                    if action == "save-count":
+                        location_id = int(payload.get("location_id") or 0)
+                        lines = payload.get("lines") or []
+                        location_ids = {int(item.get("id") or 0) for item in location_db.get_stock_locations()}
+                        if location_id not in location_ids or not isinstance(lines, list) or not lines or len(lines) > 1000:
+                            return self.send_json({"error": "Aktif konum ve 1-1000 arasi sayim satiri secin."}, 400)
+                        clean_lines = []
+                        seen_parts = set()
+                        for line in lines:
+                            part_id = int(line.get("part_id") or 0)
+                            counted = float(line.get("counted_quantity") or 0)
+                            if part_id <= 0 or part_id in seen_parts or not 0 <= counted < 1_000_000_000:
+                                return self.send_json({"error": "Sayim urunleri veya miktarlari gecersiz."}, 400)
+                            seen_parts.add(part_id)
+                            clean_lines.append({"part_id": part_id, "counted_quantity": counted})
+                        placeholders = ",".join("?" for _ in seen_parts)
+                        location_db.cursor.execute(
+                            f"SELECT id FROM parts WHERE COALESCE(is_deleted,0)=0 AND id IN ({placeholders})",
+                            tuple(seen_parts),
+                        )
+                        if {int(row[0]) for row in location_db.cursor.fetchall()} != seen_parts:
+                            return self.send_json({"error": "Aktif urun kaydi bulunamadi."}, 400)
+                        count_id = location_db.save_stock_count(
+                            location_id, clean_lines, str(payload.get("note") or "")[:500],
+                            str(user.get("username") or user.get("name") or "Web")[:120],
+                        )
+                        return self.send_json({"ok": True, "count_id": count_id})
+                    if action == "save-kit":
+                        name = str(payload.get("name") or "").strip()[:120]
+                        lines = payload.get("lines") or []
+                        if not name or not isinstance(lines, list) or not lines or len(lines) > 100:
+                            return self.send_json({"error": "Kit adi ve 1-100 arasi urun satiri gerekli."}, 400)
+                        clean_lines = []
+                        seen_parts = set()
+                        for line in lines:
+                            part_id = int(line.get("part_id") or 0)
+                            quantity = float(line.get("quantity") or 0)
+                            if part_id <= 0 or part_id in seen_parts or not 0 < quantity < 1_000_000_000:
+                                return self.send_json({"error": "Kit urunleri veya miktarlari gecersiz."}, 400)
+                            seen_parts.add(part_id)
+                            clean_lines.append({"part_id": part_id, "quantity": quantity})
+                        placeholders = ",".join("?" for _ in seen_parts)
+                        location_db.cursor.execute(
+                            f"SELECT id FROM parts WHERE COALESCE(is_deleted,0)=0 AND id IN ({placeholders})",
+                            tuple(seen_parts),
+                        )
+                        if {int(row[0]) for row in location_db.cursor.fetchall()} != seen_parts:
+                            return self.send_json({"error": "Aktif urun kaydi bulunamadi."}, 400)
+                        kit_id = location_db.save_stock_kit(name, clean_lines)
+                        return self.send_json({"ok": True, "kit_id": kit_id})
+                    return self.send_json({"error": "Gecersiz stok konumu islemi."}, 400)
+                except (TypeError, ValueError) as error:
+                    return self.send_json({"error": str(error)}, 400)
+                except sqlite3.IntegrityError as error:
+                    return self.send_json({"error": str(error) or "Konum kaydi zaten mevcut."}, 409)
+                finally:
+                    if location_db:
+                        location_db.close()
+            if path == "/api/desktop/bank-transfer":
+                transfer_db = None
+                try:
+                    payload = self.read_json()
+                    source_id = int(payload.get("from_account_id") or 0)
+                    target_id = int(payload.get("to_account_id") or 0)
+                    amount = float(payload.get("amount") or 0)
+                    description = str(payload.get("description") or "")[:200]
+                    if (
+                        source_id <= 0 or target_id <= 0 or source_id == target_id
+                        or not 0 < amount <= 1_000_000_000
+                    ):
+                        return self.send_json({"error": "Transfer bilgileri gecersiz."}, 400)
+                    from src.database import Database
+                    transfer_db = Database(
+                        db_name=str(active_db_path()), init_mode="connection_only"
+                    )
+                    transfer_db.cursor.execute(
+                        "SELECT id, is_active FROM bank_accounts WHERE id IN (?, ?)",
+                        (source_id, target_id),
+                    )
+                    active = {
+                        int(row[0]) for row in transfer_db.cursor.fetchall()
+                        if int(row[1] or 0) == 1
+                    }
+                    if active != {source_id, target_id}:
+                        return self.send_json({"error": "Iki aktif hesap secin."}, 400)
+                    ok, message = transfer_db.transfer_between_accounts(
+                        source_id, target_id, amount, description
+                    )
+                    if not ok:
+                        return self.send_json({"error": message}, 400)
+                    return self.send_json({"ok": True})
+                except (TypeError, ValueError) as error:
+                    return self.send_json({"error": str(error)}, 400)
+                finally:
+                    if transfer_db:
+                        transfer_db.close()
+            if path == "/api/desktop/accounting/quick-expense":
+                expense_db = None
+                try:
+                    if int(self.headers.get("Content-Length", "0")) > 7 * 1024 * 1024:
+                        return self.send_json({"error": "Fis dosyasi cok buyuk."}, 413)
+                    payload = self.read_json()
+                    amount = float(payload.get("amount") or 0)
+                    category = str(payload.get("category") or "").strip()
+                    bank_account_id = int(payload.get("bank_account_id") or 0)
+                    reference = str(payload.get("ref_no") or "").strip()[:120]
+                    if not category or not 0 < amount <= 1_000_000_000 or bank_account_id <= 0:
+                        return self.send_json({"error": "Gider bilgileri gecersiz."}, 400)
+                    filename = str(payload.get("receipt_name") or "").strip()
+                    receipt_text = str(payload.get("receipt_base64") or "")
+                    receipt = None
+                    if filename or receipt_text:
+                        suffix = Path(filename).suffix.lower()
+                        mime_types = {
+                            ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+                            ".png": "image/png", ".pdf": "application/pdf",
+                        }
+                        if suffix not in mime_types or not receipt_text:
+                            return self.send_json({"error": "Fis dosyasi gecersiz."}, 400)
+                        receipt = base64.b64decode(receipt_text, validate=True)
+                        if len(receipt) > 5 * 1024 * 1024:
+                            return self.send_json({"error": "Fis dosyasi 5 MB sinirini asiyor."}, 400)
+                    from src.database import Database
+                    expense_db = Database(db_name=str(active_db_path()), init_mode="connection_only")
+                    expense_db.cursor.execute(
+                        "SELECT is_active FROM bank_accounts WHERE id=?", (bank_account_id,)
+                    )
+                    account = expense_db.cursor.fetchone()
+                    if not account or int(account[0] or 0) != 1:
+                        return self.send_json({"error": "Aktif banka hesabi secin."}, 400)
+                    transaction_id = expense_db.add_transaction(
+                        t_type="Gider", category=category, amount=amount,
+                        description=reference or category,
+                        date=datetime.now().strftime("%Y-%m-%d"),
+                        payment_method="Banka", bank_account_id=bank_account_id,
+                        currency="TRY", original_amount=amount,
+                        ref_no=reference or None, commit=False,
+                    )
+                    if not transaction_id:
+                        raise RuntimeError("Gider kaydi olusturulamadi")
+                    if receipt is not None:
+                        expense_db.cursor.execute(
+                            "CREATE TABLE IF NOT EXISTS accounting_receipts ("
+                            "accounting_id INTEGER PRIMARY KEY, filename TEXT NOT NULL, "
+                            "mime_type TEXT NOT NULL, content BLOB NOT NULL, "
+                            "created_at TEXT NOT NULL)"
+                        )
+                        expense_db.cursor.execute(
+                            "INSERT INTO accounting_receipts "
+                            "(accounting_id, filename, mime_type, content, created_at) "
+                            "VALUES (?, ?, ?, ?, ?)",
+                            (transaction_id, Path(filename).name, mime_types[suffix],
+                             receipt, datetime.now().isoformat()),
+                        )
+                    expense_db.conn.commit()
+                    try:
+                        from src.utils.audit_logger import get_audit_logger
+                        get_audit_logger(expense_db).log_action(
+                            "accounting", "BANK_TX",
+                            f"Gider | {category} | {amount} | Banka | Bank ID {bank_account_id}",
+                        )
+                    except Exception:
+                        pass
+                    try:
+                        expense_db.notify_jarvis(
+                            f"{amount} TRY Gider girisi: {category}", "payment", False
+                        )
+                    except Exception:
+                        pass
+                    return self.send_json({"ok": True, "id": transaction_id})
+                except (TypeError, ValueError, binascii.Error) as error:
+                    if expense_db:
+                        expense_db.conn.rollback()
+                    return self.send_json({"error": str(error)}, 400)
+                except Exception as error:
+                    if expense_db:
+                        expense_db.conn.rollback()
+                    return self.send_json({"error": str(error)}, 400)
+                finally:
+                    if expense_db:
+                        expense_db.close()
+            if path.startswith("/api/desktop/loan-installments/") and path.endswith("/status"):
+                try:
+                    installment_id = int(path.split("/api/desktop/loan-installments/")[-1].replace("/status", ""))
+                    status = str(self.read_json().get("status") or "")
+                    if status not in {"Bekliyor", "\u00d6dendi"}:
+                        return self.send_json({"error": "Taksit durumu ge\u00e7ersiz."}, 400)
+                    from src.database import Database
+                    loan_db = Database(db_name=str(active_db_path()), init_mode="connection_only")
+                    try:
+                        if not loan_db.update_installment_status(installment_id, status):
+                            return self.send_json({"error": "Taksit durumu g\u00fcncellenemedi."}, 400)
+                        loan_db.cursor.execute("SELECT loan_id FROM loan_installments WHERE id=?", (installment_id,))
+                        loan_row = loan_db.cursor.fetchone()
+                        if status == "\u00d6dendi" and loan_row:
+                            loan_db.cursor.execute(
+                                "SELECT COUNT(*) FROM loan_installments WHERE loan_id=? AND status != ?",
+                                (loan_row[0], "\u00d6dendi"),
+                            )
+                            if int(loan_db.cursor.fetchone()[0] or 0) == 0:
+                                loan_db.cursor.execute("UPDATE loans SET status=? WHERE id=?", ("Kapal\u0131", loan_row[0]))
+                                loan_db.conn.commit()
+                    finally:
+                        loan_db.close()
+                    return self.send_json({"ok": True})
+                except (TypeError, ValueError) as error:
+                    return self.send_json({"error": str(error)}, 400)
+            if path == "/api/desktop/loans/create":
+                loan_db = None
+                loan_id = None
+                try:
+                    payload = self.read_json()
+                    bank_name = str(payload.get("bank_name") or "").strip()
+                    principal = float(payload.get("amount") or 0)
+                    interest_rate = float(payload.get("interest_rate") or 0)
+                    months = int(payload.get("term_months") or 0)
+                    start_date = datetime.strptime(str(payload.get("start_date") or ""), "%Y-%m-%d")
+                    import math
+                    if (
+                        not bank_name
+                        or not math.isfinite(principal)
+                        or not math.isfinite(interest_rate)
+                        or not 0 < principal <= 10000000
+                        or not 0 <= interest_rate <= 100
+                        or not 1 <= months <= 120
+                    ):
+                        return self.send_json({"error": "Kredi bilgileri ge\u00e7ersiz."}, 400)
+                    from src.database import Database
+                    from dateutil.relativedelta import relativedelta
+                    monthly_rate = interest_rate / 100
+                    monthly_payment = (
+                        principal * monthly_rate * (1 + monthly_rate) ** months
+                        / ((1 + monthly_rate) ** months - 1)
+                        if monthly_rate > 0 else principal / months
+                    )
+                    total_payment = monthly_payment * months
+                    loan_db = Database(db_name=str(active_db_path()), init_mode="connection_only")
+                    loan_id = loan_db.add_loan({
+                        "bank_name": bank_name,
+                        "amount": principal,
+                        "interest_rate": interest_rate,
+                        "term_months": months,
+                        "start_date": start_date.strftime("%Y-%m-%d"),
+                        "total_payment": total_payment,
+                        "description": str(payload.get("description") or ""),
+                    })
+                    if not loan_id:
+                        raise RuntimeError("Kredi kaydedilemedi.")
+                    for installment_no in range(1, months + 1):
+                        loan_db.cursor.execute("SELECT COUNT(*) FROM loan_installments WHERE loan_id=?", (loan_id,))
+                        count_before = int(loan_db.cursor.fetchone()[0] or 0)
+                        loan_db.add_loan_installment({
+                            "loan_id": loan_id,
+                            "installment_no": installment_no,
+                            "due_date": (start_date + relativedelta(months=installment_no)).strftime("%Y-%m-%d"),
+                            "amount": monthly_payment,
+                        })
+                        loan_db.cursor.execute("SELECT COUNT(*) FROM loan_installments WHERE loan_id=?", (loan_id,))
+                        if int(loan_db.cursor.fetchone()[0] or 0) != count_before + 1:
+                            raise RuntimeError("Taksit plan\u0131 kaydedilemedi.")
+                    return self.send_json({"ok": True, "loan_id": loan_id}, 201)
+                except (TypeError, ValueError) as error:
+                    return self.send_json({"error": str(error)}, 400)
+                except Exception as error:
+                    if loan_db is not None and loan_id:
+                        loan_db.cursor.execute("DELETE FROM loan_installments WHERE loan_id=?", (loan_id,))
+                        loan_db.cursor.execute("DELETE FROM loans WHERE id=?", (loan_id,))
+                        loan_db.conn.commit()
+                    return self.send_json({"error": str(error)}, 500)
+                finally:
+                    if loan_db is not None:
+                        loan_db.close()
             if path == "/api/license/orders":
                 try:
                     return self.send_json(create_license_order(user, self.read_json()), 201)
@@ -8404,6 +9243,41 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
                     )
                     conn.commit()
                 return self.send_json({"ok": True, "path": stored_path, "url": "/api/desktop/company-logo"})
+            if path == "/api/desktop/system-actions":
+                request_user = self.current_user()
+                if not request_user:
+                    return self.send_json({"error": "Authentication required"}, 401)
+                if not role_is_admin(request_user.get("role")):
+                    return self.send_json({"error": "System settings require administrator access"}, 403)
+                try:
+                    client_ip = ipaddress.ip_address(str(self.client_address[0]).split("%", 1)[0])
+                except ValueError:
+                    return self.send_json({"error": "System actions are available only from this computer"}, 403)
+                if not client_ip.is_loopback:
+                    return self.send_json({"error": "System actions are available only from this computer"}, 403)
+                body = self.read_json()
+                action = str(body.get("action") or "")
+                try:
+                    from src.utils.windows_shortcuts import (
+                        create_shortcut,
+                        open_database_folder,
+                        set_windows_startup,
+                    )
+
+                    if action == "open-database-folder":
+                        open_database_folder(active_db_path())
+                        return self.send_json({"ok": True, "action": action})
+                    if action == "startup":
+                        enabled = bool(body.get("enabled"))
+                        set_windows_startup(enabled)
+                        return self.send_json({"ok": True, "action": action, "enabled": enabled})
+                    if action in {"desktop-shortcut", "start-menu-shortcut"}:
+                        location = "desktop" if action == "desktop-shortcut" else "start-menu"
+                        created = create_shortcut(location)
+                        return self.send_json({"ok": True, "action": action, "path": str(created)})
+                    return self.send_json({"error": "Unknown system action"}, 400)
+                except (OSError, ImportError, RuntimeError, ValueError) as error:
+                    return self.send_json({"error": str(error)}, 400)
             if path == "/api/desktop/customer/payment":
                 exchange_rates(refresh=True)
                 try:
@@ -8466,12 +9340,45 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
                 except Exception as error:
                     (ROOT / ".ayec-import-error.log").write_text(traceback.format_exc(), encoding="utf-8")
                     return self.send_json({"error": f"Akıllı içe aktarma başarısız: {error}"}, 500)
+            if path == "/api/desktop/smtp/test":
+                user = self.current_user()
+                if not user or not role_is_admin(user.get("role")):
+                    return self.send_json({"error": "Admin permission is required."}, 403)
+                try:
+                    recipient = send_smtp_test_message(self.read_json())
+                    return self.send_json({"ok": True, "recipient": recipient})
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+            if path == "/api/desktop/telegram/test":
+                user = self.current_user()
+                if not user or not role_is_admin(user.get("role")):
+                    return self.send_json({"error": "Admin permission is required."}, 403)
+                try:
+                    return self.send_json(test_telegram_bot_connection(self.read_json()))
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+            if path == "/api/desktop/telegram/status":
+                user = self.current_user()
+                if not user or not role_is_admin(user.get("role")):
+                    return self.send_json({"error": "Admin permission is required."}, 403)
+                try:
+                    return self.send_json(get_telegram_bot_status(self.read_json()))
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+            if path == "/api/desktop/telegram/webhook":
+                user = self.current_user()
+                if not user or not role_is_admin(user.get("role")):
+                    return self.send_json({"error": "Admin permission is required."}, 403)
+                try:
+                    return self.send_json(update_telegram_bot_webhook(self.read_json()))
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
             if not path.startswith("/api/desktop/table/"):
                 return self.send_json({"error": "Endpoint bulunamadı"}, 404)
             table = path.rsplit("/", 1)[-1]
             if table not in TABLES:
                 return self.send_json({"error": "Tablo izinli değil"}, 404)
-            if table in {"users", "settings", "internal_settings"} and not role_is_admin(user.get("role")):
+            if table in {"users", "settings", "internal_settings", "product_bank_mappings"} and not role_is_admin(user.get("role")):
                 return self.send_json({"error": "Bu ayarı değiştirmek için yönetici yetkisi gerekiyor."}, 403)
             body = self.read_json()
             if (
@@ -8487,6 +9394,21 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
             with closing(db_connect()) as conn:
                 if not scalar(conn, "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?", (table,)):
                     return self.send_json({"error": "Masaüstü veritabanında bu modül tablosu henüz oluşturulmamış"}, 404)
+                if table == "subcontractors":
+                    existing_columns = set(table_columns(conn, table))
+                    for column, ddl in (
+                        ("payment_model", "TEXT DEFAULT 'fixed'"),
+                        ("currency", "TEXT DEFAULT 'TRY'"),
+                        ("phone", "TEXT"),
+                        ("email", "TEXT"),
+                        ("assigned_units", "TEXT DEFAULT '[]'"),
+                        ("notes", "TEXT"),
+                        ("daily_wage", "REAL DEFAULT 0"),
+                        ("unit_rate", "REAL DEFAULT 0"),
+                    ):
+                        if column not in existing_columns:
+                            conn.execute(f'ALTER TABLE "subcontractors" ADD COLUMN "{column}" {ddl}')
+                    conn.commit()
                 columns = table_columns(conn, table)
                 if table == "accounting" and action != "delete" and any(
                     key in body
@@ -8506,9 +9428,12 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
                     if k in columns and k not in {"id", "password", "remember_token"}
                 }
                 if table in {"settings", "internal_settings"} and "key" in body:
+                    setting_text = str(body.get("value", ""))
+                    if table == "settings" and str(body.get("key") or "") == "telegram_bot_token":
+                        setting_text = protect_telegram_bot_token(setting_text)
                     conn.execute(
                         f'INSERT INTO "{table}" (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',
-                        (body["key"], str(body.get("value", ""))),
+                        (body["key"], setting_text),
                     )
                     conn.commit()
                     return self.send_json({"ok": True, "id": body["key"], "action": "upsert"})

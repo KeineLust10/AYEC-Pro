@@ -1,15 +1,65 @@
 # -*- coding: utf-8 -*-
 
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton, 
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton,
                              QFrame, QHBoxLayout, QGridLayout)
-from PyQt6.QtGui import QFont, QAction
-from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QFont, QAction, QColor, QPainter, QPen
+from PyQt6.QtCore import Qt, QPoint
 from src.utils.theme_colors import theme_qss, tc
+from src.utils.design_system import DesignTokens
 from src.utils import message_helper
 from src.ui.dialogs.location_picker_dialog import LocationPickerDialog
 import logging
 
 logger = logging.getLogger("AYECProLogger")
+
+
+class LocationMapPreview(QFrame):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.latitude = ""
+        self.longitude = ""
+        self.setFixedHeight(160)
+        self.setStyleSheet("background: #080f1a; border: 1px solid #28364c; border-radius: 5px;")
+
+    def set_coordinates(self, latitude, longitude):
+        self.latitude = str(latitude or "")
+        self.longitude = str(longitude or "")
+        self.update()
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        rect = self.rect().adjusted(1, 1, -1, -1)
+        painter.fillRect(rect, QColor("#080f1a"))
+        grid_pen = QPen(QColor("#162234"), 1)
+        painter.setPen(grid_pen)
+        for x in range(0, rect.width(), 22):
+            painter.drawLine(x, 0, x, rect.height())
+        for y in range(0, rect.height(), 22):
+            painter.drawLine(0, y, rect.width(), y)
+        painter.setPen(QPen(QColor("#29445a"), 4))
+        painter.drawLine(-20, rect.height() - 8, rect.width() + 16, 18)
+        painter.setPen(QPen(QColor("#24463c"), 4))
+        painter.drawLine(int(rect.width() * 0.35), -10, int(rect.width() * 0.62), rect.height() + 10)
+        center_x = rect.width() // 2
+        center_y = rect.height() // 2
+        painter.setPen(QPen(QColor("#f87171"), 3))
+        painter.setBrush(QColor("#991b1b"))
+        painter.drawEllipse(center_x - 7, center_y - 7, 14, 14)
+        coordinates = f"{self.latitude}, {self.longitude}".strip(", ")
+        painter.setPen(QPen(QColor("#cbd5e1"), 1))
+        painter.setBrush(QColor("#080f1a"))
+        badge = painter.fontMetrics().boundingRect(coordinates).adjusted(-5, -2, 5, 2)
+        badge.moveCenter(QPoint(center_x, center_y + 17))
+        painter.drawRoundedRect(badge, 3, 3)
+        painter.drawText(badge, Qt.AlignmentFlag.AlignCenter, coordinates)
+        painter.setPen(QColor("#34d399"))
+        painter.drawText(rect.adjusted(5, 4, -6, -4), Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight, "GPS Kalibre Edildi")
+        painter.setPen(QColor("#64748b"))
+        painter.drawText(rect.adjusted(5, 4, -6, -4), Qt.AlignmentFlag.AlignBottom | Qt.AlignmentFlag.AlignRight, "OpenStreetMap Dark Tiles")
+        painter.end()
+
 
 class LocationSettingsWidget(QWidget):
     """
@@ -26,66 +76,53 @@ class LocationSettingsWidget(QWidget):
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(30, 30, 30, 30)
-        layout.setSpacing(20)
+        layout.setContentsMargins(6, 6, 6, 6)
+        layout.setSpacing(4)
 
-        # Title
-        title = QLabel("📍 Konum ve Harita Ayarları")
-        title.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
-        title.setStyleSheet(theme_qss("color: @text; margin-bottom: 10px;"))
-        layout.addWidget(title)
-        
-        # Info Card
-        info_card = QFrame()
-        info_card.setStyleSheet(theme_qss("background-color: @surface_alt; border: 1px solid @surface_alt; border-radius: 8px; padding: 15px;"))
-        ic_layout = QVBoxLayout(info_card)
-        lbl_info = QLabel("Buradan uygulamanın harita başlangıç konumunu ayarlayabilirsiniz.\n"
-                          "Bu konum, uygulama açıldığında ve 'Eve Dön' butonuna tıklandığında kullanılır.")
-        lbl_info.setStyleSheet(theme_qss("color: @text_muted; font-size: 14px;"))
-        lbl_info.setWordWrap(True)
-        ic_layout.addWidget(lbl_info)
-        layout.addWidget(info_card)
-        
         # Location Selection Area
         loc_group = QFrame()
-        loc_group.setStyleSheet(theme_qss("background-color: @surface; border: 1px solid @border; border-radius: 8px; padding: 20px;"))
+        loc_group.setStyleSheet(theme_qss("background-color: @surface; border: 1px solid @border; border-radius: 8px;"))
         loc_layout = QVBoxLayout(loc_group)
+        loc_layout.setContentsMargins(5, 4, 5, 4)
+        loc_layout.setSpacing(3)
 
         lbl_current = QLabel("Varsayılan Merkez Konumu")
-        lbl_current.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+        lbl_current.setFont(QFont(DesignTokens.FONT_NAME, 10, QFont.Weight.Bold))
         loc_layout.addWidget(lbl_current)
         
         # Lat/Lng Display (Grid Layout for better alignment)
         grid_layout = QGridLayout()
-        grid_layout.setSpacing(15)
+        grid_layout.setSpacing(5)
+        grid_layout.setColumnStretch(0, 1)
+        grid_layout.setColumnStretch(1, 1)
         
         self.inp_lat = QLineEdit()
         self.inp_lat.setPlaceholderText("Enlem")
-        self.inp_lat.setReadOnly(True)
-        self.inp_lat.setStyleSheet(theme_qss("border: 1px solid @border; border-radius: 6px; padding: 10px; background-color: @surface_alt;"))
+        self.inp_lat.setFixedHeight(26)
+        self.inp_lat.setStyleSheet(theme_qss("border: 1px solid @border; border-radius: 4px; padding: 4px 7px; background-color: @surface_alt;"))
         
         self.inp_lng = QLineEdit()
         self.inp_lng.setPlaceholderText("Boylam")
-        self.inp_lng.setReadOnly(True)
-        self.inp_lng.setStyleSheet(theme_qss("border: 1px solid @border; border-radius: 6px; padding: 10px; background-color: @surface_alt;"))
+        self.inp_lng.setFixedHeight(26)
+        self.inp_lng.setStyleSheet(theme_qss("border: 1px solid @border; border-radius: 4px; padding: 4px 7px; background-color: @surface_alt;"))
 
-        lbl_lat = QLabel("Enlem:")
-        lbl_lat.setFont(QFont("Segoe UI", 10))
+        lbl_lat = QLabel("Enlem (Latitude)")
+        lbl_lat.setFont(QFont(DesignTokens.FONT_NAME, 10))
         grid_layout.addWidget(lbl_lat, 0, 0)
-        grid_layout.addWidget(self.inp_lat, 0, 1)
+        grid_layout.addWidget(self.inp_lat, 1, 0)
         
-        lbl_lng = QLabel("Boylam:")
-        lbl_lng.setFont(QFont("Segoe UI", 10))
-        grid_layout.addWidget(lbl_lng, 0, 2)
-        grid_layout.addWidget(self.inp_lng, 0, 3)
+        lbl_lng = QLabel("Boylam (Longitude)")
+        lbl_lng.setFont(QFont(DesignTokens.FONT_NAME, 10))
+        grid_layout.addWidget(lbl_lng, 0, 1)
+        grid_layout.addWidget(self.inp_lng, 1, 1)
         
         loc_layout.addLayout(grid_layout)
         
         # Pick Button
         self.btn_pick = QPushButton("Haritadan Konum Seç")
         self.btn_pick.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_pick.setFixedHeight(50)
-        self.btn_pick.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+        self.btn_pick.setFixedHeight(30)
+        self.btn_pick.setFont(QFont(DesignTokens.FONT_NAME, 9, QFont.Weight.Bold))
         self.btn_pick.setStyleSheet(theme_qss("""
             QPushButton { 
                 background-color: @accent; 
@@ -98,14 +135,12 @@ class LocationSettingsWidget(QWidget):
             QPushButton:hover { background-color: @accent_hover; }
         """))
         self.btn_pick.clicked.connect(self.open_location_picker)
-        loc_layout.addWidget(self.btn_pick)
-        
-        layout.addWidget(loc_group)
-        layout.addStretch()
-        
+        action_row = QHBoxLayout()
+        action_row.setSpacing(6)
+        action_row.addWidget(self.btn_pick, 1)
         # Save Button
         btn_save = QPushButton("💾 AYARLARI KAYDET")
-        btn_save.setFixedHeight(50)
+        btn_save.setFixedHeight(30)
         btn_save.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_save.setStyleSheet(theme_qss("""
             QPushButton { 
@@ -113,12 +148,24 @@ class LocationSettingsWidget(QWidget):
                 color: white; 
                 border-radius: 6px; 
                 font-weight: bold; 
-                font-size: 14px;
+                font-size: 11px;
             }
             QPushButton:hover { background-color: @success; }
         """))
         btn_save.clicked.connect(self.save_data)
-        layout.addWidget(btn_save)
+        action_row.addWidget(btn_save, 1)
+        self.map_preview = LocationMapPreview(self)
+        self.inp_lat.textChanged.connect(self._update_map_preview)
+        self.inp_lng.textChanged.connect(self._update_map_preview)
+        location_columns = QHBoxLayout()
+        location_columns.setSpacing(8)
+        left_column = QVBoxLayout()
+        left_column.setSpacing(4)
+        left_column.addWidget(loc_group)
+        left_column.addLayout(action_row)
+        location_columns.addLayout(left_column, 3)
+        location_columns.addWidget(self.map_preview, 2)
+        layout.addLayout(location_columns)
 
     def _get_current_username(self):
         username = ""
@@ -151,14 +198,19 @@ class LocationSettingsWidget(QWidget):
                 lat = ""
                 lng = ""
         if not lat or not lng:
-            lat = self.db.get_setting("map_default_lat", "39.6484")
-            lng = self.db.get_setting("map_default_lng", "27.8826")
+            lat = self.db.get_setting("map_default_lat", "40.1044116")
+            lng = self.db.get_setting("map_default_lng", "27.6563981")
         return lat, lng
 
     def load_data(self):
         lat, lng = self._load_default_location_values()
         self.inp_lat.setText(lat)
         self.inp_lng.setText(lng)
+        self.map_preview.set_coordinates(lat, lng)
+
+    def _update_map_preview(self, _value=None):
+        if hasattr(self, "map_preview"):
+            self.map_preview.set_coordinates(self.inp_lat.text(), self.inp_lng.text())
 
     def open_location_picker(self):
         try:
@@ -188,6 +240,7 @@ class LocationSettingsWidget(QWidget):
     def on_location_selected(self, lat, lng, address):
         self.inp_lat.setText(str(lat))
         self.inp_lng.setText(str(lng))
+        self.map_preview.set_coordinates(lat, lng)
         self.selected_address = str(address or "").strip()
         username = self._get_current_username()
         if username:
@@ -203,13 +256,27 @@ class LocationSettingsWidget(QWidget):
         if self.main_window:
             self.main_window.show_notification(f"Konum seçildi: {str(address)[:40]}...", "info")
 
-    def save_data(self):
+    def save_data(self, silent=False):
         if not self.inp_lat.text() or not self.inp_lng.text():
-            message_helper.show_warning(self, "Uyarı", "Lütfen geçerli bir konum seçin.")
+            if not silent:
+                message_helper.show_warning(self, "Uyar\u0131", "L\u00fctfen ge\u00e7erli bir konum se\u00e7in.")
             return
 
-        lat_val = self.inp_lat.text()
-        lng_val = self.inp_lng.text()
+        lat_val = self.inp_lat.text().strip().replace(",", ".")
+        lng_val = self.inp_lng.text().strip().replace(",", ".")
+        try:
+            latitude = float(lat_val)
+            longitude = float(lng_val)
+        except ValueError:
+            if not silent:
+                message_helper.show_warning(self, "Uyar\u0131", "Enlem ve boylam say\u0131sal olmal\u0131d\u0131r.")
+            return
+        if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
+            if not silent:
+                message_helper.show_warning(self, "Uyar\u0131", "Enlem -90 ile 90, boylam -180 ile 180 aras\u0131nda olmal\u0131d\u0131r.")
+            return
+        self.inp_lat.setText(lat_val)
+        self.inp_lng.setText(lng_val)
 
         username = self._get_current_username()
         if username:
@@ -234,13 +301,13 @@ class LocationSettingsWidget(QWidget):
             if field_page and hasattr(field_page, 'update_default_location'):
                 field_page.update_default_location(float(lat_val), float(lng_val))
 
-        if self.main_window:
+        if self.main_window and not silent:
             self.main_window.show_notification(
                 "Konum ayarlari kaydedildi ve kurulum haritasina gonderiliyor.",
                 "success",
             )
             if hasattr(self.main_window, "start_web_sync"):
                 self.main_window.start_web_sync(silent=True)
-        else:
+        elif not silent:
             message_helper.show_info(self, "Başarılı", "Konum ayarları kaydedildi.")
 

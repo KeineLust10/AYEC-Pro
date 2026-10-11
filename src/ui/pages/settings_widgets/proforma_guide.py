@@ -11,6 +11,7 @@ from PyQt6.QtGui import QFont, QAction, QPainter, QPen, QColor, QPainterPath, QB
 from PyQt6.QtCore import Qt, QSize, QRectF, QTimer, QPointF
 
 from src.utils.theme_colors import theme_qss
+from src.utils.design_system import DesignTokens
 
 
 class _StepAnimCanvas(QWidget):
@@ -63,9 +64,9 @@ class _StepAnimCanvas(QWidget):
         p.drawPolygon([QPointF(48, H//2 - 35), QPointF(68, H//2 - 15),
                        QPointF(48, H//2 - 15)])
         p.setPen(QPen(QColor("white"), 1))
-        p.setFont(QFont("Segoe UI", 7, QFont.Weight.Bold))
+        p.setFont(QFont(DesignTokens.FONT_NAME, 7, QFont.Weight.Bold))
         p.drawText(24, H//2 + 2,  "PDF")
-        p.setFont(QFont("Segoe UI", 6))
+        p.setFont(QFont(DesignTokens.FONT_NAME, 6))
         p.drawText(24, H//2 + 14, "Şablon")
 
         # Animasyonlu ok
@@ -83,7 +84,7 @@ class _StepAnimCanvas(QWidget):
         p.setBrush(QColor(52, 152, 219, a // 4))
         p.drawRoundedRect(122, H//2 - 16, 84, 30, 7, 7)
         p.setPen(QPen(QColor("white")))
-        p.setFont(QFont("Segoe UI", 8))
+        p.setFont(QFont(DesignTokens.FONT_NAME, 8))
         p.drawText(128, H//2 + 3, "📂 Dosya Seç")
 
     # ── Adım 2: Tasarımcıyı Aç ───────────────────────────────────
@@ -98,12 +99,12 @@ class _StepAnimCanvas(QWidget):
         p.setBrush(QColor("#2c3e50"))
         p.drawRoundedRect(8, 8, W - 16, 20, 8, 8)
         p.setPen(QPen(QColor("#94a3b8")))
-        p.setFont(QFont("Segoe UI", 6))
+        p.setFont(QFont(DesignTokens.FONT_NAME, 6))
         p.drawText(16, 22, "Firma Ayarları › Proforma PDF Düzenleyici")
 
         # Kılavuz adımı etiketi
         p.setPen(QPen(QColor("#64748b")))
-        p.setFont(QFont("Segoe UI", 7))
+        p.setFont(QFont(DesignTokens.FONT_NAME, 7))
         p.drawText(16, 45, "Şablon PDF seçildi ✓")
         p.drawText(16, 58, "Tasarımcıyı açın ↓")
 
@@ -116,7 +117,7 @@ class _StepAnimCanvas(QWidget):
         p.setBrush(QColor(btn_c.red(), btn_c.green(), btn_c.blue(), 200))
         p.drawRoundedRect(28, H//2 + 10, 130, 28, 7, 7)
         p.setPen(QPen(QColor("white")))
-        p.setFont(QFont("Segoe UI", 8, QFont.Weight.Bold))
+        p.setFont(QFont(DesignTokens.FONT_NAME, 8, QFont.Weight.Bold))
         p.drawText(34, H//2 + 29, "🎨 Şablon Tasarımcısı")
 
         # Fare imleci (tıklamak için yaklaşıyor)
@@ -142,7 +143,7 @@ class _StepAnimCanvas(QWidget):
         p.setBrush(QColor("#1e2d3d"))
         p.drawRoundedRect(8, 8, 108, H - 16, 7, 7)
         p.setPen(QPen(QColor("#64748b")))
-        p.setFont(QFont("Segoe UI", 7, QFont.Weight.Bold))
+        p.setFont(QFont(DesignTokens.FONT_NAME, 7, QFont.Weight.Bold))
         p.drawText(14, 26, "Alan Seçin:")
 
         for i, (name, color) in enumerate(zip(fields, colors)):
@@ -155,7 +156,7 @@ class _StepAnimCanvas(QWidget):
                 p.setPen(QPen(QColor("#34495e"), 1))
             p.drawRoundedRect(12, y, 96, 16, 4, 4)
             p.setPen(QPen(QColor("white")))
-            p.setFont(QFont("Segoe UI", 7))
+            p.setFont(QFont(DesignTokens.FONT_NAME, 7))
             p.drawText(16, y + 11, name)
 
         # Ok → sağa
@@ -172,7 +173,7 @@ class _StepAnimCanvas(QWidget):
             p.setBrush(QColor(c.red(), c.green(), c.blue(), 40))
             p.drawRoundedRect(145, ay - 10, 62, 20, 4, 4)
             p.setPen(QPen(c))
-            p.setFont(QFont("Segoe UI", 7))
+            p.setFont(QFont(DesignTokens.FONT_NAME, 7))
             p.drawText(149, ay + 3, "Aktif ✓")
 
     # ── Adım 4: Canvas'a Çiz ─────────────────────────────────────
@@ -219,7 +220,7 @@ class _StepAnimCanvas(QWidget):
 
         if t >= PHASE3:
             p.setPen(QPen(QColor(0, 102, 204)))
-            p.setFont(QFont("Segoe UI", 7, QFont.Weight.Bold))
+            p.setFont(QFont(DesignTokens.FONT_NAME, 7, QFont.Weight.Bold))
             p.drawText(bx + 4, by + 14, "Firma Adı")
 
         self._draw_cursor(p, cx, cy)
@@ -246,7 +247,7 @@ class _StepAnimCanvas(QWidget):
             p.setBrush(QColor(c.red(), c.green(), c.blue(), 35))
             p.drawRect(rect)
             p.setPen(QPen(c))
-            p.setFont(QFont("Segoe UI", 6))
+            p.setFont(QFont(DesignTokens.FONT_NAME, 6))
             p.drawText(int(rect.x()) + 2, int(rect.y()) + 11, lbl)
 
         # Kaydet butonu
@@ -256,7 +257,7 @@ class _StepAnimCanvas(QWidget):
         p.setBrush(bc)
         p.drawRoundedRect(148, 55, 60, 26, 7, 7)
         p.setPen(QPen(QColor("white")))
-        p.setFont(QFont("Segoe UI", 8, QFont.Weight.Bold))
+        p.setFont(QFont(DesignTokens.FONT_NAME, 8, QFont.Weight.Bold))
         p.drawText(154, 72, "💾 Kaydet")
 
         # Fare → Kaydet'e yaklaşıyor
@@ -270,7 +271,7 @@ class _StepAnimCanvas(QWidget):
         if t > 0.55:
             alpha = int(min(1.0, (t - 0.55) / 0.2) * 255)
             p.setPen(QPen(QColor(46, 204, 113, alpha)))
-            p.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+            p.setFont(QFont(DesignTokens.FONT_NAME, 11, QFont.Weight.Bold))
             p.drawText(148, 100, "✅ Kaydedildi!")
 
     # ── Yardımcı: fare imleci çiz ────────────────────────────────

@@ -62,6 +62,8 @@ class MainWindowNavMixin:
                 )
             return
         previous_index = getattr(self, "_current_page_index", None)
+        active_sidebar = getattr(getattr(self, "app_sidebar", None), "side_menu", None)
+        previous_sidebar_page = getattr(active_sidebar, "_last_active_page_id", None)
         if (
             previous_index is not None
             and int(previous_index) != int(index)
@@ -71,24 +73,94 @@ class MainWindowNavMixin:
             history.append(int(previous_index))
             self._navigation_history = history[-30:]
         self._current_page_index = index
+        if active_sidebar is not None:
+            if previous_sidebar_page != int(index) and (
+                previous_sidebar_page in {146, 147} or int(index) in {146, 147}
+            ):
+                active_sidebar.on_page_changed_internal(int(index))
+                active_sidebar.refresh_menu()
+        if hasattr(self, "assistant_fab"):
+            self.assistant_fab.setVisible(
+                bool(getattr(self, "_assistant_fab_enabled", True))
+                and int(index) not in {21, 146, 147}
+            )
+            self.reposition_fab()
         self._sync_back_button()
-        if hasattr(self, "app_top_nav"): self.app_top_nav.sync_active(index)
+        if hasattr(self, "app_top_nav"):
+            self.app_top_nav.sync_active(index)
+            self.app_top_nav.setVisible(
+                int(index) != int(PageIds.NEW_SERVICE)
+                and getattr(self, "_active_nav_mode", "sol_menu") in ("ust_bar", "her_ikisi")
+            )
+        requested_settings_tab = None
         if hasattr(self, "app_sidebar"):
             side_menu = getattr(self.app_sidebar, "side_menu", None)
-            if side_menu is not None and hasattr(side_menu, "on_page_changed_internal"):
+            if (
+                side_menu is not None
+                and hasattr(side_menu, "on_page_changed_internal")
+                and getattr(side_menu, "_last_active_page_id", None) != int(index)
+            ):
+                requested_settings_tab = getattr(side_menu, "_requested_settings_tab", None)
+                if requested_settings_tab is not None:
+                    side_menu._requested_settings_tab = None
                 side_menu.on_page_changed_internal(index)
         
         with perf_span(f"navigation.page.{index}"):
             page = self.get_page(index)
             if page:
+                if (
+                    requested_settings_tab is not None
+                    and int(index) == 130
+                    and hasattr(page, "change_page")
+                ):
+                    page.change_page(int(requested_settings_tab))
                 if int(index) == int(PageIds.DASHBOARD) and hasattr(page, "show_shortcut_screen"):
                     page.show_shortcut_screen()
-                # Re-read dashboard data whenever it becomes visible again.
+                # Avoid duplicate full dashboard queries during rapid navigation.
                 if page.__class__.__name__ == "DashboardPage" and hasattr(page, "refresh_data"):
-                    page.refresh_data()
+                    refresh = getattr(page, "refresh_data_if_stale", page.refresh_data)
+                    QTimer.singleShot(0, refresh)
                 self._switch_content_with_fade(page)
                 if hasattr(self, "app_header") and hasattr(self.app_header, "breadcrumb"):
-                    self.app_header.breadcrumb.update_path([(self.get_page_name_by_index(index), index)])
+                    if int(index) == 140:
+                        self.app_header.breadcrumb.update_path([
+                            ("Servis Operasyon", 40),
+                            ("Hizmet ve \u00dccret Y\u00f6netimi", None),
+                        ])
+                    elif int(index) == 146:
+                        self.app_header.breadcrumb.update_path([
+                            ("Servis Y\u00f6netimi", 140),
+                            ("Servis Y\u00f6netim Ayar\u0131", 145),
+                            ("\u00dcr\u00fcn Grubu Y\u00f6netimi", None),
+                        ])
+                    elif int(index) == 145:
+                        self.app_header.breadcrumb.update_path([
+                            ("Servis Y\u00f6netim Ayar\u0131", 146),
+                            ("Cihaz Bilgisi & Markalar", None),
+                        ])
+                    elif int(index) == 115:
+                        self.app_header.breadcrumb.update_path([
+                            ("Finans", 101),
+                            ("E-Fatura Olu\u015ftur Studio", None),
+                        ])
+                    elif int(index) == 106:
+                        self.app_header.breadcrumb.update_path([
+                            ("Finans Y\u00f6netimi", 101),
+                            ("\u00c7ek & Senet Portf\u00f6y Takibi", None),
+                        ])
+                    elif int(index) == 21:
+                        self.app_header.breadcrumb.update_path([
+                            ("M\u00fc\u015fteri Hub", None),
+                            ("M\u00fc\u015fteri Listesi", None),
+                        ])
+                    else:
+                        self.app_header.breadcrumb.update_path([(self.get_page_name_by_index(index), index)])
+                    self.app_header._apply_service_header_presentation()
+                    if int(index) in {100, 101, 105, 106, 115}:
+                        self.app_header.raise_()
+                        QTimer.singleShot(250, self.app_header.raise_)
+                    if hasattr(self, "_set_service_list_shell"):
+                        self._set_service_list_shell(int(index) == 42)
                 return
             logger.error(f"Page load failure: {index}")
 
@@ -116,7 +188,18 @@ class MainWindowNavMixin:
 
     def get_page(self, index):
         if index in self.pages:
-            return self.pages[index]
+            page = self.pages[index]
+            if (
+                page is not None
+                and getattr(page, "_ayec_theme_revision", None)
+                != getattr(self, "_theme_revision", 0)
+                and hasattr(self, "_refresh_page_theme")
+            ):
+                try:
+                    self._refresh_page_theme(page)
+                except Exception as exc:
+                    logger.warning("Cached page theme refresh failed for %s: %s", index, exc)
+            return page
         
         if index not in self.page_mapping:
             return None
@@ -168,51 +251,10 @@ class MainWindowNavMixin:
 
     def _switch_content_with_fade(self, target_widget):
         if not target_widget or self.content_area.currentWidget() == target_widget: return
-        
-        # Read disable_tab_animations setting from database
-        disable_anim = False
-        try:
-            if self.db and hasattr(self.db, "get_setting"):
-                disable_anim = (self.db.get_setting("disable_tab_animations", "1") == "1")
-        except Exception:
-            pass
-            
-        if disable_anim:
-            # Instant transition (0ms)
-            if target_widget.graphicsEffect():
-                try:
-                    target_widget.setGraphicsEffect(None)
-                except Exception:
-                    pass
-            self.content_area.setCurrentWidget(target_widget)
-            QTimer.singleShot(0, lambda page=target_widget: self._apply_active_page_appearance(page))
-            return
-
-        from PyQt6.QtWidgets import QGraphicsOpacityEffect
-        from PyQt6.QtCore import QPropertyAnimation, QEasingCurve
-        
-        # Clear any leftover graphics effect
-        if target_widget.graphicsEffect():
-            try:
-                target_widget.setGraphicsEffect(None)
-            except Exception:
-                pass
-                
-        effect = QGraphicsOpacityEffect(target_widget)
-        target_widget.setGraphicsEffect(effect)
-        
+        # Page themes are applied once when a page is created. Reapplying them
+        # on every navigation walks and repolishes the full widget tree, which
+        # blocks the UI thread on large pages.
         self.content_area.setCurrentWidget(target_widget)
-        QTimer.singleShot(0, lambda page=target_widget: self._apply_active_page_appearance(page))
-        
-        anim = QPropertyAnimation(effect, b"opacity")
-        anim.setDuration(40)  # Ultra-fast (40ms) transition
-        anim.setStartValue(0.0)
-        anim.setEndValue(1.0)
-        anim.setEasingCurve(QEasingCurve.Type.OutCubic)
-        anim.finished.connect(lambda: target_widget.setGraphicsEffect(None))
-        
-        self._page_transition_anim = anim
-        anim.start()
 
     def _apply_active_page_appearance(self, page):
         """Apply the active visual mode after a page finishes its show hooks."""

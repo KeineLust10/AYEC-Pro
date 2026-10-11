@@ -1,16 +1,20 @@
 # -*- coding: utf-8 -*-
 
 from PyQt6.QtCore import Qt, QSignalBlocker
+from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QApplication,
     QFormLayout,
     QFrame,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
     QPushButton,
     QTabWidget,
+    QScrollArea,
     QVBoxLayout,
     QWidget,
+    QGridLayout,
 )
 
 from src.ui.pages.settings_widgets.sms_settings import (
@@ -21,7 +25,7 @@ from src.ui.pages.settings_widgets.smtp_settings import SMTPSettingsWidget as SM
 from src.ui.pages.settings_widgets.telegram_settings import TelegramSettingsWidget
 from src.ui.pages.settings_widgets.voice_assistant_settings import VoiceAssistantSettingsWidget
 from src.ui.pages.settings_widgets.voice_assistant_shortcuts import VoiceAssistantShortcutsWidget
-from src.ui.pages.settings_widgets.voice_training_widget import VoiceTrainingWidget
+from src.ui.pages.settings_widgets.voice_training_reference import VoiceTrainingWidget
 from src.ui.pages.settings_widgets.whatsapp_settings import WhatsAppSettingsWidget
 from src.utils.theme_colors import tc, theme_qss
 from src.utils.appearance_mode import AppearanceModeManager
@@ -95,12 +99,13 @@ class IntegrationHubWidget(QWidget):
             self.tabs.setProperty("skipThemeTransform", False)
         self.tabs.setUsesScrollButtons(True)
         self.tabs.tabBar().setExpanding(False)
-        self.tabs.tabBar().setElideMode(Qt.TextElideMode.ElideRight)
+        self.tabs.tabBar().setElideMode(Qt.TextElideMode.ElideNone)
         self.tabs.setStyleSheet(self._tabs_qss())
 
         assistant_name = str(self.db.get_setting("asistan_ozel_adi", "AYEC") or "AYEC")
         tab_structure = [
             ("🔑", f"API Anahtarları ({assistant_name}/Gemini)", "gemini", tc("accent")),
+            ("[AI]", "Otonom Ajanlar ve Entegrasyon Hub", "autonomous_agents", tc("accent_pressed")),
             ("🎛", "AYEC Pro Sesli Asistan", "voice_assistant", tc("accent_hover")),
             ("🎙", "AYEC Pro Sesli Komut Ayarlari", "voice_training", tc("danger")),
             ("✨", "AI Asistan Kestirmeler", "voice_shortcuts", tc("accent_pressed")),
@@ -122,7 +127,8 @@ class IntegrationHubWidget(QWidget):
             loading_label.setStyleSheet(theme_qss("color: @disabled_text; font-size: 14px;"))
             placeholder_layout.addWidget(loading_label)
 
-            self.tabs.addTab(placeholder, f"{icon}  {label}")
+            tab_index = self.tabs.addTab(placeholder, f"{icon}  {label}")
+            self.tabs.setTabToolTip(tab_index, label)
             self._tab_keys.append((key, color, label))
 
         self.tabs.currentChanged.connect(self._on_tab_changed)
@@ -150,6 +156,63 @@ class IntegrationHubWidget(QWidget):
         """ if self._is_classic_appearance() else "")
         if hasattr(self, "tabs"):
             self.tabs.setStyleSheet(self._tabs_qss())
+        self._apply_adaptive_integration_styles(self)
+
+    @staticmethod
+    def _apply_adaptive_integration_styles(root):
+        """Convert legacy integration-tab dark literals to semantic theme tokens."""
+        theme_qss("")
+        replacements = {
+            "#0e1321": "@window",
+            "#090e1c": "@window",
+            "#0e1525": "@surface",
+            "#0b1220": "@surface_alt",
+            "#0b1322": "@surface_alt",
+            "#0a1120": "@surface_alt",
+            "#14233a": "@surface_alt",
+            "#111a2a": "@surface_alt",
+            "#111b2d": "@surface_alt",
+            "#161b2a": "@surface",
+            "#1a1f2e": "@surface_alt",
+            "#1b2638": "@surface_alt",
+            "#1c293d": "@surface_alt",
+            "#19273b": "@surface_alt",
+            "#252a39": "@border",
+            "#26334a": "@border",
+            "#303444": "@border",
+            "#334155": "@border",
+            "#24314b": "@border",
+            "#424754": "@border",
+            "#dee2f6": "@text",
+            "#dbe5f8": "@text",
+            "#e5edf9": "@text",
+            "#e2e8f0": "@text",
+            "#dce4f2": "@text",
+            "#c2c6d6": "@text_muted",
+            "#cbd5e1": "@text_muted",
+            "#94a3b8": "@text_muted",
+        }
+        targets = [root, *root.findChildren(QWidget)]
+        for target in targets:
+            try:
+                target.setProperty("skipThemeTransform", False)
+                current = getattr(target, "_theme_raw_stylesheet", None)
+                if current is None:
+                    current = target.styleSheet()
+                previous = getattr(target, "_integration_theme_applied", None)
+                if current != previous:
+                    target._integration_theme_source = current
+                source = getattr(target, "_integration_theme_source", current)
+                if not source:
+                    continue
+                adapted = str(source)
+                for literal, token in replacements.items():
+                    adapted = adapted.replace(literal, token).replace(literal.upper(), token)
+                if adapted != current:
+                    target.setStyleSheet(theme_qss(adapted))
+                target._integration_theme_applied = adapted
+            except (RuntimeError, AttributeError):
+                continue
 
     def _on_tab_changed(self, index):
         if self._loading_tab:
@@ -168,6 +231,7 @@ class IntegrationHubWidget(QWidget):
                 return
 
             page = self._create_page(key, color, title)
+            self._apply_adaptive_integration_styles(page)
             self._pages[key] = page
 
             old_widget = self.tabs.widget(index)
@@ -188,6 +252,10 @@ class IntegrationHubWidget(QWidget):
                 return True
         return False
 
+    def _wrap_gemini_page(self, page):
+        from src.ui.pages.settings_widgets.gemini_reference_canvas import GeminiReferenceCanvas
+        return GeminiReferenceCanvas(page)
+
     def _create_page(self, key, accent, title):
         def wrap(inner: QWidget):
             wrapper = QWidget()
@@ -206,9 +274,9 @@ class IntegrationHubWidget(QWidget):
                 theme_qss(
                     f"""
                     QFrame {{
-                        border-left: 4px solid {accent};
                         background: @surface;
                         border: 1px solid @border;
+                        border-left: 4px solid {accent};
                         border-radius: 14px;
                         padding: 8px;
                         color: @text;
@@ -232,15 +300,16 @@ class IntegrationHubWidget(QWidget):
             card_layout.setContentsMargins(18, 18, 18, 18)
             card_layout.setSpacing(12)
             inner.setParent(card)
-            card_layout.addWidget(inner)
-            layout.addWidget(card)
-            layout.addStretch()
+            card_layout.addWidget(inner, 1)
+            layout.addWidget(card, 1)
             return wrapper
 
         if key == "gemini":
-            from src.ui.pages.settings_page import GeminiSettingsWidget
-
-            return GeminiSettingsWidget(self.db, self.main_window)
+            from src.ui.pages.settings_widgets.gemini_settings_widget import GeminiSettingsWidget
+            return self._wrap_gemini_page(GeminiSettingsWidget(self.db, self.main_window))
+        if key == "autonomous_agents":
+            from src.ui.pages.settings_widgets.autonomous_agents_widget import AutonomousAgentsWidget
+            return AutonomousAgentsWidget(self.db, self.main_window)
         if key == "voice_assistant":
             return VoiceAssistantSettingsWidget(self.db, self.main_window)
         if key == "voice_training":
@@ -248,11 +317,21 @@ class IntegrationHubWidget(QWidget):
         if key == "voice_shortcuts":
             return VoiceAssistantShortcutsWidget(self.db, self.main_window)
         if key == "sms":
-            return wrap(SMSSettingsWidgetMod(self.db, self.main_window))
+            scroll = QScrollArea()
+            scroll.setWidgetResizable(True)
+            scroll.setFrameShape(QFrame.Shape.NoFrame)
+            scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            scroll.setWidget(SMSSettingsWidgetMod(self.db, self.main_window, use_internal_scroll=False))
+            return scroll
         if key == "sms_templates":
             return wrap(SMSTemplatesWidgetMod(self.db, self.main_window))
         if key == "smtp":
-            return wrap(SMTPSettingsWidgetMod(self.db, self.main_window))
+            scroll = QScrollArea()
+            scroll.setWidgetResizable(True)
+            scroll.setFrameShape(QFrame.Shape.NoFrame)
+            scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            scroll.setWidget(SMTPSettingsWidgetMod(self.db, self.main_window))
+            return scroll
         if key == "telegram":
             return wrap(TelegramSettingsWidget(self.db, self.main_window))
         if key == "whatsapp":

@@ -1,0 +1,250 @@
+/* Shared Midnight Enterprise Slate navigation and responsive controls. */
+:root {
+  --nav-active: var(--brand);
+  --nav-active-ink: #fff;
+  --nav-indent: 12px;
+  --nav-radius: var(--radius-sm, 6px);
+  --type-body: 13px;
+  --type-label: 11px;
+  --type-title: 20px;
+  --type-metric: 24px;
+  --field-height: 40px;
+}
+
+html,
+body,
+button,
+input,
+select,
+textarea {
+  font-family: var(--font-sans, Inter, "Segoe UI", system-ui, sans-serif);
+}
+
+body {
+  font-size: var(--type-body);
+  line-height: 1.45;
+}
+
+.topbar {
+  min-width: 0;
+  color: var(--ink);
+  background: var(--surface);
+  border-bottom-color: var(--line);
+}
+
+.topbar h1,
+.page-head h2 {
+  font-size: var(--type-title);
+  line-height: 1.25;
+}
+
+.nav-group-title,
+.eyebrow,
+.metric-top,
+.field label,
+th {
+  font-size: var(--type-label);
+}
+
+.metric strong {
+  font-size: var(--type-metric);
+}
+
+input,
+select,
+textarea,
+button,
+.control {
+  min-width: 0;
+  max-width: 100%;
+}
+
+input,
+select,
+button,
+.control {
+  min-height: var(--field-height);
+}
+
+.sidebar {
+  background: var(--surface);
+  border-right: 1px solid var(--line);
+}
+
+.sidebar #nav {
+  min-height: 0;
+  overscroll-behavior: contain;
+}
+
+.nav-button {
+  min-height: 40px;
+  border-radius: var(--nav-radius);
+}
+
+.nav-button .nav-label {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+}
+
+.nav-button.active {
+  color: var(--nav-active-ink);
+  background: var(--nav-active);
+  box-shadow: inset 3px 0 var(--brand-2);
+}
+
+.submenu {
+  padding-left: var(--nav-indent);
+}
+
+.submenu .submenu {
+  margin-left: var(--nav-indent);
+  border-left: 1px solid var(--line);
+}
+
+.submenu[hidden], .nav-button[hidden], .nav-group-title[hidden] {
+  display: none !important;
+}
+
+.submenu .nav-parent {
+  margin-top: var(--space-2, 8px);
+  border: 1px solid var(--line);
+}
+
+@media (max-width: 760px) {
+  html,
+  body {
+    width: 100%;
+    overflow-x: clip;
+  }
+
+  .app-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sidebar {
+    width: min(82vw, 292px);
+    height: 100dvh;
+    max-height: 100dvh;
+    padding-bottom: max(14px, env(safe-area-inset-bottom));
+  }
+
+  .topbar {
+    height: auto;
+    min-height: 72px;
+    padding: calc(10px + env(safe-area-inset-top, 0px)) 12px 10px;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: var(--space-3, 12px);
+  }
+
+  .topbar > div:first-of-type {
+    min-width: 0;
+    flex: 1 1 calc(100% - 60px);
+    margin: 0;
+  }
+
+  .topbar h1 {
+    font-size: 18px;
+    overflow-wrap: anywhere;
+  }
+
+  .top-actions {
+    width: 100%;
+    min-width: 0;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: var(--space-2, 8px);
+  }
+
+  .top-actions .global-search {
+    display: flex;
+    flex: 1 1 100%;
+    width: 100%;
+    max-width: none;
+  }
+
+  .top-actions button {
+    min-height: 40px;
+  }
+
+  .top-actions .primary {
+    flex: 1 1 130px;
+    white-space: normal;
+  }
+
+  .content {
+    min-width: 0;
+    padding: 16px 12px calc(24px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .metric-grid,
+  .customer-banners,
+  .dialog-catalog {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .customer-banners {
+    height: auto;
+    min-height: 52px;
+    grid-auto-rows: minmax(40px, auto);
+  }
+
+  .form-grid,
+  .settings-grid,
+  .product-picker,
+  .grid-2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .field.full {
+    grid-column: auto;
+  }
+
+  .table-wrap {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .table-wrap table {
+    max-width: none;
+  }
+}
+
+@media (max-width: 420px) {
+  .content {
+    padding-right: 9px;
+    padding-left: 9px;
+  }
+
+  .metric-grid,
+  .customer-banners,
+  .dialog-catalog {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .top-actions {
+    gap: 6px;
+  }
+
+  .top-actions .topbar-tool {
+    flex: 1 1 92px;
+  }
+}
+
+.nav-button .nav-active-dot {
+  display: none;
+  flex: 0 0 8px;
+  width: 8px;
+  color: var(--brand);
+  font-size: 9px;
+  text-align: center;
+}
+
+.nav-button.active .nav-active-dot {
+  display: block;
+}

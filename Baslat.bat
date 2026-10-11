@@ -1,4 +1,11 @@
 @echo off
 title AYEC Pro Baslatici
+setlocal
 cd /d "%~dp0"
-".venv_active\Scripts\python.exe" Main.py
+if not exist ".venv_active\Scripts\python.exe" (
+    echo Workspace Python environment is missing.
+    pause
+    exit /b 1
+)
+"%~dp0.venv_active\Scripts\python.exe" "%~dp0Main.py"
+pause

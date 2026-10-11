@@ -30,6 +30,10 @@ class ProjectDetailPage(QWidget):
     # ── UI ────────────────────────────────────────────────────────────────────
 
     def init_ui(self):
+        self.setObjectName("part9_project_detail")
+        self.setStyleSheet(
+            "QWidget#part9_project_detail { background-color: #0e1321; color: #dee2f6; }"
+        )
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(12)
@@ -38,7 +42,7 @@ class ProjectDetailPage(QWidget):
         header = QHBoxLayout()
         self.lbl_title = QLabel(f"📋 {self.project_name}")
         self.lbl_title.setFont(QFont("Segoe UI", 18, QFont.Weight.Bold))
-        self.lbl_title.setStyleSheet(theme_qss("color: @text;"))
+        self.lbl_title.setStyleSheet("color: #dee2f6; background: transparent;")
         header.addWidget(self.lbl_title)
         header.addStretch()
 
@@ -125,19 +129,22 @@ class ProjectDetailPage(QWidget):
 
         # ── Sekmeler ──────────────────────────────────────────────────────────
         self.tabs = QTabWidget()
-        self.tabs.setStyleSheet(theme_qss(
-            "QTabBar::tab { padding: 8px 18px; font-size: 13px; } "
-            "QTabBar::tab:selected { font-weight: bold; }"
-        ))
+        self.tabs.setStyleSheet(
+            "QTabWidget::pane { background-color: #0e1321; border: 1px solid #424754; } "
+            "QTabBar::tab { background: #161b2a; color: #c2c6d6; padding: 8px 18px; "
+            "font-size: 13px; border: 1px solid #424754; } "
+            "QTabBar::tab:selected { background: #252a39; color: #dee2f6; font-weight: bold; }"
+        )
         layout.addWidget(self.tabs)
-
-        # Finans
-        self.tab_finance = FinanceTab(self.db, self.project_id)
-        self.tabs.addTab(self.tab_finance, "💰  Finans Durumu")
 
         # Kurulum (Daire/Oda)
         self.tab_units = UnitsTab(self.db, self.project_id, project_page=self)
+        self.tab_units.setStyleSheet("background-color: #0e1321; color: #dee2f6;")
         self.tabs.addTab(self.tab_units, "🏠  Kurulum")
+
+        # Finans
+        self.tab_finance = FinanceTab(self.db, self.project_id)
+        self.tabs.addTab(self.tab_finance, "\U0001f4b0  Finans Durumu")
 
         # Ekip
         self.tab_subs = SubcontractorsTab(self.db, self.project_id)

@@ -34,7 +34,7 @@ class UserManagementRBACWidget(QWidget):
         
         # Header
         header = QLabel("👥 Kullanıcı Yetkileri Yönetimi")
-        header.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
+        header.setFont(QFont(DesignTokens.FONT_NAME, 16, QFont.Weight.Bold))
         header.setStyleSheet(theme_qss("color: @text;"))
         layout.addWidget(header)
         
@@ -85,7 +85,7 @@ class UserManagementRBACWidget(QWidget):
             QHeaderView::section {
                 background-color: @surface_alt;
                 color: @text_muted;
-                font-family: 'Segoe UI', 'Segoe UI Emoji';
+                font-family: Inter;
                 padding: 14px 12px;
                 border: none;
                 border-bottom: 2px solid @border;
@@ -156,7 +156,7 @@ class UserManagementRBACWidget(QWidget):
             # Username
             username_item = QTableWidgetItem(str(user['username'] or ''))
             username_item.setForeground(qc("text"))
-            username_item.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+            username_item.setFont(QFont(DesignTokens.FONT_NAME, 11, QFont.Weight.Bold))
             self.table.setItem(i, 0, username_item)
             
             # Role with color coding
@@ -165,7 +165,7 @@ class UserManagementRBACWidget(QWidget):
             role_item = QTableWidgetItem(role.upper())
             if is_admin_role(role):
                 role_item.setForeground(qc("accent") if role_lower == "master" else qc("danger"))
-                role_item.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+                role_item.setFont(QFont(DesignTokens.FONT_NAME, 10, QFont.Weight.Bold))
             else:
                 role_item.setForeground(qc("text_muted"))
             self.table.setItem(i, 1, role_item)
@@ -216,14 +216,14 @@ class UserManagementRBACWidget(QWidget):
             
             login_item = QTableWidgetItem(last_login)
             login_item.setForeground(qc("disabled_text"))
-            login_item.setFont(QFont("Segoe UI", 10))
+            login_item.setFont(QFont(DesignTokens.FONT_NAME, 10))
             self.table.setItem(i, 4, login_item)
             
             # Auto Login
             auto_login = bool(user['auto_login'] if 'auto_login' in user.keys() else 0)
             auto_item = QTableWidgetItem("✓ Aktif" if auto_login else "✗ Pasif")
             auto_item.setForeground(qc("success") if auto_login else qc("disabled_text"))
-            auto_item.setFont(QFont("Segoe UI", 10))
+            auto_item.setFont(QFont(DesignTokens.FONT_NAME, 10))
             self.table.setItem(i, 5, auto_item)
     
     def on_permission_toggled(self, user_id, granted):

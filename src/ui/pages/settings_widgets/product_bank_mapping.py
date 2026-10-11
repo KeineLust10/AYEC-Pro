@@ -8,7 +8,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QComboBox, QDoubleSpinBox, QFormLayout, QHBoxLayout, QHeaderView,
     QLabel, QLineEdit, QPushButton, QTableWidget, QTableWidgetItem,
-    QVBoxLayout, QWidget, QAbstractItemView, QDialog as QtDialog,
+    QVBoxLayout, QWidget, QSizePolicy, QAbstractItemView, QDialog as QtDialog,
 )
 
 from src.utils.theme_colors import theme_qss
@@ -34,29 +34,16 @@ class ProductBankMappingWidget(QWidget):
 
     def setup_ui(self):
         root = QVBoxLayout(self)
-        root.setContentsMargins(20, 20, 20, 20)
-        root.setSpacing(16)
-
-        # Başlık
-        title = QLabel("Menü - Banka Eşleştirme")
-        title.setStyleSheet(theme_qss("font-size: 18px; font-weight: 800; color: @text;"))
-        root.addWidget(title)
-
-        subtitle = QLabel(
-            "Menü bazında varsayılan banka hesabı, KDV oranı ve gelir kategorisi belirleyin. "
-            "Gelir eklerken stok/hizmet seçildiğinde bu bilgiler otomatik olarak doldurulacaktır."
-        )
-        subtitle.setWordWrap(True)
-        subtitle.setStyleSheet(theme_qss("color: @text_muted; font-size: 13px;"))
-        root.addWidget(subtitle)
+        root.setContentsMargins(5, 5, 5, 5)
+        root.setSpacing(4)
 
         # Araç çubuğu
         toolbar = QHBoxLayout()
-        toolbar.setSpacing(10)
+        toolbar.setSpacing(6)
 
         self.inp_search = QLineEdit()
         self.inp_search.setPlaceholderText("Menü ara...")
-        self.inp_search.setFixedHeight(38)
+        self.inp_search.setFixedHeight(28)
         self.inp_search.setStyleSheet(theme_qss(
             "QLineEdit { background: @surface_alt; color: @text; border: 1px solid @border; "
             "border-radius: 8px; padding: 6px 12px; } QLineEdit:focus { border-color: @accent; }"
@@ -66,7 +53,7 @@ class ProductBankMappingWidget(QWidget):
 
         btn_bulk = QPushButton("Menüye Göre Ata")
         btn_bulk.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_bulk.setFixedHeight(38)
+        btn_bulk.setFixedHeight(28)
         btn_bulk.setStyleSheet(theme_qss(
             "QPushButton { background: @accent; color: @selection_text; border-radius: 8px; "
             "padding: 0 16px; font-weight: 700; } QPushButton:hover { opacity: 0.9; }"
@@ -76,7 +63,7 @@ class ProductBankMappingWidget(QWidget):
 
         btn_refresh = QPushButton("Yenile")
         btn_refresh.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_refresh.setFixedHeight(38)
+        btn_refresh.setFixedHeight(28)
         btn_refresh.setStyleSheet(theme_qss(
             "QPushButton { background: @surface_alt; color: @text; border: 1px solid @border; "
             "border-radius: 8px; padding: 0 16px; font-weight: 700; } QPushButton:hover { background: @surface; }"
@@ -88,38 +75,37 @@ class ProductBankMappingWidget(QWidget):
 
         # Tablo
         self.table = QTableWidget()
-        self.table.setColumnCount(4)
+        self.table.setColumnCount(5)
         self.table.setHorizontalHeaderLabels([
-            "MENÜ", "BANKA HESABI", "KDV %", "GELİR KATEGORİSİ"
+            "MEN\u00dc / MOD\u00dcL ADI", "BANKA HESABI", "KDV %", "GEL\u0130R / G\u0130DER KATEGOR\u0130S\u0130", "DURUM"
         ])
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setAlternatingRowColors(True)
         self.table.setShowGrid(False)
         self.table.verticalHeader().setVisible(False)
+        self.table.verticalHeader().setDefaultSectionSize(22)
+        self.table.verticalHeader().setMinimumSectionSize(19)
+        self.table.setMinimumHeight(96)
+        self.table.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding,
+        )
         self.table.setStyleSheet(theme_qss(
-            "QTableWidget { border: 1px solid @border; border-radius: 8px; font-size: 13px; } "
-            "QTableWidget::item { padding: 6px; border-bottom: 1px solid @surface_alt; } "
-            "QHeaderView::section { background: @surface; padding: 8px; border-bottom: 2px solid @border; "
+            "QTableWidget { border: 1px solid @border; border-radius: 6px; font-size: 10px; } "
+            "QTableWidget::item { padding: 3px; border-bottom: 1px solid @surface_alt; } "
+            "QHeaderView::section { background: @surface; padding: 4px; border-bottom: 2px solid @border; "
             "font-weight: 700; color: @text_muted; }"
         ))
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
+        header.resizeSection(2, 72)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)
+        header.resizeSection(4, 72)
         root.addWidget(self.table, 1)
-
-        # Kaydet butonu
-        btn_save = QPushButton("Eşleştirmeleri Kaydet")
-        btn_save.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_save.setFixedHeight(45)
-        btn_save.setStyleSheet(theme_qss(
-            "QPushButton { background: @success; color: @selection_text; border-radius: 8px; "
-            "font-size: 14px; font-weight: 800; } QPushButton:hover { opacity: 0.9; }"
-        ))
-        btn_save.clicked.connect(self.save_all)
-        root.addWidget(btn_save)
 
     def _wire_ui_signals(self):
         # No class-level combo boxes on this widget; signals are wired per-row in _populate_table
@@ -216,10 +202,10 @@ class ProductBankMappingWidget(QWidget):
     def _make_bank_combo(self, selected_bank_id=None):
         """Banka hesabı seçim combo'su oluştur."""
         cmb = QComboBox()
-        cmb.setMinimumWidth(200)
+        cmb.setMinimumWidth(0)
         cmb.setStyleSheet(theme_qss(
-            "QComboBox { background: @surface_alt; color: @text; border: 1px solid @border; "
-            "border-radius: 6px; padding: 4px 8px; min-height: 28px; } "
+            "QComboBox { background: #FFFFFF; color: #111827; border: 1px solid #CBD5E1; "
+            "border-radius: 3px; padding: 1px 5px; min-height: 20px; } "
             "QComboBox:focus { border-color: @accent; }"
         ))
         cmb.addItem("Atanmamış", None)
@@ -245,12 +231,12 @@ class ProductBankMappingWidget(QWidget):
         spin.setDecimals(0)
         spin.setSuffix(" %")
         spin.setValue(float(value or 20))
-        spin.setFixedWidth(80)
+        spin.setFixedWidth(72)
         spin.setStyleSheet(theme_qss(
-            "QDoubleSpinBox { background: @surface_alt; color: @text; border: 1px solid @border; "
-            "border-radius: 6px; padding: 4px 30px 4px 6px; min-height: 28px; } "
+            "QDoubleSpinBox { background: #FFFFFF; color: #111827; border: 1px solid #CBD5E1; "
+            "border-radius: 3px; padding: 1px 22px 1px 5px; min-height: 20px; } "
             "QDoubleSpinBox:focus { border-color: @accent; } "
-            "QDoubleSpinBox::up-button, QDoubleSpinBox::down-button { width: 24px; subcontrol-origin: border; background-color: @accent; border-left: 1px solid @border; } "
+            "QDoubleSpinBox::up-button, QDoubleSpinBox::down-button { width: 16px; subcontrol-origin: border; background-color: #64748B; border-left: 1px solid #CBD5E1; } "
             "QDoubleSpinBox::up-button { subcontrol-position: top right; border-bottom: 1px solid @border; } "
             "QDoubleSpinBox::down-button { subcontrol-position: bottom right; border-top: 1px solid @border; } "
             "QDoubleSpinBox::up-arrow { image: none; width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-bottom: 6px solid @selection_text; } "
@@ -261,10 +247,10 @@ class ProductBankMappingWidget(QWidget):
     def _make_category_combo(self, selected=None):
         """Gelir kategorisi combo'su oluştur."""
         cmb = QComboBox()
-        cmb.setMinimumWidth(100)
+        cmb.setMinimumWidth(0)
         cmb.setStyleSheet(theme_qss(
-            "QComboBox { background: @surface_alt; color: @text; border: 1px solid @border; "
-            "border-radius: 6px; padding: 4px 8px; min-height: 28px; } "
+            "QComboBox { background: #FFFFFF; color: #111827; border: 1px solid #CBD5E1; "
+            "border-radius: 3px; padding: 1px 5px; min-height: 20px; } "
             "QComboBox:focus { border-color: @accent; }"
         ))
         for cat in self.INCOME_CATEGORIES:
@@ -302,8 +288,17 @@ class ProductBankMappingWidget(QWidget):
             default_cat = item.get("default_category") or "Satış"
             cat_combo = self._make_category_combo(default_cat)
             self.table.setCellWidget(row_idx, 3, cat_combo)
+            status = QTableWidgetItem("Aktif")
+            status.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.table.setItem(row_idx, 4, status)
 
         self.table.resizeRowsToContents()
+        rows_height = sum(
+            self.table.rowHeight(row)
+            for row in range(self.table.rowCount())
+        )
+        content_height = self.table.horizontalHeader().height() + rows_height + 12
+        self.table.setMaximumHeight(max(210, min(280, content_height)))
 
     def _filter_table(self, text):
         """Arama metnine göre satırları filtrele."""
@@ -314,7 +309,7 @@ class ProductBankMappingWidget(QWidget):
             visible = not search or search in name
             self.table.setRowHidden(row_idx, not visible)
 
-    def save_all(self):
+    def save_all(self, silent=False):
         """Tüm eşleştirmeleri kaydet."""
         saved = 0
         for row_idx in range(self.table.rowCount()):
@@ -345,7 +340,8 @@ class ProductBankMappingWidget(QWidget):
                 # Atanmamış seçildiyse mevcut eşleştirmeyi sil
                 self.db.delete_product_bank_mapping(item_type, item_id)
 
-        show_success(self, f"{saved} eşleştirme kaydedildi.")
+        if not silent:
+            show_success(self, f"{saved} e\u015fle\u015ftirme kaydedildi.")
 
     def open_bulk_assign_dialog(self):
         """Kategoriye göre toplu banka ataması dialog'u aç."""

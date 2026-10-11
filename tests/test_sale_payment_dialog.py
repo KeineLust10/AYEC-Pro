@@ -9,6 +9,7 @@ from src.ui.dialogs import sale_payment_dialog
 from src.ui.dialogs.sale_payment_dialog import SalePaymentDialog
 from src.ui.pages import transaction_page_behaviors
 from src.ui.pages.transaction_page_behaviors import TransactionPageBehaviorMixin
+from src.utils.currency_helper import CurrencyHelper
 
 
 APP = QApplication.instance() or QApplication([])
@@ -24,7 +25,9 @@ def test_partial_payment_keeps_remaining_debt():
     dialog.spin_payment.setValue(5000)
     APP.processEvents()
 
-    assert dialog.lbl_remaining.text() == "5,000.00 \u20ba"
+    assert dialog.lbl_remaining.text() == CurrencyHelper.format_amount(
+        5000, currency_code="TRY"
+    )
     dialog._accept_values()
     assert dialog.payment_amount == 5000
     assert dialog.payment_method == "Nakit"

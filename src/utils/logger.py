@@ -2,9 +2,25 @@ import logging
 import os
 import sys
 import tempfile
+import atexit
+import threading
 from logging.handlers import RotatingFileHandler
 import traceback
 from src.utils.path_helper import PathHelper
+
+
+class MultiInstanceRotatingFileHandler(RotatingFileHandler):
+    """Keep logging usable when another AYEC process owns the active log file."""
+
+    def doRollover(self):
+        try:
+            super().doRollover()
+        except PermissionError:
+            if self.stream is not None:
+                self.stream.close()
+                self.stream = None
+            self.mode = "a"
+            self.stream = self._open()
 
 class NotificationHandler(logging.Handler):
     """
@@ -52,7 +68,7 @@ def setup_logger(name="AYECProLogger", log_file=None, level=logging.INFO):
             candidate_dir = os.path.dirname(candidate)
             if candidate_dir:
                 os.makedirs(candidate_dir, exist_ok=True)
-            file_handler = RotatingFileHandler(
+            file_handler = MultiInstanceRotatingFileHandler(
                 candidate,
                 maxBytes=5 * 1024 * 1024,
                 backupCount=5,
@@ -88,6 +104,23 @@ def setup_logger(name="AYECProLogger", log_file=None, level=logging.INFO):
 
 # Create a global instance
 logger = setup_logger()
+
+_telemetry_threads = set()
+_telemetry_lock = threading.Lock()
+_telemetry_stopping = False
+
+
+def _join_telemetry_threads():
+    global _telemetry_stopping
+    _telemetry_stopping = True
+    with _telemetry_lock:
+        threads = tuple(_telemetry_threads)
+    for thread in threads:
+        thread.join(timeout=5)
+
+
+atexit.register(_join_telemetry_threads)
+
 
 def send_telemetry_to_server(error_msg, stack_trace):
     def worker():
@@ -125,12 +158,24 @@ def send_telemetry_to_server(error_msg, stack_trace):
                 "error_message": error_msg,
                 "stack_trace": stack_trace
             }
-            requests.post(f"{url.rstrip('/')}/api/control/telemetry/errors", json=payload, timeout=5)
+            requests.post(
+                f"{url.rstrip('/')}/api/control/telemetry/errors",
+                json=payload,
+                timeout=(2, 2),
+            )
         except Exception:
             pass
+        finally:
+            with _telemetry_lock:
+                _telemetry_threads.discard(threading.current_thread())
 
-    import threading
+    if _telemetry_stopping:
+        return
     t = threading.Thread(target=worker, daemon=True)
+    with _telemetry_lock:
+        if _telemetry_stopping:
+            return
+        _telemetry_threads.add(t)
     t.start()
 
 

@@ -174,7 +174,7 @@ class ProformaTemplateEditor(QWidget):
         self.editor.setAcceptRichText(True)
         # ~A4 width at 96 dpi minus margins; gives a page-like editing surface
         self.editor.setFixedWidth(794)
-        self.editor.setMinimumHeight(560)
+        self.editor.setMinimumHeight(220)
         self.editor.setStyleSheet(
             "QTextEdit { background: white; color: #1F2937; border: none; padding: 36px 44px; font-size: 10pt; }"
         )
@@ -188,7 +188,7 @@ class ProformaTemplateEditor(QWidget):
         hl.addWidget(self.editor)
         hl.addStretch(1)
         page_wrap.setWidget(holder)
-        page_wrap.setMinimumHeight(480)
+        page_wrap.setMinimumHeight(250)
         root.addWidget(page_wrap, 1)
 
         # Action buttons

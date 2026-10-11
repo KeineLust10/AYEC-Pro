@@ -93,12 +93,25 @@ class AccountingFuncMixin:
     def _collect_ledger_export_rows(self):
         manager = getattr(self, "finance_manager", None)
         if manager is not None and hasattr(manager, "get_unified_ledger"):
-            source_rows = manager.get_unified_ledger(limit=100000)
+            period = getattr(self, "_ledger_period", "fiscal")
+            search = getattr(self, "_ledger_search", "")
+            if period == "fiscal" and not search:
+                source_rows = manager.get_unified_ledger(limit=100000)
+            else:
+                source_rows = manager.get_unified_ledger(limit=100000, period=period, search=search)
         else:
             source_rows = list(getattr(self, "ledger_data", []) or [])
 
         export_rows = []
         for row in source_rows:
+            filter_key = getattr(self, "_current_filter_key", "ALL")
+            type_label = str(row.get("type_label", ""))
+            if filter_key == "INCOME" and type_label not in {"Sat\u0131\u015f", "Gelir", "Tahsilat"}:
+                continue
+            if filter_key == "EXPENSE" and type_label != "Gider":
+                continue
+            if filter_key == "OPENING" and type_label != "A\u00e7\u0131l\u0131\u015f":
+                continue
             currency = str(row.get("currency") or "TRY").upper()
             original_amount = row.get("amount")
             amount_try = row.get("amount_try")

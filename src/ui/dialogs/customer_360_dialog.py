@@ -24,6 +24,7 @@ from PyQt6.QtWidgets import (
     QFileDialog,
     QTextEdit,
     QMessageBox,
+    QSizePolicy,
 )
 
 from src.ui.dialogs.base_modern_dialog import BaseModernDialog
@@ -44,9 +45,16 @@ from src.utils.message_helper import show_question
 
 
 class StatBox(QFrame):
-    def __init__(self, title, value, icon_char, color, parent=None):
+    def __init__(
+        self, title, value, icon_char, color, parent=None, value_color=None,
+        title_color=None,
+    ):
         super().__init__(parent)
-        self.setFixedSize(250, 85)
+        self.setMinimumWidth(0)
+        self.setFixedHeight(68)
+        self.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
         self.setStyleSheet(
             theme_qss(
                 """
@@ -60,12 +68,16 @@ class StatBox(QFrame):
         )
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(15, 10, 15, 10)
-        layout.setSpacing(12)
+        layout.setContentsMargins(10, 8, 10, 8)
+        layout.setSpacing(9)
 
         icon_frame = QFrame()
-        icon_frame.setFixedSize(45, 45)
-        icon_frame.setStyleSheet(f"background-color: {color}; border-radius: 8px;")
+        icon_frame.setFixedSize(36, 36)
+        icon_frame.setStyleSheet(
+            "background-color: {}; border: 1px solid {}; border-radius: 8px;".format(
+                QColor(color).darker(350).name(), color
+            )
+        )
         if_layout = QVBoxLayout(icon_frame)
         if_layout.setContentsMargins(0, 0, 0, 0)
 
@@ -82,18 +94,22 @@ class StatBox(QFrame):
         txt_layout.setSpacing(2)
 
         lbl_title = QLabel(title.upper())
+        title_style = (
+            "color: {}; font-size: 10px; font-weight: bold; "
+            "background: transparent; border: none;"
+        ).format(title_color or tc("text_muted", default="#94A3B8"))
         lbl_title.setStyleSheet(
-            theme_qss(
-                "color: @text_muted; font-size: 10px; font-weight: bold; background: transparent;"
-            )
+            theme_qss(title_style)
         )
 
         lbl_val = QLabel(str(value))
         lbl_val.setToolTip(str(value))
+        value_style = (
+            "color: {}; font-size: 17px; font-weight: 800; "
+            "background: transparent; border: none;"
+        ).format(value_color or tc("text", default="#E2E8F0"))
         lbl_val.setStyleSheet(
-            theme_qss(
-                "color: @text; font-size: 16px; font-weight: 800; background: transparent;"
-            )
+            theme_qss(value_style)
         )
 
         txt_layout.addWidget(lbl_title)
@@ -401,19 +417,46 @@ class Customer360Dialog(BaseModernDialog):
         dlg.exec()
 
     def setup_modern_content(self):
+        self.header.setFixedHeight(44)
+        header_layout = self.header.layout()
+        header_layout.setContentsMargins(16, 0, 14, 0)
+        self.logo_label.setFixedSize(24, 24)
+        self.lbl_title.setText("M\u00fc\u015fteri 360\u00b0")
+        self.lbl_title.setFont(QFont(self.font().family(), 10, QFont.Weight.Bold))
+        customer_header = QLabel(self.customer_name)
+        customer_header.setStyleSheet(
+            theme_qss("font-size: 9px; font-weight: 600; color: @text_muted;")
+        )
+        profile_header = QLabel("PROFIL AKTIF")
+        profile_header.setStyleSheet(
+            theme_qss(
+                "font-size: 8px; font-weight: 700; color: @accent; "
+                "background: @finance_active_bg; border: 1px solid @finance_outline; "
+                "border-radius: 8px; padding: 2px 6px;"
+            )
+        )
+        profile_header.setFixedSize(82, 22)
+        profile_header.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        header_layout.insertWidget(3, customer_header)
+        header_layout.insertWidget(4, profile_header)
+        self.btn_close.setFixedSize(28, 28)
+        self.btn_close.setText("\u00d7")
         header = QHBoxLayout()
-        header.setContentsMargins(0, 0, 0, 10)
+        header.setContentsMargins(0, 5, 0, 4)
 
-        avatar = QLabel(self.customer_name[0].upper() if self.customer_name else "")
-        avatar.setFixedSize(64, 64)
+        initials = "".join(
+            part[0].upper() for part in self.customer_name.split()[:2] if part
+        )
+        avatar = QLabel(initials)
+        avatar.setFixedSize(44, 44)
         avatar.setAlignment(Qt.AlignmentFlag.AlignCenter)
         avatar.setStyleSheet(
             theme_qss(
                 """
                 background-color: @accent;
                 color: @selection_text;
-                border-radius: 32px;
-                font-size: 28px;
+                border-radius: 12px;
+                font-size: 14px;
                 font-weight: bold;
                 """
             )
@@ -423,7 +466,7 @@ class Customer360Dialog(BaseModernDialog):
         info_layout = QVBoxLayout()
         name_lbl = QLabel(self.customer_name)
         name_lbl.setStyleSheet(
-            theme_qss("font-size: 22px; font-weight: bold; color: @text;")
+            theme_qss("font-size: 16px; font-weight: bold; color: @text;")
         )
 
         phone = "Bilinmiyor"
@@ -446,16 +489,51 @@ class Customer360Dialog(BaseModernDialog):
         except Exception as e:
             logger.debug(f"Customer360 phone lookup fallback used: {e}")
 
-        sub_lbl = QLabel(f"Telefon: {phone}")
-        sub_lbl.setStyleSheet(theme_qss("font-size: 14px; color: @text_muted;"))
+        last_activity = "-"
+        try:
+            cur.execute(
+                "SELECT MAX(created_at) FROM currency_transactions WHERE customer_id=?",
+                (self.customer_id,),
+            )
+            row = cur.fetchone()
+            if row and row[0]:
+                last_activity = format_date(row[0], self.db)
+        except Exception as e:
+            logger.debug("Customer360 last activity lookup skipped: %s", e)
+        customer_code = str(self.customer_id or "-")
+        title_row = QHBoxLayout()
+        title_row.setContentsMargins(0, 0, 0, 0)
+        title_row.setSpacing(7)
+        customer_id_label = QLabel("#M-{}".format(customer_code.zfill(4)))
+        customer_id_label.setStyleSheet(theme_qss(
+            "font-size: 8px; color: @text_muted; background: @surface_alt; "
+            "border: 1px solid @border; border-radius: 4px; padding: 2px 5px;"
+        ))
+        profile_label = QLabel("PROFIL AKTIF")
+        profile_label.setStyleSheet(theme_qss(
+            "font-size: 8px; font-weight: 700; color: @accent; "
+            "background: @finance_active_bg; border: 1px solid @finance_outline; "
+            "border-radius: 9px; padding: 2px 6px;"
+        ))
+        title_row.addWidget(name_lbl)
+        title_row.addWidget(customer_id_label)
+        title_row.addWidget(profile_label)
+        title_row.addStretch(1)
+        sub_lbl = QLabel(
+            f"Telefon: {phone}  \u2022  M\u00fc\u015fteri: #{customer_code}  "
+            f"\u2022  Son hareket: {last_activity}"
+        )
+        sub_lbl.setStyleSheet(
+            theme_qss("font-size: 10px; color: @text_muted; background: transparent;")
+        )
 
-        info_layout.addWidget(name_lbl)
+        info_layout.addLayout(title_row)
         info_layout.addWidget(sub_lbl)
         header.addLayout(info_layout)
         header.addStretch()
 
-        self.btn_customer_note = QPushButton("\U0001f4dd M\u00fc\u015fteri Notlar\u0131")
-        self.btn_customer_note.setFixedSize(160, 36)
+        self.btn_customer_note = QPushButton("M\u00fc\u015fteri Notlar\u0131")
+        self.btn_customer_note.setFixedSize(108, 28)
         self.btn_customer_note.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_customer_note.setStyleSheet(
             theme_qss(
@@ -468,13 +546,13 @@ class Customer360Dialog(BaseModernDialog):
         self.content_layout.addLayout(header)
 
         self.stats_layout = QHBoxLayout()
-        self.stats_layout.setSpacing(20)
+        self.stats_layout.setContentsMargins(6, 0, 4, 0)
+        self.stats_layout.setSpacing(12)
         self.content_layout.addLayout(self.stats_layout)
 
         self.currency_layout = QHBoxLayout()
-        self.currency_layout.setSpacing(20)
-        self.currency_layout.setContentsMargins(0, 10, 0, 10)
-        self.content_layout.addLayout(self.currency_layout)
+        self.currency_layout.setSpacing(10)
+        self.currency_layout.setContentsMargins(0, 0, 0, 0)
 
         self.tabs = QTabWidget()
         self.tabs.setStyleSheet(
@@ -484,22 +562,21 @@ class Customer360Dialog(BaseModernDialog):
                     border: 1px solid @border;
                     background: @surface;
                     border-radius: 12px;
-                    top: -1px;
+                    top: 12px;
                 }
                 QTabBar::tab {
-                    background: @surface_alt;
+                    background: transparent;
                     color: @text_muted;
                     padding: 10px 20px;
                     margin-right: 5px;
-                    border-top-left-radius: 8px;
-                    border-top-right-radius: 8px;
+                    border: 1px solid transparent;
+                    border-radius: 7px;
                     font-weight: 600;
                 }
                 QTabBar::tab:selected {
-                    background: @surface;
-                    color: @text;
-                    border: 1px solid @border;
-                    border-bottom: none;
+                    background: @accent;
+                    color: @selection_text;
+                    border: 1px solid @accent;
                 }
                 """
             )
@@ -530,6 +607,9 @@ class Customer360Dialog(BaseModernDialog):
             self.setup_vehicle_tab()
             self.tabs.addTab(self.tab_vehicles, "Araclar")
 
+        self.tabs.setCurrentWidget(self.tab_cari)
+
+        self.content_layout.addSpacing(8)
         self.content_layout.addWidget(self.tabs)
 
         footer = QHBoxLayout()
@@ -584,15 +664,18 @@ class Customer360Dialog(BaseModernDialog):
                 border-radius: 10px;
                 background: @surface;
                 color: @text;
+                font-size: 10px;
             }
             QHeaderView::section {
                 background: @surface_alt;
                 color: @text;
                 border: none;
                 border-bottom: 1px solid @border;
-                padding: 8px;
+                padding: 4px 8px;
+                font-size: 10px;
                 font-weight: 700;
             }
+            QTreeWidget::item { padding: 9px 6px; }
             """
         )
 
@@ -692,7 +775,7 @@ class Customer360Dialog(BaseModernDialog):
                 "Kur",
                 "Tutar",
                 "Durum",
-                "Ödeme",
+                "\u00d6deme / Aksiyon",
             ]
         )
         self.table_cari.setIndentation(12)
@@ -900,11 +983,12 @@ class Customer360Dialog(BaseModernDialog):
         )
         total_ciro = _scalar(0.0)
 
+        display_currency = CurrencyHelper.get_code(self.db)
         self.stats_layout.addWidget(
-            StatBox("Toplam İşlem", total_serv, "🔧", tc("accent", default="#3B82F6"))
+            StatBox("Toplam \u0130\u015flem", total_serv, "\U0001f527", tc("accent", default="#3B82F6"))
         )
         self.stats_layout.addWidget(
-            StatBox("Aktif İşlem", active_serv, "⚡", tc("warning", default="#F59E0B"))
+            StatBox("Aktif \u0130\u015flem", active_serv, "\u26a1", tc("warning", default="#F59E0B"))
         )
         self.stats_layout.addWidget(
             StatBox(
@@ -912,40 +996,17 @@ class Customer360Dialog(BaseModernDialog):
                 CurrencyHelper.format_from_try(
                     total_ciro,
                     db=self.db,
-                    currency_code=CurrencyHelper.get_code(self.db),
+                    currency_code=display_currency,
                 ),
-                "💰",
+                "\U0001f4b0",
                 tc("success", default="#10B981"),
+                value_color=tc("success", default="#10B981"),
             )
         )
-        self.stats_layout.addStretch()
-
-        def create_cur_box(label, val, currency_code, color):
-            box = QFrame()
-            box.setFixedSize(220, 80)
-            box.setStyleSheet(
-                theme_qss(
-                    "background-color: @surface; border: 1px solid @border; border-radius: 12px;"
-                )
-            )
-            l = QVBoxLayout(box)
-            title = QLabel(label)
-            title.setStyleSheet(
-                theme_qss("color: @text_muted; font-size: 9px; font-weight: bold;")
-            )
-            v = QLabel(CurrencyHelper.format_amount(val, currency_code=currency_code))
-            v.setStyleSheet(f"color: {color}; font-size: 15px; font-weight: 800;")
-            l.addWidget(title)
-            l.addWidget(v)
-            return box
 
         try:
             cur.execute(
-                """
-                SELECT currency, balance
-                FROM customer_currency_balances
-                WHERE customer_id=?
-                """,
+                "SELECT currency, balance FROM customer_currency_balances WHERE customer_id=?",
                 (self.customer_id,),
             )
             balances_by_currency = {
@@ -956,14 +1017,10 @@ class Customer360Dialog(BaseModernDialog):
             logger.debug(f"Customer360 balance lookup failed: {e}")
             balances_by_currency = {}
 
-        def _bal(cur_code):
-            return balances_by_currency.get(cur_code, 0.0)
-
-        display_currency = CurrencyHelper.get_code(self.db)
         display_balance = 0.0
         missing_rate_codes = []
         for code in ("TRY", "USD", "EUR"):
-            balance = float(_bal(code) or 0.0)
+            balance = float(balances_by_currency.get(code, 0.0) or 0.0)
             if abs(balance) < 0.0001:
                 continue
             try:
@@ -976,33 +1033,28 @@ class Customer360Dialog(BaseModernDialog):
             except ValueError as exc:
                 missing_rate_codes.append(code)
                 logger.warning(
-                    "Customer360 balance conversion skipped for %s: %s",
-                    code,
-                    exc,
+                    "Customer360 balance conversion skipped for %s: %s", code, exc
                 )
-        balance_color = (
-            tc("success", default="#10B981")
-            if display_balance >= 0
-            else tc("danger", default="#EF4444")
-        )
-        balance_label = f"AKTIF BAKIYE ({display_currency})"
+
+        balance_color = tc("success", default="#10B981")
+        balance_label = "M\u00fc\u015fteri Bor\u00e7 / Fazla \u00d6deme"
         if display_balance < 0:
-            balance_label = f"MUSTERI NET BORCU ({display_currency})"
-        elif display_balance > 0:
-            balance_label = f"MUSTERIYE BORC / FAZLA ODEME ({display_currency})"
             balance_color = tc("warning", default="#F59E0B")
         if missing_rate_codes:
-            balance_label = "KUR EKSIK (" + ", ".join(missing_rate_codes) + ")"
+            balance_label = "Kur Eksi\u011fi (" + ", ".join(missing_rate_codes) + ")"
             balance_color = tc("danger", default="#EF4444")
-        self.currency_layout.addWidget(
-            create_cur_box(
+        self.stats_layout.addWidget(
+            StatBox(
                 balance_label,
-                abs(display_balance),
-                display_currency,
+                CurrencyHelper.format_amount(
+                    abs(display_balance), currency_code=display_currency
+                ),
+                "\u25a3",
                 balance_color,
+                title_color=balance_color,
+                value_color=balance_color,
             )
         )
-        self.currency_layout.addStretch()
 
     def _customer_device_filter(self):
         if self.customer_id:

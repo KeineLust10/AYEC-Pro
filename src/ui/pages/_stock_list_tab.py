@@ -16,8 +16,12 @@ from PyQt6.QtWidgets import (
     QAbstractItemView,
     QStackedWidget,
     QLabel,
+    QStyledItemDelegate,
+    QStyle,
+    QStyleOptionViewItem,
 )
 from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtGui import QColor, QPainter, QFont
 from src.utils.theme_colors import theme_qss, qc, tc
 from src.utils.design_system import DesignTokens, enable_row_hover
 from src.ui.widgets.empty_state import EmptyState
@@ -29,6 +33,30 @@ class PurchasePriceHeader(QHeaderView):
     def __init__(self, blocked_section_getter, parent=None):
         super().__init__(Qt.Orientation.Horizontal, parent)
         self._blocked_section_getter = blocked_section_getter
+        self._fit_weights = None
+        self._fitting_sections = False
+
+    def set_fit_weights(self, weights):
+        self._fit_weights = tuple(max(1, int(weight)) for weight in weights)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if not self._fit_weights or self._fitting_sections:
+            return
+        available = self.viewport().width()
+        base_total = sum(self._fit_weights)
+        if available <= 0:
+            return
+        if available < base_total:
+            return
+        self._fitting_sections = True
+        try:
+            widths = [max(40, round(available * weight / base_total)) for weight in self._fit_weights]
+            widths[-1] = max(40, available - sum(widths[:-1]))
+            for section, width in enumerate(widths):
+                self.resizeSection(section, width)
+        finally:
+            self._fitting_sections = False
 
     def mousePressEvent(self, event):
         if self.logicalIndexAt(event.position().toPoint()) == self._blocked_section_getter():
@@ -37,22 +65,119 @@ class PurchasePriceHeader(QHeaderView):
         super().mousePressEvent(event)
 
 
+class StockQuantityItem(QTableWidgetItem):
+    def __lt__(self, other):
+        return float(self.data(Qt.ItemDataRole.UserRole + 1) or 0) < float(
+            other.data(Qt.ItemDataRole.UserRole + 1) or 0
+        )
+
+
+class StockReferenceCellDelegate(QStyledItemDelegate):
+    def __init__(self, kind, parent=None):
+        super().__init__(parent)
+        self.kind = kind
+
+    def paint(self, painter, option, index):
+        item_option = QStyleOptionViewItem(option)
+        self.initStyleOption(item_option, index)
+        value = item_option.text
+        item_option.text = ""
+        option.widget.style().drawControl(
+            QStyle.ControlElement.CE_ItemViewItem, item_option, painter, option.widget
+        )
+        if not value:
+            return
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        bounds = option.rect.adjusted(5, 0, -5, 0)
+        font = QFont(option.font)
+        font.setPointSize(9)
+        painter.setFont(font)
+        metrics = painter.fontMetrics()
+        text = metrics.elidedText(value, Qt.TextElideMode.ElideRight, max(20, bounds.width() - 16))
+        if self.kind == "quantity":
+            foreground = index.data(Qt.ItemDataRole.ForegroundRole)
+            color = foreground.color() if foreground and foreground.style() != Qt.BrushStyle.NoBrush else QColor("#34d399")
+            fill = QColor(color)
+            fill.setAlpha(28)
+            painter.setPen(QColor(color.red(), color.green(), color.blue(), 110))
+            painter.setBrush(fill)
+        elif self.kind == "code":
+            color = QColor("#22d3ee")
+            painter.setPen(QColor(8, 145, 178, 130))
+            painter.setBrush(QColor(8, 145, 178, 28))
+        else:
+            color = QColor("#cbd5e1")
+            painter.setPen(QColor("#334155"))
+            painter.setBrush(QColor(30, 41, 59, 220))
+        pill = bounds.adjusted(5, (bounds.height() - 30) // 2, -5, -((bounds.height() - 30) // 2))
+        pill.setHeight(min(30, bounds.height() - 8))
+        painter.drawRoundedRect(pill, 9, 9)
+        painter.setPen(color)
+        painter.drawText(pill.adjusted(7, 0, -7, 0), Qt.AlignmentFlag.AlignCenter, text)
+        painter.restore()
+
+
+class StockProductDelegate(QStyledItemDelegate):
+    def paint(self, painter, option, index):
+        item_option = QStyleOptionViewItem(option)
+        self.initStyleOption(item_option, index)
+        title = item_option.text
+        subtitle = str(index.data(Qt.ItemDataRole.UserRole + 1) or "")
+        if subtitle.strip() == title.strip():
+            subtitle = ""
+        item_option.text = ""
+        option.widget.style().drawControl(
+            QStyle.ControlElement.CE_ItemViewItem, item_option, painter, option.widget
+        )
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
+        content = option.rect.adjusted(12, 12, -10, -10)
+        title_font = QFont(option.font)
+        title_font.setBold(True)
+        title_font.setPointSize(10)
+        painter.setFont(title_font)
+        painter.setPen(option.palette.color(option.palette.ColorRole.Text))
+        title_metrics = painter.fontMetrics()
+        title_rect = content.adjusted(0, 0, 0, -max(18, content.height() // 3))
+        painter.drawText(title_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, title_metrics.elidedText(title, Qt.TextElideMode.ElideRight, title_rect.width()))
+        if subtitle:
+            sub_font = QFont(option.font)
+            sub_font.setPointSize(8)
+            painter.setFont(sub_font)
+            painter.setPen(QColor("#8292aa"))
+            sub_metrics = painter.fontMetrics()
+            sub_rect = content.adjusted(0, content.height() // 3, 0, 0)
+            painter.drawText(sub_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, sub_metrics.elidedText(subtitle, Qt.TextElideMode.ElideRight, sub_rect.width()))
+        painter.restore()
+
+
 class StockListTabMixin:
     """Liste sekmesi için mixin sınıfı."""
 
     def setup_list_tab(self):
         layout = QVBoxLayout(self.tab_list)
+        layout.setContentsMargins(0, 5, 0, 0)
+        layout.setSpacing(17)
 
         self.cat_container = QWidget()
         self.cat_layout = QHBoxLayout(self.cat_container)
+        self.cat_layout.setContentsMargins(10, 4, 10, 4)
+        self.cat_layout.setSpacing(8)
         scroll = QScrollArea()
-        scroll.setFixedHeight(60)
+        scroll.setFixedHeight(54)
         scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setStyleSheet(theme_qss("QScrollArea { background: @surface; border: 1px solid @border; border-radius: 8px; }"))
         scroll.setWidget(self.cat_container)
         layout.addWidget(scroll)
 
         filter_bar = QFrame()
+        filter_bar.setFixedHeight(68)
         fb_layout = QHBoxLayout(filter_bar)
+        fb_layout.setContentsMargins(12, 8, 12, 8)
+        fb_layout.setSpacing(8)
         filter_bar.setStyleSheet(
             theme_qss(
                 "background: @surface; border-radius: 12px; border: 1px solid @border;"
@@ -61,13 +186,10 @@ class StockListTabMixin:
 
         self.search_inp = QLineEdit()
         self.search_inp.setPlaceholderText("🔍 Ürün adı veya barkod ile ara...")
-        self.search_inp.setMinimumWidth(350)
-        self.search_inp.setFixedHeight(42)
+        self.search_inp.setMinimumWidth(220)
+        self.search_inp.setFixedHeight(40)
         self.search_inp.textChanged.connect(self.on_stock_search_changed)
         fb_layout.addWidget(self.search_inp)
-
-
-        fb_layout.addStretch()
 
         self.btn_critical = QPushButton("⚠️ Kritik Stoklar")
         self.btn_critical.setCheckable(True)
@@ -178,7 +300,7 @@ class StockListTabMixin:
             }
         else:
             # Fallback: eski hardcoded yapı
-            self.table_stock.setColumnCount(14 if self.is_automotive else 10)
+            self.table_stock.setColumnCount(14 if self.is_automotive else 12)
             if self.is_automotive:
                 headers = [
                     "ID",
@@ -198,18 +320,35 @@ class StockListTabMixin:
                 ]
             else:
                 headers = [
-                    "ID",
-                    "Barkod",
-                    "Ürün Adı",
-                    "Marka",
+                    "S.No",
+                    "Stok Kodu",
+                    "Par\u00e7a / \u00dcr\u00fcn Tan\u0131m\u0131",
                     "Kategori",
-                    "Stok",
-                    "Alış 👁️",
-                    "Satış",
-                    "PB",
-                    "Limit",
+                    "Miktar & Durum",
+                    "Birim",
+                    "Al\u0131\u015f Fiyat\u0131",
+                    "Sat\u0131\u015f Fiyat\u0131",
+                    "K\u00e2r (%)",
+                    "Raf Yeri",
+                    "Min. Stok",
+                    "\u0130\u015flemler",
                 ]
-            self._stock_column_map = None
+                self._stock_column_map = {
+                    "id": 0,
+                    "code": 1,
+                    "name": 2,
+                    "category": 3,
+                    "stock": 4,
+                    "unit": 5,
+                    "currency": 5,
+                    "purchase_price": 6,
+                    "price": 7,
+                    "profit": 8,
+                    "shelf_number": 9,
+                    "min_stock": 10,
+                }
+            if self.is_automotive:
+                self._stock_column_map = None
 
         if headers:
             headers[0] = "S.No"
@@ -217,8 +356,25 @@ class StockListTabMixin:
             if 0 <= purchase_price_column < len(headers):
                 headers[purchase_price_column] = "Al\u0131\u015f Fiyat\u0131"
         self.table_stock.setHorizontalHeaderLabels(headers)
+        if len(headers) == 12 and headers[2] == "Par\u00e7a / \u00dcr\u00fcn Tan\u0131m\u0131":
+            self.table_stock.setItemDelegateForColumn(1, StockReferenceCellDelegate("code", self.table_stock))
+            self.table_stock.setItemDelegateForColumn(2, StockProductDelegate(self.table_stock))
+            self.table_stock.setItemDelegateForColumn(3, StockReferenceCellDelegate("category", self.table_stock))
+            self.table_stock.setItemDelegateForColumn(4, StockReferenceCellDelegate("quantity", self.table_stock))
         self.table_stock.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.Stretch
+            QHeaderView.ResizeMode.Interactive
+        )
+        self.table_stock.horizontalHeader().setStretchLastSection(True)
+        self.table_stock.horizontalHeader().setMinimumSectionSize(40)
+        self.table_stock.horizontalHeader().setFixedHeight(72)
+        reference_widths = [44, 100, 210, 100, 128, 58, 100, 100, 86, 90, 80, 100]
+        for column in range(len(headers)):
+            width = reference_widths[column] if len(headers) in (10, 12) else 120
+            self.table_stock.setColumnWidth(column, width)
+        if len(headers) in (10, 12):
+            self.table_stock.horizontalHeader().set_fit_weights(reference_widths[:len(headers)])
+        self.table_stock.verticalHeader().setDefaultSectionSize(
+            110 if len(headers) == 12 else 42
         )
         self.table_stock.horizontalHeader().sectionClicked.connect(
             self._on_stock_header_section_clicked
@@ -303,6 +459,19 @@ class StockListTabMixin:
         except Exception:
             self._raw_categories = []
 
+        try:
+            cursor = self.db.conn.cursor()
+            cursor.execute(
+                """
+                SELECT COUNT(*)
+                FROM parts
+                WHERE COALESCE(is_deleted, 0) = 0
+                """
+            )
+            self._active_part_count = int(cursor.fetchone()[0] or 0)
+        except Exception:
+            self._active_part_count = 0
+
         while self.cat_layout.count():
             item = self.cat_layout.takeAt(0)
             widget = item.widget()
@@ -330,7 +499,11 @@ class StockListTabMixin:
             if key in seen:
                 continue
             seen.add(key)
-            button = QPushButton(category)
+            if category == all_label:
+                button = QPushButton(f"{category} ({self._active_part_count})")
+            else:
+                button = QPushButton(category)
+            button.setProperty('stock_category_key', category)
             button.setCheckable(True)
             button.setChecked(category == self.selected_category)
             button.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -338,9 +511,7 @@ class StockListTabMixin:
                 theme_qss(self._cat_style(category == self.selected_category))
             )
             button.clicked.connect(
-                lambda _checked=False, value=category: self._select_stock_category(
-                    value
-                )
+                lambda _checked=False, value=category: self._select_stock_category(value)
             )
             self.cat_layout.addWidget(button)
         self.cat_layout.addStretch()
@@ -353,7 +524,7 @@ class StockListTabMixin:
         for index in range(self.cat_layout.count()):
             widget = self.cat_layout.itemAt(index).widget()
             if isinstance(widget, QPushButton):
-                active = widget.text() == category
+                active = widget.property('stock_category_key') == category
                 widget.setChecked(active)
                 widget.setStyleSheet(theme_qss(self._cat_style(active)))
         self.reload_data()
@@ -460,6 +631,7 @@ class StockListTabMixin:
             item_id.setData(Qt.ItemDataRole.UserRole, part_id)
             item_code = QTableWidgetItem(str(_get("code", "-")))
             item_name = QTableWidgetItem(str(_get("name", "Adsız")))
+            item_name.setData(Qt.ItemDataRole.UserRole + 1, str(_get("description", "") or ""))
             item_cat = QTableWidgetItem(str(_get("category", "Genel")))
 
             try:
@@ -476,8 +648,9 @@ class StockListTabMixin:
             except Exception:
                 limit = 5.0
 
-            s_item = QTableWidgetItem(str(int(stock_val)))
-            s_item.setData(Qt.ItemDataRole.EditRole, int(stock_val))
+            unit_text = str(_get("unit", "Adet") or "Adet")
+            s_item = StockQuantityItem(f"{int(stock_val)} {unit_text}")
+            s_item.setData(Qt.ItemDataRole.UserRole + 1, stock_val)
             if stock_val <= 0:
                 s_item.setForeground(qc("danger"))
             elif stock_val <= limit:
@@ -541,6 +714,9 @@ class StockListTabMixin:
                 "currency": p_curr,
                 "unit": p_curr.clone(),
                 "min_stock": p_lim,
+                "profit": QTableWidgetItem(
+                    f"{((sel_p - pur_p) / pur_p * 100):+.1f}%" if pur_p > 0 else "--"
+                ),
             }
             if self._stock_column_map:
                 for col_name, col_idx in self._stock_column_map.items():
@@ -552,12 +728,13 @@ class StockListTabMixin:
                     "id",
                     "code",
                     "name",
-                    "brand",
                     "category",
                     "stock",
+                    "unit",
                     "purchase_price",
                     "price",
-                    "currency",
+                    "profit",
+                    "shelf_number",
                     "min_stock",
                 ]
                 if self.is_automotive:
@@ -584,10 +761,58 @@ class StockListTabMixin:
                 for col_idx, col_name in enumerate(default_columns):
                     self.table_stock.setItem(i, col_idx, row_items[col_name])
 
+            if self.table_stock.columnCount() == 12:
+                action_cell = QWidget()
+                action_layout = QHBoxLayout(action_cell)
+                action_layout.setContentsMargins(4, 0, 4, 0)
+                action_layout.setSpacing(8)
+                edit_action = QPushButton("\u270e")
+                edit_action.setToolTip("\u00dcr\u00fcn\u00fc d\u00fczenle")
+                edit_action.setAccessibleName("\u00dcr\u00fcn\u00fc d\u00fczenle")
+                edit_action.setFixedSize(28, 30)
+                edit_action.setStyleSheet(theme_qss(
+                    "QPushButton { color: @text_muted; background: transparent; border: 0; border-radius: 5px; font-size: 16px; }"
+                    "QPushButton:hover { color: @accent; background: @surface_alt; }"
+                ))
+                edit_action.clicked.connect(
+                    lambda checked=False, part_id=item_id: self.open_add_stock_dialog(part_id)
+                )
+                movement_action = QPushButton("\u21c4")
+                movement_action.setToolTip("Stok Hareketi")
+                movement_action.setAccessibleName("Stok Hareketi")
+                movement_action.setFixedSize(28, 30)
+                movement_action.setStyleSheet(theme_qss(
+                    "QPushButton { color: @text_muted; background: transparent; border: 0; border-radius: 5px; font-size: 17px; }"
+                    "QPushButton:hover { color: @accent; background: @surface_alt; }"
+                ))
+                movement_action.clicked.connect(
+                    lambda checked=False, part_id=item_id, name=item_name.text(): self.update_stock_amount(part_id, name)
+                )
+                action_layout.addStretch(1)
+                action_layout.addWidget(edit_action)
+                action_layout.addWidget(movement_action)
+                action_layout.addStretch(1)
+                self.table_stock.setCellWidget(i, 11, action_cell)
+
             for col in range(self.table_stock.columnCount()):
                 it = self.table_stock.item(i, col)
                 if it:
                     it.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                    if col != self._purchase_price_column():
+                        it.setToolTip(it.text())
+
+            if self.table_stock.columnCount() == 12:
+                for price_column in (6, 7):
+                    price_item = self.table_stock.item(i, price_column)
+                    if price_item:
+                        price_item.setTextAlignment(
+                            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+                        )
+
+            name_column = (self._stock_column_map or {}).get('name', 2)
+            name_item = self.table_stock.item(i, name_column)
+            if name_item:
+                name_item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
 
             self._update_purchase_price_cell(i)
 
@@ -605,9 +830,8 @@ class StockListTabMixin:
                 item.setText(str(display_no))
 
     def _on_stock_header_section_clicked(self, logical_index):
-        # The purchase-price section is consumed by PurchasePriceHeader.
-        # Other headers continue to use the table's built-in sorting.
-        return
+        if int(logical_index) == self._purchase_price_column():
+            self.toggle_purchase_price_visibility()
 
     def toggle_purchase_price_visibility(self):
         all_visible = bool(getattr(self, "_purchase_prices_all_visible", False))
@@ -629,9 +853,18 @@ class StockListTabMixin:
         pass
 
     def _on_stock_cell_clicked_toggle_purchase_price(self, row, col):
-        # Individual cells no longer toggle price visibility.
-        # The toolbar eye button controls every purchase price consistently.
-        return
+        if int(col) != self._purchase_price_column():
+            return
+        part_id = self._stock_part_id_from_row(row)
+        if part_id is None:
+            return
+        revealed = set(getattr(self, "_revealed_purchase_price_ids", set()))
+        if part_id in revealed:
+            revealed.remove(part_id)
+        else:
+            revealed.add(part_id)
+        self._revealed_purchase_price_ids = revealed
+        self._update_purchase_price_cell(row)
 
     def _update_purchase_price_cell(self, row):
         target_col = self._purchase_price_column()

@@ -206,16 +206,16 @@ class TransactionPage(TransactionPageBehaviorMixin, QWidget):
         welcome_box.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         lbl_icon = QLabel("👤")
-        lbl_icon.setFont(QFont("Segoe UI Emoji", 48))
+        lbl_icon.setFont(QFont(DesignTokens.FONT_NAME, 48))
         lbl_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         lbl_title = QLabel("Müşteri Seçimi")
-        lbl_title.setFont(QFont("Segoe UI", 24, QFont.Weight.Bold))
+        lbl_title.setFont(QFont(DesignTokens.FONT_NAME, 24, QFont.Weight.Bold))
         lbl_title.setStyleSheet("color: #2c3e50;")
         lbl_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         lbl_sub = QLabel("İşlem yapılacak müşteriyi seçin veya yeni bir kayıt oluşturun.")
-        lbl_sub.setFont(QFont("Segoe UI", 12))
+        lbl_sub.setFont(QFont(DesignTokens.FONT_NAME, 12))
         lbl_sub.setStyleSheet("color: #7f8c8d;")
         lbl_sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
@@ -240,7 +240,7 @@ class TransactionPage(TransactionPageBehaviorMixin, QWidget):
 
         # Combo
         lbl_sel = QLabel("Müşteri Ara / Seç")
-        lbl_sel.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+        lbl_sel.setFont(QFont(DesignTokens.FONT_NAME, 10, QFont.Weight.Bold))
         lbl_sel.setStyleSheet("color: #34495e;")
         
         # Combo + Search Button Row
@@ -362,7 +362,7 @@ class TransactionPage(TransactionPageBehaviorMixin, QWidget):
         left_layout.setSpacing(15)
 
         lbl_title = QLabel("Hizmet Ekle")
-        lbl_title.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
+        lbl_title.setFont(QFont(DesignTokens.FONT_NAME, 16, QFont.Weight.Bold))
         left_layout.addWidget(lbl_title)
 
         # Service Combo
@@ -528,7 +528,7 @@ class TransactionPage(TransactionPageBehaviorMixin, QWidget):
         self.lbl_subtotal = QLabel(
             f"Ara Toplam: {CurrencyHelper.format_try_for_display(0, db=self.db, include_try_reference=False)}"
         )
-        self.lbl_subtotal.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
+        self.lbl_subtotal.setFont(QFont(DesignTokens.FONT_NAME, 12, QFont.Weight.Bold))
         fb_layout.addWidget(self.lbl_subtotal)
         fb_layout.addStretch()
         
@@ -737,7 +737,7 @@ class TransactionPage(TransactionPageBehaviorMixin, QWidget):
         tl.addWidget(lbl_total_title)
 
         self.lbl_total = QLabel(CurrencyHelper.format_try_for_display(0, db=self.db, include_try_reference=False))
-        self.lbl_total.setFont(QFont("Segoe UI", 56, QFont.Weight.Bold))
+        self.lbl_total.setFont(QFont(DesignTokens.FONT_NAME, 56, QFont.Weight.Bold))
         self.lbl_total.setStyleSheet("color: #4ade80;") # Bright green text
         self.lbl_total.setAlignment(Qt.AlignmentFlag.AlignCenter)
         tl.addWidget(self.lbl_total)

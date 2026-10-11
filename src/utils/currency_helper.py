@@ -117,7 +117,7 @@ class CurrencyHelper:
                 ExchangeRateManager.get_current_rate(db, code, "selling") or 0.0
             )
             if rate <= 0:
-                logger.error("No DB selling rate for %s", code)
+                logger.warning("No DB selling rate for %s", code)
                 return 0.0
                 return fallback
             return rate

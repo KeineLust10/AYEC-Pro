@@ -224,14 +224,51 @@ class PageLayoutEditorWidget(QWidget):
             sector = SystemConfig.get_current_sector(self.db) if self.db else "teknik_servis"
         except Exception:
             sector = "teknik_servis"
-        groups = get_menu_sections(sector)
+
+        sidebar = getattr(getattr(self.main_window, "app_sidebar", None), "side_menu", None)
+        menu_sections = getattr(sidebar, "layout_editor_sections", None)
+        allowed_pages = sidebar._get_allowed_pages() if sidebar and hasattr(sidebar, "_get_allowed_pages") else None
+        if menu_sections is None:
+            menu_sections = [
+                (title, [(PAGE_LABELS.get(page_id, f"Sayfa {page_id}"), page_id) for page_id in page_ids])
+                for title, page_ids in get_menu_sections(sector)
+            ]
 
         normalized = []
-        for title, page_ids in groups:
-            valid = [
-                pid for pid in page_ids 
-                if self._is_page_enabled_by_module(pid)
-            ]
+        for title, groups in menu_sections:
+            valid = []
+            seen_page_ids = set()
+
+            def add_item(name, target):
+                if isinstance(target, (list, tuple)):
+                    for nested_name, nested_target in target:
+                        add_item(nested_name, nested_target)
+                    return
+                try:
+                    page_id = int(target)
+                except (TypeError, ValueError):
+                    return
+                if page_id in seen_page_ids or not self._is_page_enabled_by_module(page_id):
+                    return
+                if allowed_pages is not None and page_id not in allowed_pages:
+                    return
+                seen_page_ids.add(page_id)
+                valid.append((page_id, str(name)))
+
+            for group in groups:
+                if not isinstance(group, (list, tuple)):
+                    continue
+                if len(group) == 2:
+                    add_item(group[0], group[1])
+                    continue
+                if len(group) < 3:
+                    continue
+                group_title, _icon, items = group[:3]
+                main_page_id = int(group[3]) if len(group) > 3 and group[3] is not None else None
+                if main_page_id is not None:
+                    add_item(group_title, main_page_id)
+                for item_name, item_target in items:
+                    add_item(item_name, item_target)
             if valid:
                 normalized.append((title, valid))
         return normalized
@@ -256,13 +293,13 @@ class PageLayoutEditorWidget(QWidget):
         except Exception:
             allowed_sector_pages = None
 
-        for section_title, page_ids in self._visible_groups():
+        for section_title, menu_items in self._visible_groups():
             self.add_section_header(section_title)
-            for page_id in page_ids:
+            for page_id, default_name in menu_items:
                 is_sector_supported = (allowed_sector_pages is None) or (page_id in allowed_sector_pages)
                 self.add_toggle_item(
                     page_id, 
-                    PAGE_LABELS.get(page_id, f"Sayfa {page_id}"),
+                    default_name,
                     is_sector_supported=is_sector_supported
                 )
 

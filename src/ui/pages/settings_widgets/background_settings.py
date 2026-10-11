@@ -26,6 +26,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from src.utils.design_system import DesignTokens
 
 from src.ui.widgets.animated_toggle import AnimatedToggle
 from src.utils.appearance_mode import AppearanceModeManager
@@ -156,7 +157,7 @@ class BackgroundSettingsWidget(QWidget):
         cl.setSpacing(16)
 
         title = QLabel("Temalar & Yazı Tipi")
-        title.setFont(QFont("Segoe UI", 20, QFont.Weight.Bold))
+        title.setFont(QFont(DesignTokens.FONT_NAME, 20, QFont.Weight.Bold))
         title.setStyleSheet("color: #111827; margin-bottom: 4px; background: transparent; border: none;" if self._is_classic_appearance() else theme_qss("color: @text; margin-bottom: 10px;"))
         self.title_label = title
         cl.addWidget(title)
@@ -210,6 +211,7 @@ class BackgroundSettingsWidget(QWidget):
         scale_group.setStyleSheet(self._card_qss())
         scale_layout = QVBoxLayout(scale_group)
         scale_layout.setSpacing(10)
+        scale_layout.addStretch(1)
 
         scale_desc = QLabel(
             "Program genelindeki yaz\u0131lar\u0131 ve ikonlar\u0131 kademeli olarak b\u00fcy\u00fct\u00fcn veya k\u00fc\u00e7\u00fclt\u00fcn."
@@ -276,14 +278,21 @@ class BackgroundSettingsWidget(QWidget):
 
         menu_label_group = QGroupBox("Sol Men\u00fc G\u00f6r\u00fcn\u00fcm\u00fc")
         menu_label_group.setStyleSheet(self._card_qss())
-        menu_label_layout = QHBoxLayout(menu_label_group)
+        menu_label_layout = QVBoxLayout(menu_label_group)
         menu_label_layout.setSpacing(16)
         menu_label_text = QLabel(
             "Men\u00fcde yaln\u0131zca simgeleri veya simge ile men\u00fc ad\u0131n\u0131 birlikte g\u00f6sterin."
         )
         menu_label_text.setWordWrap(True)
         menu_label_text.setStyleSheet(theme_qss("color: @text_muted; font-size: 12px; border: none;"))
-        menu_label_layout.addWidget(menu_label_text, 1)
+        menu_label_layout.addWidget(menu_label_text)
+        menu_label_layout.addStretch(1)
+        menu_label_divider = QFrame()
+        menu_label_divider.setFrameShape(QFrame.Shape.HLine)
+        menu_label_divider.setStyleSheet(theme_qss("color: @border; background: @border; max-height: 1px;"))
+        menu_label_layout.addWidget(menu_label_divider)
+        menu_label_options = QHBoxLayout()
+        menu_label_options.addStretch(1)
         self._menu_label_btn_group = QButtonGroup(self)
         self._menu_label_radio_btns = {}
         for value, title, tooltip in (
@@ -301,7 +310,8 @@ class BackgroundSettingsWidget(QWidget):
             )
             self._menu_label_btn_group.addButton(radio)
             self._menu_label_radio_btns[value] = radio
-            menu_label_layout.addWidget(radio)
+            menu_label_options.addWidget(radio)
+        menu_label_layout.addLayout(menu_label_options)
         general_layout.addWidget(menu_label_group)
 
         self._scale_apply_timer = QTimer(self)
@@ -402,6 +412,7 @@ class BackgroundSettingsWidget(QWidget):
         info_lbl.setWordWrap(True)
         info_lbl.setStyleSheet(theme_qss("color: @text_muted; font-size: 12px; font-weight: 500;"))
         color_layout.addWidget(info_lbl)
+        color_layout.addSpacing(32)
 
         self.preset_accent_colors = [
             "#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#EC4899", "#64748B", "#14B8A6", "#0EA5E9"
@@ -418,6 +429,7 @@ class BackgroundSettingsWidget(QWidget):
             lambda: self.select_custom_color("accent"),
             lambda: self.apply_custom_color("", "accent"),
         ))
+        color_layout.addSpacing(30)
 
         color_layout.addWidget(self._build_color_row(
             "2) Yazı rengi (metinler/başlıklar)",
@@ -558,17 +570,24 @@ class BackgroundSettingsWidget(QWidget):
         tl.addLayout(btn_update_lay)
         general_layout.addWidget(ticker_group)
 
-        menu_group = QGroupBox("Fare Sağ Tuş Menü Yönetimi")
+        menu_group = QGroupBox()
         menu_group.setStyleSheet(self._card_qss())
         ml = QVBoxLayout(menu_group)
-        ml.setSpacing(20)
+        ml.setSpacing(16)
+        menu_title = QLabel("FARE SA\u011e TU\u015e MEN\u00dc Y\u00d6NET\u0130M\u0130")
+        menu_title.setStyleSheet(theme_qss("font-size: 18px; font-weight: 800; color: @accent;"))
+        ml.addWidget(menu_title)
+        menu_divider = QFrame()
+        menu_divider.setFrameShape(QFrame.Shape.HLine)
+        menu_divider.setStyleSheet(theme_qss("color: @border; background: @border; max-height: 1px;"))
+        ml.addWidget(menu_divider)
 
         rc_lay = QHBoxLayout()
         rc_text = QVBoxLayout()
         rc_head = QLabel("Uygulama genelinde sağ tık menüsünü etkinleştir")
-        rc_head.setStyleSheet(theme_qss("font-weight: 700; color: @text;"))
+        rc_head.setStyleSheet(theme_qss("font-size: 16px; font-weight: 700; color: @text;"))
         rc_sub = QLabel("Kapatıldığında tablolardaki hızlı işlem menüleri devre dışı kalır.")
-        rc_sub.setStyleSheet(theme_qss("color: @text_muted; font-size: 11px;"))
+        rc_sub.setStyleSheet(theme_qss("color: @text_muted; font-size: 13px;"))
         rc_text.addWidget(rc_head)
         rc_text.addWidget(rc_sub)
 
@@ -579,12 +598,32 @@ class BackgroundSettingsWidget(QWidget):
         rc_lay.addStretch()
         rc_lay.addWidget(self.toggle_rc)
         ml.addLayout(rc_lay)
+        right_click_layout.addWidget(menu_group)
 
-        ml.addWidget(QLabel("Menünün aktif olduğu sayfalar:"))
+        page_group = QGroupBox()
+        page_group.setStyleSheet(self._card_qss())
+        page_group_layout = QVBoxLayout(page_group)
+        page_group_layout.setSpacing(12)
+        page_header = QHBoxLayout()
+        page_title = QLabel("Men\u00fcn\u00fcn aktif oldu\u011fu sayfalar:")
+        page_title.setStyleSheet(theme_qss("font-size: 15px;"))
+        page_header.addWidget(page_title)
+        page_header.addStretch(1)
+        self.toggle_all_pages_button = QPushButton("T\u00fcm\u00fcn\u00fc Se\u00e7 / Kald\u0131r")
+        self.toggle_all_pages_button.setStyleSheet(theme_qss(
+            "QPushButton { background: transparent; color: @accent; border: 0; "
+            "font-size: 13px; font-weight: 700; padding: 4px; } "
+            "QPushButton:hover { color: @text; }"
+        ))
+        self.toggle_all_pages_button.clicked.connect(self._toggle_all_pages)
+        page_header.addWidget(self.toggle_all_pages_button)
+        page_group_layout.addLayout(page_header)
         page_list_frame = QFrame()
         page_list_frame.setStyleSheet(theme_qss("background: @surface_alt; border-radius: 10px; border: 1px solid @border; padding: 15px;"))
         pll = QGridLayout(page_list_frame)
-        pll.setSpacing(20)
+        pll.setHorizontalSpacing(16)
+        pll.setVerticalSpacing(12)
+        pll.setAlignment(Qt.AlignmentFlag.AlignTop)
 
         self.page_toggles = {}
         pages = [
@@ -614,13 +653,40 @@ class BackgroundSettingsWidget(QWidget):
             self.page_toggles[setting_key] = toggle
 
             name_lbl = QLabel(name)
-            name_lbl.setStyleSheet(theme_qss("color: @text; font-size: 13px; font-weight: 600;"))
+            name_lbl.setStyleSheet(theme_qss("color: @text; font-size: 15px; font-weight: 600;"))
 
             pll.addWidget(toggle, i // 2, (i % 2) * 2)
             pll.addWidget(name_lbl, i // 2, (i % 2) * 2 + 1)
 
-        ml.addWidget(page_list_frame)
-        right_click_layout.addWidget(menu_group)
+        page_group_layout.addWidget(page_list_frame)
+        right_click_layout.addWidget(page_group)
+        right_click_layout.addStretch(1)
+
+        while general_layout.count():
+            general_layout.takeAt(0)
+
+        theme_appearance_row = QWidget(general_tab)
+        theme_appearance_layout = QHBoxLayout(theme_appearance_row)
+        theme_appearance_layout.setContentsMargins(0, 0, 0, 0)
+        theme_appearance_layout.setSpacing(16)
+        theme_appearance_layout.addWidget(theme_group, 1)
+        theme_appearance_layout.addWidget(appearance_group, 2)
+        general_layout.addWidget(theme_appearance_row)
+
+        scale_navigation_row = QWidget(general_tab)
+        scale_navigation_layout = QHBoxLayout(scale_navigation_row)
+        scale_navigation_layout.setContentsMargins(0, 0, 0, 0)
+        scale_navigation_layout.setSpacing(16)
+        scale_navigation_layout.addWidget(scale_group, 1)
+        scale_navigation_layout.addWidget(menu_label_group, 1)
+        general_layout.addWidget(scale_navigation_row)
+
+        general_layout.addWidget(color_group)
+        general_layout.addWidget(nav_group)
+        general_layout.addWidget(combo_group)
+        general_layout.addWidget(display_group)
+        general_layout.addWidget(ticker_group)
+        general_layout.addStretch(1)
 
         tabs.addTab(general_tab, "Genel")
         tabs.addTab(right_click_tab, "Fare Sağ Tuş Yönetimi")
@@ -631,7 +697,7 @@ class BackgroundSettingsWidget(QWidget):
         layout.addWidget(scroll)
 
         self.btn_save = QPushButton("Tüm değişiklikleri uygula")
-        self.btn_save.setFixedHeight(55)
+        self.btn_save.setFixedHeight(44)
         self.btn_save.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_save.setStyleSheet(
             theme_qss(
@@ -651,6 +717,14 @@ class BackgroundSettingsWidget(QWidget):
         )
         self.btn_save.clicked.connect(self.save_data)
         layout.addWidget(self.btn_save)
+
+    def _toggle_all_pages(self):
+        target_state = not all(toggle.isChecked() for toggle in self.page_toggles.values())
+        for toggle in self.page_toggles.values():
+            toggle.blockSignals(True)
+            toggle.setChecked(target_state)
+            toggle.blockSignals(False)
+        self.save_data()
 
     def _build_color_row(self, title, colors, custom_btn_text, on_color_click, on_custom_click, on_reset_click):
         wrapper = QWidget()
@@ -809,7 +883,7 @@ class BackgroundSettingsWidget(QWidget):
             )
         )
 
-        current_theme = ThemeManager.normalize_theme_name(self.db.get_setting("color_theme_full", "AYEC"))
+        current_theme = ThemeManager.normalize_theme_name(self.db.get_setting("color_theme_full", "Koyu Mavi"))
         idx_theme = self.cmb_theme.findText(current_theme)
         if idx_theme >= 0:
             self.cmb_theme.setCurrentIndex(idx_theme)
@@ -866,7 +940,7 @@ class BackgroundSettingsWidget(QWidget):
 
     def save_data(self):
         selected_theme = ThemeManager.normalize_theme_name(self.cmb_theme.currentText())
-        old_theme = ThemeManager.normalize_theme_name(self.db.get_setting("color_theme_full", "AYEC"))
+        old_theme = ThemeManager.normalize_theme_name(self.db.get_setting("color_theme_full", "Koyu Mavi"))
         if selected_theme != old_theme:
             self.db.set_setting("color_theme_full", selected_theme)
             if self.main_window and hasattr(self.main_window, "apply_theme"):

@@ -5,7 +5,7 @@ import html
 
 from PyQt6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame, QLineEdit,
                              QFileDialog, QGridLayout, QCheckBox, QSpinBox, QDoubleSpinBox, QHeaderView,
-                             QTableWidget, QTableWidgetItem)
+                             QTableWidget, QTableWidgetItem, QSizePolicy)
 from PyQt6.QtGui import QFont, QTextDocument
 from PyQt6.QtCore import Qt
 from PyQt6.QtPrintSupport import QPrintDialog, QPrinter
@@ -30,12 +30,12 @@ class JobServiceNumberSettingsWidget(QWidget):
         return theme_qss("""
             QSpinBox {
                 border: 1px solid @border;
-                border-radius: 5px;
-                padding: 5px 36px 5px 8px;
-                background-color: @surface;
-                color: @text;
-                font-size: 13px;
-                min-height: 34px;
+                border-radius: 3px;
+                padding: 1px 18px 1px 5px;
+                background-color: #FFFFFF;
+                color: #111827;
+                font-size: 10px;
+                min-height: 18px;
             }
             QSpinBox:focus {
                 border: 1px solid @accent;
@@ -43,8 +43,8 @@ class JobServiceNumberSettingsWidget(QWidget):
             QSpinBox::up-button {
                 subcontrol-origin: border;
                 subcontrol-position: top right;
-                width: 30px;
-                min-height: 17px;
+                width: 16px;
+                min-height: 9px;
                 border-left: 1px solid @border;
                 border-bottom: 1px solid @border;
                 border-top-right-radius: 4px;
@@ -54,16 +54,16 @@ class JobServiceNumberSettingsWidget(QWidget):
             QSpinBox::up-button:pressed { background-color: @success; }
             QSpinBox::up-arrow {
                 image: none;
-                border-left: 5px solid transparent;
-                border-right: 5px solid transparent;
-                border-bottom: 7px solid white;
+                border-left: 4px solid transparent;
+                border-right: 4px solid transparent;
+                border-bottom: 5px solid #FFFFFF;
                 width: 0; height: 0;
             }
             QSpinBox::down-button {
                 subcontrol-origin: border;
                 subcontrol-position: bottom right;
-                width: 30px;
-                min-height: 17px;
+                width: 16px;
+                min-height: 9px;
                 border-left: 1px solid @border;
                 border-top: 1px solid @border;
                 border-bottom-right-radius: 4px;
@@ -73,54 +73,49 @@ class JobServiceNumberSettingsWidget(QWidget):
             QSpinBox::down-button:pressed { background-color: @success; }
             QSpinBox::down-arrow {
                 image: none;
-                border-left: 5px solid transparent;
-                border-right: 5px solid transparent;
-                border-top: 7px solid white;
+                border-left: 4px solid transparent;
+                border-right: 4px solid transparent;
+                border-top: 5px solid #FFFFFF;
                 width: 0; height: 0;
             }
         """)
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(40, 40, 40, 40)
-        layout.setSpacing(20)
-
-        title = QLabel("🧾 İş / Servis / Referans Takip Numaraları")
-        title.setFont(QFont("Segoe UI", 18, QFont.Weight.Bold))
-        title.setStyleSheet(theme_qss("color: @text;"))
-        layout.addWidget(title)
-
-        subtitle = QLabel("Yeni iş, servis, proje, referans ve ödeme numaralarının başlangıç değerlerini buradan yönetebilirsiniz.")
-        subtitle.setStyleSheet(theme_qss("color: @text_muted; font-size: 13px;"))
-        subtitle.setWordWrap(True)
-        layout.addWidget(subtitle)
+        layout.setContentsMargins(4, 2, 4, 2)
+        layout.setSpacing(3)
 
         tools_layout = QHBoxLayout()
+        section_title = QLabel("\u0130\u015e / SERV\u0130S SAYA\u00c7LARI & NUMARAT\u00d6RLER")
+        section_title.setStyleSheet(theme_qss("font-size: 10px; font-weight: 800; color: @text;"))
+        section_description = QLabel("\u00b7 Yeni kay\u0131tlar\u0131n otomatik artan numara formatlar\u0131")
+        section_description.setStyleSheet(theme_qss("font-size: 9px; color: @text_muted;"))
+        tools_layout.addWidget(section_title)
+        tools_layout.addWidget(section_description, 1)
         tools = [
             ("KOPYALA", self.copy_number_settings, "warning"),
             ("CSV \u00c7IKTI", self.export_number_settings_csv, "secondary"),
             ("EXCEL \u00c7IKTI", self.export_number_settings_excel, "secondary"),
-            ("PDF KAYDET", self.export_number_settings_pdf, "secondary"),
             ("YAZDIR", self.print_number_settings, "ghost"),
         ]
         for text, callback, variant in tools:
             button = QPushButton(text)
             button.setCursor(Qt.CursorShape.PointingHandCursor)
+            button.setFixedHeight(24)
             button.setStyleSheet(theme_qss(DesignTokens.get_button_qss(variant, size="sm")))
             button.clicked.connect(callback)
             tools_layout.addWidget(button)
-        tools_layout.addStretch()
         layout.addLayout(tools_layout)
 
         card = QFrame()
         card.setProperty("settingsCard", True)
         card_layout = QVBoxLayout(card)
-        card_layout.setContentsMargins(20, 20, 20, 20)
-        card_layout.setSpacing(16)
+        card_layout.setContentsMargins(4, 3, 4, 3)
+        card_layout.setSpacing(3)
 
         form = QGridLayout()
-        form.setHorizontalSpacing(20)
-        form.setVerticalSpacing(12)
+        form.setHorizontalSpacing(8)
+        form.setVerticalSpacing(6)
 
         spn_qss = self._spinbox_qss()
 
@@ -189,17 +184,58 @@ class JobServiceNumberSettingsWidget(QWidget):
         form.addWidget(lbl_pay_next, 9, 0)
         form.addWidget(self.spn_pay_next, 9, 1)
 
-        card_layout.addLayout(form)
-
-        btn_save = QPushButton("Kaydet")
-        btn_save.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_save.setFixedHeight(38)
-        btn_save.setStyleSheet(theme_qss(DesignTokens.get_button_qss("primary")))
-        btn_save.clicked.connect(self.save_data)
-        card_layout.addWidget(btn_save, 0, Qt.AlignmentFlag.AlignRight)
+        compact_grid = QGridLayout()
+        compact_grid.setSpacing(4)
+        for column in range(5):
+            compact_grid.setColumnStretch(column, 1)
+        number_fields = []
+        while form.count():
+            item = form.takeAt(0)
+            if item.widget():
+                number_fields.append(item.widget())
+        group_names = ["\u0130\u015f Numaras\u0131", "Servis Numaras\u0131", "Proje Numaras\u0131", "Referans No", "\u00d6deme No"]
+        group_codes = ["#JOB", "#SRV", "#PRJ", "#REF", "#PAY"]
+        for column in range(5):
+            group = QFrame()
+            group.setProperty("settingsCard", True)
+            group.setMinimumHeight(86)
+            group_header = QHBoxLayout()
+            group_header.setContentsMargins(0, 0, 0, 0)
+            group_header.setSpacing(4)
+            group_title = QLabel(group_names[column])
+            group_title.setStyleSheet(theme_qss("font-size: 9px; font-weight: 700; color: @text;"))
+            group_code = QLabel(group_codes[column])
+            group_code.setStyleSheet(theme_qss("font-size: 8px; color: @accent;"))
+            group_header.addWidget(group_title)
+            group_header.addStretch(1)
+            group_header.addWidget(group_code)
+            group_layout = QVBoxLayout(group)
+            group_layout.setContentsMargins(6, 5, 6, 5)
+            group_layout.setSpacing(4)
+            group_layout.addLayout(group_header)
+            field_offset = column * 4
+            for offset, field in enumerate(number_fields[field_offset:field_offset + 4]):
+                if offset % 2 == 0:
+                    field.setText("\u00d6n Ek" if offset == 0 else "Sonraki")
+                    field.setToolTip("Numara on eki" if offset == 0 else "Sonraki numara")
+                    field.setFixedWidth(48)
+                    field.setStyleSheet(theme_qss("font-size: 8px; color: @text_muted;"))
+                if isinstance(field, (QLineEdit, QSpinBox)):
+                    field.setFixedHeight(23)
+                    field.setMinimumWidth(0)
+                    field.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+                    if isinstance(field, QLineEdit):
+                        field.setStyleSheet(theme_qss("QLineEdit { background: #FFFFFF; color: #111827; border: 1px solid @border; border-radius: 3px; padding: 1px 5px; font-size: 10px; }"))
+            for row in range(2):
+                line = QHBoxLayout()
+                line.setSpacing(3)
+                line.addWidget(number_fields[field_offset + row * 2])
+                line.addWidget(number_fields[field_offset + row * 2 + 1], 1)
+                group_layout.addLayout(line)
+            compact_grid.addWidget(group, 0, column)
+        card_layout.addLayout(compact_grid)
 
         layout.addWidget(card)
-        layout.addStretch()
 
     def load_numbers(self):
         job_prefix = self.db.get_setting("job_number_prefix", "JOB")
@@ -243,7 +279,7 @@ class JobServiceNumberSettingsWidget(QWidget):
         except Exception:
             self.spn_pay_next.setValue(1)
 
-    def save_data(self):
+    def save_data(self, silent=False):
         self.db.set_setting("job_number_prefix", self.inp_job_prefix.text().strip() or "JOB")
         self.db.set_setting("job_number_next", str(self.spn_job_next.value()))
         self.db.set_setting("service_number_prefix", self.inp_srv_prefix.text().strip() or "SRV")
@@ -255,6 +291,8 @@ class JobServiceNumberSettingsWidget(QWidget):
         self.db.set_setting("payment_number_prefix", self.inp_pay_prefix.text().strip() or "PAY")
         self.db.set_setting("payment_number_next", str(self.spn_pay_next.value()))
 
+        if silent:
+            return
         if self.main_window and hasattr(self.main_window, "show_notification"):
             self.main_window.show_notification("İş / servis / referans numara ayarları güncellendi.", "success")
         else:
@@ -473,7 +511,7 @@ class JobServiceNumberSettingsWidget(QWidget):
 
         # Header
         header = QLabel("🏛️ Banka Hesap Numaralarınız")
-        header.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
+        header.setFont(QFont(DesignTokens.FONT_NAME, 16, QFont.Weight.Bold))
         header.setStyleSheet(theme_qss("color: @text;"))
         layout.addWidget(header)
 
@@ -493,7 +531,7 @@ class JobServiceNumberSettingsWidget(QWidget):
         # Input Helper
         def add_input(row, col, label_text, icon_text="i", placeholder="", width=None, colspan=1):
             lbl = QLabel(label_text)
-            lbl.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
+            lbl.setFont(QFont(DesignTokens.FONT_NAME, 9, QFont.Weight.Bold))
             lbl.setStyleSheet(theme_qss("color: @text; border: none;"))
             
             inp = QLineEdit()
@@ -525,7 +563,7 @@ class JobServiceNumberSettingsWidget(QWidget):
         self.inp_iban = add_input(1, 2, "Iban", "i", "TR...", colspan=1)
 
         lbl_balance = QLabel("Mevcut Bakiye")
-        lbl_balance.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
+        lbl_balance.setFont(QFont(DesignTokens.FONT_NAME, 9, QFont.Weight.Bold))
         lbl_balance.setStyleSheet(theme_qss("color: @text; border: none;"))
 
         self.inp_balance = QDoubleSpinBox()

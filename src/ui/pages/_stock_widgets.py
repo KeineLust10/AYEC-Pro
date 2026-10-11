@@ -3,90 +3,113 @@
 # Widgetler için modül
 
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QColor
-from PyQt6.QtWidgets import QFrame, QLabel, QHBoxLayout, QVBoxLayout, QGraphicsDropShadowEffect
-from src.utils.theme_colors import theme_qss, tc
+from PyQt6.QtGui import QFont, QFontMetrics, QPainter
+from PyQt6.QtWidgets import QFrame, QLabel, QHBoxLayout, QVBoxLayout, QSizePolicy
+from src.utils.theme_colors import theme_qss, qc
+from src.ui.widgets.financial_reference_controls import FinancialMetricGlyph
+
+
+class StockAmountLabel(QLabel):
+    """Keep complete amount data while fitting primary and reference lines."""
+
+    def __init__(self, value, token, parent=None):
+        super().__init__(str(value), parent)
+        self.token = token
+        self.setTextFormat(Qt.TextFormat.PlainText)
+        self.setToolTip(self.text())
+        self.setMinimumHeight(44)
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+        self.setStyleSheet('background: transparent; border: none; padding: 0;')
+
+    def setText(self, value):
+        super().setText(str(value))
+        self.setToolTip(str(value))
+
+    def amount_font(self, text, maximum=24):
+        font = QFont(self.font())
+        font.setBold(True)
+        for size in range(maximum, 8, -1):
+            font.setPixelSize(size)
+            if QFontMetrics(font).horizontalAdvance(text) <= max(1, self.width() - 4):
+                break
+        return font
+
+    def paintEvent(self, event):
+        lines = self.text().split(' | ', 1)
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
+        painter.setPen(qc(self.token))
+        font = self.amount_font(lines[0])
+        painter.setFont(font)
+        metrics = QFontMetrics(font)
+        painter.drawText(0, metrics.ascent() + 2, lines[0])
+        if len(lines) > 1:
+            painter.setPen(qc('finance_text_muted'))
+            reference = self.amount_font(lines[1], 11)
+            painter.setFont(reference)
+            painter.drawText(0, metrics.height() + QFontMetrics(reference).ascent() + 3, lines[1])
+        painter.end()
 
 
 class StockStatCard(QFrame):
-    """Modern istatistik karti."""
+    """Dense reference KPI with the original click-to-filter contract."""
 
     clicked = pyqtSignal()
 
-    def __init__(self, title, value, icon, color, parent=None):
+    def __init__(self, title, value, icon, color, parent=None, *, token='finance_text', glyph='tax'):
         super().__init__(parent)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setObjectName("StockStatCard")
-        self.setFixedHeight(104)
-        self.setMinimumWidth(220)
+        self.setFixedHeight(132)
+        self.setMinimumWidth(0)
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
         self.setStyleSheet(
-            theme_qss(f"""
-            QFrame#StockStatCard {{
-                background-color: @surface;
-                border-radius: 16px;
-                border: 1px solid {color};
-                border-top: 4px solid {color};
-            }}
-            QFrame#StockStatCard:hover {{
-                background-color: @surface_alt;
-                border: 2px solid {color};
-                border-top: 4px solid {color};
-            }}
+            theme_qss("""
+            QFrame#StockStatCard {
+                background-color: @finance_surface;
+                border-radius: 14px;
+                border: 1px solid @finance_outline;
+            }
+            QFrame#StockStatCard:hover {
+                background-color: @finance_surface_high;
+                border: 1px solid @finance_primary;
+            }
         """)
         )
-        shadow = QGraphicsDropShadowEffect()
-        shadow.setBlurRadius(10)
-        shadow.setColor(QColor(0, 0, 0, 10))
-        shadow.setOffset(0, 2)
-        self.setGraphicsEffect(shadow)
-
-        # Kritik karti icin ozel renk temasi
-        is_critical = "Kritik" in title
-        bg_color = tc("danger_bg") if is_critical else tc("surface_alt")
-        icon_color = tc("danger") if is_critical else color
-        border_style = f"border: 1px solid {icon_color};"
-
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(18, 14, 18, 14)
-        layout.setSpacing(14)
-
-        icon_lbl = QLabel(icon)
-        icon_lbl.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        icon_lbl.setFixedSize(52, 52)
-        icon_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        icon_lbl.setStyleSheet(
-            theme_qss(
-                f"background-color: {bg_color}; color: {icon_color}; font-size: 24px; border-radius: 26px; {border_style}"
-            )
-        )
-        layout.addWidget(icon_lbl)
-
-        text_layout = QVBoxLayout()
-        text_layout.setSpacing(5)
-        self.val_lbl = QLabel(str(value))
+        layout.setContentsMargins(14, 10, 14, 10)
+        layout.setSpacing(12)
+        icon_box = QFrame()
+        icon_box.setFixedSize(48, 48)
+        icon_box.setStyleSheet(theme_qss(
+            "QFrame { background: @finance_surface_high; border: 1px solid @finance_outline; border-radius: 13px; }"
+        ))
+        icon_layout = QHBoxLayout(icon_box)
+        icon_layout.setContentsMargins(8, 8, 8, 8)
+        self.icon_lbl = FinancialMetricGlyph(glyph, token, glyph_size=24)
+        self.icon_lbl.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        icon_layout.addWidget(self.icon_lbl)
+        layout.addWidget(icon_box, 0, Qt.AlignmentFlag.AlignVCenter)
+        content = QVBoxLayout()
+        content.setContentsMargins(0, 0, 0, 0)
+        content.setSpacing(5)
+        self.title_lbl = QLabel(title)
+        self.title_lbl.setWordWrap(True)
+        self.title_lbl.setTextFormat(Qt.TextFormat.PlainText)
+        self.title_lbl.setToolTip(title)
+        self.title_lbl.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        self.title_lbl.setStyleSheet(theme_qss(
+            'background: transparent; border: none; color: @finance_text_muted; '
+            'font-size: 13px; font-weight: 700;'
+        ))
+        self.title_lbl.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.val_lbl = StockAmountLabel(value, token)
         self.val_lbl.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        value_font_size = 20 if len(str(value)) <= 18 else 16
-        self.val_lbl.setStyleSheet(
-            theme_qss(
-                f"font-size: {value_font_size}px; font-weight: 900; color: @text; border: none; background: transparent;"
-            )
-        )
-        title_lbl = QLabel(title)
-        title_lbl.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        title_lbl.setStyleSheet(
-            theme_qss(
-                "font-size: 13px; font-weight: 700; color: @text; border: none; background: transparent;"
-            )
-        )
-
-        text_layout.addWidget(self.val_lbl)
-        text_layout.addWidget(title_lbl)
-
-        layout.addLayout(text_layout)
-        layout.addStretch(1)
-
-        self.val_lbl.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        title_lbl.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        content.addStretch(1)
+        content.addWidget(self.val_lbl)
+        content.addWidget(self.title_lbl)
+        content.addStretch()
+        layout.addLayout(content, 1)
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
