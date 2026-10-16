@@ -227,18 +227,37 @@ class RemindersPage(QWidget):
         self.table.setRowCount(0)
         try:
             rows = self.db.get_reminders()
+            columns = [item[0] for item in (self.db.cursor.description or [])]
             for r, row in enumerate(rows):
                 self.table.insertRow(r)
-                def get_col(i):
-                    return str(row[i]) if i < len(row) and row[i] is not None else ''
-                self.table.setItem(r, 0, QTableWidgetItem(get_col(0)))
-                self.table.setItem(r, 1, QTableWidgetItem(get_col(1)))
-                self.table.setItem(r, 2, QTableWidgetItem(get_col(2)))
-                self.table.setItem(r, 3, QTableWidgetItem(get_col(3)))
-                self.table.setItem(r, 4, QTableWidgetItem(get_col(6)))
-                self.table.setItem(r, 5, QTableWidgetItem(get_col(5)))
+                values = self._reminder_table_values(columns, row)
+                for column, value in enumerate(values):
+                    self.table.setItem(r, column, QTableWidgetItem(value))
         except Exception as e:
             show_error(self, f'Hatırlatıcılar yüklenemedi: {e}')
+
+    @staticmethod
+    def _reminder_table_values(columns, row):
+        record = {str(name).lower(): value for name, value in zip(columns, row)}
+
+        def value(*names):
+            for name in names:
+                current = record.get(name)
+                if current is not None and str(current).strip():
+                    return str(current)
+            return ''
+
+        status = value('status')
+        if not status:
+            status = 'Okundu' if str(record.get('is_read') or '0') == '1' else 'Aktif'
+        return [
+            value('id'),
+            value('title', 'message', 'tracking_no'),
+            value('personnel'),
+            value('date', 'due_date'),
+            value('description', 'message'),
+            status,
+        ]
 
     def _wire_ui_signals(self):
         self.cmb_personnel.currentIndexChanged.connect(self._on_ui_widget_changed)

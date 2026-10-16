@@ -28,6 +28,17 @@ def test_company_reference_uses_summary_and_compact_workflow_panels():
     assert 'companyLocationPanel(field(definition, keys))' in source
     assert 'navigator.geolocation.getCurrentPosition' in source
     assert '.company-reference-map{position:relative' in styles
+    assert 'data-company-location-map' in source
+    assert 'initAyecTomTomMap("ayec-server-proxy"' in source
+    assert 'map.onClick(async (latitude, longitude)' in source
+    assert 'apiFetch("/api/desktop/field-service/reverse-geocode"' in source
+    assert 'map_default_${suffix}_user_${locationUsername}' in source
+    assert 'data-company-map-current' in source
+    assert '.company-reference-map.is-map-open iframe' in styles
+    assert 'desktopSettings.installation_lat || userLatitude || desktopSettings.map_default_lat' in source
+    assert 'desktopSettings.installation_address || (username ? desktopSettings[`map_default_address_user_${username}`]' in source
+    assert 'await saveUserAddress("lat", String(point.latitude))' in source
+    assert 'await saveUserAddress("lng", String(point.longitude))' in source
     assert 'apiFetch("/api/desktop/company-logo"' in source
     assert 'data-company-logo-file' in source
     assert '.company-reference-visual-card' in styles

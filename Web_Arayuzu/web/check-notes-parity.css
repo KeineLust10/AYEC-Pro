@@ -1,0 +1,9 @@
+.check-note-multiline{white-space:pre-line}
+#contextMenu .check-note-context-submenu{position:relative}
+#contextMenu .check-note-context-submenu>button{display:flex;justify-content:space-between;align-items:center;gap:18px}
+#contextMenu .check-note-context-submenu-panel{position:absolute;z-index:92;top:-6px;left:calc(100% + 4px);min-width:190px;max-height:calc(100vh - 16px);overflow:auto;padding:6px;border:1px solid var(--line);border-radius:8px;background:var(--surface);box-shadow:var(--shadow)}
+#contextMenu .check-note-context-submenu-panel[hidden]{display:none}
+#contextMenu.check-context-opens-left .check-note-context-submenu-panel{right:calc(100% + 4px);left:auto}
+#contextMenu .check-note-context-submenu-panel button{display:block;width:100%;border:0;background:transparent;text-align:left;padding:8px 10px;border-radius:6px}
+#contextMenu .check-note-context-submenu-panel button:hover{background:var(--hover)}
+#contextMenu hr{height:1px;margin:5px 4px;border:0;background:var(--line)}

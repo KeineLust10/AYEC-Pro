@@ -174,7 +174,10 @@ def test_offer_search_debounces_rapid_input():
     page.search.setText("OFF-0")
     assert calls == []
 
-    QTest.qWait(220)
+    for _ in range(20):
+        if calls:
+            break
+        QTest.qWait(25)
 
     assert len(calls) == 1
     page.close()

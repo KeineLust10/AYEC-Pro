@@ -208,7 +208,7 @@ def test_customer_row_quick_actions_follow_reference_states_and_keep_menu_access
         def send_debt_reminder(self, customer):
             self.calls.append(("remind", customer["id"]))
 
-        def create_service(self, customer):
+        def open_customer_service_panel(self, customer):
             self.calls.append(("service", customer["id"]))
 
         def send_whatsapp(self, customer):

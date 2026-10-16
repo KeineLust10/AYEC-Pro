@@ -20,6 +20,7 @@ from PyQt6.QtWidgets import (
     QFrame,
     QGridLayout,
     QHBoxLayout,
+    QBoxLayout,
     QLabel,
     QLineEdit,
     QLayout,
@@ -103,9 +104,18 @@ class ServicesPage(QWidget):
         self._initial_services_load_timer = QTimer(self)
         self._initial_services_load_timer.setSingleShot(True)
         self._initial_services_load_timer.timeout.connect(self.load_services)
-        self._initial_services_load_timer.start(100)
+        self._services_loaded = False
         # Modern loading overlay
         self._svc_loading_overlay = LoadingOverlay(self, text="Dosya analiz ediliyor...")
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if not self._services_loaded and not self._initial_services_load_timer.isActive():
+            self._initial_services_load_timer.start(100)
+
+    def hideEvent(self, event):
+        self._initial_services_load_timer.stop()
+        super().hideEvent(event)
 
     def closeEvent(self, event):
         timer = getattr(self, "_initial_services_load_timer", None)
@@ -360,15 +370,67 @@ class ServicesPage(QWidget):
         if not getattr(self, "_is_auto_mode", True) and hasattr(self, "table"):
             self._fit_labor_table()
             compact = self.width() < 1150
+            mobile = self.width() < 700
+            if mobile != getattr(self, "_labor_mobile", None):
+                self._labor_mobile = mobile
+                QTimer.singleShot(0, lambda mobile=mobile: self._apply_labor_responsive(mobile))
             if compact != getattr(self, "_labor_compact", None):
                 self._labor_compact = compact
                 QTimer.singleShot(0, lambda compact=compact: self._apply_labor_compact(compact))
+
+    def _apply_labor_responsive(self, mobile):
+        self.labor_root_layout.setContentsMargins(
+            12, 12, 12, 10
+        ) if mobile else self.labor_root_layout.setContentsMargins(20, 23, 20, 14)
+        self.labor_root_layout.setSpacing(8 if mobile else 14)
+        self.labor_header_layout.setDirection(
+            QBoxLayout.Direction.TopToBottom if mobile
+            else QBoxLayout.Direction.LeftToRight
+        )
+        self.labor_header_layout.setStretch(0, 0 if mobile else 1)
+        self.labor_header_layout.setStretch(1, 0)
+        self.labor_header_actions.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self.labor_footer_layout.setDirection(
+            QBoxLayout.Direction.TopToBottom if mobile
+            else QBoxLayout.Direction.LeftToRight
+        )
+        self.labor_footer_controls.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self.lbl_page_info.setWordWrap(mobile)
+        self.labor_title_row.setDirection(
+            QBoxLayout.Direction.TopToBottom if mobile
+            else QBoxLayout.Direction.LeftToRight
+        )
+        for spacer, desktop_size in (
+            (self._labor_header_gap, 19),
+            (self._labor_summary_gap, 19),
+            (self._labor_table_gap, 44),
+        ):
+            spacer.changeSize(
+                0, 8 if mobile else desktop_size,
+                QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed,
+            )
+        while self.labor_summary_grid.count():
+            self.labor_summary_grid.takeAt(0)
+        self.labor_summary_grid.setHorizontalSpacing(8 if mobile else 16)
+        self.labor_summary_grid.setVerticalSpacing(8 if mobile else 0)
+        for column in range(4):
+            self.labor_summary_grid.setColumnStretch(column, 0)
+        for index, card in enumerate(self.labor_metric_cards):
+            row, column = divmod(index, 2) if mobile else (0, index)
+            card.setMinimumWidth(0)
+            card.setMinimumHeight(146 if mobile else 122)
+            self.labor_summary_grid.addWidget(card, row, column)
+            self.labor_summary_grid.setColumnStretch(column, 1)
+        self.labor_summary_grid.invalidate()
+        self.labor_root_layout.invalidate()
+        self.labor_root_layout.activate()
 
     def _fit_labor_table(self):
         if getattr(self, "_is_auto_mode", True) or not hasattr(self, "table"):
             return
         natural_height = 76 + self.table.rowCount() * 100
-        available_height = max(280, self.height() - 430)
+        mobile = self.width() < 700
+        available_height = max(160 if mobile else 280, self.height() - (664 if mobile else 430))
         self.table.setFixedHeight(min(natural_height, available_height))
 
     def _apply_labor_compact(self, compact):
@@ -395,7 +457,7 @@ class ServicesPage(QWidget):
             self.btn_new_labor.setFixedWidth(188)
             for column in (7, 8):
                 self.table.setColumnHidden(column, False)
-            for column, width in enumerate((48, 48, 112, 300, 104, 92, 126, 76, 54, 90, 112)):
+            for column, width in enumerate((48, 58, 122, 315, 104, 92, 126, 92, 54, 90, 112)):
                 self.table.setColumnWidth(column, width)
             self.table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
             self.table.setHorizontalHeaderLabels([
@@ -464,18 +526,21 @@ class ServicesPage(QWidget):
 
     def _build_labor_ui(self):
         root = QVBoxLayout(self)
+        self.labor_root_layout = root
         root.setSizeConstraint(QLayout.SizeConstraint.SetNoConstraint)
         root.setContentsMargins(20, 23, 20, 14)
         root.setSpacing(14)
         header = QHBoxLayout()
+        self.labor_header_layout = header
         title = QLabel("Hizmet ve \u00dccret Y\u00f6netimi")
+        title.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
         title.setStyleSheet(theme_qss("font-size: 20px; font-weight: 800; color: @text;"))
         badge = QLabel("Standart \u0130\u015f\u00e7ilik Tarifesi")
         badge.setStyleSheet(theme_qss("color: @accent; background: @surface_alt; border: 1px solid @border; border-radius: 12px; padding: 4px 9px;"))
         title_row = QHBoxLayout()
         title_row.addWidget(title)
         title_row.addWidget(badge)
-        title_row.addStretch()
+        self.labor_title_row = title_row
         heading = QVBoxLayout()
         title_icon = QLabel("\u2699")
         title_icon.setFixedSize(32, 40)
@@ -497,6 +562,7 @@ class ServicesPage(QWidget):
         title_group.addWidget(title_content, 1)
         heading.addLayout(title_group)
         header.addLayout(heading, 1)
+        self.labor_heading_layout = heading
         self.btn_bulk_price = QPushButton("\u2197  Toplu Fiyat G\u00fcncelle /\nEnflasyon Fark\u0131")
         self.btn_bulk_price.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_bulk_price.setFixedWidth(238)
@@ -508,8 +574,6 @@ class ServicesPage(QWidget):
         self.btn_new_labor.setFixedHeight(56)
         self.btn_new_labor.setStyleSheet(theme_qss("QPushButton { color: @selection_text; background: @accent; border: 0; border-radius: 9px; padding: 10px 14px; font-weight: 700; }"))
         self.btn_new_labor.clicked.connect(self.open_add_dialog)
-        header.addWidget(self.btn_bulk_price)
-        header.addWidget(self.btn_new_labor)
         action_group = QFrame()
         action_group.setStyleSheet(theme_qss("QFrame { background: @surface; border: 1px solid @border; border-radius: 8px; }"))
         action_layout = QHBoxLayout(action_group)
@@ -545,11 +609,18 @@ class ServicesPage(QWidget):
         more.setFixedSize(27, 30)
         more.setStyleSheet(theme_qss("QPushButton { color: @text_muted; background: transparent; border: 0; font-size: 15px; } QPushButton::menu-indicator { image: none; width: 0; }"))
         action_layout.addWidget(more)
-        header.addWidget(action_group)
+        self.labor_header_actions = QHBoxLayout()
+        self.labor_header_actions.addWidget(self.btn_bulk_price)
+        self.labor_header_actions.addWidget(self.btn_new_labor)
+        self.labor_header_actions.addWidget(action_group)
+        header.addLayout(self.labor_header_actions)
         root.addLayout(header)
         root.addSpacing(19)
+        self._labor_header_gap = root.itemAt(root.count() - 1).spacerItem()
         summary = QGridLayout()
+        self.labor_summary_grid = summary
         summary.setHorizontalSpacing(16)
+        self.labor_metric_cards = []
         self.summary_metric_labels = {}
         cards = (("TOPLAM H\u0130ZMET", "0", "@accent"), ("AKT\u0130F F\u0130YAT L\u0130STES\u0130", "0", "@success"), ("ORTALAMA \u0130\u015e\u00c7\u0130L\u0130K \u00dcCRET\u0130", "0,00 \u20ba", "@finance_tertiary"), ("EN \u00c7OK KULLANILAN \u0130\u015e\u00c7\u0130L\u0130K", "Termal Macun & Fan Temizli\u011fi", "@warning"))
         metric_icons = (("bank", "accent"), ("shield", "finance_action_income"), ("money", "finance_tertiary"), ("tool", "warning"))
@@ -560,6 +631,7 @@ class ServicesPage(QWidget):
             layout = QVBoxLayout(card)
             layout.setContentsMargins(14, 8, 14, 12)
             label = QLabel(caption)
+            label.setWordWrap(True)
             label.setStyleSheet(theme_qss(f"color: {color}; font-size: 11px; font-weight: 700; border: 0;"))
             val = QLabel(value)
             value_size = 28 if i < 2 else (20 if i == 2 else 16)
@@ -575,8 +647,10 @@ class ServicesPage(QWidget):
             layout.addWidget(support)
             self.summary_metric_labels[caption] = val
             summary.addWidget(card, 0, i)
+            self.labor_metric_cards.append(card)
         root.addLayout(summary)
         root.addSpacing(19)
+        self._labor_summary_gap = root.itemAt(root.count() - 1).spacerItem()
         tools = QHBoxLayout()
         self.search = QLineEdit()
         self.search.setPlaceholderText("Hizmet ad\u0131, i\u015flem kodu (#SRV), barkod veya a\u00e7\u0131klama ara...")
@@ -609,6 +683,7 @@ class ServicesPage(QWidget):
             pill.setFixedWidth(width)
         root.addLayout(tools)
         root.addSpacing(44)
+        self._labor_table_gap = root.itemAt(root.count() - 1).spacerItem()
         headers = ["ID", "\u0130\u015eLEM KODU", "H\u0130ZMET / OPERASYON TANIMI", "KATEGOR\u0130", "ORT. S\u00dcRE", "TABAN \u00dcCRET (TL)", "D\u00d6V\u0130Z BAZI", "KDV", "DURUM", "\u0130\u015eLEMLER"]
         self.table = QTableWidget(0, len(headers) + 1)
         self.table.setObjectName("ServicesTable")
@@ -620,7 +695,7 @@ class ServicesPage(QWidget):
         self.table.setMinimumWidth(0)
         self.table.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Expanding)
         self.table.setAlternatingRowColors(False)
-        self.table.setStyleSheet(theme_qss("QTableWidget { background: @surface; color: @text; border: 1px solid @border; border-radius: 12px; gridline-color: @border; } QHeaderView::section { background: @surface_alt; color: @text_muted; border: 0; border-bottom: 1px solid @border; padding: 12px 5px; font-size: 11px; font-weight: 700; } QTableWidget::item { padding: 7px; border-bottom: 1px solid @border; } QTableWidget::item:selected { background: @selection_bg; color: @selection_text; }"))
+        self.table.setStyleSheet(theme_qss("QTableWidget { background: @surface; color: @text; border: 1px solid @border; border-radius: 12px; gridline-color: transparent; } QHeaderView::section { background: @surface_alt; color: @text_muted; border: 0; border-bottom: 1px solid @border; padding: 12px 5px; font-size: 12px; font-weight: 700; } QTableWidget::item { padding: 7px; border: 0; border-bottom: 1px solid @border; } QTableWidget::item:selected { background: @selection_bg; color: @selection_text; }"))
         widths = (56, 58, 118, 324, 96, 126, 142, 82, 64, 100, 128)
         for col, width in enumerate(widths):
             self.table.setColumnWidth(col, width)
@@ -649,25 +724,27 @@ class ServicesPage(QWidget):
         root.addWidget(self.empty_state, 1)
         root.addStretch(1)
         footer = QHBoxLayout()
+        self.labor_footer_layout = footer
         self.lbl_page_info = QLabel("")
         self.lbl_page_info.setStyleSheet(theme_qss("color: @text_muted;"))
         footer.addWidget(self.lbl_page_info)
-        footer.addStretch()
+        self.labor_footer_controls = QHBoxLayout()
         self.btn_previous = QPushButton("\u00d6nceki")
         self.btn_next = QPushButton("Sonraki")
         self.lbl_page = QLabel("1")
         self.btn_previous.clicked.connect(self.previous_page)
         self.btn_next.clicked.connect(self.next_page)
-        footer.addWidget(self.btn_previous)
+        self.labor_footer_controls.addWidget(self.btn_previous)
         self.page_buttons = []
         for page_number in range(1, 4):
             page_button = QPushButton(str(page_number))
             page_button.setFixedSize(32, 32)
             page_button.clicked.connect(lambda _checked=False, page=page_number: self._go_to_labor_page(page))
-            footer.addWidget(page_button)
+            self.labor_footer_controls.addWidget(page_button)
             self.page_buttons.append(page_button)
         self.lbl_page.hide()
-        footer.addWidget(self.btn_next)
+        self.labor_footer_controls.addWidget(self.btn_next)
+        footer.addLayout(self.labor_footer_controls)
         root.addLayout(footer)
 
     def toggle_multiselect(self, checked: bool):
@@ -724,6 +801,7 @@ class ServicesPage(QWidget):
         if timer is not None and timer.isActive():
             timer.stop()
         data = filtered if filtered is not None else list(self.db.get_services_list() or [])
+        self._services_loaded = True
         if not getattr(self, "_is_auto_mode", False):
             self._load_labor_services(data)
             return
@@ -935,10 +1013,12 @@ class ServicesPage(QWidget):
             detail_layout.setContentsMargins(2, 3, 2, 3)
             detail_layout.setSpacing(3)
             name_label = QLabel(str(service.get("name", "")))
-            name_label.setStyleSheet(theme_qss("color: @text; background: transparent; font-size: 12px; font-weight: 600;"))
+            name_label.setMinimumWidth(0)
+            name_label.setWordWrap(True)
+            name_label.setStyleSheet(theme_qss("color: @text; background: transparent; font-size: 13px; font-weight: 600;"))
             name_row = QHBoxLayout()
             name_row.setContentsMargins(0, 0, 0, 0)
-            name_row.addWidget(name_label)
+            name_row.addWidget(name_label, 1)
             badge_text = "Pop\u00fcler" if service.get("barcode") == "#SRV-101" else ("\u0130leri D\u00fczey" if service.get("barcode") == "#SRV-204" else "")
             if badge_text:
                 badge = QLabel(badge_text)
@@ -948,7 +1028,7 @@ class ServicesPage(QWidget):
             description = QLabel(str(service.get("description", "")))
             description.setWordWrap(True)
             description.setMaximumHeight(32)
-            description.setStyleSheet(theme_qss("QLabel { color: @text_muted; font-size: 10px; }"))
+            description.setStyleSheet(theme_qss("QLabel { color: @text_muted; font-size: 11px; }"))
             detail_layout.addLayout(name_row)
             detail_layout.addWidget(description)
             self.table.setCellWidget(row, 3, detail)

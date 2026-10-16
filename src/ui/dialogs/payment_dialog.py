@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from PyQt6.QtCore import QDate, QSize, Qt
-from PyQt6.QtGui import QColor
+from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -30,6 +30,7 @@ from src.utils.currency_helper import CurrencyHelper
 from src.utils.exchange_rate_manager import ExchangeRateManager
 from src.utils.design_system import DesignTokens
 from src.utils.tax_settings import TaxSettings
+from src.utils.reference_typography import load_reference_fonts
 from src.ui.widgets.navigation_glyph import navigation_icon
 
 
@@ -58,6 +59,7 @@ class ModernPaymentDialog(ModernDialog):
         self._debt_selection_initialized = False
 
         self.set_footer_visible(False)
+        load_reference_fonts()
 
         self._build_ui()
         self._configure_payment_header()
@@ -197,12 +199,17 @@ class ModernPaymentDialog(ModernDialog):
         card.setObjectName("PaymentCard")
         card.setStyleSheet(
             theme_qss(
-                """
-                QFrame#PaymentCard {
+                f"""
+                QFrame#PaymentCard {{
                     background: @surface;
                     border: 1px solid @border;
                     border-radius: 18px;
-                }
+                    font-family: 'Inter';
+                    font-size: 9px;
+                }}
+                QFrame#PaymentCard QWidget {{
+                    font-family: 'Inter';
+                }}
                 """
             )
         )
@@ -443,7 +450,7 @@ class ModernPaymentDialog(ModernDialog):
         self.debt_scroll.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
         )
-        self.debt_scroll.setFixedHeight(146)
+        self.debt_scroll.setFixedHeight(122)
         self.debt_scroll.setStyleSheet(
             theme_qss("""
             QScrollArea { background: @surface_alt; border: 1px solid @border; border-radius: 18px; }
@@ -469,17 +476,18 @@ class ModernPaymentDialog(ModernDialog):
         self.debt_layout.addStretch()
         self.debt_scroll.setWidget(self.debt_container)
         right_col.addWidget(self.debt_scroll)
-        right_col.addSpacing(215)
 
         self.lbl_selected_total = QLabel("Seçili Toplam: 0,00")
         self.lbl_selected_total.setStyleSheet(
             theme_qss(
-                "font-family: 'JetBrains Mono'; font-size: 10px; font-weight: 700; color: @text_muted; "
-                "background: @surface; border-top: 1px solid @border; padding: 4px 8px;"
+                "font-family: 'JetBrains Mono'; font-size: 10px; font-weight: 700; color: @accent; "
+                "background: @surface_alt; border: 1px solid @border; border-radius: 0 0 10px 10px; padding: 4px 8px;"
             )
         )
         self.lbl_selected_total.setFixedHeight(24)
         self.lbl_selected_total.setAlignment(Qt.AlignmentFlag.AlignRight)
+        right_col.addWidget(self.lbl_selected_total)
+        right_col.addSpacing(205)
         vat_frame = QFrame()
         vat_frame.setObjectName("PaymentVatSummary")
         vat_frame.setFixedHeight(118)
@@ -693,6 +701,10 @@ class ModernPaymentDialog(ModernDialog):
         buttons.addWidget(btn_cancel, 1)
         buttons.addWidget(btn_save, 2)
         layout.addLayout(buttons)
+        base_font = QFont("Inter", 9)
+        card.setFont(base_font)
+        for child in card.findChildren(QWidget):
+            child.setFont(base_font)
 
     def _label(self, text):
         lbl = QLabel(text)
@@ -972,7 +984,6 @@ class ModernPaymentDialog(ModernDialog):
                 debt_widget = self._create_debt_item_widget(debt)
                 self.debt_layout.addWidget(debt_widget)
 
-        self.debt_layout.addWidget(self.lbl_selected_total)
         self.debt_layout.addStretch()
         self._update_selected_total()
         self.debt_container.adjustSize()
@@ -1050,11 +1061,11 @@ class ModernPaymentDialog(ModernDialog):
             date_text = "{}.{}.{}".format(date_text[8:10], date_text[5:7], date_text[0:4])
         lbl_date = QLabel(date_text)
         lbl_date.setStyleSheet(theme_qss(
-            "font-family: 'JetBrains Mono'; font-size: 12px; color: @text_muted; background: transparent;"
+                "font-family: 'JetBrains Mono'; font-size: 10px; color: @text_muted; background: transparent;"
         ))
         lbl_ref = QLabel("#{}".format(tracking_no or "-"))
         lbl_ref.setStyleSheet(theme_qss(
-            "font-family: 'JetBrains Mono'; font-size: 11px; color: @finance_breadcrumb_active; background: transparent;"
+                "font-family: 'JetBrains Mono'; font-size: 9px; color: @finance_breadcrumb_active; background: transparent;"
         ))
         date_ref_layout.addWidget(lbl_date)
         date_ref_layout.addWidget(lbl_ref)
@@ -1067,7 +1078,7 @@ class ModernPaymentDialog(ModernDialog):
             desc_text = desc_text[:53] + "..."
         lbl_desc = QLabel(desc_text)
         lbl_desc.setStyleSheet(
-            theme_qss("font-size: 13px; font-weight: 700; color: @text; background: transparent;")
+            theme_qss("font-size: 10px; font-weight: 700; color: @text; background: transparent;")
         )
         lbl_desc.setWordWrap(True)
         header_layout.addWidget(lbl_desc, 1)
@@ -1085,7 +1096,7 @@ class ModernPaymentDialog(ModernDialog):
             )
         )
         lbl_amount.setStyleSheet(
-            theme_qss("font-family: 'JetBrains Mono'; font-size: 13px; font-weight: 800; color: @text; background: transparent;")
+            theme_qss("font-family: 'JetBrains Mono'; font-size: 11px; font-weight: 800; color: @text; background: transparent;")
         )
         lbl_amount.setFixedWidth(86)
         lbl_amount.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)

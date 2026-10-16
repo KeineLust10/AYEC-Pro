@@ -74,7 +74,16 @@ class AutonomousAgentsWidget(QWidget):
         self._refresh_runtime_status()
         self.status_timer = QTimer(self)
         self.status_timer.timeout.connect(self._refresh_runtime_status)
-        self.status_timer.start(5000)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._refresh_runtime_status()
+        if not self.status_timer.isActive():
+            self.status_timer.start(5000)
+
+    def hideEvent(self, event):
+        self.status_timer.stop()
+        super().hideEvent(event)
 
     def _card(self, title, body, parent_layout):
         card = QFrame()
@@ -105,13 +114,13 @@ class AutonomousAgentsWidget(QWidget):
         heading.setContentsMargins(0, 0, 0, 0)
         heading_text = QVBoxLayout()
         heading_text.setSpacing(2)
-        category = QLabel("OTONOM SISTEMLER")
+        category = QLabel("OTONOM S\u0130STEMLER")
         category.setStyleSheet(theme_qss("color: @finance_secondary; font-size: 9px; font-weight: 700; border: none; background: transparent;"))
         heading_text.addWidget(category)
-        title = QLabel("Otonom Ajanlar & Entegrasyon Hub")
-        title.setStyleSheet(theme_qss("color: @text; font-size: 12px; font-weight: 800; border: none; background: transparent;"))
+        title = QLabel("Otonom Ajanlar & Entegrasyon Hub'\u0131")
+        title.setStyleSheet(theme_qss("color: @text; font-size: 13px; font-weight: 800; border: none; background: transparent;"))
         heading_text.addWidget(title)
-        subtitle = QLabel("Yapay zeka arka plan servisleri, otonom tetikleyiciler ve harici webhook ag gecitlerini yonetin.")
+        subtitle = QLabel("Yapay zeka arka plan servisleri, otonom tetikleyiciler ve harici webhook a\u011f ge\u00e7itlerini y\u00f6netin.")
         subtitle.setStyleSheet(theme_qss("color: @text_muted; font-size: 11px; border: none; background: transparent;"))
         heading_text.addWidget(subtitle)
         heading.addLayout(heading_text)
@@ -137,13 +146,25 @@ class AutonomousAgentsWidget(QWidget):
         self.runtime_title = QLabel()
         status_title = self.runtime_title
         status_title.setStyleSheet(theme_qss("color: @text; font-size: 11px; font-weight: 800; border: none;"))
-        status.addWidget(status_title)
+        runtime_heading = QHBoxLayout()
+        runtime_icon = QLabel("\u25a3")
+        runtime_icon.setFixedSize(38, 38)
+        runtime_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        runtime_icon.setStyleSheet(theme_qss("background: @finance_surface_alt; color: @finance_secondary; border: 1px solid @finance_secondary; border-radius: 8px; font-size: 20px;"))
+        runtime_heading.addWidget(runtime_icon)
+        runtime_heading.addWidget(status_title, 1)
+        self.runtime_metrics = QLabel("CPU: -- / RAM: --\nDaemon PID: --")
+        self.runtime_metrics.setFixedWidth(140)
+        self.runtime_metrics.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.runtime_metrics.setStyleSheet(theme_qss("color: @finance_secondary; font-size: 10px; font-weight: 600; border: none;"))
+        runtime_heading.addWidget(self.runtime_metrics)
+        status.addLayout(runtime_heading)
         self.configured_count = QLabel()
         self.configured_count.setStyleSheet(theme_qss("color: @text_muted; font-size: 11px; border: none;"))
         status.addWidget(self.configured_count)
         states = QHBoxLayout()
         self.runtime_states = {}
-        for key, name in (("voice", "Sesli Komut I\u015fleme"), ("whatsapp", "WhatsApp Gateway"), ("customer", "Cari Istihbarat"), ("tts", "TTS Ses Sentezi")):
+        for key, name in (("voice", "Sesli Komut \u0130\u015fleme"), ("whatsapp", "WhatsApp Gateway"), ("customer", "Cari \u0130stihbarat"), ("tts", "TTS Ses Sentezi")):
             label = QLabel()
             label.setWordWrap(True)
             label.setStyleSheet(theme_qss("background: @finance_surface_alt; color: @text; padding: 8px; border: none; border-radius: 4px; font-size: 10px;"))
@@ -162,19 +183,27 @@ class AutonomousAgentsWidget(QWidget):
         left = QVBoxLayout(left_frame)
         left.setContentsMargins(18, 16, 18, 16)
         left_title = QLabel("Otonom Tetikleyiciler & Senaryolar")
-        left_title.setStyleSheet(theme_qss("color: @text; font-size: 11px; font-weight: 800; border: none;"))
-        left.addWidget(left_title)
-        left_body = QLabel("Sistem olaylarina karsi otomatik tepki verme yeteneklerini yapilandirin.")
+        left_title.setStyleSheet(theme_qss("color: @text; font-size: 12px; font-weight: 800; border: none;"))
+        title_row = QHBoxLayout()
+        title_row.addWidget(left_title)
+        title_row.addStretch()
+        self.active_rules_label = QLabel()
+        self.active_rules_label.setFixedWidth(100)
+        self.active_rules_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.active_rules_label.setStyleSheet(theme_qss("color: @finance_primary; font-size: 11px; font-weight: 700; border: none;"))
+        title_row.addWidget(self.active_rules_label)
+        left.addLayout(title_row)
+        left_body = QLabel("Sistem olaylar\u0131na kar\u015f\u0131 otomatik tepki verme yeteneklerini yap\u0131land\u0131r\u0131n.")
         left_body.setWordWrap(True)
-        left_body.setStyleSheet(theme_qss("color: @text_muted; font-size: 10px; border: none;"))
+        left_body.setStyleSheet(theme_qss("color: @text_muted; font-size: 11px; border: none;"))
         left.addWidget(left_body)
         scenarios = (
-            ("agent_system_activation", "Sistemi Aktivasyon Otomasyonu", "Jarvis AI arka plan daemon servislerini otomatik baslatir."),
-            ("agent_voice_feedback", "Sesli Geri Bildirim (TTS)", "Kritik islemler tamamlandiginda veya hata olustugunda sesli uyari okur."),
-            ("agent_whatsapp_reports", "Otomatik WhatsApp Kritik Raporlar", "Gun sonunda ve acil durumlarda yoneticiye rapor gonderir."),
-            ("agent_customer_intelligence", "Akilli Musteri Istihbarati", "Servise gelen cihazlarin cari analizini otomatik cikarir."),
-            ("agent_term_correction", "Teknik Terim Duzeltme Motoru", "Sesli dikte esnasindaki teknik terim hatalarini duzeltir."),
-            ("agent_error_reporting", "Sistem Hata Oto-Raporlayici", "Kritik exception loglarini yonetici kaydina iletir."),
+            ("agent_system_activation", "Sistemi Aktivasyon Otomasyonu", "Jarvis AI arka plan daemon servislerini otomatik ba\u015flat\u0131r."),
+            ("agent_voice_feedback", "Sesli Geri Bildirim (TTS)", "Kritik i\u015flemler tamamland\u0131\u011f\u0131nda veya hata olu\u015ftu\u011funda sesli uyar\u0131 okur."),
+            ("agent_whatsapp_reports", "Otomatik WhatsApp Kritik Raporlar", "G\u00fcn sonunda ve acil durumlarda y\u00f6neticiye rapor g\u00f6nderir."),
+            ("agent_customer_intelligence", "Ak\u0131ll\u0131 M\u00fc\u015fteri \u0130stihbarat\u0131", "Servise gelen cihazlar\u0131n cari analizini otomatik \u00e7\u0131kar\u0131r."),
+            ("agent_term_correction", "Teknik Terim D\u00fczeltme Motoru", "Sesli dikte esnas\u0131ndaki teknik terim hatalar\u0131n\u0131 d\u00fczeltir."),
+            ("agent_error_reporting", "Sistem Hata Oto-Raporlay\u0131c\u0131", "Kritik exception loglar\u0131n\u0131 y\u00f6netici kayd\u0131na iletir."),
             ("assistant_fab_enabled", "Y\u00fczen Avatar Widget Kontrol\u00fc", "Sesli asistan g\u00f6rselini etkinlik durumuna g\u00f6re y\u00f6netir."),
         )
         self.scenario_toggles = {}
@@ -189,7 +218,7 @@ class AutonomousAgentsWidget(QWidget):
             text = QVBoxLayout()
             text.setSpacing(2)
             name_label = QLabel(name)
-            name_label.setStyleSheet(theme_qss("color: @text; font-size: 11px; font-weight: 700; border: none;"))
+            name_label.setStyleSheet(theme_qss("color: @text; font-size: 12px; font-weight: 700; border: none;"))
             detail_label = QLabel(detail)
             detail_label.setWordWrap(True)
             detail_label.setStyleSheet(theme_qss("color: @text_muted; font-size: 10px; border: none;"))
@@ -219,9 +248,9 @@ class AutonomousAgentsWidget(QWidget):
         webhook_layout = QVBoxLayout(webhook_box)
         webhook_layout.setContentsMargins(18, 16, 18, 16)
         webhook_title = QLabel("UltraMsg Webhook")
-        webhook_title.setStyleSheet(theme_qss("color: @text; font-size: 11px; font-weight: 800; border: none;"))
+        webhook_title.setStyleSheet(theme_qss("color: @text; font-size: 12px; font-weight: 800; border: none;"))
         webhook_layout.addWidget(webhook_title)
-        webhook_desc = QLabel("WhatsApp kurumsal bildirimleri ve musteri etkilesimleri icin ana kanal koprusu.")
+        webhook_desc = QLabel("WhatsApp kurumsal bildirimleri ve m\u00fc\u015fteri etkile\u015fimleri i\u00e7in ana kanal k\u00f6pr\u00fcs\u00fc.")
         webhook_desc.setWordWrap(True)
         webhook_desc.setStyleSheet(theme_qss("color: @text_muted; border: none;"))
         webhook_layout.addWidget(webhook_desc)
@@ -232,7 +261,7 @@ class AutonomousAgentsWidget(QWidget):
         self.inp_ultra_token.setEchoMode(QLineEdit.EchoMode.Password)
         self.inp_ultra_phone = QLineEdit()
         self.inp_ultra_phone.setPlaceholderText("Yonetici WhatsApp numarasi")
-        for field, label_text in ((self.inp_ultra_instance, "INSTANCE ID"), (self.inp_ultra_token, "API TOKEN SECRET"), (self.inp_ultra_phone, "YONETICI WHATSAPP NUMARASI")):
+        for field, label_text in ((self.inp_ultra_instance, "INSTANCE ID"), (self.inp_ultra_token, "API TOKEN SECRET"), (self.inp_ultra_phone, "Y\u00d6NET\u0130C\u0130 WHATSAPP NUMARASI")):
             label = QLabel(label_text)
             label.setStyleSheet(theme_qss("color: @text_muted; font-size: 10px; border: none;"))
             webhook_layout.addWidget(label)
@@ -244,11 +273,18 @@ class AutonomousAgentsWidget(QWidget):
         save_webhook.clicked.connect(self._save_webhook_settings)
         self.save_webhook_button = save_webhook
         webhook_layout.addWidget(save_webhook)
+        dispatcher_title = QLabel("Anl\u0131k Webhook Test G\u00f6ndericisi")
+        dispatcher_title.setStyleSheet(theme_qss("color: @text; font-size: 11px; font-weight: 700; border: none; padding-top: 8px;"))
+        webhook_layout.addWidget(dispatcher_title)
+        dispatcher_description = QLabel("UltraMsg a\u011f ge\u00e7idinin ayarlar\u0131n\u0131 yerel olarak do\u011frulay\u0131n.")
+        dispatcher_description.setWordWrap(True)
+        dispatcher_description.setStyleSheet(theme_qss("color: @text_muted; font-size: 10px; border: none;"))
+        webhook_layout.addWidget(dispatcher_description)
         right.addWidget(webhook_box)
         test_actions = QHBoxLayout()
         test_actions.setSpacing(8)
-        send = QPushButton("Ayarlar\u0131 Do\u011frula")
-        send.setToolTip("Kaydedilen alanlar\u0131 kontrol eder; a\u011f iste\u011fi veya mesaj g\u00f6ndermez.")
+        send = QPushButton("Test Paketi G\u00f6nder")
+        send.setToolTip("Yaln\u0131zca yerel ayar kontrol\u00fc yapar; a\u011f iste\u011fi veya mesaj g\u00f6ndermez.")
         self.validate_webhook_button = send
         send.setStyleSheet(theme_qss(DesignTokens.get_button_qss("success", size="md")))
         send.clicked.connect(self._validate_webhook_settings)
@@ -293,6 +329,7 @@ class AutonomousAgentsWidget(QWidget):
     def _refresh_runtime_status(self):
         """Separate saved configuration from observed local worker state."""
         configured = sum(toggle.isChecked() for toggle in self.scenario_toggles.values())
+        self.active_rules_label.setText(f"{configured} Kural Aktif")
         self.configured_count.setText(f"{configured}/{len(self.scenario_toggles)} Ayar Etkin - \u00c7al\u0131\u015fma durumu ayr\u0131 izlenir")
         assistant = getattr(self.main_window, "assistant", None)
         voice = getattr(assistant, "voice_assistant_thread", None)
@@ -381,7 +418,7 @@ class AutonomousAgentsWidget(QWidget):
             instance = str(self.db.get_internal_setting("ultramsg_instance", "") or "")
             token = str(self.db.get_internal_setting("ultramsg_token", "") or "")
         if instance and token:
-            self._notify("Kaydedilen webhook alanlar\u0131 tamam. A\u011f testi veya mesaj g\u00f6nderimi yap\u0131lmad\u0131.", "info")
+            self._notify("Test paketi haz\u0131r. Yerel ayarlar do\u011fruland\u0131; a\u011f testi veya mesaj g\u00f6nderimi yap\u0131lmad\u0131.", "info")
         else:
             self._notify("UltraMsg instance ve token bilgilerini tamamlayin.", "warning")
 

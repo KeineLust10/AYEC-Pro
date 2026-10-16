@@ -52,6 +52,24 @@ def test_wake_word_and_short_confirmation_are_actionable(monkeypatch):
     assert _capture(assistant, "evet") == [("confirm_yes", "")]
 
 
+def test_active_voice_form_accepts_field_dictation_without_wake_word(monkeypatch):
+    import time
+
+    _qapp()
+    assistant = BulutAsistan()
+    assistant.followup_mode = True
+    assistant.followup_expires_at = time.time() + 300
+    monkeypatch.setattr(assistant, "_get_wake_words", lambda: ["asistan"])
+
+    assert _capture(
+        assistant,
+        "musteri adini Burak Sahin, iletisim telefonunu 5551234 olarak doldur",
+    ) == [(
+        "assistant_chat",
+        "musteri adini Burak Sahin, iletisim telefonunu 5551234 olarak doldur",
+    )]
+
+
 def test_assistant_sidebar_uses_shared_turkish_speech_pipeline(monkeypatch):
     calls = []
     monkeypatch.setattr(
@@ -75,9 +93,30 @@ def test_every_default_voice_scenario_emits_its_linked_action(monkeypatch):
         action = config["action"]
         expected = "open_page" if action["type"] == "page" else action["name"]
         phrase = f"hey asistan {config['triggers'][0]}"
+        if action["type"] == "page":
+            phrase += "."
         emitted = _capture(assistant, phrase)
         assert emitted, name
         assert emitted[0][0] == expected, (name, emitted)
+
+
+def test_voice_scenarios_cover_every_mapped_menu_and_virtual_technician_panel():
+    from src.utils.page_config import PAGE_MAPPING, PAGE_NAMES
+
+    scenarios = VoiceTrainingWidget._default_scenarios(None)
+    scenario_pages = {
+        int(config["action"]["index"])
+        for config in scenarios.values()
+        if config.get("action", {}).get("type") == "page"
+    }
+    builtin_actions = {
+        config.get("action", {}).get("name")
+        for config in scenarios.values()
+        if config.get("action", {}).get("type") == "builtin"
+    }
+
+    assert scenario_pages == set(PAGE_MAPPING)
+    assert 62 in PAGE_NAMES and "panel_ac" in builtin_actions
 
 
 def test_default_voice_commands_work_without_wake_word(monkeypatch):
@@ -90,7 +129,10 @@ def test_default_voice_commands_work_without_wake_word(monkeypatch):
     for name, config in defaults.items():
         action = config["action"]
         expected = "open_page" if action["type"] == "page" else action["name"]
-        emitted = _capture(assistant, config["triggers"][0])
+        phrase = config["triggers"][0]
+        if action["type"] == "page":
+            phrase += "."
+        emitted = _capture(assistant, phrase)
         assert emitted, name
         assert emitted[0][0] == expected, (name, emitted)
 
@@ -412,7 +454,7 @@ def test_voice_listener_reference_is_kept_until_worker_finishes(monkeypatch):
     assert starts == [False]
 
 
-def test_voice_listener_is_disabled_when_user_has_not_opted_in():
+def test_voice_listener_defaults_to_hands_free_startup():
     class _Database:
         def get_setting(self, _key, default=None):
             return default
@@ -424,9 +466,232 @@ def test_voice_listener_is_disabled_when_user_has_not_opted_in():
 
     manager = AssistantManager(_Window())
 
+    assert manager.is_voice_assistant_enabled() is True
+
+
+def test_voice_listener_stays_disabled_when_explicitly_turned_off():
+    class _Database:
+        def get_setting(self, _key, default=None):
+            return "0"
+
+    class _Window(QObject):
+        def __init__(self):
+            super().__init__()
+            self.db = _Database()
+
+    manager = AssistantManager(_Window())
+
     assert manager.is_voice_assistant_enabled() is False
     assert manager.start_voice_assistant() is False
     assert manager.voice_assistant_thread is None
+
+
+def test_voice_listener_uses_the_saved_microphone_device(monkeypatch):
+    class _Database:
+        def get_setting(self, key, default=None):
+            return {"voice_assistant_active": "1", "voice_input_device": "26"}.get(key, default)
+
+    class _Signal:
+        def connect(self, _callback):
+            pass
+
+    class _Window(QObject):
+        def __init__(self):
+            super().__init__()
+            self.db = _Database()
+
+    class _Worker:
+        def __init__(self, input_device_key=None):
+            self.input_device_key = input_device_key
+            self.tetik_sinyali = _Signal()
+            self.hata_sinyali = _Signal()
+            self.hazir_sinyali = _Signal()
+            self.finished = _Signal()
+
+        def start(self):
+            pass
+
+    monkeypatch.setattr(asistan_motoru, "BulutAsistan", _Worker)
+    manager = AssistantManager(_Window())
+
+    assert manager.start_voice_assistant() is True
+    assert manager.voice_assistant_thread.input_device_key == "26"
+
+
+def test_assistant_start_does_not_enumerate_microphones_on_ui_thread(monkeypatch):
+    from src.utils import asistan_motoru
+
+    class _Database:
+        def get_setting(self, key, default=None):
+            return {"voice_assistant_active": "1", "voice_input_device": "default"}.get(key, default)
+
+    class _Signal:
+        def connect(self, _callback):
+            pass
+
+    class _Window(QObject):
+        def __init__(self):
+            super().__init__()
+            self.db = _Database()
+
+    class _Worker:
+        def __init__(self, input_device_key=None):
+            self.input_device_key = input_device_key
+            self.tetik_sinyali = _Signal()
+            self.hata_sinyali = _Signal()
+            self.hazir_sinyali = _Signal()
+            self.finished = _Signal()
+
+        def start(self):
+            pass
+
+    monkeypatch.setattr(asistan_motoru, "BulutAsistan", _Worker)
+    monkeypatch.setattr(
+        asistan_motoru,
+        "resolve_microphone_device_index",
+        lambda _device: (_ for _ in ()).throw(AssertionError("UI thread enumerated audio")),
+    )
+    manager = AssistantManager(_Window())
+
+    assert manager.start_voice_assistant() is True
+    assert manager.voice_assistant_thread.input_device_key == "default"
+
+
+def test_voice_settings_persist_the_selected_microphone(monkeypatch):
+    from src.ui.pages.settings_widgets.voice_assistant_settings import VoiceAssistantSettingsWidget
+
+    _qapp()
+
+    class _Database:
+        def __init__(self):
+            self.values = {"voice_input_device": "default"}
+
+        def get_setting(self, key, default=None):
+            return self.values.get(key, default)
+
+        def set_setting(self, key, value):
+            self.values[key] = value
+
+    def _populate(widget):
+        widget.cmb_input_device.clear()
+        widget.cmb_input_device.addItem("Windows Default", "default")
+        widget.cmb_input_device.addItem("Test Input", "7")
+
+    monkeypatch.setattr(VoiceAssistantSettingsWidget, "_populate_microphone_devices", _populate)
+    database = _Database()
+    widget = VoiceAssistantSettingsWidget(database)
+    widget.cmb_input_device.setCurrentIndex(1)
+    widget._save_all(show_feedback=False)
+
+    assert database.values["voice_input_device"] == "7"
+
+
+def test_saved_microphone_resolves_by_host_and_name(monkeypatch):
+    from src.utils import asistan_motoru
+
+    class _Audio:
+        def get_device_count(self):
+            return 2
+
+        def get_device_info_by_index(self, index):
+            return {
+                "hostApi": 0,
+                "maxInputChannels": 2 if index == 1 else 0,
+                "name": "USB Microphone",
+            }
+
+        def get_host_api_info_by_index(self, _index):
+            return {"name": "Windows WASAPI"}
+
+        def terminate(self):
+            pass
+
+    monkeypatch.setitem(
+        sys.modules,
+        "pyaudio",
+        SimpleNamespace(PyAudio=_Audio),
+    )
+    monkeypatch.setattr(asistan_motoru, "_windows_default_communications_microphone_name", lambda: "")
+
+    assert asistan_motoru.resolve_microphone_device_index("Windows WASAPI::USB Microphone") == 1
+    assert asistan_motoru.resolve_microphone_device_index("default") is None
+    assert asistan_motoru.resolve_microphone_device_index("9") == 9
+
+
+def test_automatic_microphone_uses_windows_communications_default(monkeypatch):
+    from src.utils import asistan_motoru
+
+    class _Audio:
+        def get_device_count(self):
+            return 3
+
+        def get_device_info_by_index(self, index):
+            return {
+                "hostApi": 0 if index < 2 else 2,
+                "maxInputChannels": 2,
+                "name": "Realtek Mic" if index == 0 else "ASUS AI Mic",
+            }
+
+        def get_host_api_info_by_index(self, index):
+            return {"name": "MME" if index == 0 else "Windows WASAPI"}
+
+        def terminate(self):
+            pass
+
+    monkeypatch.setitem(sys.modules, "pyaudio", SimpleNamespace(PyAudio=_Audio))
+    monkeypatch.setattr(
+        asistan_motoru,
+        "_windows_default_communications_microphone_name",
+        lambda: "ASUS AI Mic",
+    )
+
+    assert asistan_motoru.resolve_microphone_device_index("default") == 1
+
+
+def test_microphone_test_worker_captures_and_transcribes_selected_input(monkeypatch):
+    import speech_recognition as sr
+    from src.ui.pages.settings_widgets import voice_assistant_settings as settings_module
+    from src.utils import offline_turkish_asr
+
+    _qapp()
+    audio = SimpleNamespace(
+        get_raw_data=lambda **_options: b"\x01\x00" * 16000,
+    )
+
+    class _Recognizer:
+        def adjust_for_ambient_noise(self, _source, duration):
+            assert duration == 0.5
+
+        def listen(self, _source, **options):
+            assert options == {"timeout": 5, "phrase_time_limit": 7}
+            return audio
+
+    class _Microphone:
+        def __init__(self, device_index=None):
+            assert device_index == 7
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+    class _ASR:
+        def transcribe_with_confidence(self, captured):
+            assert captured is audio
+            return {"text": "teknisyen panelini ac", "confidence": 0.8}
+
+    monkeypatch.setattr(sr, "Recognizer", _Recognizer)
+    monkeypatch.setattr(sr, "Microphone", _Microphone)
+    monkeypatch.setattr(offline_turkish_asr, "OfflineTurkishASR", _ASR)
+    worker = settings_module.MicrophoneInputTestWorker(7)
+    results = []
+    worker.completed.connect(lambda message, passed: results.append((message, passed)))
+
+    worker.run()
+
+    assert results and results[0][1] is True
+    assert "teknisyen panelini ac" in results[0][0]
 
 
 def test_voice_listener_success_is_reported_only_after_ready():

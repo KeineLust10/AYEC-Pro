@@ -1,14 +1,14 @@
 import os
 import unicodedata
 
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel,
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QFrame, QLabel,
                              QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, 
                              QDialog, QFormLayout, QLineEdit, QDateTimeEdit, QComboBox, QSplitter, QListWidget,
                              QGraphicsDropShadowEffect, QApplication, QSizePolicy, QStackedWidget)
 from src.utils.toast_notification import show_success, show_error, show_warning, show_info
 from src.utils.logger import logger
 from src.utils.theme_colors import tc, theme_qss
-from PyQt6.QtCore import Qt, QUrl, pyqtSignal, QDateTime
+from PyQt6.QtCore import QDateTime, QTimer, QUrl, Qt, pyqtSignal
 from PyQt6.QtGui import QFont, QFontDatabase, QColor, QIcon, QAction
 # Keep WebEngine lazy until the in-app traffic map is requested.
 QWebEngineView = None
@@ -68,13 +68,13 @@ class FieldServicePage(QWidget):
         self.setFont(ui_font)
         self.db = db
         self.main_window = main_window
-        # Default Coordinates (From Settings or Balıkesir fallback)
+        # Default coordinates match the reference dispatch area unless settings override them.
         try:
-            self.default_lat = float(self.db.get_setting("map_default_lat", "39.6484"))
-            self.default_lng = float(self.db.get_setting("map_default_lng", "27.8826"))
+            self.default_lat = float(self.db.get_setting("map_default_lat", "40.10441"))
+            self.default_lng = float(self.db.get_setting("map_default_lng", "27.65640"))
         except (ValueError, TypeError):
-             self.default_lat = 39.6484
-             self.default_lng = 27.8826
+             self.default_lat = 40.10441
+             self.default_lng = 27.65640
         self.search_finished.connect(self.on_search_finished)
 
         self.search_results_data = []
@@ -83,6 +83,15 @@ class FieldServicePage(QWidget):
         self.radar_category = "all"
         self.live_traffic_active = False
         self.vector_map_view = None
+        self._vector_map_ready = False
+        self._refresh_timer = QTimer(self)
+        self._refresh_timer.setSingleShot(True)
+        self._refresh_timer.timeout.connect(self.refresh_data)
+        self._last_refresh_at = 0.0
+        self._refresh_requested = False
+        self._layout_timer = QTimer(self)
+        self._layout_timer.setSingleShot(True)
+        self._layout_timer.timeout.connect(self._update_responsive_layout)
 
         self.setup_ui()
 
@@ -280,18 +289,25 @@ class FieldServicePage(QWidget):
             if hasattr(self, 'list_results'):
                 self.list_results.setVisible(False)
             self.address_input.setText(data.get('display_name', ''))
+            self.operation_panel.set_selected_address(data.get('display_name', ''))
 
     def setup_ui(self):
         self.main_layout = QVBoxLayout(self)
-        self.main_layout.setContentsMargins(20, 0, 20, 12)
-        self.main_layout.setSpacing(12)
+        self.main_layout.setContentsMargins(8, 0, 8, 8)
+        self.main_layout.setSpacing(8)
 
         self.overview = FieldMapOverview({
+            "home": lambda: getattr(
+                self.window(), "on_menu_click", lambda _index: None
+            )(40),
             "create_task": self.create_field_task,
             "optimize_route": self.open_optimized_route,
             "toggle_traffic": self.toggle_traffic,
-            "filter_personnel": self.focus_personnel_filter,
+            "share_location": self.share_location,
             "toggle_map_mode": self.toggle_map_mode,
+            "window_minimize": lambda: self.window().window_minimize(),
+            "window_maximize": lambda: self.window().window_maximize_restore(),
+            "window_close": lambda: self.window().window_close(),
         }, self)
         self.metric_cards = self.overview.metric_cards
         self.field_kpi_values = self.overview.metric_values
@@ -302,7 +318,11 @@ class FieldServicePage(QWidget):
 
         # Main Splitter
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
-        self.splitter.setHandleWidth(14)
+        self.splitter.setHandleWidth(8)
+        self.splitter.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Ignored,
+        )
         self.splitter.setStyleSheet(theme_qss("QSplitter::handle{background:@finance_canvas;}"))
 
         self.operation_panel = FieldOperationsPanel({
@@ -311,6 +331,7 @@ class FieldServicePage(QWidget):
             "whatsapp": self.paste_whatsapp_link,
             "share": self.share_location,
             "assign": self.assign_location_to_personnel,
+            "draw_route": lambda: self.map_view.draw_route_button.click(),
             "filter_category": self._set_radar_category,
         }, self.refresh_data, self)
         self.sidebar = self.operation_panel
@@ -324,6 +345,23 @@ class FieldServicePage(QWidget):
 
         # --- RIGHT MAP AREA ---
         self.map_view = FieldRadarCanvas(self.default_lat, self.default_lng)
+        try:
+            from src.utils.local_secret_store import load_secret
+            saved_map_key = load_secret("tomtom_traffic_api_key")
+            if saved_map_key:
+                self.map_view.set_tomtom_api_key(saved_map_key)
+        except Exception:
+            logger.warning("Saved TomTom map key could not be loaded.")
+        self.map_view.selectionChanged.connect(self.operation_panel.set_selected_location)
+        self.map_view.selectionChanged.connect(self._update_map_footer_status)
+        self.map_view.filterRequested.connect(self.focus_personnel_filter)
+        self.map_view.gpsTrackingRequested.connect(self.refresh_data)
+        self.map_view.routeOptimizationRequested.connect(self.open_optimized_route)
+        self.map_view.trafficToggleRequested.connect(self.toggle_traffic)
+        self.map_view.mapModeRequested.connect(self.toggle_map_mode)
+        self.map_view.drawRouteRequested.connect(self.map_view.draw_route_button.click)
+        self.operation_panel.refresh_button.clicked.connect(self.map_view.refresh_visible_tiles)
+        self.operation_panel.set_selected_location(*self.map_view.selected_coordinates)
         self.address_input = self.map_view.map_search_input
         self.address_input.textChanged.connect(self.on_search_text_changed)
         self.list_results = QListWidget(self.map_view)
@@ -346,14 +384,76 @@ class FieldServicePage(QWidget):
         self.map_view.routeCalculated.connect(self._route_calculated)
         self.map_stack = QStackedWidget()
         self.map_stack.addWidget(self.map_view)
+        self.map_panel = QWidget()
+        map_panel_layout = QVBoxLayout(self.map_panel)
+        map_panel_layout.setContentsMargins(0, 0, 0, 0)
+        map_panel_layout.setSpacing(0)
+        map_panel_layout.addWidget(self.map_stack, 1)
+        self.map_actions_bar = QFrame()
+        self.map_actions_bar.setObjectName("FieldMapActionsBar")
+        self.map_actions_bar.setFixedHeight(38)
+        self.map_actions_bar.setStyleSheet(theme_qss(
+            "QFrame#FieldMapActionsBar{background:@finance_surface;border:1px solid @finance_outline;}"
+            "QLabel{background:transparent;border:none;}"
+        ))
+        self.map_actions_layout = QHBoxLayout(self.map_actions_bar)
+        self.map_actions_layout.setContentsMargins(8, 2, 8, 2)
+        self.map_actions_layout.setSpacing(6)
+        self.map_footer_status = QLabel("")
+        self.map_footer_status.setStyleSheet(theme_qss(
+            "color:@finance_secondary;font-family:'JetBrains Mono';font-size:13.75px;font-weight:700;"
+        ))
+        self.map_actions_layout.addWidget(self.map_footer_status, 1)
+        map_panel_layout.addWidget(self.map_actions_bar)
+        self._update_map_footer_status(*self.map_view.selected_coordinates)
         self.traffic_map_view = None
         
         # Add to Splitter
-        self.splitter.addWidget(self.map_stack)
+        self.splitter.addWidget(self.map_panel)
         self.splitter.addWidget(self.sidebar)
         self.splitter.setStretchFactor(0, 1) # Map takes more space
 
         self.main_layout.addWidget(self.splitter)
+        self.reference_footer_gap = QWidget()
+        self.reference_footer_gap.setFixedHeight(36)
+        self.reference_footer_gap.setStyleSheet("background:transparent;border:none;")
+        self.main_layout.addWidget(self.reference_footer_gap)
+        self.telemetry_footer = QFrame()
+        self.telemetry_footer.setObjectName("FieldTelemetryFooter")
+        self.telemetry_footer.setFixedHeight(28)
+        self.telemetry_footer.setStyleSheet(theme_qss(
+            "QFrame#FieldTelemetryFooter{background:@finance_surface;border:1px solid @finance_outline;"
+            "border-radius:6px;} QLabel{background:transparent;border:none;}"
+        ))
+        telemetry_layout = QHBoxLayout(self.telemetry_footer)
+        telemetry_layout.setContentsMargins(8, 1, 8, 1)
+        telemetry_layout.setSpacing(12)
+        self.field_telemetry_label = QLabel("GPS TELEMETR\u0130S\u0130: Veri bekleniyor")
+        self.field_telemetry_label.setStyleSheet(theme_qss("color:@finance_text;font-family:'JetBrains Mono';font-size:15px;font-weight:700;"))
+        telemetry_layout.addWidget(self.field_telemetry_label, 1)
+        self.field_sync_label = QLabel("SON VER\u0130 SENKRON\u0130ZASYONU: -")
+        self.field_sync_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.field_sync_label.setStyleSheet(theme_qss("color:@finance_text_muted;font-family:'JetBrains Mono';font-size:13.75px;"))
+        telemetry_layout.addWidget(self.field_sync_label)
+        self.copy_map_link_button = QPushButton("Harita Linkini Kopyala")
+        self.copy_map_link_button.setObjectName("field_copy_map_link")
+        self.copy_map_link_button.setFixedHeight(34)
+        self.copy_map_link_button.setStyleSheet(theme_qss(
+            "QPushButton{background:@finance_surface_alt;color:@finance_text;"
+            "border:1px solid @finance_outline;border-radius:4px;padding:0 8px;font-size:15px;}"
+        ))
+        self.copy_map_link_button.clicked.connect(self.copy_map_link)
+        self.map_actions_layout.addWidget(self.copy_map_link_button)
+        self.redraw_route_button = QPushButton("Rotayi Yeniden Ciz")
+        self.redraw_route_button.setObjectName("field_redraw_route")
+        self.redraw_route_button.setFixedHeight(34)
+        self.redraw_route_button.setStyleSheet(theme_qss(
+            "QPushButton{background:@finance_surface_alt;color:@finance_secondary;"
+            "border:1px solid @finance_outline;border-radius:4px;padding:0 8px;font-size:15px;}"
+        ))
+        self.redraw_route_button.clicked.connect(self.redraw_route)
+        self.map_actions_layout.addWidget(self.redraw_route_button)
+        self.main_layout.addWidget(self.telemetry_footer)
         self._update_responsive_layout()
         self._position_search_results()
 
@@ -373,20 +473,29 @@ class FieldServicePage(QWidget):
         self.list_results.setGeometry(14, top, width, 200)
 
     def _update_responsive_layout(self):
-        compact = self.width() <= 900
+        compact = self.width() <= 1200
         dense = self.width() <= 1100 or self.height() <= 820
+        compact_footer = self.width() <= 1200
+        self.field_sync_label.setVisible(not compact_footer)
+        self.copy_map_link_button.setText("Linki Kopyala" if compact_footer else "Harita Linkini Kopyala")
+        self.copy_map_link_button.setFixedWidth(104 if compact_footer else 164)
+        self.redraw_route_button.setText("Rota Ciz" if compact_footer else "Rotayi Yeniden Ciz")
+        self.redraw_route_button.setFixedWidth(82 if compact_footer else 142)
         self.overview.set_dense(dense)
+        self.overview.set_compact(self.width() <= 1700)
         self.operation_panel.set_dense(dense, self.height() <= 700)
-        self.overview.setFixedHeight(max(210, self.overview.layout().sizeHint().height()))
+        self.overview.setFixedHeight(max(104, self.overview.layout().sizeHint().height() + 4))
         self.map_view.setMinimumSize(360 if compact else 420, 280 if dense else 480)
         orientation = Qt.Orientation.Vertical if compact else Qt.Orientation.Horizontal
         if self.splitter.orientation() != orientation:
             self.splitter.setOrientation(orientation)
         if compact:
             self.sidebar.setMinimumWidth(0)
+            self.sidebar.setMinimumHeight(280)
             self.sidebar.setMaximumWidth(16777215)
         else:
-            self.sidebar.setFixedWidth(320 if dense else 368)
+            self.sidebar.setMinimumHeight(0)
+            self.sidebar.setFixedWidth(max(420, min(680, round(self.width() * 0.329))))
 
     def create_field_task(self):
         from src.ui.pages.appointments_page import AddAppointmentDialog
@@ -396,6 +505,8 @@ class FieldServicePage(QWidget):
             self.refresh_data()
 
     def focus_personnel_filter(self):
+        self.operation_panel.select_tab("teams")
+        self.personnel_search.show()
         self.personnel_search.setFocus()
         self.personnel_search.selectAll()
 
@@ -421,6 +532,9 @@ class FieldServicePage(QWidget):
 
     def toggle_map_mode(self):
         if self.vector_map_view and self.map_stack.currentWidget() is self.vector_map_view:
+            self.map_view.focus_coordinates(*self.vector_map_view.selected_coordinates)
+            if self.vector_map_view.route_points:
+                self.map_view.set_route(self.vector_map_view.route_points)
             self.map_stack.setCurrentWidget(self.map_view)
             self.overview.map_mode_button.setFixedWidth(104)
             self.overview.map_mode_button.setText("3D Vektor")
@@ -458,8 +572,14 @@ class FieldServicePage(QWidget):
             self.vector_map_view.routeShareRequested.connect(self.share_route)
             self.vector_map_view.trafficRequested.connect(self._set_vector_traffic)
             self.vector_map_view.twoDimensionalRequested.connect(self.toggle_map_mode)
+            self.vector_map_view.mapLoaded.connect(self._on_vector_map_loaded)
+            self.vector_map_view.mapError.connect(self._fallback_from_vector_map)
+            self.vector_map_view.coordinateSelected.connect(
+                self.operation_panel.set_selected_location
+            )
             self.map_stack.addWidget(self.vector_map_view)
             self.vector_map_view.set_personnel(self.map_view.personnel)
+            self.vector_map_view.focus_coordinates(*self.map_view.selected_coordinates)
             if self.map_view.route_points:
                 self.vector_map_view.set_route(self.map_view.route_geometry or self.map_view.route_points)
 
@@ -467,6 +587,28 @@ class FieldServicePage(QWidget):
         self.vector_map_view.set_traffic_active(self.live_traffic_active)
         self.overview.map_mode_button.setFixedWidth(154)
         self.overview.map_mode_button.setText("2D Haritaya Don")
+        if not self._vector_map_ready:
+            QTimer.singleShot(10000, self._check_vector_map_ready)
+
+    def _on_vector_map_loaded(self):
+        self._vector_map_ready = True
+
+    def _check_vector_map_ready(self):
+        if self.vector_map_view and self.map_stack.currentWidget() is self.vector_map_view and not self._vector_map_ready:
+            self._fallback_from_vector_map("TomTom WebGL map did not finish loading")
+
+    def _fallback_from_vector_map(self, message):
+        if not self.vector_map_view or self.map_stack.currentWidget() is not self.vector_map_view:
+            return
+        self._vector_map_ready = False
+        self.map_view.focus_coordinates(*self.vector_map_view.selected_coordinates)
+        if self.vector_map_view.route_points:
+            self.map_view.set_route(self.vector_map_view.route_points)
+        self.map_stack.setCurrentWidget(self.map_view)
+        self.overview.map_mode_button.setFixedWidth(104)
+        self.overview.map_mode_button.setText("3D Vektor")
+        logger.warning("TomTom vector map failed; keeping the TomTom raster map active: %s", message)
+        self.notify("TomTom vektor haritasi acilamadi; 2D TomTom haritasi acik kaldi.", "warning")
 
     def _set_vector_traffic(self, active):
         self.live_traffic_active = bool(active)
@@ -760,6 +902,12 @@ class FieldServicePage(QWidget):
             coords = dialog.get_coordinates()
             if coords:
                 lat, lng = coords
+                if self.vector_map_view and self.map_stack.currentWidget() is self.vector_map_view:
+                    if self.vector_map_view.focus_coordinates(lat, lng):
+                        self.notify("Konum secildi: {}, {}".format(lat, lng), "success")
+                    else:
+                        self.notify("Gecersiz koordinatlar.", "warning")
+                    return
                 if isinstance(self.map_view, FieldRadarCanvas):
                     if self.map_view.focus_coordinates(lat, lng):
                         self.notify("Konum secildi: {}, {}".format(lat, lng), "success")
@@ -809,6 +957,12 @@ class FieldServicePage(QWidget):
                 pass
 
         if lat is not None and lng is not None:
+             if self.vector_map_view and self.map_stack.currentWidget() is self.vector_map_view:
+                if self.vector_map_view.focus_coordinates(lat, lng):
+                    self.notify("Konum secildi: {}, {}".format(lat, lng), "success")
+                else:
+                    self.notify("Gecersiz koordinatlar.", "warning")
+                return
              if isinstance(self.map_view, FieldRadarCanvas):
                 if self.map_view.focus_coordinates(lat, lng):
                     self.notify("Konum secildi: {}, {}".format(lat, lng), "success")
@@ -825,6 +979,9 @@ class FieldServicePage(QWidget):
             self.notify("Metin arama kutusuna yapıştırıldı.", "info")
 
     def share_location(self):
+        if self.vector_map_view and self.map_stack.currentWidget() is self.vector_map_view:
+            self._open_whatsapp_share(*self._map_coordinates())
+            return
         if isinstance(self.map_view, FieldRadarCanvas):
             self._open_whatsapp_share(*self.map_view.selected_coordinates)
             return
@@ -847,6 +1004,27 @@ class FieldServicePage(QWidget):
         except Exception as e:
             logger.error(f"Field service share error: {e}")
             self._open_whatsapp_share(self.default_lat, self.default_lng)
+
+    def copy_map_link(self):
+        latitude, longitude = self._map_coordinates()
+        link = "https://www.google.com/maps?q={:.6f},{:.6f}".format(
+            float(latitude), float(longitude)
+        )
+        QApplication.clipboard().setText(link)
+        self.notify("Harita konum baglantisi panoya kopyalandi.", "success")
+
+    def _update_map_footer_status(self, latitude, longitude):
+        self.map_footer_status.setText(
+            "SECILI KONUM: {:.5f}, {:.5f}".format(float(latitude), float(longitude))
+        )
+
+    def redraw_route(self):
+        points = list(self.map_view.route_points)
+        if len(points) < 2:
+            self.notify("Yeniden cizmek icin en az iki durakli bir rota olusturun.", "warning")
+            return
+        self.map_view.set_route(points)
+        self._request_road_route(points)
 
     def share_route(self, points):
         valid_points = [
@@ -900,6 +1078,9 @@ class FieldServicePage(QWidget):
 
     def assign_location_to_personnel(self):
         """Seçili konumu bir personele atar"""
+        if self.vector_map_view and self.map_stack.currentWidget() is self.vector_map_view:
+            self._show_assignment_dialog(*self._map_coordinates())
+            return
         if isinstance(self.map_view, FieldRadarCanvas):
             self._show_assignment_dialog(*self.map_view.selected_coordinates)
             return
@@ -972,13 +1153,14 @@ class FieldServicePage(QWidget):
                 """, (lat, lng, "G\u00f6revde", now, p_id))
                 self.db.conn.commit()
                 self.notify(f"{p_name} konumu guncellendi.", "success")
-                from PyQt6.QtCore import QTimer
-                QTimer.singleShot(500, self.refresh_data)
+                self._schedule_refresh(500)
             except Exception as e:
                 logger.error(f"Field service update error: {e}")
                 self.notify("Veritabani guncelleme hatasi!", "error")
 
     def refresh_data(self):
+        self._last_refresh_at = time.monotonic()
+        self._refresh_requested = False
         try:
             logger.info("Field service refresh started")
 
@@ -991,6 +1173,15 @@ class FieldServicePage(QWidget):
 
             techs = self._read_radar_personnel()
             all_techs = techs
+            appointments = self._read_field_appointments()
+            active_jobs = [
+                row for row in appointments
+                if self._radar_search_key(row.get("status")) not in (
+                    "tamamlandi", "iptal", "cancelled", "canceled", "completed"
+                )
+            ]
+            self.operation_panel.set_mode_counts(len(all_techs), len(active_jobs))
+            self.operation_panel.set_jobs(active_jobs)
             counts = {
                 "all": len(all_techs),
                 "idle": sum(self._radar_search_key(row.get("status")) == "bosta" for row in all_techs),
@@ -1008,6 +1199,15 @@ class FieldServicePage(QWidget):
                 gps_count = sum(FieldRadarCanvas.valid_coordinates(row.get("lat"), row.get("lng")) for row in all_techs)
                 self.field_kpi_values[0].setText("{} Personel".format(len(all_techs)))
                 self.field_kpi_notes[0].setText("{} GPS kaydi / {} personel".format(gps_count, len(all_techs)))
+                self.overview.live_teams_label.setText(
+                    "GPS CANLI VER\u0130 AKI\u015eI  ({}/{} EK\u0130P)".format(gps_count, len(all_techs))
+                )
+                self.field_telemetry_label.setText(
+                    "GPS TELEMETR\u0130S\u0130: {} / {} personel konumu".format(gps_count, len(all_techs))
+                )
+                self.field_sync_label.setText(
+                    "SON VER\u0130 SENKRON\u0130ZASYONU: {}".format(datetime.now().strftime("%H:%M:%S"))
+                )
 
             if QWebEngineView and not isinstance(self.map_view, FieldRadarCanvas):
                 try:
@@ -1023,6 +1223,16 @@ class FieldServicePage(QWidget):
                 empty_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.scroll_layout.insertWidget(0, empty_lbl)
             else:
+                section_header = QLabel(
+                    "D\u0130\u011eER SAHA EK\u0130PLER\u0130   {} Personel".format(len(all_techs))
+                )
+                section_header.setObjectName("field_personnel_section_header")
+                section_header.setFixedHeight(28)
+                section_header.setStyleSheet(theme_qss(
+                    "color:@finance_text_muted;font-family:'JetBrains Mono';"
+                    "font-size:13.75px;font-weight:700;padding:0 3px;"
+                ))
+                self.scroll_layout.insertWidget(0, section_header)
                 no_coord_names = []
                 for t in techs:
                     name = t.get('name', 'Bilinmeyen')
@@ -1065,7 +1275,7 @@ class FieldServicePage(QWidget):
                         "Personel kaydindan konum ekleyebilirsiniz.".format(len(no_coord_names), ", ".join(no_coord_names))
                     )
                     warn_lbl.setWordWrap(True)
-                    warn_lbl.setStyleSheet(theme_qss("background:@finance_warning_bg;color:@finance_tertiary;border:1px solid @finance_outline;border-radius:4px;padding:8px 12px;font-size:11px;"))
+                    warn_lbl.setStyleSheet(theme_qss("background:@finance_warning_bg;color:@finance_tertiary;border:1px solid @finance_outline;border-radius:4px;padding:10px 12px;font-size:15px;"))
                     self.scroll_layout.insertWidget(0, warn_lbl)
 
         except Exception as e:
@@ -1118,6 +1328,31 @@ class FieldServicePage(QWidget):
                 result.append(record)
         return result
 
+    def _read_field_appointments(self):
+        cursor = getattr(self.db, "cursor", None)
+        if cursor is None:
+            getter = getattr(self.db, "get_appointments", None)
+            if not callable(getter):
+                return []
+            rows = getter() or []
+            return [dict(row) for row in rows if isinstance(row, dict)]
+        try:
+            columns = [row[1] for row in cursor.execute("PRAGMA table_info(appointments)").fetchall()]
+            if not columns:
+                return []
+            deleted_column = "is_deleted" if "is_deleted" in columns else (
+                "is_archived" if "is_archived" in columns else None
+            )
+            sql = "SELECT * FROM appointments"
+            if deleted_column:
+                sql += " WHERE COALESCE({}, 0)=0".format(deleted_column)
+            rows = cursor.execute(sql + " ORDER BY date, time").fetchall()
+            names = [column[0] for column in cursor.description]
+            return [dict(zip(names, row)) for row in rows]
+        except Exception as error:
+            logger.warning("Field service appointments could not be loaded: %s", error)
+            return []
+
     def focus_personnel(self, t_data):
         try:
             lat = float(t_data.get('lat'))
@@ -1159,13 +1394,29 @@ class FieldServicePage(QWidget):
     def showEvent(self, event):
         super().showEvent(event)
         self._update_responsive_layout()
-        # Load map with slight delay to ensure container is ready
-        # Using a flag to prevent reloading if already loaded could be good, 
-        # but setup_ui calls load_map initially.
-        # We will refresh data here. 
-        from PyQt6.QtCore import QTimer
-        QTimer.singleShot(0, self._update_responsive_layout)
-        QTimer.singleShot(100, self.refresh_data)
+        self._layout_timer.start(0)
+        refresh_is_stale = (
+            not self._last_refresh_at
+            or time.monotonic() - self._last_refresh_at >= 30
+        )
+        if self._refresh_requested or refresh_is_stale:
+            self._schedule_refresh(100)
+
+    def hideEvent(self, event):
+        if self._refresh_timer.isActive():
+            self._refresh_requested = True
+        self._refresh_timer.stop()
+        self._layout_timer.stop()
+        super().hideEvent(event)
+
+    def _schedule_refresh(self, delay_ms):
+        self._refresh_requested = True
+        self._refresh_timer.start(max(0, int(delay_ms)))
+
+    def closeEvent(self, event):
+        self._refresh_timer.stop()
+        self._layout_timer.stop()
+        super().closeEvent(event)
 
     def notify(self, message, level="info"):
         """Centralized notification proxy"""

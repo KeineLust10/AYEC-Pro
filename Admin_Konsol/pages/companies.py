@@ -193,12 +193,30 @@ class _UpdateSectorThread(QThread):
             self.error.emit(str(exc))
 
 
+class _FetchCompanyOverview(QThread):
+    loaded = pyqtSignal(str, dict)
+    failed = pyqtSignal(str)
+
+    def __init__(self, tenant_id: str):
+        super().__init__()
+        self._tenant_id = tenant_id
+
+    def run(self):
+        try:
+            self.loaded.emit(self._tenant_id, api_client.customer_360(self._tenant_id))
+        except Exception as exc:
+            self.failed.emit(str(exc))
+
+
 class CompaniesPage(QWidget):
     def __init__(self):
         super().__init__()
         self._companies: list[dict] = []
         self._selected_tenant: dict | None = None
         self._thread = None
+        self._overview_thread = None
+        self._overview_workers = set()
+        self._company_filter = "all"
         self._build_ui()
         self._load_companies()
 
@@ -209,27 +227,83 @@ class CompaniesPage(QWidget):
         self._load_companies(self._search.text() if hasattr(self, '_search') else '')
 
     def _build_ui(self):
-        root = QHBoxLayout(self)
+        self.setObjectName("companiesPage")
+        self.setStyleSheet("""
+            QWidget#companiesPage { background: #0e1321; color: #dee2f6; }
+            QFrame#adminCompanyContext { background: #0e1321; border-bottom: 1px solid #252a39; }
+            QLabel#companyBreadcrumb { color: #4cd7f6; font: 11px 'Arial'; font-weight: 700; }
+            QFrame#leftPanel { background: #161b2a; border-right: 1px solid #252a39; }
+            QFrame#companyMetric { background: #161b2a; border: 1px solid #252a39; border-radius: 4px; }
+            QLabel#companyMetricValue { color: #4cd7f6; font-size: 21px; font-weight: 700; }
+            QFrame#companyMetric QLabel { background: transparent; border: none; }
+            QLabel#companyMetricCaption { color: #8c909f; font: 10px 'Arial'; font-weight: 700; }
+            QPushButton#companyFilter { background: #090e1c; color: #c2c6d6; border: none; border-radius: 3px; padding: 6px 9px; }
+            QPushButton#companyFilter:checked { background: #4d8eff; color: #00285d; font-weight: 700; }
+            QPushButton#companyFilter:hover { background: #252a39; }
+            QLabel#companyLicenseKey { background: #090e1c; color: #4cd7f6; padding: 8px; font: 10px 'Arial'; }
+        """)
+        root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
+
+        context = QFrame()
+        context.setObjectName("adminCompanyContext")
+        context.setFixedHeight(40)
+        context_layout = QHBoxLayout(context)
+        context_layout.setContentsMargins(20, 0, 16, 0)
+        self._breadcrumb = QLabel("AYEC PRO / YONETIM MERKEZI / FIRMA YONETIMI & MUSTERI 360")
+        self._breadcrumb.setObjectName("companyBreadcrumb")
+        context_layout.addWidget(self._breadcrumb, 1)
+        self._tenant_pool = QLabel("TENANT POOL: 0 AKTIF")
+        self._tenant_pool.setObjectName("metricSub")
+        context_layout.addWidget(self._tenant_pool)
+        self._database_status = QLabel("MERKEZI VERI TABANI CANLI")
+        self._database_status.setObjectName("counterLabel")
+        context_layout.addWidget(self._database_status)
+        refresh_companies = QPushButton("Yenile")
+        refresh_companies.setObjectName("secondaryBtn")
+        refresh_companies.clicked.connect(self._load_companies)
+        context_layout.addWidget(refresh_companies)
+        root.addWidget(context)
+
+        workspace = QHBoxLayout()
+        workspace.setContentsMargins(16, 12, 16, 12)
+        workspace.setSpacing(12)
 
         # --- Sol panel: Firma listesi ---
         left = QFrame()
         left.setObjectName("leftPanel")
-        left.setFixedWidth(340)
+        left.setFixedWidth(365)
         left_lay = QVBoxLayout(left)
-        left_lay.setContentsMargins(16, 20, 16, 16)
-        left_lay.setSpacing(12)
+        left_lay.setContentsMargins(12, 12, 12, 12)
+        left_lay.setSpacing(8)
 
-        title = QLabel("\ud83c\udfe2 Firma Listesi")
+        title_row = QHBoxLayout()
+        title = QLabel("Firma Listesi")
         title.setObjectName("panelTitle")
-        left_lay.addWidget(title)
+        title_row.addWidget(title, 1)
+        self._company_counts = QLabel("0 / 0")
+        self._company_counts.setObjectName("metricSub")
+        title_row.addWidget(self._company_counts)
+        left_lay.addLayout(title_row)
 
         self._search = QLineEdit()
         self._search.setObjectName("searchInput")
-        self._search.setPlaceholderText("\ud83d\udd0d Firma ara...")
+        self._search.setPlaceholderText("Firma adi, yetkili veya vergi no ara...")
         self._search.textChanged.connect(self._on_search)
         left_lay.addWidget(self._search)
+
+        status_filters = QHBoxLayout()
+        self._company_filter_buttons = {}
+        for filter_key, label in (("all", "Tumu"), ("active", "Aktif"), ("inactive", "Pasif")):
+            button = QPushButton(label)
+            button.setObjectName("companyFilter")
+            button.setCheckable(True)
+            button.setChecked(filter_key == "all")
+            button.clicked.connect(lambda _checked, key=filter_key: self._set_company_filter(key))
+            status_filters.addWidget(button)
+            self._company_filter_buttons[filter_key] = button
+        left_lay.addLayout(status_filters)
 
         self._company_list = QScrollArea()
         self._company_list.setWidgetResizable(True)
@@ -243,20 +317,61 @@ class CompaniesPage(QWidget):
         self._company_list.setWidget(self._list_inner)
         left_lay.addWidget(self._company_list, 1)
 
-        root.addWidget(left)
+        workspace.addWidget(left, 4)
 
         # --- Sag panel: Detay ---
         self._detail = QFrame()
         self._detail.setObjectName("detailPanel")
         detail_lay = QVBoxLayout(self._detail)
-        detail_lay.setContentsMargins(28, 24, 28, 24)
-        detail_lay.setSpacing(20)
+        detail_lay.setContentsMargins(0, 0, 0, 0)
+        detail_lay.setSpacing(10)
 
         # Ust: bilgiler
+        detail_header = QFrame()
+        detail_header.setObjectName("formCard")
+        detail_header_layout = QHBoxLayout(detail_header)
+        detail_header_layout.setContentsMargins(12, 10, 12, 10)
         self._detail_title = QLabel("Firma secin")
         self._detail_title.setObjectName("detailTitle")
-        detail_lay.addWidget(self._detail_title)
+        detail_header_layout.addWidget(self._detail_title, 1)
+        self._company_identity = QLabel("UID: -")
+        self._company_identity.setObjectName("metricSub")
+        detail_header_layout.addWidget(self._company_identity)
+        self._company_state = QLabel("-")
+        self._company_state.setObjectName("counterLabel")
+        detail_header_layout.addWidget(self._company_state)
+        self._company_action_layout = QHBoxLayout()
+        self._company_action_layout.setSpacing(6)
+        detail_header_layout.addLayout(self._company_action_layout)
+        detail_lay.addWidget(detail_header)
 
+        metrics = QHBoxLayout()
+        metrics.setSpacing(8)
+        self._metric_values = {}
+        for key, caption in (("user_count", "KULLANICI HAVUZU"), ("backup_count", "BULUT YEDEK"), ("error_count", "KRITIK HATA LOGU"), ("online", "CANLI OTURUM")):
+            metric = QFrame()
+            metric.setObjectName("companyMetric")
+            metric_layout = QVBoxLayout(metric)
+            metric_layout.setContentsMargins(10, 8, 10, 8)
+            value = QLabel("-")
+            value.setObjectName("companyMetricValue")
+            label = QLabel(caption)
+            label.setObjectName("companyMetricCaption")
+            note = QLabel("-")
+            note.setObjectName("metricSub")
+            metric_layout.addWidget(value)
+            metric_layout.addWidget(label)
+            metric_layout.addWidget(note)
+            metrics.addWidget(metric, 1)
+            self._metric_values[key] = (value, note)
+        profile = QFrame()
+        profile.setObjectName("formCard")
+        profile_layout = QVBoxLayout(profile)
+        profile_layout.setContentsMargins(10, 8, 10, 8)
+        profile_layout.setSpacing(7)
+        profile_title = QLabel("Firma ve Lisans Parametreleri")
+        profile_title.setObjectName("panelTitle")
+        profile_layout.addWidget(profile_title)
         info_row = QHBoxLayout()
         self._info_left = QFormLayout()
         self._info_right = QFormLayout()
@@ -264,7 +379,7 @@ class CompaniesPage(QWidget):
         info_row.addSpacing(40)
         info_row.addLayout(self._info_right)
         info_row.addStretch()
-        detail_lay.addLayout(info_row)
+        profile_layout.addLayout(info_row)
 
         # Aksiyon butonlari
         btn_row = QHBoxLayout()
@@ -290,21 +405,41 @@ class CompaniesPage(QWidget):
         self._toggle_btn.setFixedHeight(36)
         self._toggle_btn.clicked.connect(self._toggle_active)
         self._toggle_btn.setEnabled(False)
-        btn_row.addWidget(self._toggle_btn)
+        self._company_action_layout.addWidget(self._toggle_btn)
         self._mute_btn = QPushButton("Firmayi Sustur")
         self._mute_btn.setObjectName("dangerBtn")
         self._mute_btn.setFixedHeight(36)
         self._mute_btn.clicked.connect(self._toggle_muted)
         self._mute_btn.setEnabled(False)
-        btn_row.addWidget(self._mute_btn)
+        self._company_action_layout.addWidget(self._mute_btn)
         self._delete_btn = QPushButton("\U0001f5d1 Firma Sil")
         self._delete_btn.setObjectName("dangerBtn")
         self._delete_btn.setFixedHeight(36)
         self._delete_btn.clicked.connect(self._delete_company)
         self._delete_btn.setEnabled(False)
-        btn_row.addWidget(self._delete_btn)
+        self._company_action_layout.addWidget(self._delete_btn)
         btn_row.addStretch()
         detail_lay.addLayout(btn_row)
+        detail_lay.addLayout(metrics)
+        detail_lay.addWidget(profile)
+
+        license_key_card = QFrame()
+        license_key_card.setObjectName("formCard")
+        license_key_layout = QHBoxLayout(license_key_card)
+        license_key_layout.setContentsMargins(10, 7, 10, 7)
+        license_key_caption = QLabel("AKTIF LISANS ANAHTARI")
+        license_key_caption.setObjectName("metricSub")
+        license_key_layout.addWidget(license_key_caption)
+        self._license_key_value = QLabel("-")
+        self._license_key_value.setObjectName("companyLicenseKey")
+        self._license_key_value.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        license_key_layout.addWidget(self._license_key_value, 1)
+        self._copy_license_button = QPushButton("Kodu Kopyala")
+        self._copy_license_button.setObjectName("secondaryBtn")
+        self._copy_license_button.clicked.connect(self._copy_license_key)
+        self._copy_license_button.setEnabled(False)
+        license_key_layout.addWidget(self._copy_license_button)
+        detail_lay.addWidget(license_key_card)
 
         # Kullanici tablosu
         usr_lbl = QLabel("Kullan\u0131c\u0131lar")
@@ -359,7 +494,8 @@ class CompaniesPage(QWidget):
         self._status_lbl.setObjectName("statusLabel")
         detail_lay.addWidget(self._status_lbl)
 
-        root.addWidget(self._detail, 1)
+        workspace.addWidget(self._detail, 8)
+        root.addLayout(workspace, 1)
         self._user_table.cellClicked.connect(self._on_user_select)
         self._user_table.itemDoubleClicked.connect(self._show_user_details)
 
@@ -392,8 +528,12 @@ class CompaniesPage(QWidget):
             contact = str(c.get("contact_name") or "-")
             phone = str(c.get("phone") or "-")
             email = str(c.get("email") or "-")
-            btn.setText(f"{status}  {c.get('company_name', '?')}\n{contact} | {phone}\n{email}")
-            btn.setMinimumHeight(70)
+            sector = "Otomotiv" if str(c.get("sector") or "") == "otomotiv" else "Teknik Servis"
+            license_name = str(c.get("license_type") or "-")
+            btn.setText(f"{status}  {c.get('company_name', '?')}  |  {sector}\n{contact} | {phone}\n{email}  |  {license_name}")
+            btn.setStyleSheet("text-align: left; padding: 9px 10px; font-size: 11px;")
+            btn.setMinimumHeight(82)
+            btn._company_data = dict(c)
             btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             self._company_group.addButton(btn)
             btn.clicked.connect(lambda checked, firm=c: self._select_company(firm))
@@ -401,14 +541,43 @@ class CompaniesPage(QWidget):
             self._list_inner_lay.addWidget(btn)
         self._list_inner_lay.addStretch()
         self._company_list.verticalScrollBar().setValue(0)
+        active_count = sum(_flag(company.get("active"), True) for company in companies)
+        self._company_counts.setText(f"{active_count} / {len(companies)} active")
+        self._tenant_pool.setText(f"TENANT POOL: {active_count} AKTIF")
+        self._refresh_company_filter()
+
+    def _set_company_filter(self, filter_key: str):
+        self._company_filter = filter_key
+        for key, button in self._company_filter_buttons.items():
+            button.setChecked(key == filter_key)
+        self._refresh_company_filter()
+
+    def _refresh_company_filter(self):
+        if not hasattr(self, "_company_group"):
+            return
+        counts = {"all": len(self._companies), "active": 0, "inactive": 0}
+        for company in self._companies:
+            counts["active" if _flag(company.get("active"), True) else "inactive"] += 1
+        for key, button in self._company_filter_buttons.items():
+            base = button.property("baseLabel") or button.text()
+            button.setProperty("baseLabel", base.split(" (")[0])
+            button.setText(f"{button.property('baseLabel')} ({counts[key]})")
+        for button in self._company_group.buttons():
+            company = getattr(button, "_company_data", {})
+            active = _flag(company.get("active"), True)
+            status_visible = self._company_filter == "all" or (self._company_filter == "active" and active) or (self._company_filter == "inactive" and not active)
+            button.setVisible(status_visible)
 
     def _select_company(self, c: dict):
         self._selected_tenant = c
         self._status_lbl.setText("")
         tid = c.get("id", "")
         name = c.get("company_name", "?")
-        self._detail_title.setText(f"\ud83c\udfe2 {name}")
+        self._detail_title.setText(str(name))
+        self._company_identity.setText(f"UID: {tid or '-'}")
         is_active = _flag(c.get("active"), True)
+        is_muted = _flag(c.get("muted"))
+        self._company_state.setText("SISTEM SUSTURULDU" if is_muted else "SISTEM AKTIF" if is_active else "SISTEM PASIF")
         self._toggle_btn.setEnabled(True)
         self._mute_btn.setEnabled(True)
         self._delete_btn.setEnabled(True)
@@ -422,6 +591,11 @@ class CompaniesPage(QWidget):
         self._sector_combo.setCurrentIndex(max(0, sector_index))
         self._sector_combo.setEnabled(True)
         self._sector_btn.setEnabled(True)
+        for key, fallback in (("user_count", "-"), ("backup_count", "-"), ("error_count", "-"), ("online", "-")):
+            self._metric_values[key][0].setText(str(c.get(key, fallback)))
+            self._metric_values[key][1].setText("-")
+        self._license_key_value.setText("-")
+        self._copy_license_button.setEnabled(False)
 
         # Sol bilgiler doldur
         for lay in [self._info_left, self._info_right]:
@@ -470,6 +644,40 @@ class CompaniesPage(QWidget):
         t.error.connect(lambda e: self._status_lbl.setText(f"Kullanici hatasi: {e}"))
         t.start()
         self._thread = t
+        overview = _FetchCompanyOverview(str(tid))
+        overview.loaded.connect(self._populate_company_overview)
+        overview.failed.connect(lambda error: self._status_lbl.setText(f"Firma ozeti alinamadi: {error}"))
+        overview.finished.connect(lambda worker=overview: self._overview_workers.discard(worker))
+        self._overview_workers.add(overview)
+        self._overview_thread = overview
+        overview.start()
+
+    def _populate_company_overview(self, tenant_id: str, payload: dict):
+        if str((self._selected_tenant or {}).get("id") or "") != str(tenant_id or ""):
+            return
+        summary = payload.get("summary") or {}
+        live = payload.get("live_status") or {}
+        backup = (payload.get("backups") or [{}])[0]
+        users = payload.get("users") or payload.get("company_users") or []
+        values = {
+            "user_count": (summary.get("user_count", len(users)), "S\u0131n\u0131rs\u0131z"),
+            "backup_count": (summary.get("backup_count", len(payload.get("backups") or [])), str(backup.get("filename") or "Guncel (Bugun)")),
+            "error_count": (summary.get("error_count", len(payload.get("error_logs") or [])), "Kayit Yok" if not summary.get("error_count") else "Kritik kayit"),
+            "online": ("Cevrimici" if summary.get("online") else "Cevrimdisi", f"Ping: {live.get('ping_ms', '-')} ms"),
+        }
+        for key, (value, note) in values.items():
+            self._metric_values[key][0].setText(str(value))
+            self._metric_values[key][1].setText(str(note))
+        license_item = (payload.get("licenses") or [{}])[0]
+        license_key = str(license_item.get("license_code") or license_item.get("license_key") or "")
+        self._license_key_value.setText(license_key or "-")
+        self._copy_license_button.setEnabled(bool(license_key))
+
+    def _copy_license_key(self):
+        license_key = self._license_key_value.text().strip()
+        if license_key and license_key != "-":
+            QApplication.clipboard().setText(license_key)
+            self._status_lbl.setText("Lisans anahtari panoya kopyalandi.")
 
     def _populate_users(self, tid: str, users: list):
         selected_id = str((self._selected_tenant or {}).get("id") or "")

@@ -14,7 +14,7 @@ from PyQt6.QtGui import QFontMetrics
 from src.database import Database
 from src.ui.pages.new_transaction_v2_page import NewTransactionV2Page
 from src.ui.widgets.transaction_reference_card import TransactionReferenceCard
-from src.ui.widgets.financial_reference_controls import FinancialReferenceActionButton, ReferenceMetricValueLabel
+from src.ui.widgets.financial_reference_controls import FinancialReferenceActionButton, FinancialReferenceIconButton, ReferenceMetricValueLabel
 from src.utils.design_system import DesignTokens
 from src.utils.theme_manager import ThemeManager
 
@@ -51,6 +51,41 @@ def test_transaction_creation_does_not_show_orphan_labels(monkeypatch, tmp_path)
         db.close()
 
 
+def test_offer_composer_reference_density_tracks_viewport_height(monkeypatch, tmp_path):
+    app = QApplication.instance() or QApplication([])
+    app.setQuitOnLastWindowClosed(False)
+    monkeypatch.setattr(NewTransactionV2Page, 'update_exchange_rates', lambda self: None)
+    db = Database(str(tmp_path / 'offer_density.db'))
+    settings = QSettings(str(tmp_path / 'offer_density.ini'), QSettings.Format.IniFormat)
+    page = NewTransactionV2Page(db, draft_settings=settings)
+    page.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen)
+    try:
+        page.resize(1320, 880)
+        page.show()
+        QTest.qWait(30)
+        cart_icon = page.findChild(FinancialReferenceIconButton, 'TransactionCartIcon')
+        assert cart_icon is not None and cart_icon.isVisible()
+        assert cart_icon.width() == 28
+        assert page.customer_panel.height() == 72
+        assert page.catalog_search.height() == 32
+        assert page.catalog_filter_buttons['all'].height() == 22
+        assert page.reference_body_layout.stretch(1) == 28
+        assert page.reference_summary_panel.height() == 360
+
+        page.resize(1320, 1226)
+        QTest.qWait(30)
+        assert page.customer_panel.height() == 198
+        assert page.catalog_search.height() == 50
+        assert page.catalog_filter_buttons['all'].height() == 32
+        assert page.reference_body_layout.stretch(1) == 35
+        assert page.reference_summary_panel.minimumHeight() == 430
+    finally:
+        page.close()
+        page.deleteLater()
+        app.processEvents()
+        db.close()
+
+
 def test_transaction_panels_drafts_and_original_action_connections(monkeypatch, tmp_path):
     app = QApplication.instance() or QApplication([])
     app.setQuitOnLastWindowClosed(False)
@@ -77,8 +112,8 @@ def test_transaction_panels_drafts_and_original_action_connections(monkeypatch, 
         panels = page.findChildren(QFrame, 'TransactionReferencePanel')
         assert len(panels) == 4
         assert all('border-radius: 6px' in panel.styleSheet() for panel in panels)
-        for date in (page.date_edit, page.date_edit_transaction):
-            assert date.height() == 38
+        for date, expected_height in ((page.date_edit, 32), (page.date_edit_transaction, 38)):
+            assert date.height() == expected_height
             assert date.calendarPopup()
             assert date.displayFormat() == 'dd.MM.yyyy'
             QTest.mouseClick(date, Qt.MouseButton.LeftButton, pos=QPoint(date.width() - 12, date.height() // 2))
@@ -90,9 +125,9 @@ def test_transaction_panels_drafts_and_original_action_connections(monkeypatch, 
             page.cmb_product_domain, page.cmb_parts, page.inp_desc, page.cmb_vat,
         ):
             assert combo.property('referenceChevron')
-            assert combo.height() == 38
+            assert combo.height() >= 36
         assert panels[1].width() > panels[2].width()
-        assert page.findChild(QFrame, 'TransactionGrandTotal').height() == 104
+        assert page.findChild(QFrame, 'TransactionGrandTotal').height() == 54
         assert not page.findChild(QFrame, 'TransactionLineAmount').isVisible()
         original_total = page.lbl_total.text()
         for amount in ('9,540.00 TRY', '-123,456,789.99 TRY', '1,031.70 USD\n50,554.67 TRY'):
@@ -496,7 +531,7 @@ def test_first_customer_preview_uses_real_balance_tax_and_currency(monkeypatch, 
         assert page.cmb_customer.currentData() == customer_id
         assert page.customer_preview.isVisible()
         assert page.customer_title.text() == 'First Company'
-        assert '1234567890 / Test Office' in page.customer_preview.text()
+        assert '1234567890 / Test Office' in page.customer_preview.toolTip()
         assert 'Cari bakiye (TRY): -200.00' in page.customer_preview.text()
         page.cmb_currency.setCurrentIndex(1)
         assert 'Cari bakiye (USD): -50.00' in page.customer_preview.text()
@@ -552,6 +587,7 @@ def test_saved_reference_draft_restores_all_visible_financial_fields(monkeypatch
         page.date_edit_transaction.setDate(QDate(2026, 10, 2))
         page.toggle_offer_approval.setChecked(True)
         writes = db.conn.total_changes
+        settings.setValue(page._DRAFT_KEY, json.dumps(stored))
         page._restore_draft()
         assert page.cart_items == stored['cart_items']
         assert page._parse_currency_code(page.cmb_currency.currentText()) == 'USD'

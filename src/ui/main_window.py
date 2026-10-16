@@ -67,6 +67,12 @@ class MainWindow(QMainWindow, MainWindowBaseMixin, MainWindowNavMixin, MainWindo
         self._web_sync_provision_invite_code = ""
         self._settings_menu_refresh_pending = False
 
+        from src.utils.menu_window_diagnostics import MenuWindowDiagnostics
+        app = QApplication.instance()
+        self._menu_window_diagnostics = MenuWindowDiagnostics(self)
+        if app is not None:
+            app.installEventFilter(self._menu_window_diagnostics)
+
         # All transient notifications use one queue so the assistant FAB never
         # competes with independent toast widgets.
         from src.ui.widgets.toast_manager import ToastManager
@@ -203,6 +209,11 @@ class MainWindow(QMainWindow, MainWindowBaseMixin, MainWindowNavMixin, MainWindo
         row.setContentsMargins(16, 0, 16, 0)
         row.setSpacing(12)
 
+        self.shell_reference_spacer = QWidget(bar)
+        self.shell_reference_spacer.setFixedWidth(0)
+        self.shell_reference_spacer.hide()
+        row.addWidget(self.shell_reference_spacer)
+
         self.shell_database_status = QLabel("ERP Core Yerel Veritabani Hazir")
         self.shell_database_status.setStyleSheet(theme_qss(
             "color: @text; font-size: 11px; font-weight: 600;"
@@ -222,6 +233,8 @@ class MainWindow(QMainWindow, MainWindowBaseMixin, MainWindowNavMixin, MainWindo
         except Exception:
             pass
         rate_label = QLabel(rate_text)
+        self.shell_rate_status = rate_label
+        self._shell_rate_default = rate_text
         rate_label.setStyleSheet(theme_qss(
             "color: @text_muted; font: 10px 'JetBrains Mono';"
         ))
@@ -229,11 +242,47 @@ class MainWindow(QMainWindow, MainWindowBaseMixin, MainWindowNavMixin, MainWindo
         row.addStretch(1)
 
         version = QLabel("AYEC PRO Finans Konsolu v2.0.4 Premium Enterprise")
+        self.shell_version_status = version
         version.setStyleSheet(theme_qss(
             "color: @text_muted; font: 10px 'JetBrains Mono';"
         ))
         row.addWidget(version)
         self.shell_layout.addWidget(bar)
+
+    def set_customer_reference_shell_mode(self, enabled):
+        enabled = bool(enabled)
+        self._customer_reference_shell_mode = enabled
+        self.shell_status_bar.setFixedHeight(26 if enabled else 16)
+        self.shell_status_bar.setStyleSheet(
+            "QFrame#ShellStatusBar { background: rgba(8,11,17,0.9); border-top: 1px solid #252a36; }"
+            if enabled else theme_qss(
+                "QFrame#ShellStatusBar { background: @window; border-top: 1px solid @border; }"
+            )
+        )
+        header_spacer = getattr(self.app_header, "customer_reference_spacer", None)
+        spacer_width = max(0, header_spacer.width()) if header_spacer is not None else 0
+        if enabled:
+            spacer_width = max(320, spacer_width)
+        if enabled and spacer_width <= 0:
+            spacer_width = 320
+        self.shell_reference_spacer.setFixedWidth(spacer_width if enabled else 0)
+        self.shell_reference_spacer.setVisible(enabled)
+        self.shell_database_status.setText(
+            "\u00a9 2025 AYEC Pro v4.8 Enterprise"
+            if enabled else "ERP Core Yerel Veritabani Hazir"
+        )
+        self.shell_rate_status.setText(
+            "Merkez Operasyon API 99.98% Sa\u011fl\u0131kl\u0131"
+            if enabled else self._shell_rate_default
+        )
+        self.shell_rate_status.setStyleSheet(
+            "color: #10b981; font: 10px 'JetBrains Mono';"
+            if enabled else theme_qss("color: @text_muted; font: 10px 'JetBrains Mono';")
+        )
+        self.shell_version_status.setText(
+            "SSL 256-Bit \u015eifreleme   Gizlilik & G\u00fcvenlik   UTC+03:00 TR"
+            if enabled else "AYEC PRO Finans Konsolu v2.0.4 Premium Enterprise"
+        )
 
     def _status_separator(self):
         separator = QLabel("|")
@@ -248,6 +297,11 @@ class MainWindow(QMainWindow, MainWindowBaseMixin, MainWindowNavMixin, MainWindo
         if hasattr(self, "toast"):
             self.toast.reposition_toasts()
         super().resizeEvent(event)
+        if getattr(self, "_customer_reference_shell_mode", False):
+            header_spacer = getattr(self.app_header, "customer_reference_spacer", None)
+            spacer_width = max(0, header_spacer.width()) if header_spacer is not None else 0
+            if spacer_width > 0:
+                self.shell_reference_spacer.setFixedWidth(max(320, spacer_width))
 
     def closeEvent(self, event):
         license_service = getattr(self, "license_service", None)

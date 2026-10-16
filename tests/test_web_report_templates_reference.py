@@ -2,21 +2,46 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-WEB = ROOT / "Web_Arayuzu" / "web"
 
 
-def test_report_templates_have_wider_preview_and_readable_type_scale():
-    styles = (WEB / "midnight-reference.css").read_text(encoding="utf-8")
+def test_report_template_delete_uses_shared_confirmation_dialog():
+    source = (ROOT / "Web_Arayuzu" / "web" / "report-templates.js").read_text(encoding="utf-8")
+    start = source.index("async function runTemplateAction(")
+    end = source.index("\n  function parseCSVLine", start)
+    block = source[start:end]
 
-    assert 'body[data-page="report-templates"] .report-template-layout{grid-template-columns:minmax(0,2fr) minmax(390px,1fr)' in styles
-    assert 'body[data-page="report-templates"] .report-template-table td{font-size:13px' in styles
-    assert 'body[data-page="report-templates"] .report-template-preview-text{font-size:13px' in styles
-    assert '@media(max-width:760px){body[data-page="report-templates"] .report-template-layout{grid-template-columns:minmax(0,1fr)}' in styles
+    assert "window.confirm" not in block
+    assert 'openDialog("Kal\\u0131b\\u0131 Sil","SILME ONAYI"' in block
+    assert '"Evet, Sil"' in block
+    assert 'textContent="Hay\\u0131r"' in block
+    assert 'JSON.stringify({id:row.id,_action:"delete"})' in block
 
 
-def test_report_template_filters_and_tables_fit_phone_widths():
-    styles = (WEB / "midnight-reference.css").read_text(encoding="utf-8")
+def test_report_template_transfer_uses_desktop_menu_actions():
+    source = (ROOT / "Web_Arayuzu" / "web" / "report-templates.js").read_text(encoding="utf-8")
 
-    assert '@media(max-width:480px){body[data-page="report-templates"] .report-template-filters{grid-template-columns:minmax(0,1fr)}' in styles
-    assert 'body[data-page="report-templates"] .report-template-table{max-width:calc(100vw - 24px)}' in styles
-    assert 'body[data-page="report-templates"] .report-template-table table{min-width:780px}' in styles
+    assert 'aria-haspopup="menu"' in source
+    assert 'data-template-transfer="import"' in source
+    assert 'data-template-transfer="export"' in source
+    assert 'CSV\\u2019den \\u0130\\u00e7e Aktar' in source
+    assert 'CSV\\u2019ye D\\u0131\\u015fa Aktar' in source
+    assert 'document.getElementById("templateCsv").click()' in source
+    assert 'download("rapor-cumle-kaliplari.csv",csv(templates))' in source
+
+
+def test_report_template_rows_expose_desktop_context_edit_and_delete_actions():
+    source = (ROOT / "Web_Arayuzu" / "web" / "report-templates.js").read_text(encoding="utf-8")
+
+    assert 'row.oncontextmenu=event=>openTemplateContextMenu(event,row)' in source
+    assert 'data-template-context="edit"' in source
+    assert 'data-template-context="delete"' in source
+    assert 'runTemplateAction(button.dataset.templateContext,selectedId)' in source
+    assert 'ayecContextMenuEnabled("report-templates")' in source
+
+
+def test_report_template_rows_support_desktop_double_click_and_keyboard_context_menu():
+    source = (ROOT / "Web_Arayuzu" / "web" / "report-templates.js").read_text(encoding="utf-8")
+
+    assert 'tabindex="0"' in source
+    assert 'row.ondblclick=event=>{event.preventDefault();runTemplateAction("edit",row.dataset.templateRow)' in source
+    assert 'event.key!=="ContextMenu"&&!(event.key==="F10"&&event.shiftKey)' in source

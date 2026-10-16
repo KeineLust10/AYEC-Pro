@@ -76,6 +76,19 @@ def test_real_key_matrix_masking_drafts_selected_test_and_existing_save(monkeypa
         assert "fixture-first" not in displayed
         assert "fixture-second" not in displayed
         assert "Anthropic" not in displayed and "OpenAI" not in displayed
+        assert canvas.max_tokens.value() == 8192
+        assert canvas.temperature.value() == 2
+        assert canvas.safety_toggle.isChecked()
+        assert canvas.rotation_toggle.isChecked()
+        assert canvas.feature_toggles["gemini_smart_token_compression"].isChecked()
+        assert canvas.feature_toggles["gemini_cost_limit_protection"].isChecked()
+        assert not canvas.feature_toggles["gemini_auto_load_shedding"].isChecked()
+        canvas.feature_toggles["gemini_auto_load_shedding"].setChecked(True)
+        assert db.values["gemini_auto_load_shedding"] == "1"
+        canvas.max_tokens.setValue(4096)
+        canvas.temperature.setValue(5)
+        canvas.safety_toggle.setChecked(False)
+        canvas.rotation_toggle.setChecked(False)
         canvas.table.cellWidget(1, 5).click()
         assert FakeTestWorker.calls == [(gemini.DEFAULT_GEMINI_MODEL, ["fixture-second"])]
         page.worker.finished.emit(True, {"key": "fixture-second", "answer": "fixture reply"})
@@ -106,6 +119,10 @@ def test_real_key_matrix_masking_drafts_selected_test_and_existing_save(monkeypa
         canvas.save_button.click()
         assert vault["gemini_api_key"] == "fixture-first,fixture-second,fixture-third"
         assert vault["whatsapp_api_token"] == "fixture-wa"
+        assert db.values["gemini_max_output_tokens"] == "4096"
+        assert db.values["gemini_temperature"] == "0.5"
+        assert db.values["gemini_sensitive_data_masking"] == "0"
+        assert db.values["gemini_zero_downtime_rotation"] == "0"
         assert db.values["unrelated"] == "keep"
         assert db.values["gemini_model"] == gemini.DEFAULT_GEMINI_MODEL
         report_path = tmp_path / "pool_report.json"

@@ -20,6 +20,94 @@
   font-size: 19px;
 }
 
+.automotive-damage-dialog {
+  width: min(1120px, calc(100vw - 32px));
+  max-width: none;
+  max-height: calc(100vh - 32px);
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 24px 72px rgb(0 0 0 / 58%);
+}
+
+.automotive-damage-dialog::backdrop { background: rgb(2 6 15 / 70%); }
+.automotive-damage-panel { display: grid; max-height: calc(100vh - 34px); grid-template-rows: auto minmax(0, 1fr) auto; }
+.automotive-damage-panel > header,
+.automotive-damage-panel > footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+.automotive-damage-panel > header h2,
+.automotive-damage-panel > header p,
+.automotive-damage-preview h3,
+.automotive-damage-side h4,
+.automotive-damage-preview-side h4 { margin: 0; }
+.automotive-damage-panel > header p { margin-top: 5px; color: var(--muted); font-size: 12px; }
+.automotive-damage-columns { display: grid; min-height: 0; grid-template-columns: minmax(0, 1.2fr) minmax(300px, 0.8fr); gap: 14px; padding: 14px 18px; overflow: auto; }
+.automotive-damage-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; gap: 10px; }
+.automotive-damage-side,
+.automotive-damage-preview-side { display: grid; gap: 8px; padding: 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); }
+.automotive-damage-side h4,
+.automotive-damage-preview-side h4 { color: var(--text); font-size: 12px; }
+.automotive-damage-entry { display: grid; grid-template-columns: minmax(0, 1fr) minmax(96px, 0.8fr); gap: 5px 8px; align-items: center; font-size: 11px; }
+.automotive-damage-entry input,
+.automotive-damage-entry select,
+.automotive-damage-general textarea { width: 100%; min-width: 0; }
+.automotive-damage-entry input { grid-column: 1 / -1; }
+.automotive-damage-general { grid-column: 1 / -1; display: grid; gap: 7px; font-size: 12px; font-weight: 700; }
+.automotive-damage-general textarea { min-height: 72px; }
+.automotive-damage-preview { display: grid; align-content: start; gap: 10px; }
+.automotive-damage-preview h3 { font-size: 14px; }
+.automotive-damage-preview-side > div { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.automotive-damage-preview-side [data-damage-preview] { display: grid; min-height: 42px; place-content: center; gap: 2px; padding: 5px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--muted); font-size: 10px; text-align: center; }
+.automotive-damage-preview-side [data-damage-preview] b { font-size: 10px; }
+.automotive-damage-preview-side [data-status="Cizik"] { background: #fde68a; color: #92400e; }
+.automotive-damage-preview-side [data-status="Gocuk"] { background: #fca5a5; color: #991b1b; }
+.automotive-damage-preview-side [data-status="Boya Hasari"] { background: #93c5fd; color: #1d4ed8; }
+.automotive-damage-preview-side [data-status="Kirildi"] { background: #c4b5fd; color: #5b21b6; }
+.automotive-damage-preview-side [data-status="Yok"].has-note { outline: 2px solid var(--warning); }
+.automotive-damage-panel > footer { justify-content: flex-end; border-top: 1px solid var(--line); border-bottom: 0; }
+
+@media (max-width: 760px) {
+  .automotive-damage-columns { grid-template-columns: minmax(0, 1fr); }
+  .automotive-damage-form { grid-template-columns: minmax(0, 1fr); }
+}
+
+.automotive-checklist-dialog {
+  width: min(1120px, calc(100vw - 32px));
+  max-width: none;
+  max-height: calc(100vh - 32px);
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 24px 72px rgb(0 0 0 / 58%);
+}
+.automotive-checklist-dialog::backdrop { background: rgb(2 6 15 / 70%); }
+.automotive-checklist-panel { display: grid; max-height: calc(100vh - 34px); grid-template-rows: auto minmax(0, 1fr) auto; }
+.automotive-checklist-panel > header,
+.automotive-checklist-panel > footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--line); }
+.automotive-checklist-panel > header h2,
+.automotive-checklist-panel > header p { margin: 0; }
+.automotive-checklist-panel > header p { margin-top: 5px; color: var(--muted); font-size: 12px; }
+.automotive-checklist-sections { display: grid; min-height: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; gap: 12px; padding: 16px 18px; overflow: auto; }
+.automotive-checklist-section { display: grid; align-content: start; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); }
+.automotive-checklist-section h3 { margin: 0 0 2px; color: var(--text); font-size: 13px; text-transform: capitalize; }
+.automotive-checklist-item { display: grid; grid-template-columns: minmax(0, 1fr) minmax(130px, 0.7fr); gap: 6px 10px; align-items: center; padding: 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); font-size: 12px; }
+.automotive-checklist-item select,
+.automotive-checklist-item textarea { width: 100%; min-width: 0; }
+.automotive-checklist-item textarea { grid-column: 1 / -1; min-height: 48px; }
+.automotive-checklist-item .required-mark { color: var(--warning); }
+.automotive-checklist-panel > footer { justify-content: flex-end; border-top: 1px solid var(--line); border-bottom: 0; }
+.service-form-damage { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.service-form-damage strong { flex: 1 1 100%; color: var(--muted); font-size: 11px; }
+.service-form-damage button { min-height: 32px; padding: 5px 10px; }
+.automotive-history-inline { max-height: 520px; margin-top: 10px; padding: 12px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); }
+.automotive-history-inline[hidden] { display: none; }
+@media (max-width: 760px) { .automotive-checklist-sections { grid-template-columns: minmax(0, 1fr); } }
+
 .automotive-fields {
   grid-column: 1 / -1;
   display: grid;

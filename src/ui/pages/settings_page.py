@@ -96,9 +96,16 @@ class SettingsPage(QWidget):
             if self.main_window is not None:
                 self.main_window._settings_header_mode = False
             use_embedded_navigation = self.main_window is not None and self.main_window.width() >= 1366
-            telegram_navigation = hasattr(self, "content_area") and self.content_area.currentIndex() == 16
-            self.sidebar.setVisible(use_embedded_navigation and not telegram_navigation)
-            self.settings_page_selector.setVisible(not use_embedded_navigation and not telegram_navigation)
+            page_has_internal_navigation = self.content_area.currentIndex() == 21
+            self.sidebar.setFixedWidth(260)
+            self.sidebar.setVisible(use_embedded_navigation)
+            self.settings_page_selector.setVisible(
+                not use_embedded_navigation and not page_has_internal_navigation
+            )
+            if hasattr(self, "settings_navigation_row"):
+                self.settings_navigation_row.setVisible(
+                    not use_embedded_navigation and not page_has_internal_navigation
+                )
             if use_embedded_navigation:
                 self.sidebar.list_widget.scrollToTop()
             shell_sidebar = getattr(self.main_window, "app_sidebar", None)
@@ -121,6 +128,10 @@ class SettingsPage(QWidget):
     def hideEvent(self, event):
         self._restore_shell_sidebar()
         super().hideEvent(event)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        QTimer.singleShot(0, self._sync_shell_sidebar)
 
     def eventFilter(self, watched, event):
         if watched is getattr(self, "_shell_menu", None) and event.type() in (QEvent.Type.Show, QEvent.Type.Hide, QEvent.Type.Resize):
@@ -294,11 +305,13 @@ class SettingsPage(QWidget):
         self.settings_page_selector.activated.connect(
             lambda index: self.change_page(self.settings_page_selector.itemData(index))
         )
-        settings_navigation = QHBoxLayout()
+        self.settings_navigation_row = QWidget(self)
+        settings_navigation = QHBoxLayout(self.settings_navigation_row)
         settings_navigation.setContentsMargins(0, 0, 0, 0)
         settings_navigation.addStretch(1)
         settings_navigation.addWidget(self.settings_page_selector)
-        content_column.addLayout(settings_navigation, 0)
+        self.settings_navigation_layout = settings_navigation
+        content_column.addWidget(self.settings_navigation_row, 0)
         content_column.addWidget(self.content_area, 1)
         main_layout.addWidget(self.sidebar, 0)
         main_layout.addLayout(content_column, 1)
@@ -315,6 +328,17 @@ class SettingsPage(QWidget):
         self.apply_theme_styles()
 
     def change_page(self, row):
+        diagnostics = getattr(self.main_window, "_menu_window_diagnostics", None)
+        if diagnostics is not None:
+            item = next(
+                (entry for entry in self.sidebar.iter_items() if entry["page_id"] == row),
+                None,
+            )
+            diagnostics.record_menu_click(
+                "Settings menu",
+                item["title"] if item else "Unknown settings page",
+                row,
+            )
         # Lazy Load Logic
         # Strategy: We store the CLASS in a mapping, and instantiate on first access.
         
@@ -413,12 +437,31 @@ class SettingsPage(QWidget):
                 new_page.setStyleSheet(self._content_area_qss())
             
         self.content_area.setCurrentIndex(row)
-        self.settings_page_selector.setVisible(False)
+        if row in self.sidebar.items_map:
+            navigation_row = self.sidebar.items_map.index(row)
+            navigation_item = self.sidebar.list_widget.item(navigation_row)
+            if navigation_item is not None and not navigation_item.isHidden():
+                self.sidebar._active_page_id = row
+                previous = self.sidebar.list_widget.blockSignals(True)
+                try:
+                    self.sidebar.list_widget.setCurrentRow(navigation_row)
+                finally:
+                    self.sidebar.list_widget.blockSignals(previous)
         selector_index = self.settings_page_selector.findData(row)
         if selector_index >= 0 and self.settings_page_selector.currentIndex() != selector_index:
             self.settings_page_selector.blockSignals(True)
             self.settings_page_selector.setCurrentIndex(selector_index)
             self.settings_page_selector.blockSignals(False)
+        selector_host = getattr(self, "_settings_selector_host", None)
+        if selector_host is not None:
+            selector_host.detach_settings_page_selector(self.settings_page_selector)
+            self._settings_selector_host = None
+        if self.settings_navigation_layout.indexOf(self.settings_page_selector) < 0:
+            self.settings_navigation_layout.addWidget(self.settings_page_selector)
+        self.sidebar.setFixedWidth(260)
+        self.sidebar.setVisible(True)
+        self.settings_navigation_row.setVisible(row != 21)
+        self.settings_page_selector.setVisible(False)
         app_header = getattr(self.main_window, "app_header", None)
         breadcrumb = getattr(app_header, "breadcrumb", None)
         if breadcrumb is not None:
@@ -435,6 +478,8 @@ class SettingsPage(QWidget):
         # Re-assert enabled state for newly loaded page
         self.enable_all_controls()
         self.apply_theme_styles()
+        if self.isVisible():
+            self._sync_shell_sidebar()
 
     def apply_theme_styles(self):
         if self.is_classic_appearance():

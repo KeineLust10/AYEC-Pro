@@ -75,3 +75,26 @@ def test_offer_reference_list_uses_desktop_table_viewport():
 
     assert 'body[data-page="offers"] .offers-reference-list #genericHost .table-wrap { height: 310px; max-height: 310px; overflow: auto; }' in styles
     assert 'body[data-page="offers"] .offers-reference-list #genericHost .table-wrap { height: 360px; max-height: 360px; }' in styles
+
+
+def test_sales_cart_context_menu_edits_and_manages_lines():
+    app = (WEB / "app.js").read_text(encoding="utf-8")
+    desktop = (ROOT / "src/ui/pages/transaction_page_behaviors.py").read_text(encoding="utf-8")
+
+    assert 'data-kind="sales-cart" data-id="${index}"' in app
+    assert 'if(kind==="sales-cart")items=[[' in app
+    for action in (
+        "sales-cart-quantity", "sales-cart-price", "sales-cart-description",
+        "sales-cart-copy", "sales-cart-remove",
+    ):
+        assert action in app
+    assert "unit_price:salesCart[index]?.unitPriceTry" in app
+    assert "description:salesCart[index]?.description" in app
+    bulk_sales = (WEB / "bulk-sales-selection.js").read_text(encoding="utf-8")
+    assert '<textarea name="description">' in bulk_sales
+    assert 'String(form.get("description")||"")' in bulk_sales
+    assert '.trim().slice(0,500)' not in bulk_sales
+    start = desktop.index("def show_cart_context_menu")
+    end = desktop.index("\n    def ", start + 1)
+    assert desktop[start:end].count("menu.addSeparator()") == 2
+    assert '["Hizmeti Kopyala","sales-cart-copy"],["","sales-cart-separator"],["Sepetten \\u00c7\\u0131kar","sales-cart-remove"]' in app

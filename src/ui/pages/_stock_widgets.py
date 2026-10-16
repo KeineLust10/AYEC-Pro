@@ -17,7 +17,7 @@ class StockAmountLabel(QLabel):
         self.token = token
         self.setTextFormat(Qt.TextFormat.PlainText)
         self.setToolTip(self.text())
-        self.setMinimumHeight(44)
+        self.setMinimumHeight(36)
         self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
         self.setStyleSheet('background: transparent; border: none; padding: 0;')
 
@@ -25,7 +25,7 @@ class StockAmountLabel(QLabel):
         super().setText(str(value))
         self.setToolTip(str(value))
 
-    def amount_font(self, text, maximum=24):
+    def amount_font(self, text, maximum=20):
         font = QFont(self.font())
         font.setBold(True)
         for size in range(maximum, 8, -1):
@@ -60,7 +60,7 @@ class StockStatCard(QFrame):
         super().__init__(parent)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setObjectName("StockStatCard")
-        self.setFixedHeight(132)
+        self.setFixedHeight(82)
         self.setMinimumWidth(0)
         self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
         self.setStyleSheet(
@@ -77,16 +77,16 @@ class StockStatCard(QFrame):
         """)
         )
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(14, 10, 14, 10)
-        layout.setSpacing(12)
+        layout.setContentsMargins(12, 8, 12, 8)
+        layout.setSpacing(8)
         icon_box = QFrame()
-        icon_box.setFixedSize(48, 48)
+        icon_box.setFixedSize(38, 38)
         icon_box.setStyleSheet(theme_qss(
             "QFrame { background: @finance_surface_high; border: 1px solid @finance_outline; border-radius: 13px; }"
         ))
         icon_layout = QHBoxLayout(icon_box)
         icon_layout.setContentsMargins(8, 8, 8, 8)
-        self.icon_lbl = FinancialMetricGlyph(glyph, token, glyph_size=24)
+        self.icon_lbl = FinancialMetricGlyph(glyph, token, glyph_size=20)
         self.icon_lbl.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         icon_layout.addWidget(self.icon_lbl)
         layout.addWidget(icon_box, 0, Qt.AlignmentFlag.AlignVCenter)
@@ -100,7 +100,7 @@ class StockStatCard(QFrame):
         self.title_lbl.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         self.title_lbl.setStyleSheet(theme_qss(
             'background: transparent; border: none; color: @finance_text_muted; '
-            'font-size: 13px; font-weight: 700;'
+            'font-size: 11px; font-weight: 700;'
         ))
         self.title_lbl.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.val_lbl = StockAmountLabel(value, token)

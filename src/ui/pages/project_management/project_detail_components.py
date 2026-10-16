@@ -40,15 +40,17 @@ class FinanceTab(QWidget):
 
     def init_ui(self):
         fallback_font = QFont()
-        fallback_font.setFamilies(["Segoe UI", "Arial"])
+        fallback_font.setFamilies(["Inter", "Segoe UI", "Arial"])
         self.setFont(fallback_font)
+        self.setProperty("skipThemeTransform", True)
         layout = QVBoxLayout(self)
-        layout.setSpacing(10)
-        layout.setContentsMargins(12, 10, 12, 10)
-        self.setStyleSheet("QWidget{background:#0e1321;color:#dee2f6;font-family:'Segoe UI','Arial';font-size:10px} QLineEdit,QComboBox{background:#161b2a;color:#dee2f6;border:1px solid #424754;border-radius:5px;padding:7px} QTableWidget{background:#0e1321;alternate-background-color:#161b2a;color:#dee2f6;gridline-color:#252a39;border:1px solid #252a39} QTableWidget::item{background:#0e1321;color:#dee2f6;padding:6px} QTableWidget::item:alternate{background:#161b2a;color:#dee2f6} QHeaderView::section{background:#161b2a;color:#c2c6d6;border:0;border-bottom:1px solid #252a39;padding:7px;font-weight:600} QPushButton{background:#252a39;color:#dee2f6;border:1px solid #424754;border-radius:5px;padding:7px 10px} QPushButton:hover{background:#303444}")
+        layout.setSpacing(8)
+        layout.setContentsMargins(8, 8, 8, 8)
+        self.setStyleSheet("QWidget{background:#0b1020;color:#dee2f6;font-family:'Inter','Segoe UI','Arial';font-size:10px} QLineEdit{background:#0b1120;color:#dee2f6;border:1px solid #202d45;border-radius:4px;padding:6px;font:10px 'Inter','Segoe UI',sans-serif} QComboBox{background:#0b1120;color:#dee2f6;border:1px solid #202d45;border-radius:4px;padding:6px;font:9px 'Inter','Segoe UI',sans-serif} QComboBox::drop-down{width:22px;border:0;border-left:1px solid #202d45;background:#171d2d} QComboBox QAbstractItemView{background:#111827;color:#dee2f6;selection-background-color:#2563eb} QTableWidget{background:#0b1020;alternate-background-color:#171d2d;color:#dee2f6;gridline-color:#202d45;border:1px solid #202d45} QTableWidget::item{background:#0b1020;color:#dee2f6;padding:6px} QTableWidget::item:alternate{background:#171d2d;color:#dee2f6} QHeaderView::section{background:#111827;color:#aebbd0;border:0;border-bottom:1px solid #202d45;padding:7px;font:700 9px 'JetBrains Mono',Consolas,monospace} QPushButton{background:#171d2d;color:#c2cce0;border:1px solid #202d45;border-radius:4px;padding:6px 10px;font:600 9px 'Inter','Segoe UI',sans-serif} QPushButton:hover{background:#1c2940}")
         self.dashboard_title = QLabel("Proje Finans Durumu & Nakit Ak\u0131\u015f\u0131 | CANLI DEFTER")
-        self.dashboard_title.setFont(QFont("Segoe UI", 16, QFont.Weight.DemiBold))
-        self.dashboard_title.setStyleSheet("color:#dee2f6;padding:4px 2px;")
+        self.dashboard_title.setFont(QFont("Inter", 15, QFont.Weight.DemiBold))
+        self.dashboard_title.setProperty("skipThemeTransform", True)
+        self.dashboard_title.setStyleSheet("color:#dee2f6;background:transparent;border:0;padding:4px 2px;")
         self.dashboard_title.setMaximumHeight(42)
         toolbar = QHBoxLayout()
         toolbar.setSpacing(10)
@@ -78,28 +80,60 @@ class FinanceTab(QWidget):
         # ── Butonlar ─────────────────────────────────────────────────────────
         btn_layout = QHBoxLayout()
         self.btn_income = QPushButton("➕ Gelir Ekle")
-        self.btn_income.setStyleSheet(theme_qss("background-color: @success; color: @selection_text; border-radius: 6px; padding: 6px 14px; font-weight: bold;"))
+        self.btn_income.setFixedHeight(32)
+        self.btn_income.setStyleSheet("QPushButton{background:#4edea3;color:#07111f;border:0;border-radius:4px;padding:0 12px;font:700 8px 'JetBrains Mono',Consolas,monospace}")
         self.btn_income.clicked.connect(lambda: self.open_transaction_dialog("Gelir"))
 
         self.btn_expense = QPushButton("➖ Gider Ekle")
-        self.btn_expense.setStyleSheet(theme_qss("background-color: @danger; color: @selection_text; border-radius: 6px; padding: 6px 14px; font-weight: bold;"))
+        self.btn_expense.setFixedHeight(32)
+        self.btn_expense.setStyleSheet("QPushButton{background:#b84250;color:#fff2f2;border:0;border-radius:4px;padding:0 12px;font:700 8px 'JetBrains Mono',Consolas,monospace}")
         self.btn_expense.clicked.connect(lambda: self.open_transaction_dialog("Gider"))
 
         btn_layout.addWidget(self.btn_income)
         btn_layout.addWidget(self.btn_expense)
         self.btn_pdf = QPushButton("PDF Raporu \u0130ndir")
+        self.btn_pdf.setFixedHeight(32)
+        self.btn_pdf.setStyleSheet("QPushButton{background:#171d2d;color:#c2cce0;border:1px solid #202d45;border-radius:4px;padding:0 10px;font:600 8px 'Inter','Segoe UI',sans-serif}")
         self.btn_pdf.clicked.connect(lambda: self._export_report("pdf"))
         self.btn_excel = QPushButton("Excel D\u00f6k\u00fcm\u00fc")
+        self.btn_excel.setFixedHeight(32)
+        self.btn_excel.setStyleSheet("QPushButton{background:#171d2d;color:#4edea3;border:1px solid #202d45;border-radius:4px;padding:0 10px;font:600 8px 'Inter','Segoe UI',sans-serif}")
         self.btn_excel.clicked.connect(lambda: self._export_report("csv"))
         btn_layout.addWidget(self.btn_pdf)
         btn_layout.addWidget(self.btn_excel)
         btn_layout.addStretch()
         toolbar.addLayout(btn_layout)
-        self.budget_label = QLabel("Proje B\u00fct\u00e7e Ger\u00e7ekle\u015fme Oran\u0131 | Nakit/Banka | Hakedi\u015f Avans | Bor\u00e7/Alacak Denge")
-        self.budget_label.setMinimumHeight(46)
-        self.budget_label.setMaximumHeight(64)
-        self.budget_label.setStyleSheet("background:#161b2a;color:#adc6ff;border-radius:6px;padding:9px;font-weight:600;")
-        layout.addWidget(self.budget_label)
+        self.budget_panel = QFrame()
+        self.budget_panel.setMinimumHeight(58)
+        self.budget_panel.setMaximumHeight(64)
+        self.budget_panel.setProperty("skipThemeTransform", True)
+        self.budget_panel.setStyleSheet("QFrame{background:#111827;border:1px solid #202d45;border-radius:4px}")
+        budget_layout = QHBoxLayout(self.budget_panel)
+        budget_layout.setContentsMargins(10, 7, 10, 7)
+        budget_layout.setSpacing(10)
+        self.budget_label = QLabel("Proje B\u00fct\u00e7e Ger\u00e7ekle\u015fme Oran\u0131")
+        self.budget_label.setProperty("skipThemeTransform", True)
+        self.budget_label.setStyleSheet("color:#dee2f6;background:transparent;border:0;font:700 9px 'JetBrains Mono',Consolas,monospace")
+        budget_layout.addWidget(self.budget_label)
+        self.budget_percent = QLabel("0% Ger\u00e7ekle\u015fen")
+        self.budget_percent.setProperty("skipThemeTransform", True)
+        self.budget_percent.setStyleSheet("color:#4cd7f6;background:transparent;border:0;font:700 8px 'JetBrains Mono',Consolas,monospace")
+        budget_layout.addWidget(self.budget_percent)
+        self.budget_progress = QProgressBar()
+        self.budget_progress.setRange(0, 100)
+        self.budget_progress.setTextVisible(False)
+        self.budget_progress.setFixedSize(150, 8)
+        self.budget_progress.setStyleSheet("QProgressBar{background:#252a39;border:0;border-radius:4px} QProgressBar::chunk{background:#4cd7f6;border-radius:4px}")
+        budget_layout.addWidget(self.budget_progress)
+        budget_layout.addStretch(1)
+        self.budget_cash = QLabel("")
+        self.budget_advance = QLabel("")
+        self.budget_balance = QLabel("")
+        for summary in (self.budget_cash, self.budget_advance, self.budget_balance):
+            summary.setProperty("skipThemeTransform", True)
+            summary.setStyleSheet("color:#aebbd0;background:transparent;border:0;font:700 8px 'JetBrains Mono',Consolas,monospace")
+            budget_layout.addWidget(summary)
+        layout.addWidget(self.budget_panel)
 
         # ── İşlem Tablosu (6 sütun — Durum dahil) ────────────────────────────
         filter_layout = QHBoxLayout()
@@ -123,13 +157,48 @@ class FinanceTab(QWidget):
         self.filter_status.addItem("\u00d6dendi / Tahsil Edildi", "paid")
         self.filter_status.addItem("Bekliyor", "pending")
         self.filter_reset = QPushButton("Filtreleri Temizle")
-        for widget in (self.search_input, self.filter_date, self.filter_type, self.filter_category, self.filter_channel, self.filter_status, self.filter_reset):
+        self.search_input.setProperty("skipThemeTransform", True)
+        self.search_input.setMinimumHeight(32)
+        self.search_input.setMinimumWidth(200)
+        for widget in (self.filter_date, self.filter_type, self.filter_category, self.filter_channel, self.filter_status):
+            widget.setProperty("skipThemeTransform", True)
+            widget.setMinimumHeight(32)
+        self.filter_reset.setFixedSize(32, 32)
+        self.filter_reset.setText("\u21bb")
+        self.filter_reset.setToolTip("Filtreleri Temizle")
+        self.filter_reset.setProperty("skipThemeTransform", True)
+        filter_layout.addWidget(self.search_input, 2)
+        for widget in (self.filter_date, self.filter_type, self.filter_category, self.filter_channel, self.filter_status):
             filter_layout.addWidget(widget, 1)
+        filter_layout.addWidget(self.filter_reset)
         layout.addLayout(filter_layout)
         self.search_input.textChanged.connect(self.load_data)
         for widget in (self.filter_date, self.filter_type, self.filter_category, self.filter_channel, self.filter_status):
             widget.currentIndexChanged.connect(self.load_data)
         self.filter_reset.clicked.connect(self._reset_filters)
+
+        segment_container = QWidget()
+        segment_container.setFixedHeight(32)
+        segment_row = QHBoxLayout(segment_container)
+        segment_row.setContentsMargins(2, 0, 2, 0)
+        segment_row.setSpacing(5)
+        self._ledger_segment = "all"
+        self.ledger_segment_buttons = {}
+        for key, label in (("all", "Tum Islemler"), ("income", "Gelirler"), ("expense", "Giderler"), ("pending", "Bekleyen Mutabakatlar")):
+            button = QPushButton(label)
+            button.setCheckable(True)
+            button.setProperty("skipThemeTransform", True)
+            button.setFixedHeight(28)
+            button.clicked.connect(lambda checked=False, value=key: self._set_ledger_segment(value))
+            self.ledger_segment_buttons[key] = button
+            segment_row.addWidget(button)
+        self.ledger_segment_buttons["all"].setChecked(True)
+        segment_row.addStretch(1)
+        self.ledger_count_label = QLabel("0 Kayit")
+        self.ledger_count_label.setProperty("skipThemeTransform", True)
+        self.ledger_count_label.setStyleSheet("color:#aebbd0;background:transparent;border:0;font:700 8px 'JetBrains Mono',Consolas,monospace")
+        segment_row.addWidget(self.ledger_count_label)
+        layout.addWidget(segment_container)
 
         self.table = QTableWidget()
         self.table.setColumnCount(8)
@@ -152,6 +221,13 @@ class FinanceTab(QWidget):
         self.sync_label.setMaximumHeight(42)
         self.sync_label.setStyleSheet("background:#161b2a;color:#4cd7f6;border-radius:5px;padding:7px;")
         layout.addWidget(self.sync_label)
+
+    def _set_ledger_segment(self, segment):
+        self._ledger_segment = segment
+        for key, button in self.ledger_segment_buttons.items():
+            button.setChecked(key == segment)
+            button.setStyleSheet("QPushButton{background:#2563eb;color:#fff;border:1px solid #3b82f6;border-radius:5px;padding:4px 10px;font:700 8px 'JetBrains Mono',Consolas,monospace}" if key == segment else "QPushButton{background:#111827;color:#aebbd0;border:1px solid #202d45;border-radius:5px;padding:4px 10px;font:600 8px 'JetBrains Mono',Consolas,monospace}")
+        self.load_data()
 
     def _reset_filters(self):
         self.search_input.clear()
@@ -229,16 +305,20 @@ class FinanceTab(QWidget):
     def create_summary_card(self, title, value, color, small=False):
         frame = QFrame()
         accent = "#4cd7f6" if small else "#4edea3" if color == tc("success") else "#ffb4ab" if color == tc("danger") else "#adc6ff"
-        frame.setStyleSheet(f"QFrame{{background:#1a1f2e;border:1px solid #252a39;border-left:3px solid {accent};border-radius:7px;color:#dee2f6;}}")
+        frame.setProperty("skipThemeTransform", True)
+        frame.setStyleSheet(f"QFrame{{background:#171d2d;border:1px solid #202d45;border-left:3px solid {accent};border-radius:5px;color:#dee2f6;}}")
         h, font_size = (92, 11) if small else (92, 14)
         frame.setFixedHeight(h)
+        frame.setProperty("skipThemeTransform", True)
         l = QVBoxLayout(frame)
         l.setContentsMargins(10, 6, 10, 6)
         lbl_t = QLabel(title)
-        lbl_t.setStyleSheet("color:#c2c6d6;font-size:10px;letter-spacing:1px;")
+        lbl_t.setProperty("skipThemeTransform", True)
+        lbl_t.setStyleSheet("color:#aebbd0;background:transparent;border:0;font:700 9px 'JetBrains Mono',Consolas,monospace;")
         lbl_v = QLabel(value)
-        lbl_v.setFont(QFont("Segoe UI", font_size, QFont.Weight.Bold))
-        lbl_v.setStyleSheet("color:#dee2f6;font-size:18px;font-weight:700;")
+        lbl_v.setFont(QFont("JetBrains Mono", font_size, QFont.Weight.Bold))
+        lbl_v.setProperty("skipThemeTransform", True)
+        lbl_v.setStyleSheet("color:#dee2f6;background:transparent;border:0;font:700 16px 'JetBrains Mono',Consolas,monospace;")
         l.addWidget(lbl_t)
         l.addWidget(lbl_v)
         frame.lbl_title_ref = lbl_t
@@ -255,6 +335,17 @@ class FinanceTab(QWidget):
         self.card_profit.lbl_value.setText(self._fmt_project_amount(fin.get('profit', 0)))
         self.card_income_pending.lbl_value.setText(self._fmt_project_amount(fin.get('income_pending', 0)))
         self.card_expense_pending.lbl_value.setText(self._fmt_project_amount(fin.get('expense_pending', 0)))
+        income_paid = float(fin.get("income", 0) or 0)
+        income_pending = float(fin.get("income_pending", 0) or 0)
+        expense_paid = float(fin.get("expense", 0) or 0)
+        expense_pending = float(fin.get("expense_pending", 0) or 0)
+        target = income_paid + income_pending
+        realized = int(round(income_paid * 100 / target)) if target > 0 else 0
+        self.budget_progress.setValue(realized)
+        self.budget_percent.setText(f"{realized}% Ger\u00e7ekle\u015fen")
+        self.budget_cash.setText(f"Nakit/Banka: {self._fmt_project_amount(income_paid - expense_paid)}")
+        self.budget_advance.setText(f"Bekleyen: {self._fmt_project_amount(income_pending)}")
+        self.budget_balance.setText(f"Denge: {self._fmt_project_amount(income_paid + income_pending - expense_paid - expense_pending)}")
 
         # ── İşlem tablosu ─────────────────────────────────────────────────
         txns = list(self.db.get_project_transactions(self.project_id))
@@ -276,6 +367,7 @@ class FinanceTab(QWidget):
         category_filter = self.filter_category.currentData()
         channel_filter = self.filter_channel.currentData()
         status_filter = self.filter_status.currentData()
+        ledger_segment = self._ledger_segment
         date_filter = self.filter_date.currentData()
         today = QDate.currentDate()
         week_start = today.addDays(1 - today.dayOfWeek())
@@ -292,10 +384,15 @@ class FinanceTab(QWidget):
                 matches_date(txn) and
                 (not query or query in normalize(" ".join(str(txn[key] or "") for key in txn.keys()))) and
                 (type_filter == "all" or str(txn["type"] or "") == type_filter) and
+                (ledger_segment == "all" or
+                 (ledger_segment == "income" and str(txn["type"] or "") == "Gelir") or
+                 (ledger_segment == "expense" and str(txn["type"] or "") == "Gider") or
+                 (ledger_segment == "pending" and normalize(txn["status"]) not in ("odendi", "tahsil edildi"))) and
                 (category_filter == "all" or str(txn["category"] or "") == category_filter) and
                 (channel_filter == "all" or str(txn["payment_method"] or "") == channel_filter) and
                 (status_filter == "all" or (status_filter == "paid" and normalize(txn["status"]) in ("odendi", "tahsil edildi")) or (status_filter == "pending" and normalize(txn["status"]) not in ("odendi", "tahsil edildi")))]
         self.visible_transactions = txns
+        self.ledger_count_label.setText(f"Kayit: {len(txns)} Satir")
         self.footer_label.setText(f"{len(txns)} hareket g\u00f6steriliyor | Net denge: {self._fmt_project_amount(fin.get('profit', 0))}")
         self.table.setRowCount(len(txns))
         for row, txn in enumerate(txns):
@@ -400,16 +497,16 @@ class UnitsTab(QWidget):
         fallback_font = QFont()
         fallback_font.setFamilies(["Segoe UI", "Arial"])
         self.setFont(fallback_font)
-        self.setStyleSheet("QWidget{background:#0e1321;color:#dee2f6;font-family:'Segoe UI','Arial'} QComboBox { background: #1e293b; color: #e2e8f0; border: 1px solid #26364d; border-radius: 5px; padding: 4px 8px; } QComboBox QAbstractItemView { background: #0b1222; color: #e2e8f0; selection-background-color: #2563eb; } QPushButton{background:#1e293b;color:#cbd5e1;border:1px solid #26334a;border-radius:4px;padding:6px 10px}")
+        self.setStyleSheet("QWidget{background:#0b1020;color:#dee2f6;font-family:'Inter','Segoe UI','Arial';font-size:9px} QComboBox{background:#0b1120;color:#dee2f6;border:1px solid #202d45;border-radius:4px;padding:6px} QComboBox QAbstractItemView{background:#111827;color:#dee2f6;selection-background-color:#2563eb} QPushButton{background:#171d2d;color:#c2cce0;border:1px solid #202d45;border-radius:4px;padding:6px 10px;font-family:'Inter','Segoe UI',sans-serif}")
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 10, 10, 10)
-        layout.setSpacing(10)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(14)
 
         # ── Araç Çubuğu ──────────────────────────────────────────────────────
         toolbar = QHBoxLayout()
 
         self.btn_add = QPushButton("+ Blok ve Daire Olu\u015ftur")
-        self.btn_add.setFixedHeight(36)
+        self.btn_add.setFixedHeight(32)
         self.btn_add.setStyleSheet(theme_qss(
             "QPushButton { background-color: @accent; color: @selection_text; "
             "border-radius: 7px; font-weight: bold; font-size: 13px; padding: 0 16px; } "
@@ -418,7 +515,8 @@ class UnitsTab(QWidget):
         self.btn_add.clicked.connect(self.open_add_unit_dialog)
         toolbar.addWidget(self.btn_add)
         self.btn_add_single = QPushButton("+ Tekil Daire / Oda Ekle")
-        self.btn_add_single.setFixedHeight(36)
+        self.btn_add_single.setFixedHeight(32)
+        self.btn_add_single.setStyleSheet("QPushButton { background:#171d2d; color:#c2cce0; border:1px solid #202d45; border-radius:4px; padding:0 12px; font:600 9px 'Inter','Segoe UI',sans-serif; } QPushButton:hover { background:#1c2940; }")
         self.btn_add_single.clicked.connect(self.open_add_unit_dialog)
         toolbar.addWidget(self.btn_add_single)
 
@@ -438,7 +536,7 @@ class UnitsTab(QWidget):
             button.setCheckable(True)
             button.setProperty("status_key", key)
             button.setProperty("skipThemeTransform", True)
-            button.setStyleSheet("QPushButton { background: #111827; color: #9aa7ba; border: 1px solid #26334a; border-radius: 4px; padding: 5px 9px; font-size: 10px; } QPushButton:checked { background: #1e3a5f; color: #93c5fd; border-color: #3b82f6; }")
+            button.setStyleSheet("QPushButton { background:#111827; color:#8c98ad; border:1px solid #202d45; border-radius:4px; padding:5px 9px; font:8px 'JetBrains Mono',Consolas,monospace; } QPushButton:checked { background:#2563eb; color:#f8fbff; border-color:#4f8ff9; }")
             button.clicked.connect(lambda checked, value=key: self._set_status_filter(value))
             self.status_filter_group.addButton(button)
             self.status_filter_buttons[key] = button
@@ -446,9 +544,13 @@ class UnitsTab(QWidget):
         self.status_filter_buttons["all"].setChecked(True)
         toolbar.addLayout(status_row)
         self.btn_bulk_status = QPushButton("Toplu Durum G\u00fcncelle")
+        self.btn_bulk_status.setFixedHeight(32)
+        self.btn_bulk_status.setStyleSheet("QPushButton { background:#171d2d; color:#c2cce0; border:1px solid #202d45; border-radius:4px; padding:0 10px; font:600 8px 'Inter','Segoe UI',sans-serif; }")
         self.btn_bulk_status.clicked.connect(self.update_all_unit_statuses)
         toolbar.addWidget(self.btn_bulk_status)
         self.btn_view_mode = QPushButton("Kompakt Liste")
+        self.btn_view_mode.setFixedHeight(32)
+        self.btn_view_mode.setStyleSheet("QPushButton { background:#171d2d; color:#c2cce0; border:1px solid #202d45; border-radius:4px; padding:0 10px; font:600 8px 'Inter','Segoe UI',sans-serif; } QPushButton:checked { background:#1c2940; border-color:#4f8ff9; color:#dee2f6; }")
         self.btn_view_mode.setCheckable(True)
         self.btn_view_mode.toggled.connect(self.load_data)
         toolbar.addWidget(self.btn_view_mode)
@@ -456,23 +558,19 @@ class UnitsTab(QWidget):
 
         self.search_inp = QLineEdit()
         self.search_inp.setPlaceholderText("\U0001F50D Oda / daire ara... (\u00f6rn: A-1, B-4, Salon, Engin)")
-        self.search_inp.setFixedHeight(36)
+        self.search_inp.setFixedHeight(24)
         self.search_inp.setMinimumWidth(320)
         self.search_inp.setStyleSheet(theme_qss(
-            "QLineEdit { border: 1px solid @border; border-radius: 7px; padding: 0 10px; "
-            "background: @surface; color: @text; font-size: 12px; }"
+            "QLineEdit { border:1px solid #202d45; border-radius:4px; padding:0 10px; "
+            "background:#0b1120; color:#dee2f6; font:9px 'Inter','Segoe UI',sans-serif; }"
         ))
         self.search_inp.textChanged.connect(self.load_data)
         search_row = QHBoxLayout()
         search_row.addWidget(self.search_inp, 1)
 
         self.btn_export = QPushButton("\u25a6 Excel Raporu")
-        self.btn_export.setFixedHeight(36)
-        self.btn_export.setStyleSheet(theme_qss(
-            "QPushButton { background-color: @success; color: @selection_text; "
-            "border-radius: 7px; font-weight: bold; font-size: 12px; padding: 0 14px; } "
-            "QPushButton:hover { background-color: @success; }"
-        ))
+        self.btn_export.setFixedHeight(32)
+        self.btn_export.setStyleSheet("QPushButton { background:#171d2d; color:#4edea3; border:1px solid #202d45; border-radius:4px; font:700 8px 'JetBrains Mono',Consolas,monospace; padding:0 12px; } QPushButton:hover { background:#1c2940; }")
         self.btn_export.clicked.connect(self.export_to_excel)
         toolbar.addWidget(self.btn_export)
 
@@ -488,18 +586,30 @@ class UnitsTab(QWidget):
         self.scroll.setStyleSheet(theme_qss("QScrollArea { border: none; background: transparent; }"))
 
         self.scroll_content = QWidget()
-        self.scroll_content.setStyleSheet("background-color: #0e1321; color: #dee2f6;")
+        self.scroll_content.setStyleSheet("background-color:#0b1020;color:#dee2f6;")
         content_layout = QVBoxLayout(self.scroll_content)
-        content_layout.setContentsMargins(0, 0, 0, 0)
-        content_layout.setSpacing(10)
+        content_layout.setContentsMargins(0, 23, 0, 0)
+        content_layout.setSpacing(12)
+        self.block_summary_frame = QFrame()
+        self.block_summary_frame.setStyleSheet("QFrame { background:#171d2d; border:1px solid #202d45; border-radius:4px; }")
+        summary_layout = QHBoxLayout(self.block_summary_frame)
+        summary_layout.setContentsMargins(10, 7, 10, 7)
         self.block_summary = QLabel("")
-        self.block_summary.setMinimumHeight(48)
-        self.block_summary.setStyleSheet("background:#161b2a;color:#dee2f6;border-radius:6px;padding:8px;font-weight:600;")
-        content_layout.addWidget(self.block_summary)
+        self.block_summary.setMinimumHeight(38)
+        self.block_summary.setStyleSheet("background:transparent;color:#dee2f6;border:0;font:600 9px 'Inter','Segoe UI',sans-serif;")
+        summary_layout.addWidget(self.block_summary, 1)
+        self.block_progress = QProgressBar()
+        self.block_progress.setRange(0, 100)
+        self.block_progress.setTextVisible(False)
+        self.block_progress.setFixedSize(140, 8)
+        self.block_progress.setStyleSheet("QProgressBar { background:#252a39; border:0; border-radius:4px; } QProgressBar::chunk { background:#4cd7f6; border-radius:4px; }")
+        summary_layout.addWidget(self.block_progress)
+        content_layout.addWidget(self.block_summary_frame)
         self.grid_host = QWidget()
         self.grid_host.setStyleSheet("background:transparent;")
         self.grid = QGridLayout(self.grid_host)
-        self.grid.setSpacing(14)
+        self.grid.setContentsMargins(0, 0, 0, 0)
+        self.grid.setSpacing(12)
         self.grid.setAlignment(Qt.AlignmentFlag.AlignTop)
         content_layout.addWidget(self.grid_host, 1)
 
@@ -568,9 +678,18 @@ class UnitsTab(QWidget):
         for unit in all_units:
             status = unit["status"] if hasattr(unit, "keys") else (unit[5] if len(unit) > 5 else "")
             normalized = str(status or "").casefold().replace("\u0131", "i").replace("\u00f6", "o").replace("\u015f", "s")
-            completion_values.append(100 if "tamam" in normalized else 50 if "devam" in normalized else 0)
+            completion = None
+            if hasattr(unit, "keys"):
+                try:
+                    completion = float(unit["completion_percent"])
+                except (KeyError, TypeError, ValueError):
+                    pass
+            if completion is None:
+                completion = 100 if "tamam" in normalized else 50 if "devam" in normalized else 0
+            completion_values.append(max(0, min(100, completion)))
         average = round(sum(completion_values) / len(completion_values), 1) if completion_values else 0
         self.block_summary.setText(f"{block_name} Daireleri   |   {len(all_units)} Ba\u011f\u0131ms\u0131z B\u00f6l\u00fcm   |   Ortalama Tamamlanma %{average}")
+        self.block_progress.setValue(int(round(average)))
 
         if not units:
             empty_lbl = QLabel("Henüz oda/daire eklenmedi veya arama sonucu bulunamadı.")
@@ -748,7 +867,7 @@ class UnitCard(QFrame):
 
     # Durum → (kenarlık rengi, etiket metni, etiket rengi)
     _STATUS_MAP = {
-        'Tamamlandı':   ('#4CAF50', '✅ Tamamlandı',   '#4CAF50'),
+        'Tamamland\u0131': ('#4edea3', '\u2705 Tamamland\u0131', '#4edea3'),
         'Devam Ediyor': ('#4cd7f6', '\U0001f504 Devam Ediyor', '#4cd7f6'),
         'Bekliyor':     (None,      '⏳ Bekliyor',      None),
     }
@@ -757,7 +876,7 @@ class UnitCard(QFrame):
     def __init__(self, unit, parent_tab):
         super().__init__()
         fallback_font = QFont()
-        fallback_font.setFamilies(["Segoe UI", "Arial"])
+        fallback_font.setFamilies(["Inter", "Segoe UI", "Arial"])
         self.setFont(fallback_font)
         self.unit = unit
         self.parent_tab = parent_tab
@@ -773,7 +892,7 @@ class UnitCard(QFrame):
         self.unit_no = str(value("unit_no", 4, "") or "")
         raw_status = str(value("status", 5, "Bekliyor") or "Bekliyor")
         self.status = raw_status if raw_status in self._STATUS_MAP else "Bekliyor"
-        self.setMinimumSize(220, 238)
+        self.setMinimumSize(220, 244)
         self.setMaximumWidth(340)
         self.setMaximumHeight(260)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
@@ -781,7 +900,7 @@ class UnitCard(QFrame):
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self._show_context_menu)
-        self.setStyleSheet("QFrame{background:#161b2a;border:1px solid #1e293b;border-radius:7px;} QLabel{border:0;background:transparent;color:#dee2f6;}")
+        self.setStyleSheet("QFrame{background:#171d2d;border:1px solid #202d45;border-radius:5px;} QLabel{border:0;background:transparent;color:#dee2f6;}")
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 9, 10, 8)
         layout.setSpacing(7)
@@ -789,21 +908,23 @@ class UnitCard(QFrame):
         block = QLabel(self.block_name[:1])
         block.setFixedSize(30, 30)
         block.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        block.setStyleSheet("background:#252a39;color:#adc6ff;border-radius:5px;font-weight:bold;font-size:13px;")
+        block.setStyleSheet("background:#2563eb;color:#f8fbff;border-radius:4px;font-weight:bold;font-size:13px;")
         header.addWidget(block)
         identity = QVBoxLayout()
         title = QLabel(f"Daire {self.unit_no}")
-        title.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
+        title.setFont(QFont("Inter", 12, QFont.Weight.Bold))
         floor = value("floor_no", 3, "-")
         direction = value("direction", 6, value("unit_kind", 7, "Daire"))
         details = QLabel(f"Kat {floor}  |  {direction}")
-        details.setStyleSheet("color:#c2c6d6;font-size:9px;")
+        details.setStyleSheet("color:#8c98ad;font-size:8px;")
         identity.addWidget(title)
         identity.addWidget(details)
         header.addLayout(identity, 1)
         _, status_text, status_color = self._STATUS_MAP.get(self.status, (None, self.status, "#8c909f"))
         status = QLabel(status_text)
-        status.setStyleSheet(f"background:#252a39;color:{status_color or '#8c909f'};border-radius:4px;padding:4px;font-size:8px;font-weight:700;")
+        status.setProperty("skipThemeTransform", True)
+        status.setAutoFillBackground(True)
+        status.setStyleSheet(f"background-color:#111827;color:{status_color or '#8c98ad'};border:1px solid #202d45;border-radius:3px;padding:4px;font:700 8px 'JetBrains Mono',Consolas,monospace;")
         header.addWidget(status)
         layout.addLayout(header)
         try:
@@ -816,14 +937,14 @@ class UnitCard(QFrame):
         lead = str(value("responsible_name", default=value("assigned_to", default="Atanmad\u0131")))
         for icon, label, text, accent in (("\u2699", "Kurulu Cihaz", f"{count} Cihaz" if count else "0 \u00dcr\u00fcn", "#4cd7f6"), ("\u25a3", "Oda / B\u00f6l\u00fcm", room_text, "#adc6ff"), ("\u2659", "Saha Sorumlusu", lead, "#4edea3")):
             row = QFrame()
-            row.setStyleSheet("QFrame{background:#090e1c;border:0;border-radius:4px;}")
+            row.setStyleSheet("QFrame{background:#0b1120;border:0;border-radius:3px;}")
             row_layout = QHBoxLayout(row)
             row_layout.setContentsMargins(7, 4, 7, 4)
             left = QLabel(f"{icon}  {label}")
-            left.setStyleSheet("color:#c2c6d6;font-size:9px;")
+            left.setStyleSheet("color:#aebbd0;font-size:8px;")
             right = QLabel(text)
             right.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            right.setStyleSheet(f"color:{accent};font-size:9px;font-weight:600;")
+            right.setStyleSheet(f"color:{accent};font:600 8px 'JetBrains Mono',Consolas,monospace;")
             row_layout.addWidget(left)
             row_layout.addWidget(right, 1)
             layout.addWidget(row)
@@ -831,7 +952,7 @@ class UnitCard(QFrame):
         progress_row = QHBoxLayout()
         progress_row.addWidget(QLabel("Fiziksel Kurulum"))
         progress_value = QLabel(f"%{completion}")
-        progress_value.setStyleSheet("color:#4cd7f6;font-weight:700;")
+        progress_value.setStyleSheet("color:#4f8ff9;font:700 8px 'JetBrains Mono',Consolas,monospace;")
         progress_row.addWidget(progress_value)
         layout.addLayout(progress_row)
         progress = QProgressBar()
@@ -843,7 +964,7 @@ class UnitCard(QFrame):
         layout.addWidget(progress)
         footer = QHBoxLayout()
         self.btn_products = QPushButton("\u25a3 \u00dcr\u00fcnleri G\u00f6r / Ekle")
-        self.btn_products.setStyleSheet("background:#4d8eff;color:#00285d;border:0;font-size:9px;font-weight:600;padding:6px;")
+        self.btn_products.setStyleSheet("background:#4f8ff9;color:#07111f;border:0;border-radius:4px;font:600 8px 'Inter','Segoe UI',sans-serif;padding:6px;")
         self.btn_products.clicked.connect(lambda: self.parent_tab.open_unit_products(self.unit))
         footer.addWidget(self.btn_products, 1)
         self.btn_edit = QToolButton()
@@ -917,9 +1038,9 @@ class UnitProductsDialog(BaseModernDialog):
             self.unit_id = unit[0]
             self.block_name = unit[2] if len(unit) > 2 else ''
 
-        super().__init__(parent, title=f"Kurulu \u00dcr\u00fcnler \u2014 Daire: {unit_no}", width=1240, height=720)
+        super().__init__(parent, title=f"Kurulu \u00dcr\u00fcnler \u2014 Daire: {unit_no}", width=1200, height=720)
         dialog_font = QFont()
-        dialog_font.setFamilies(["Segoe UI", "Arial"])
+        dialog_font.setFamilies(["Inter", "Segoe UI", "Arial"])
         dialog_font.setPointSize(9)
         self.setFont(dialog_font)
         self.content_container.setStyleSheet("background-color: #0e1321; color: #dee2f6;")
@@ -1229,7 +1350,9 @@ class UnitProductsDialog(BaseModernDialog):
                 status = 'Kurulu'
 
             self.table_installed.setItem(row, 0, QTableWidgetItem(str(pname)))
-            self.table_installed.setItem(row, 1, QTableWidgetItem(str(pcode)))
+            sku_item = QTableWidgetItem(str(pcode))
+            sku_item.setForeground(QColor("#4cd7f6"))
+            self.table_installed.setItem(row, 1, sku_item)
             self.table_installed.setItem(row, 2, QTableWidgetItem(str(qty)))
             
             note_item = QTableWidgetItem(str(note))
@@ -1250,7 +1373,9 @@ class UnitProductsDialog(BaseModernDialog):
             remove_layout.addWidget(btn_rm, alignment=Qt.AlignmentFlag.AlignCenter)
             status_item = QTableWidgetItem(str(status))
             status_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            status_item.setForeground(QColor("#4edea3" if str(status).casefold() in ("\u00e7evrimi\u00e7i", "online") else "#c2c6d6"))
+            is_online = str(status).casefold() in ("\u00e7evrimi\u00e7i", "online")
+            status_item.setForeground(QColor("#4edea3" if is_online else "#c2c6d6"))
+            status_item.setBackground(QColor("#0d2f2a" if is_online else "#202536"))
             self.table_installed.setItem(row, 4, status_item)
             edit_button = QToolButton()
             edit_button.setText("\u270e")

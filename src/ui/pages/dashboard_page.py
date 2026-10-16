@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtGui import QAction, QColor, QIcon
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QEvent, QSize
 from datetime import datetime
+import time
 
 from src.utils.theme_colors import theme_qss, tc
 from src.utils.page_ids import PageIds
@@ -715,7 +716,9 @@ class DashboardPage(DashboardActionsMixin, QWidget):
         try:
             if event.spontaneous():
                 return
-            if hasattr(self, "refresh_data"):
+            if hasattr(self, "refresh_data_if_stale"):
+                self.refresh_data_if_stale()
+            elif hasattr(self, "refresh_data"):
                 self.refresh_data()
             QTimer.singleShot(150, self._refresh_initial_device_list)
         except Exception as e:
@@ -726,7 +729,11 @@ class DashboardPage(DashboardActionsMixin, QWidget):
             return
         if hasattr(self, "update_filter_buttons_style"):
             self.update_filter_buttons_style()
-        if hasattr(self, "populate_table"):
+        last_refresh = getattr(self, "_last_dashboard_refresh_monotonic", None)
+        refresh_is_recent = (
+            last_refresh is not None and time.monotonic() - last_refresh < 10
+        )
+        if hasattr(self, "populate_table") and not refresh_is_recent:
             self.populate_table()
 
     def notify(self, message, level="info"):

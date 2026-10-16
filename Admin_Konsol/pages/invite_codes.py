@@ -1,9 +1,11 @@
 """Provisioning invitation code management page."""
 
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QApplication, QComboBox, QHBoxLayout, QLabel, QPushButton,
     QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget, QHeaderView,
+    QSpinBox, QFrame, QGridLayout,
 )
 
 import api_client
@@ -53,15 +55,9 @@ class InviteCodesPage(QWidget):
         title_box.addWidget(subtitle)
         top.addLayout(title_box)
         top.addStretch()
-        top.addWidget(QLabel("Gecerlilik:"))
-        self.hours = QComboBox()
-        for label, hours in (("24 saat", 24), ("72 saat", 72), ("7 gun", 168), ("30 gun", 720)):
-            self.hours.addItem(label, hours)
-        self.hours.setCurrentIndex(1)
-        top.addWidget(self.hours)
         self.create_button = QPushButton("Davet Kodu Uret")
         self.create_button.setObjectName("primaryBtn")
-        self.create_button.clicked.connect(self.create_code)
+        self.create_button.clicked.connect(self._open_create_dialog)
         top.addWidget(self.create_button)
         root.addLayout(top)
 
@@ -120,11 +116,100 @@ class InviteCodesPage(QWidget):
     def reload(self):
         self._run("list", callback=self._populate)
 
-    def create_code(self):
+    def _open_create_dialog(self):
+        from src.ui.components.modern_dialog import ModernDialog
+
+        dialog = ModernDialog(
+            title="Kriptografik Kurulum & Davet Token\u0131 \u00dcretici",
+            parent=self,
+            width=720,
+            height=430,
+        )
+        dialog.setFont(QFont("Segoe UI", 10))
+        dialog.setStyleSheet(dialog.styleSheet() + "\nQDialog { font-family: 'Segoe UI', Arial; }")
+        dialog.lbl_title.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
+        dialog.lbl_title.setStyleSheet(dialog.lbl_title.styleSheet() + "\nfont-family: 'Segoe UI', Arial;")
+        self._create_dialog = dialog
+        body = QWidget()
+        body.setObjectName("inviteDialogBody")
+        body.setStyleSheet("""
+            QWidget#inviteDialogBody { background: #161b2a; color: #dee2f6; font-family: 'Segoe UI', Arial; }
+            QWidget#inviteDialogBody QLabel { background: transparent; color: #dee2f6; }
+            QWidget#inviteDialogBody QLabel#inviteEyebrow { color: #8c909f; font: 700 9px 'Segoe UI', Arial; letter-spacing: 1px; }
+            QWidget#inviteDialogBody QLabel#inviteFieldLabel { color: #8c909f; font: 700 10px 'Segoe UI', Arial; }
+            QWidget#inviteDialogBody QComboBox, QWidget#inviteDialogBody QSpinBox { background: #090e1c; color: #dee2f6; border: 1px solid #303444; border-radius: 5px; padding: 8px; min-height: 24px; }
+            QWidget#inviteDialogBody QFrame#inviteSecurityNote { background: #090e1c; border: 1px solid #252a39; border-radius: 7px; }
+            QWidget#inviteDialogBody QLabel#inviteSecurityValue { color: #4edea3; font-weight: 700; }
+        """)
+        layout = QVBoxLayout(body)
+        layout.setContentsMargins(18, 14, 18, 14)
+        layout.setSpacing(12)
+        eyebrow = QLabel("HSM-SECURE-KEYGEN / AYEC PRO PLATFORM")
+        eyebrow.setObjectName("inviteEyebrow")
+        layout.addWidget(eyebrow)
+        fields = QGridLayout()
+        fields.setHorizontalSpacing(14)
+        fields.setVerticalSpacing(6)
+        expiry_label = QLabel("Davet Kodu Ya\u015fam D\u00f6ng\u00fcs\u00fc")
+        expiry_label.setObjectName("inviteFieldLabel")
+        fields.addWidget(expiry_label, 0, 0)
+        use_label = QLabel("Kullan\u0131m Limiti")
+        use_label.setObjectName("inviteFieldLabel")
+        fields.addWidget(use_label, 0, 1)
+        self.hours = QComboBox()
+        for label, hours in (("24 Saat", 24), ("48 Saat", 48), ("72 Saat", 72), ("7 Gun", 168), ("30 Gun", 720)):
+            self.hours.addItem(label, hours)
+        self.hours.setCurrentIndex(2)
+        self.max_uses = QSpinBox()
+        self.max_uses.setRange(1, 20)
+        self.max_uses.setValue(1)
+        fields.addWidget(self.hours, 1, 0)
+        fields.addWidget(self.max_uses, 1, 1)
+        layout.addLayout(fields)
+        security = QFrame()
+        security.setObjectName("inviteSecurityNote")
+        security_layout = QGridLayout(security)
+        security_layout.setContentsMargins(12, 10, 12, 10)
+        security_layout.setHorizontalSpacing(16)
+        for column, (label_text, value_text) in enumerate((
+            ("TOKEN", "Central provisioning"),
+            ("USE POLICY", "Single use by default"),
+            ("EXPIRY", "Up to 30 days"),
+        )):
+            field = QVBoxLayout()
+            label = QLabel(label_text)
+            label.setObjectName("inviteEyebrow")
+            value = QLabel(value_text)
+            value.setObjectName("inviteSecurityValue")
+            field.addWidget(label)
+            field.addWidget(value)
+            security_layout.addLayout(field, 0, column)
+        layout.addWidget(security)
+        description = QLabel("Codes are created by the shared provisioning service. Their selected expiry and use limit are enforced when a code is redeemed.")
+        description.setWordWrap(True)
+        description.setStyleSheet("color: #8c909f; font-size: 10px;")
+        layout.addWidget(description)
+        layout.addStretch(1)
+        dialog.add_widget(body)
+        cancel_button = dialog.add_button("Cancel", "secondary", dialog.reject)
+        create_button = dialog.add_button("Generate Invite Code", "primary", lambda: self._submit_create_dialog(dialog))
+        for button in (cancel_button, create_button):
+            button.setFont(QFont("Segoe UI", 10))
+            button.setStyleSheet(button.styleSheet() + " QPushButton { font-family: 'Segoe UI', Arial; }")
+            button.ensurePolished()
+        dialog.exec()
+
+    def _submit_create_dialog(self, dialog):
+        expires_in_hours = int(self.hours.currentData())
+        max_uses = int(self.max_uses.value())
+        dialog.accept()
+        self.create_code(expires_in_hours, max_uses)
+
+    def create_code(self, expires_in_hours=72, max_uses=1):
         self.create_button.setEnabled(False)
         self._run(
             "create",
-            {"expires_in_hours": int(self.hours.currentData()), "max_uses": 1},
+            {"expires_in_hours": int(expires_in_hours), "max_uses": int(max_uses)},
             self._created,
         )
 

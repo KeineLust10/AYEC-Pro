@@ -12,6 +12,7 @@ from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkDiskCache, QNetworkRe
 from PyQt6.QtWidgets import QWidget, QPushButton, QVBoxLayout, QHBoxLayout, QLineEdit, QLabel, QFrame
 
 from src.utils.theme_colors import tc, theme_qss
+from src.utils.theme_manager import ThemeManager
 from src.utils.design_system import DesignTokens
 
 _MAP_FONT_ID = -1
@@ -19,6 +20,7 @@ _MAP_FONT_ID = -1
 
 class FieldRadarCanvas(QWidget):
     personnelClicked = pyqtSignal(dict)
+    selectionChanged = pyqtSignal(float, float)
     homeClicked = pyqtSignal()
     trafficRequested = pyqtSignal(bool)
     searchRequested = pyqtSignal(str)
@@ -27,13 +29,19 @@ class FieldRadarCanvas(QWidget):
     routeCalculationRequested = pyqtSignal(list)
     routeCalculated = pyqtSignal(list, int, int)
     routeShareRequested = pyqtSignal(list)
+    filterRequested = pyqtSignal()
+    gpsTrackingRequested = pyqtSignal()
+    routeOptimizationRequested = pyqtSignal()
+    trafficToggleRequested = pyqtSignal()
+    mapModeRequested = pyqtSignal()
+    drawRouteRequested = pyqtSignal()
 
     TILE_SIZE = 256
     TILE_ZOOM = 12
     MAX_BASE_TILES = 80
     MAX_DARK_TILES = 80
     MAX_TRAFFIC_TILES = 80
-    MAX_PENDING_MAP_TILES = 48
+    MAX_PENDING_MAP_TILES = 16
     MAX_PENDING_TRAFFIC_TILES = 48
 
     def __init__(self, latitude, longitude, parent=None):
@@ -50,8 +58,10 @@ class FieldRadarCanvas(QWidget):
         self.center = (float(latitude), float(longitude))
         self.selected_coordinates = self.center
         self.personnel = []
+        self._personnel_total_count = 0
+        self._visible_tile_sources = set()
         self._hits = []
-        self.zoom = 1.0
+        self.zoom = 2 ** 5
         self.selection_visible = False
         self.route_drawing = False
         self.route_points = []
@@ -72,6 +82,7 @@ class FieldRadarCanvas(QWidget):
         self._tiles = OrderedDict()
         self._tile_sources = OrderedDict()
         self._dark_tiles = OrderedDict()
+        self._active_tile_style = None
         self._pending_tiles = set()
         self._base_replies = {}
         self._base_generation = 0
@@ -106,7 +117,7 @@ class FieldRadarCanvas(QWidget):
         self.zoom_in = QPushButton("+")
         self.zoom_out = QPushButton("-")
         self.home = QPushButton("O")
-        zoom_button_style = theme_qss("QPushButton{background:@finance_surface_alt;color:@finance_text;border:1px solid @finance_outline;border-radius:4px;padding:0;min-height:28px;font-size:18px;}")
+        zoom_button_style = theme_qss("QPushButton{background:@finance_surface_alt;color:@finance_text;border:1px solid @finance_outline;border-radius:4px;padding:0;min-height:32px;font-size:25px;}")
         for button, tip in ((self.zoom_in, "Zoom in"), (self.zoom_out, "Zoom out"), (self.home, "Return to center")):
             button.setFixedSize(32, 32)
             button.setToolTip(tip)
@@ -125,17 +136,59 @@ class FieldRadarCanvas(QWidget):
         toolbar_layout.setContentsMargins(0, 0, 0, 0)
         toolbar_layout.setSpacing(6)
         self.map_search_input = QLineEdit()
-        self.map_search_input.setPlaceholderText("Adres veya koordinat ara...")
+        self.map_search_input.setPlaceholderText(
+            "Adres, m\u00fc\u015fteri ad\u0131 veya koordinat ara (\u00d6rn: Malko\u00e7 Mh.)..."
+        )
         self.map_search_input.setMinimumWidth(90)
-        self.map_search_input.setFixedHeight(34)
-        self.map_search_input.setStyleSheet(theme_qss("QLineEdit{background:@finance_surface;color:@finance_text;border:1px solid @finance_outline;border-radius:6px;padding:0 10px;}"))
+        self.map_search_input.setMaximumWidth(480)
+        self.map_search_input.setFixedHeight(36)
+        self.map_search_input.setStyleSheet(theme_qss("QLineEdit{background:@finance_surface;color:@finance_text;border:1px solid @finance_outline;border-radius:6px;padding:0 12px;font-size:16.25px;}"))
         self.map_search_input.returnPressed.connect(lambda: self.searchRequested.emit(self.map_search_input.text()))
-        self.map_search_button = QPushButton("Ara")
-        self.map_search_button.setFixedHeight(34)
+        self.map_search_button = QPushButton("Haritada Bul")
+        self.map_search_button.setFixedWidth(118)
+        self.map_search_button.setFixedHeight(36)
         self.map_search_button.clicked.connect(lambda: self.searchRequested.emit(self.map_search_input.text()))
-        self.map_search_button.setStyleSheet(theme_qss("QPushButton{background:@finance_primary;color:@finance_text;border:1px solid @finance_outline;border-radius:6px;padding:0 12px;font-weight:700;}"))
+        self.map_search_button.setStyleSheet(theme_qss("QPushButton{background:@finance_primary;color:@finance_primary_text;border:1px solid @finance_outline;border-radius:6px;padding:0 8px;font-size:15px;font-weight:700;}"))
         toolbar_layout.addWidget(self.map_search_input, 1)
         toolbar_layout.addWidget(self.map_search_button)
+        self.filter_action_button = QPushButton("Filtrele")
+        self.filter_action_button.setObjectName("field_action_filter")
+        self.filter_action_button.setFixedHeight(36)
+        self.filter_action_button.clicked.connect(self.filterRequested.emit)
+        self.filter_action_button.setStyleSheet(theme_qss(
+            "QPushButton{background:@finance_surface_alt;color:@finance_text;"
+            "border:1px solid @finance_outline;border-radius:6px;padding:0 12px;font-size:15px;font-weight:700;}"
+        ))
+        self.filter_action_button.setParent(self.map_toolbar)
+        self.filter_action_button.hide()
+        self.map_mode_toolbar = QWidget(self)
+        mode_layout = QHBoxLayout(self.map_mode_toolbar)
+        mode_layout.setContentsMargins(0, 0, 0, 0)
+        mode_layout.setSpacing(4)
+        self.map_mode_buttons = {}
+        for key, caption, signal in (
+            ("gps", "Canl\u0131 GPS Takip", self.gpsTrackingRequested),
+            ("ai_route", "AI Rota", self.routeOptimizationRequested),
+            ("traffic", "Trafik", self.trafficToggleRequested),
+            ("layer", "Katman", self.mapModeRequested),
+        ):
+            button = QPushButton(caption)
+            button.setObjectName("field_map_mode_{}".format(key))
+            button.setFixedHeight(34)
+            button.setFixedWidth({"gps": 116, "ai_route": 76, "traffic": 72, "layer": 78}[key])
+            button.setCursor(Qt.CursorShape.PointingHandCursor)
+            button.setStyleSheet(theme_qss(
+                "QPushButton{background:@finance_surface_alt;color:@finance_text;"
+                "border:1px solid @finance_outline;border-radius:6px;padding:0 4px;"
+                "font-size:15px;font-weight:700;}QPushButton:hover{color:@finance_secondary;}"
+            ))
+            button.clicked.connect(signal.emit)
+            mode_layout.addWidget(button)
+            self.map_mode_buttons[key] = button
+        mode_layout.addStretch(1)
+        self.map_mode_toolbar.adjustSize()
+        toolbar_layout.addStretch(1)
+        toolbar_layout.addWidget(self.map_mode_toolbar)
         self.route_toolbar = QWidget(self)
         route_layout = QHBoxLayout(self.route_toolbar)
         route_layout.setContentsMargins(0, 0, 0, 0)
@@ -144,11 +197,12 @@ class FieldRadarCanvas(QWidget):
         self.draw_route_button = QPushButton("Rota Ciz")
         self.draw_route_button.setObjectName("field_map_draw_route")
         self.draw_route_button.setCheckable(True)
-        self.draw_route_button.setFixedWidth(92)
-        self.draw_route_button.setFixedHeight(34)
+        self.draw_route_button.setFixedWidth(112)
+        self.draw_route_button.setFixedHeight(40)
         self.draw_route_button.setToolTip("Haritaya tiklayarak guzergah duraklari secin")
-        self.draw_route_button.setStyleSheet(theme_qss("QPushButton{background:@finance_surface_alt;color:@finance_text;border:1px solid @finance_outline;border-radius:6px;padding:0 10px;font-weight:700;}QPushButton:checked{background:@finance_primary;color:@selection_text;}"))
+        self.draw_route_button.setStyleSheet(theme_qss("QPushButton{background:@finance_surface_alt;color:@finance_text;border:1px solid @finance_outline;border-radius:6px;padding:0 10px;font-size:15px;font-weight:700;}QPushButton:checked{background:@finance_primary;color:@selection_text;}"))
         self.draw_route_button.toggled.connect(self._set_route_drawing)
+        self.draw_route_button.hide()
         route_layout.addWidget(self.draw_route_button)
         self.finish_route_button = QPushButton("Rotayi Bitir")
         self.finish_route_button.setObjectName("field_map_finish_route")
@@ -156,7 +210,7 @@ class FieldRadarCanvas(QWidget):
         self.finish_route_button.setFixedHeight(34)
         self.finish_route_button.setToolTip("En az iki durakla taslak guzergahi tamamlayin")
         self.finish_route_button.clicked.connect(self.finish_route_drawing)
-        self.finish_route_button.setStyleSheet(theme_qss("QPushButton{background:@finance_secondary;color:@selection_text;border:1px solid @finance_outline;border-radius:6px;padding:0 10px;font-weight:700;}"))
+        self.finish_route_button.setStyleSheet(theme_qss("QPushButton{background:@finance_secondary;color:@finance_primary_text;border:1px solid @finance_outline;border-radius:6px;padding:0 10px;font-size:15px;font-weight:700;}"))
         self.finish_route_button.hide()
         route_layout.addWidget(self.finish_route_button)
         self.clear_route_button = QPushButton("Rotayi Sil")
@@ -164,7 +218,7 @@ class FieldRadarCanvas(QWidget):
         self.clear_route_button.setFixedWidth(92)
         self.clear_route_button.setFixedHeight(34)
         self.clear_route_button.clicked.connect(self.clear_route)
-        self.clear_route_button.setStyleSheet(theme_qss("QPushButton{background:@finance_surface_alt;color:@finance_text_muted;border:1px solid @finance_outline;border-radius:6px;padding:0 10px;}"))
+        self.clear_route_button.setStyleSheet(theme_qss("QPushButton{background:@finance_surface_alt;color:@finance_text_muted;border:1px solid @finance_outline;border-radius:6px;padding:0 10px;font-size:15px;}"))
         self.clear_route_button.hide()
         route_layout.addWidget(self.clear_route_button)
         self.share_route_button = QPushButton("Rotayi Paylas")
@@ -176,53 +230,76 @@ class FieldRadarCanvas(QWidget):
             lambda: self.routeShareRequested.emit(list(self.route_points))
         )
         self.share_route_button.setStyleSheet(theme_qss(
-            "QPushButton{background:@finance_primary;color:@selection_text;border:1px solid "
-            "@finance_outline;border-radius:6px;padding:0 10px;font-weight:700;}"
+            "QPushButton{background:@finance_primary;color:@finance_primary_text;border:1px solid "
+            "@finance_outline;border-radius:6px;padding:0 10px;font-size:15px;font-weight:700;}"
         ))
         self.share_route_button.hide()
         route_layout.addWidget(self.share_route_button)
         self.refresh_map_button = QPushButton("Haritayi Guncelle")
         self.refresh_map_button.setObjectName("field_map_refresh")
-        self.refresh_map_button.setFixedHeight(34)
+        self.refresh_map_button.setFixedHeight(30)
         self.refresh_map_button.setToolTip("Gorunen bolgeyi yenile ve trafik verisini tazele")
         self.refresh_map_button.clicked.connect(self.refresh_visible_tiles)
-        self.refresh_map_button.setStyleSheet(theme_qss("QPushButton{background:@finance_surface_alt;color:@finance_text;border:1px solid @finance_outline;border-radius:6px;padding:0 12px;font-weight:700;}"))
-        toolbar_layout.addWidget(self.refresh_map_button)
+        self.refresh_map_button.setStyleSheet(theme_qss("QPushButton{background:@finance_surface_alt;color:@finance_text;border:1px solid @finance_outline;border-radius:6px;padding:0 12px;font-size:15px;font-weight:700;}"))
+        self.refresh_map_button.setParent(self.map_toolbar)
+        self.refresh_map_button.hide()
         self.map_toolbar.adjustSize()
-        self.route_toolbar.setFixedSize(310, 34)
+        self.route_toolbar.setFixedSize(430, 42)
+        self.route_toolbar.hide()
+
+        self.map_telemetry_bar = QFrame(self)
+        self.map_telemetry_bar.setObjectName("field_map_telemetry_bar")
+        self.map_telemetry_bar.setStyleSheet(theme_qss(
+            "QFrame#field_map_telemetry_bar{background:@finance_surface;border:none;}"
+            "QLabel{background:transparent;border:none;}"
+        ))
+        telemetry_layout = QHBoxLayout(self.map_telemetry_bar)
+        telemetry_layout.setContentsMargins(10, 2, 10, 2)
+        telemetry_layout.setSpacing(10)
+        self.map_telemetry_label = QLabel("")
+        self.map_telemetry_label.setStyleSheet(theme_qss(
+            "color:@finance_text_muted;font-family:Consolas,monospace;font-size:12.5px;font-weight:600;"
+        ))
+        telemetry_layout.addWidget(self.map_telemetry_label, 1)
+        self.map_telemetry_source = QLabel("")
+        self.map_telemetry_source.setStyleSheet(theme_qss(
+            "color:@finance_secondary;font-family:Consolas,monospace;font-size:12.5px;font-weight:700;"
+        ))
+        telemetry_layout.addWidget(self.map_telemetry_source)
+        self.map_telemetry_bar.setFixedHeight(20)
 
         self.route_status = QLabel(self)
         self.route_status.setObjectName("field_map_route_status")
-        self.route_status.setStyleSheet(
-            "QLabel#field_map_route_status{background:rgba(7,16,30,235);color:#dbe7f7;"
-            "border:1px solid #31506d;border-radius:8px;padding:6px 10px;font-size:11px;font-weight:700;}"
-        )
+        self.route_status.setStyleSheet(theme_qss(
+            "QLabel#field_map_route_status{background:@finance_surface;color:@finance_text;"
+            "border:1px solid @finance_outline;border-radius:8px;padding:8px 12px;font-size:15px;font-weight:700;}"
+        ))
         self.route_status.setWordWrap(True)
         self.route_status.hide()
 
         self.empty_state = QFrame(self)
         self.empty_state.setObjectName("field_map_empty_state")
-        self.empty_state.setStyleSheet(
-            "QFrame#field_map_empty_state{background:rgba(10,20,35,242);"
-            "border:1px solid #2b4665;border-radius:9px;}"
-        )
+        self.empty_state.setStyleSheet(theme_qss(
+            "QFrame#field_map_empty_state{background:@finance_surface;"
+            "border:1px solid @finance_outline;border-radius:9px;}"
+        ))
         empty_layout = QHBoxLayout(self.empty_state)
         empty_layout.setContentsMargins(10, 7, 12, 7)
         empty_layout.setSpacing(9)
         empty_icon = QLabel("GPS")
         empty_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         empty_icon.setFixedSize(34, 30)
-        empty_icon.setStyleSheet(
-            "background:#142e47;color:#55c9f3;border:1px solid #285274;"
-            "border-radius:6px;font-size:10px;font-weight:800;"
-        )
+        empty_icon.setStyleSheet(theme_qss(
+            "background:@finance_surface_alt;color:@finance_secondary;border:1px solid @finance_outline;"
+            "border-radius:6px;font-size:15px;font-weight:800;"
+        ))
         empty_layout.addWidget(empty_icon)
         empty_copy = QVBoxLayout()
         empty_copy.setSpacing(2)
         empty_title = QLabel("Personel GPS kaydi yok")
-        empty_title.setStyleSheet("color:#e2edf8;font-size:11px;font-weight:700;border:none;")
+        empty_title.setStyleSheet(theme_qss("color:@finance_text;font-size:16.25px;font-weight:700;border:none;"))
         empty_hint = QLabel("Haritadaki isaret varsayilan merkezdir.")
-        empty_hint.setStyleSheet("color:#91a6c0;font-size:10px;border:none;")
+        empty_hint.setStyleSheet(theme_qss("color:@finance_text_muted;font-size:15px;border:none;"))
         empty_copy.addWidget(empty_title)
         empty_copy.addWidget(empty_hint)
         empty_layout.addLayout(empty_copy)
@@ -233,25 +310,25 @@ class FieldRadarCanvas(QWidget):
         self.map_status.setObjectName("field_map_status")
         self.map_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.map_status.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        self.map_status.setStyleSheet(
-            "QLabel#field_map_status{background:rgba(7,16,30,225);color:#dbe7f7;"
-            "border:1px solid #29405b;border-radius:8px;padding:8px 14px;font-size:12px;}"
-        )
+        self.map_status.setStyleSheet(theme_qss(
+            "QLabel#field_map_status{background:@finance_surface;color:@finance_text;"
+            "border:1px solid @finance_outline;border-radius:8px;padding:10px 16px;font-size:16.25px;}"
+        ))
         self.map_status.adjustSize()
 
         self.traffic_legend = QFrame(self)
         self.traffic_legend.setObjectName("field_traffic_legend")
-        self.traffic_legend.setStyleSheet(
-            "QFrame#field_traffic_legend{background:rgba(7,16,30,235);border:1px solid #29405b;border-radius:8px;}"
-        )
+        self.traffic_legend.setStyleSheet(theme_qss(
+            "QFrame#field_traffic_legend{background:@finance_surface;border:1px solid @finance_outline;border-radius:8px;}"
+        ))
         legend_layout = QVBoxLayout(self.traffic_legend)
         legend_layout.setContentsMargins(10, 8, 10, 8)
         legend_layout.setSpacing(5)
         legend_title = QLabel("TRAFIK AKISI")
-        legend_title.setStyleSheet("color:#dbe7f7;font-size:10px;font-weight:700;border:none;")
+        legend_title.setStyleSheet(theme_qss("color:@finance_text;font-size:15px;font-weight:700;border:none;"))
         legend_layout.addWidget(legend_title)
         self.traffic_status = QLabel("Baglaniyor...")
-        self.traffic_status.setStyleSheet("color:#8fa4bf;font-size:10px;border:none;")
+        self.traffic_status.setStyleSheet(theme_qss("color:@finance_text_muted;font-size:15px;border:none;"))
         legend_layout.addWidget(self.traffic_status)
         for caption, color in (("Akici", "#149f67"), ("Yavas", "#db9200"),
                                ("Yogun", "#ce2203"), ("Kapali yol", "#c6d0d2")):
@@ -260,7 +337,7 @@ class FieldRadarCanvas(QWidget):
             marker.setFixedSize(10, 10)
             marker.setStyleSheet("background:{};border:none;border-radius:5px;".format(color))
             label = QLabel(caption)
-            label.setStyleSheet("color:#b8c8dc;font-size:10px;border:none;")
+            label.setStyleSheet(theme_qss("color:@finance_text;font-size:15px;border:none;"))
             row.addWidget(marker)
             row.addWidget(label)
             row.addStretch(1)
@@ -297,19 +374,31 @@ class FieldRadarCanvas(QWidget):
 
     def resizeEvent(self, event):
         narrow = self.width() < 760
-        self.navigation.move(12, max(64, self.height() - self.navigation.height() - 48))
-        self.map_toolbar.move(14, 12)
-        self.map_toolbar.resize(max(0, self.width() - 28), 36)
-        self.route_toolbar.move(14, 96 if narrow else 54)
-        self.route_toolbar.setFixedWidth(min(310, max(92, self.width() - 28)))
-        self.route_status.move(14, 138 if narrow else 96)
+        for key, button in self.map_mode_buttons.items():
+            button.setVisible(not narrow or key == "gps")
+        self._position_overlay_controls()
+        super().resizeEvent(event)
+
+    def _position_overlay_controls(self):
+        route_offset = 48 if self.route_drawing else 0
+        self.navigation.move(
+            max(12, self.width() - self.navigation.width() - 14), 64 + route_offset
+        )
+        self.map_toolbar.move(8, 4)
+        self.map_toolbar.resize(max(0, self.width() - 16), 36)
+        self.map_telemetry_bar.move(0, 40 + route_offset)
+        self.map_telemetry_bar.resize(self.width(), 24)
+        self.route_toolbar.move(14, 44)
+        self.route_toolbar.setFixedWidth(min(430, max(112, self.width() - 28)))
+        self.route_status.move(14, 86 + route_offset)
         self.route_status.setMaximumWidth(max(180, self.width() - self.traffic_legend.width() - 52))
         self.route_status.adjustSize()
-        self.traffic_legend.move(max(12, self.width() - self.traffic_legend.width() - 14), 54)
-        self.empty_state.move(14, 138 if narrow else 96)
+        self.traffic_legend.move(
+            max(12, self.width() - self.traffic_legend.width() - 14), 122 + route_offset
+        )
+        self.empty_state.move(14, 182)
         self.map_status.move((self.width() - self.map_status.width()) // 2,
                              (self.height() - self.map_status.height()) // 2)
-        super().resizeEvent(event)
 
     def _set_map_status(self, message):
         self.map_status.setText(message)
@@ -327,7 +416,9 @@ class FieldRadarCanvas(QWidget):
             return False
 
     def set_personnel(self, records):
-        self.personnel = [dict(row) for row in records if self.valid_coordinates(row.get("lat"), row.get("lng"))]
+        source_records = list(records)
+        self._personnel_total_count = len(source_records)
+        self.personnel = [dict(row) for row in source_records if self.valid_coordinates(row.get("lat"), row.get("lng"))]
         self._update_empty_state()
         self.update()
 
@@ -341,6 +432,7 @@ class FieldRadarCanvas(QWidget):
         self.center = (float(latitude), float(longitude))
         self.selected_coordinates = self.center
         self.selection_visible = True
+        self.selectionChanged.emit(*self.selected_coordinates)
         self.update()
         return True
 
@@ -381,6 +473,23 @@ class FieldRadarCanvas(QWidget):
         self.traffic_legend.show()
         self.trafficRequested.emit(True)
         self.update()
+
+    def set_tomtom_api_key(self, api_key):
+        """Use TomTom as the base map without enabling the traffic overlay."""
+        key = str(api_key or "").strip()
+        if not key:
+            return False
+        self._traffic_key = key
+        self._tomtom_map_unavailable = False
+        self._tiles.clear()
+        self._tile_sources.clear()
+        self._dark_tiles.clear()
+        self._tile_retry_after.clear()
+        self._refresh_requested_tiles.clear()
+        self._base_generation += 1
+        self._cancel_base_requests()
+        self.update()
+        return True
 
     def _emit_traffic_api_error(self, body, fallback, status_code):
         code = ""
@@ -425,7 +534,7 @@ class FieldRadarCanvas(QWidget):
         self._cancel_copyright_request()
         self.traffic_active = False
         self._traffic_connecting = False
-        self._traffic_key = ""
+        # Keep the saved TomTom key active for base-map tiles when traffic is off.
         self._tomtom_map_unavailable = False
         self._tomtom_copyright_caption = ""
         self._copyrights_requested = False
@@ -443,6 +552,9 @@ class FieldRadarCanvas(QWidget):
 
     def _set_route_drawing(self, active):
         self.route_drawing = bool(active)
+        self.route_toolbar.setVisible(self.route_drawing)
+        self.draw_route_button.setVisible(self.route_drawing)
+        self._position_overlay_controls()
         if self.route_drawing:
             self._cancel_route_request()
             self.route_points = []
@@ -481,6 +593,7 @@ class FieldRadarCanvas(QWidget):
         self.route_duration_seconds = 0
         self.selected_coordinates = self.route_points[-1]
         self.selection_visible = False
+        self.selectionChanged.emit(*self.selected_coordinates)
         self.finish_route_button.setEnabled(len(self.route_points) >= 2)
         self.clear_route_button.show()
         self.share_route_button.hide()
@@ -806,9 +919,15 @@ class FieldRadarCanvas(QWidget):
         self.center = (latitude, longitude)
 
     def _tile_zoom_scale(self):
-        effective = self.TILE_ZOOM + math.log2(self.zoom)
+        effective = self._effective_zoom_level()
         base_zoom = max(3, min(19, int(math.floor(effective))))
         return base_zoom, 2 ** (effective - base_zoom)
+
+    def _effective_zoom_level(self):
+        return self.TILE_ZOOM + math.log2(self.zoom)
+
+    def _display_zoom_level(self):
+        return max(0.25, self._effective_zoom_level() - 2.5)
 
     def _world_point(self, latitude, longitude, zoom):
         latitude = max(-85.05112878, min(85.05112878, float(latitude)))
@@ -833,12 +952,58 @@ class FieldRadarCanvas(QWidget):
     def _draw_dark_tile(self, painter, image, target, cache_key):
         if image.isNull():
             return
-        dark = QImage(image.size(), QImage.Format.Format_ARGB32_Premultiplied)
-        dark.fill(QColor("#08101d"))
-        tile_painter = QPainter(dark)
-        tile_painter.drawImage(0, 0, image)
-        tile_painter.fillRect(dark.rect(), QColor(4, 11, 25, 160))
-        tile_painter.end()
+        dark = image.convertToFormat(QImage.Format.Format_Grayscale8)
+        dark = dark.convertToFormat(QImage.Format.Format_Indexed8)
+        colors = []
+        for luminance in range(256):
+            if luminance < 40:
+                color = "#8c909f"
+            elif luminance < 110:
+                color = "#56677f"
+            elif luminance < 200:
+                color = "#1b283b"
+            elif luminance < 236:
+                color = "#182236"
+            elif luminance < 248:
+                color = "#111827"
+            elif luminance < 253:
+                color = "#202d43"
+            else:
+                color = "#303b54"
+            colors.append(QColor(color).rgba())
+        dark.setColorTable(colors)
+        dark = dark.convertToFormat(QImage.Format.Format_ARGB32_Premultiplied)
+        self._cache_tile(self._dark_tiles, cache_key, dark, self.MAX_DARK_TILES)
+        painter.drawImage(target, dark)
+
+    def _draw_tomtom_tactical_tile(self, painter, image, target, cache_key):
+        if image.isNull():
+            return
+        dark = image.convertToFormat(QImage.Format.Format_Grayscale8)
+        dark = dark.convertToFormat(QImage.Format.Format_Indexed8)
+        colors = []
+        for luminance in range(256):
+            if luminance < 8:
+                color = "#080d18"
+            elif luminance < 24:
+                color = "#0b111d"
+            elif luminance < 50:
+                color = "#101827"
+            elif luminance < 82:
+                color = "#182338"
+            elif luminance < 116:
+                color = "#27364d"
+            elif luminance < 150:
+                color = "#586981"
+            elif luminance < 184:
+                color = "#8997aa"
+            elif luminance < 216:
+                color = "#b4c0ce"
+            else:
+                color = "#c8d1dd"
+            colors.append(QColor(color).rgba())
+        dark.setColorTable(colors)
+        dark = dark.convertToFormat(QImage.Format.Format_ARGB32_Premultiplied)
         self._cache_tile(self._dark_tiles, cache_key, dark, self.MAX_DARK_TILES)
         painter.drawImage(target, dark)
 
@@ -873,12 +1038,12 @@ class FieldRadarCanvas(QWidget):
             return
         if self._force_refresh:
             self._refresh_requested_tiles.add(key)
-        use_tomtom = bool(self.traffic_active and self._traffic_key
+        use_tomtom = bool(self._traffic_key
                           and not self._tomtom_map_unavailable and not force_osm)
         if use_tomtom:
-            url = ("https://api.tomtom.com/maps/orbis/display/raster/tile/{}?apiVersion=2"
-                   "&style=street-dark&tileSize=256&geopoliticalView=TR").format(
-                       "{}/{}/{}".format(zoom, x, y))
+            url = ("https://api.tomtom.com/maps/orbis/display/raster/tile/{1}?apiVersion=2"
+                   "&style={0}&tileSize=256&geopoliticalView=TR").format(
+                       self._current_tomtom_style(), "{}/{}/{}".format(zoom, x, y))
             source = "tomtom"
         else:
             url = "https://tile.openstreetmap.org/{}/{}/{}.png".format(zoom, x, y)
@@ -899,6 +1064,25 @@ class FieldRadarCanvas(QWidget):
         reply.finished.connect(lambda tile_key=key, tile_reply=reply, tile_source=source,
                                tile_generation=generation:
                                self._tile_received(tile_key, tile_reply, tile_source, tile_generation))
+
+    @staticmethod
+    def _current_tomtom_style():
+        dark_theme = ThemeManager.is_dark_theme(ThemeManager._current_theme)
+        return "street-dark" if dark_theme else "street-light"
+
+    def _sync_tile_theme(self):
+        style = self._current_tomtom_style()
+        if style == self._active_tile_style:
+            return
+        self._active_tile_style = style
+        self._base_generation += 1
+        self._tiles.clear()
+        self._tile_sources.clear()
+        self._dark_tiles.clear()
+        self._pending_tiles.clear()
+        self._tile_retry_after.clear()
+        self._refresh_requested_tiles.clear()
+        self._cancel_base_requests()
 
     def _request_traffic_tile(self, zoom, x, y):
         if not self._traffic_key or not self.traffic_active:
@@ -959,6 +1143,9 @@ class FieldRadarCanvas(QWidget):
         if reply.error() == reply.NetworkError.NoError:
             image.loadFromData(body)
         status_code = reply.attribute(QNetworkRequest.Attribute.HttpStatusCodeAttribute) if source == "tomtom" else None
+        retry_header = b""
+        if source == "tomtom" and hasattr(reply, "rawHeader"):
+            retry_header = bytes(reply.rawHeader(b"Retry-After") or b"")
         reply.deleteLater()
         if generation is not None and generation != self._base_generation:
             return
@@ -973,9 +1160,20 @@ class FieldRadarCanvas(QWidget):
                     self._request_tomtom_copyrights()
                 self._traffic_layers_ready()
         elif source == "tomtom":
-            if status_code in {401, 403, 429}:
+            if status_code in {401, 403}:
                 self._tomtom_map_unavailable = True
-            self._request_tile(*key, force_osm=True)
+                self._request_tile(*key, force_osm=True)
+            else:
+                retry_delay = 8.0 if status_code == 429 else 2.0
+                try:
+                    retry_delay = max(2.0, min(60.0, float(retry_header.decode("ascii").strip())))
+                except (ValueError, UnicodeDecodeError):
+                    pass
+                self._cache_tile(
+                    self._tile_retry_after, key, time.monotonic() + retry_delay,
+                    self.MAX_BASE_TILES
+                )
+                QTimer.singleShot(int(retry_delay * 1000), self.update)
         else:
             self._cache_tile(self._tile_retry_after, key, time.monotonic() + 10, self.MAX_BASE_TILES)
             if not self._tiles:
@@ -983,6 +1181,7 @@ class FieldRadarCanvas(QWidget):
         self.update()
 
     def _paint_tiles(self, painter):
+        self._sync_tile_theme()
         zoom, scale = self._tile_zoom_scale()
         center_x, center_y = self._world_point(*self.center, zoom)
         left = self.width() / 2 - center_x * scale
@@ -992,7 +1191,8 @@ class FieldRadarCanvas(QWidget):
         last_x = math.floor((self.width() - left) / tile_display_size)
         first_y = math.floor(-top / tile_display_size)
         last_y = math.floor((self.height() - top) / tile_display_size)
-        painter.fillRect(self.rect(), QColor("#08101d"))
+        dark_theme = ThemeManager.is_dark_theme(ThemeManager._current_theme)
+        painter.fillRect(self.rect(), QColor(tc("finance_canvas")))
         visible_sources = set()
         for tile_x in range(first_x, last_x + 1):
             for tile_y in range(first_y, last_y + 1):
@@ -1004,22 +1204,42 @@ class FieldRadarCanvas(QWidget):
                     image = self._get_cached_tile(self._tiles, key)
                     source = self._get_cached_tile(self._tile_sources, key) or "osm"
                     visible_sources.add(source)
-                    if source == "tomtom":
+                    dark_tile = self._get_cached_tile(self._dark_tiles, key)
+                    if not dark_theme:
                         painter.drawImage(target, image)
-                    else:
-                        dark_tile = self._get_cached_tile(self._dark_tiles, key)
+                    elif source == "tomtom":
+                        tomtom_cache_key = ("tomtom",) + key
+                        dark_tile = self._get_cached_tile(self._dark_tiles, tomtom_cache_key)
                         if dark_tile is not None:
                             painter.drawImage(target, dark_tile)
                         else:
-                            self._draw_dark_tile(painter, image, target, key)
+                            self._draw_tomtom_tactical_tile(
+                                painter, image, target, tomtom_cache_key
+                            )
+                    elif dark_tile is not None:
+                        painter.drawImage(target, dark_tile)
+                    else:
+                        self._draw_dark_tile(painter, image, target, key)
                 else:
                     self._request_tile(zoom, wrapped_x, tile_y)
-                    painter.fillRect(target, QColor("#0b1525"))
+                    painter.fillRect(target, QColor(tc("finance_canvas")))
                 if self.traffic_active and self._traffic_key:
                     self._request_traffic_tile(zoom, wrapped_x, tile_y)
                     traffic_tile = self._get_cached_tile(self._traffic_tiles, key)
                     if traffic_tile is not None:
                         painter.drawImage(target, traffic_tile)
+        tint = QColor(4, 10, 20, 72) if dark_theme else QColor(255, 255, 255, 22)
+        painter.fillRect(self.rect(), tint)
+        self._visible_tile_sources = visible_sources
+        grid_color = QColor(tc("finance_outline"))
+        grid_color.setAlpha(48 if dark_theme else 64)
+        grid_pen = QPen(grid_color, 1)
+        painter.setPen(grid_pen)
+        grid_step = 40
+        for x in range(0, self.width(), grid_step):
+            painter.drawLine(x, 0, x, self.height())
+        for y in range(0, self.height(), grid_step):
+            painter.drawLine(0, y, self.width(), y)
         if self.traffic_active:
             if visible_sources == {"tomtom"}:
                 base_attribution = self._tomtom_copyright_caption or "Map \u00a9 TomTom"
@@ -1030,16 +1250,30 @@ class FieldRadarCanvas(QWidget):
             attribution = self._tomtom_copyright_caption or "Map \u00a9 TomTom"
         else:
             attribution = "\u00a9 OpenStreetMap contributors"
+        self.map_telemetry_source.setText(
+            ("TOMTOM DARK" if dark_theme else "TOMTOM") if "tomtom" in visible_sources else
+            ("TOMTOM BAGLANIYOR" if self._traffic_key and not self._tomtom_map_unavailable else "YEDEK HARITA")
+        )
         attribution_width = min(max(260, painter.fontMetrics().horizontalAdvance(attribution) + 16), max(260, self.width() - 32))
         attribution_box = QRectF(self.width() - attribution_width - 12, self.height() - 28, attribution_width, 20)
-        painter.fillRect(attribution_box, QColor(5, 12, 22, 205))
-        painter.setPen(QColor(190, 205, 224))
+        painter.fillRect(attribution_box, QColor(tc("finance_surface")))
+        painter.setPen(QColor(tc("finance_text")))
         painter.drawText(attribution_box.adjusted(6, 0, -6, 0),
                          Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, attribution)
+
+    def _update_map_telemetry(self):
+        latitude, longitude = self.center
+        self.map_telemetry_label.setText(
+            "MERKEZ: {:.5f}, {:.5f}  |  OL\u00c7EK: {:.1f}x  |  GPS: {}/{}".format(
+                latitude, longitude, self._display_zoom_level(),
+                len(self.personnel), self._personnel_total_count
+            )
+        )
 
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        self._update_map_telemetry()
         self._paint_tiles(painter)
         self._hits = []
         labels = []
@@ -1057,46 +1291,58 @@ class FieldRadarCanvas(QWidget):
             painter.setPen(QPen(pulse_color, 3))
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.drawEllipse(center_point, pulse_radius, pulse_radius)
-            painter.setPen(QPen(QColor("#34d399"), 2))
-            painter.setBrush(QColor("#0d2b30"))
+            painter.setPen(QPen(QColor(tc("finance_secondary")), 2))
+            painter.setBrush(QColor(tc("finance_success_bg")))
             painter.drawEllipse(center_point, 9, 9)
-            painter.setBrush(QColor("#34d399"))
+            painter.setBrush(QColor(tc("finance_secondary")))
             painter.drawEllipse(center_point, 4, 4)
             center_label = QRectF(center_point.x() + 14, center_point.y() + 8, 142, 22)
-            painter.fillRect(center_label, QColor("#101b2d"))
-            painter.setPen(QColor("#e6edf7"))
+            painter.fillRect(center_label, QColor(tc("finance_surface")))
+            painter.setPen(QColor(tc("finance_text")))
             painter.drawText(center_label, Qt.AlignmentFlag.AlignCenter, "Varsayilan merkez")
 
         if len(route_screen_points) > 1:
             route_path = QPainterPath(route_screen_points[0])
             for point in route_screen_points[1:]:
                 route_path.lineTo(point)
-            halo = QPen(QColor(14, 165, 233, 90), 10, Qt.PenStyle.SolidLine,
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            halo_color = QColor(tc("finance_secondary"))
+            halo_color.setAlpha(76)
+            halo = QPen(halo_color, 7, Qt.PenStyle.SolidLine,
                         Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
             painter.setPen(halo)
             painter.drawPath(route_path)
-            route_pen = QPen(QColor("#38bdf8"), 4, Qt.PenStyle.SolidLine,
+            route_pen = QPen(QColor(tc("finance_secondary")), 3, Qt.PenStyle.CustomDashLine,
                              Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
+            route_pen.setDashPattern([2.5, 2.0])
             painter.setPen(route_pen)
             painter.drawPath(route_path)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QColor(tc("finance_secondary")))
+            for first, second in zip(route_screen_points, route_screen_points[1:]):
+                midpoint = QPointF(
+                    (first.x() + second.x()) / 2,
+                    (first.y() + second.y()) / 2,
+                )
+                painter.drawEllipse(midpoint, 3.5, 3.5)
         for index, coordinates in enumerate(self.route_points, 1):
             point = self._screen_point(*coordinates)
             if not self.rect().adjusted(12, 52, -12, -48).contains(point.toPoint()):
                 continue
-            painter.setPen(QPen(QColor("#e0f2fe"), 2))
-            painter.setBrush(QColor("#0369a1"))
+            painter.setPen(QPen(QColor(tc("finance_text")), 2))
+            painter.setBrush(QColor(tc("finance_primary")))
             painter.drawEllipse(point, 12, 12)
-            painter.setPen(QColor("#ffffff"))
+            painter.setPen(QColor(tc("finance_primary_text")))
             painter.drawText(QRectF(point.x() - 10, point.y() - 10, 20, 20),
                              Qt.AlignmentFlag.AlignCenter, str(index))
         for row in self.personnel:
             point = self._screen_point(row["lat"], row["lng"])
             if not self.rect().adjusted(18, 58, -18, -60).contains(point.toPoint()):
                 continue
-            painter.setPen(QPen(QColor("#36d399"), 2))
-            painter.setBrush(QColor("#123b3a"))
+            painter.setPen(QPen(QColor(tc("finance_secondary")), 2))
+            painter.setBrush(QColor(tc("finance_success_bg")))
             painter.drawEllipse(point, 14, 14)
-            painter.setBrush(QColor("#34d399"))
+            painter.setBrush(QColor(tc("finance_secondary")))
             painter.drawEllipse(point, 5, 5)
             name = str(row.get("name") or "Personel")
             width = min(220, max(110, painter.fontMetrics().horizontalAdvance(name) + 20))
@@ -1106,28 +1352,29 @@ class FieldRadarCanvas(QWidget):
                     break
                 label.translate(0, -27)
             labels.append(QRectF(label))
-            painter.fillRect(label, QColor("#182438"))
-            painter.setPen(QColor("#e6edf7"))
+            painter.fillRect(label, QColor(tc("finance_surface")))
+            painter.setPen(QColor(tc("finance_text")))
             painter.drawText(label, Qt.AlignmentFlag.AlignCenter, painter.fontMetrics().elidedText(name, Qt.TextElideMode.ElideRight, width - 12))
             self._hits.append((QRectF(point.x() - 18, point.y() - 18, 36, 36), row))
 
-        painter.setPen(QColor("#c6d3e5"))
+        painter.setPen(QColor(tc("finance_text_muted")))
         painter.drawText(QRectF(18, 12, self.width() - 36, 40), Qt.AlignmentFlag.AlignLeft,
                          "SAHA RADARI  |  {} GPS kaydi  |  {}".format(
                              len(self.personnel), "CANLI TRAFIK" if self.traffic_active else "FILO IZLEME"))
         if self.selection_visible:
             point = self._screen_point(*self.selected_coordinates)
-            painter.setPen(QPen(QColor("#f87171"), 2))
-            painter.setBrush(QColor("#571e2b"))
+            painter.setPen(QPen(QColor(tc("warning")), 2))
+            painter.setBrush(QColor(tc("finance_tertiary_bg")))
             painter.drawEllipse(point, 8, 8)
         coordinate_font = QFont("Inter" if _MAP_FONT_ID >= 0 else "Consolas")
         coordinate_font.setFamilies(["Inter", "Consolas", "Arial"] if _MAP_FONT_ID >= 0 else ["Consolas", "Arial"])
         coordinate_font.setPointSize(10)
         coordinate_font.setPixelSize(11)
         painter.setFont(coordinate_font)
-        painter.setPen(QColor("#9dafc8"))
+        painter.setPen(QColor(tc("finance_text_muted")))
         painter.drawText(QRectF(16, self.height() - 42, self.width() - 32, 30), Qt.AlignmentFlag.AlignLeft,
-                         "Merkez: {:.5f}, {:.5f}  |  Olcek: {:.2f}x".format(*self.center, self.zoom))
+                         "Merkez: {:.5f}, {:.5f}  |  Olcek: {:.2f}x".format(
+                             *self.center, self._display_zoom_level()))
         painter.end()
 
     def _coordinate_from_position(self, position):
@@ -1158,6 +1405,7 @@ class FieldRadarCanvas(QWidget):
                 if area.contains(event.position()):
                     self.selected_coordinates = (float(record["lat"]), float(record["lng"]))
                     self.selection_visible = True
+                    self.selectionChanged.emit(*self.selected_coordinates)
                     self.personnelClicked.emit(dict(record))
                     self.update()
                     return
@@ -1165,6 +1413,7 @@ class FieldRadarCanvas(QWidget):
             latitude, longitude = self._coordinate_from_position(event.position())
             self.selected_coordinates = (latitude, longitude)
             self.selection_visible = True
+            self.selectionChanged.emit(*self.selected_coordinates)
             self.update()
         super().mousePressEvent(event)
 

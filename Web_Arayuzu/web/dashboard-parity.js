@@ -1,6 +1,7 @@
 (function(){
   let periodKey="month";
   let trendMonths=9;
+  let shortcutOverlayOpen=true;
   const statusTiles=[
     ["test","Tamir Edilenler","#05a85b"],
     ["tamirde","Tamirde Olanlar","#f39c12"],
@@ -42,6 +43,17 @@
     const countByStatus=Object.fromEntries(statusTiles.map(([key])=>[key,services.filter(row=>key==="borclu"?serviceIsDebt(row):serviceKey(row)===key).length]));
     const todayServices=services.filter(row=>serviceDate(row).slice(0,10)===todayKey).length;
     const openAppointments=appointments.filter(row=>!/(tamam|iptal|cancel|complete)/i.test(String(row.status||""))).length;
+    const todayAppointments=appointments.filter(row=>String(row.date||"").slice(0,10)===todayKey).slice().sort((a,b)=>String(a.time||"").localeCompare(String(b.time||"")));
+    const completedTodayAppointments=todayAppointments.filter(row=>/(tamam|complete)/i.test(String(row.status||""))).length;
+    const todayAppointmentProgress=todayAppointments.length?`Randevular haz\u0131r: ${completedTodayAppointments}/${todayAppointments.length} tamamland\u0131`:'Bug\u00fcn i\u00e7in randevu bulunamad\u0131.';
+    const appointmentStatusOptions=["Bekliyor","Geldi","\u0130\u015flemde","Tamamland\u0131","\u0130ptal"];
+    const todayAppointmentRows=todayAppointments.length?todayAppointments.map(row=>{
+      const id=row.id;
+      const status=String(row.status||"Bekliyor");
+      const customer=row.customer_name||row.customer||customerName(row.customer_id||row.customerId)||"";
+      const details=row.description||"";
+      return `<div class="dashboard-today-appointment" data-dashboard-appointment-row="${esc(id)}"><time>${esc(String(row.time||"").slice(0,5))}</time><strong title="${esc(customer)}">${esc(customer)}</strong><span title="${esc(details)}">${esc(details)}</span><div class="dashboard-appointment-status-wrap"><button type="button" class="dashboard-appointment-status" data-dashboard-appointment-status="${esc(id)}" aria-expanded="false">${esc(status.toLocaleUpperCase("tr-TR"))}<span aria-hidden="true">&#9662;</span></button><div class="dashboard-appointment-menu" data-dashboard-appointment-menu hidden>${appointmentStatusOptions.map(option=>`<button type="button" data-dashboard-appointment-set="${esc(id)}" data-status="${esc(option)}">${esc(option)}</button>`).join("")}</div></div></div>`;
+    }).join(""):'<div class="dashboard-empty">Bug\u00fcn i\u00e7in randevu bulunamad\u0131.</div>';
     const pendingServices=countByStatus.bekliyor+countByStatus.parca;
     const serviceRevenue=services.filter(row=>serviceDate(row).slice(0,7)===monthKey).reduce((sum,row)=>sum+moneyNumber(row.amount||0)+moneyNumber(row.labor_cost||0),0);
     const fallbackRevenue=finances.filter(row=>row.type==="Gelir"&&String(row.date||"").slice(0,7)===monthKey).reduce((sum,row)=>sum+moneyNumber(row.amount),0);
@@ -66,7 +78,26 @@
     const now=new Date(),dateText=now.toLocaleDateString("tr-TR",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
     const tickerDefault=currentSector==="otomotiv"?"AYEC Pro Otomotiv Servis Y\u00f6netimi v2026.1 | H\u0131zl\u0131 Kay\u0131t: F5 | Ara\u00e7 Bul: Ctrl+F":"AYEC Pro Teknik Servis Y\u00f6netimi v2026.1 | H\u0131zl\u0131 Kay\u0131t: F5 | M\u00fc\u015fteri Ara: Ctrl+F";
     const tickerText=esc(db.settings?.ticker_text||tickerDefault);
-    const topActions='<button class="secondary" data-page="finance">Finans</button><button class="secondary" data-page="appointments">Randevular</button><button class="secondary" data-action="export-all">D\u0131\u015fa Aktar</button><button class="primary" data-action="quick-add">&#65291; Yeni \u0130\u015flem</button>';
+    const topActions='<button class="secondary" data-dashboard-shortcuts-toggle>K\u0131sayollar</button><button class="secondary" data-page="finance">Finans</button><button class="secondary" data-page="appointments">Randevular</button><button class="secondary" data-action="export-all">D\u0131\u015fa Aktar</button><button class="primary" data-action="quick-add">&#65291; Yeni \u0130\u015flem</button>';
+    const deviceTitle=currentSector==="otomotiv"?"Ara\u00e7 Kayd\u0131":"Cihaz Kayd\u0131";
+    const deviceDetail=currentSector==="otomotiv"?"Yeni ara\u00e7 servis kayd\u0131":"Yeni cihaz servis kayd\u0131";
+    const shortcutItems=[
+      ["Yeni Servis Formu","Servis kayd\u0131 a\u00e7","new-service","#2563eb","service"],
+      ["M\u00fc\u015fteri Ekle","Yeni m\u00fc\u015fteri kayd\u0131","new-customer","#059669","customer"],
+      [deviceTitle,deviceDetail,currentSector==="otomotiv"?"vehicle-record":"new-service","#d97706","device"],
+      ["Servis Listesi","A\u00e7\u0131k servisleri g\u00f6r","services","#0891b2","list"],
+      ["Teknisyen Paneli","Par\u00e7a ve i\u015flem ekle","technician","#7c3aed","tools"],
+      ["M\u00fc\u015fteriler","M\u00fc\u015fteri 360 ekran\u0131","customers","#db2777","customers"],
+      ["Finans","Gelir ve giderleri g\u00f6r","finance","#16a34a","finance"],
+      ["Stok Y\u00f6netimi","Par\u00e7a stoklar\u0131n\u0131 y\u00f6net","stock","#ea580c","stock"],
+      ["Randevular","Bekleyen randevular\u0131 g\u00f6r","appointments","#9333ea","calendar"],
+      ["Teklifler","Teklif olu\u015ftur ve takip et","offers","#0f766e","quote"],
+      ["Gelir / Gider","Finans hareketlerini incele","finance","#65a30d","report"],
+      ["Yedekleme","Verilerinizi g\u00fcvenle yedekleyin","backup","#475569","backup"]
+    ];
+    const shortcutIconPaths={service:'<path d="M5 3h10l4 4v14H5z"/><path d="M15 3v5h5M8 13h8M8 17h5"/>',customer:'<circle cx="12" cy="8" r="3"/><path d="M5 21c.7-3.4 3.1-5 7-5s6.3 1.6 7 5"/>',device:'<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>',list:'<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M8 13h8M8 17h5"/>',tools:'<path d="M14 6a4 4 0 0 0-5 5l-6 6 3 3 6-6a4 4 0 0 0 5-5l-3 3-3-3z"/>',customers:'<circle cx="9" cy="8" r="3"/><circle cx="16" cy="10" r="2"/><path d="M3 21c.5-4 2.5-6 6-6s5.5 2 6 6M15 15c3 0 5 2 6 6"/>',finance:'<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h3"/>',stock:'<path d="M4 9h16v11H4zM7 9V5h10v4M8 13h8"/>',calendar:'<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16M8 14h3"/>',quote:'<path d="M6 3h9l3 3v15H6zM15 3v4h4M9 12h6M9 16h5"/>',report:'<path d="M5 20V10M12 20V4M19 20v-7"/>',backup:'<path d="M5 4h14v16H5zM8 4v5h8V4M9 16h6"/>'};
+    const shortcutCardMarkup=([title,detail,target,color,icon])=>'<button type="button" class="dashboard-shortcut-card" data-dashboard-shortcut="'+target+'" style="--shortcut-accent:'+color+'"><svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+shortcutIconPaths[icon]+'</g></svg><div><strong>'+title+'</strong><span>'+detail+'</span></div></button>';
+    const shortcutOverlay=shortcutOverlayOpen?`<section class="dashboard-shortcut-overlay" role="dialog" aria-modal="true" aria-labelledby="dashboardShortcutTitle"><header><div><h2 id="dashboardShortcutTitle">AYEC Pro K\u0131sayollar</h2><p>Men\u00fclere ve formlara tek t\u0131klamayla eri\u015fin. Genel Bak\u0131\u015f ekran\u0131na d\u00f6nmek i\u00e7in kapat\u0131n.</p></div><button type="button" class="secondary" data-dashboard-shortcuts-close aria-label="K\u0131sayollar\u0131 kapat">Kapat</button></header><div class="dashboard-shortcut-grid">${shortcutItems.map(shortcutCardMarkup).join("")}</div></section>`:"";
     const statusMarkup=statusTiles.map(([key,label,color])=>`<button type="button" class="dashboard-status-tile" data-dashboard-parity-filter="${key}" style="--dashboard-accent:${color}" aria-label="${label}: ${countByStatus[key]}"><span class="dashboard-status-dot"></span><span class="dashboard-status-label">${label}</span><strong>${countByStatus[key]}</strong></button>`).join("");
     const metricMarkup=metrics.map(([label,value,description,color,icon])=>`<article class="dashboard-metric-card" style="--dashboard-accent:${color}"><span class="dashboard-metric-icon" aria-hidden="true">${icon}</span><div><small>${label}</small><strong>${value}</strong><span>${description}</span></div></article>`).join("");
     const donutMarkup=statusTiles.map(([key,label,color])=>`<button type="button" class="dashboard-legend-row" data-dashboard-parity-filter="${key}" style="--dashboard-accent:${color}"><span class="dashboard-legend-dot"></span><span>${label}</span><strong>${donutCounts[key]}</strong></button>`).join("");
@@ -102,8 +133,9 @@
           <div class="dashboard-recent-list">${recentRows}</div>
         </article>
       </section>
+      <section class="dashboard-panel dashboard-today-appointments-panel"><header><h3>Bug\u00fcn\u00fcn Randevular\u0131</h3><span class="dashboard-today-appointment-progress">${todayAppointmentProgress}</span></header><div class="dashboard-today-appointment-list">${todayAppointmentRows}</div></section>
       <section class="dashboard-footnote"><span>Bekleyen stok uyar\u0131s\u0131: <strong>${criticalStock}</strong></span><span>Yakla\u015fan randevu: <strong>${appointments.filter(row=>periodMatches(row.date,"week")).length}</strong></span></section>
-      <footer class="dashboard-bottom-status"><strong>${now.toLocaleTimeString("tr-TR",{hour:"2-digit",minute:"2-digit",second:"2-digit"})}</strong><span>${dateText}</span></footer>`;
+      <footer class="dashboard-bottom-status"><strong>${now.toLocaleTimeString("tr-TR",{hour:"2-digit",minute:"2-digit",second:"2-digit"})}</strong><span>${dateText}</span></footer>${shortcutOverlay}`;
   }
   renderDashboard=renderDashboardParity;
   document.addEventListener("change",event=>{
@@ -111,8 +143,40 @@
     if(event.target.id==="dashboardParityTrendMonths"){trendMonths=Number(event.target.value)||9;render()}
   });
   document.addEventListener("click",event=>{
+    if(event.target.closest("[data-dashboard-shortcuts-toggle]")){shortcutOverlayOpen=true;render();return;}
+    if(event.target.closest("[data-dashboard-shortcuts-close]")){shortcutOverlayOpen=false;render();return;}
+    const shortcut=event.target.closest("[data-dashboard-shortcut]");
+    if(shortcut){
+      const target=shortcut.dataset.dashboardShortcut;
+      shortcutOverlayOpen=false;
+      render();
+      if(target==="new-service"){if(currentSector==="otomotiv"){navigate("vehicle-maintenance");window.setTimeout(()=>maintenanceDialog(),80)}else if(typeof serviceDialog==="function")serviceDialog();else document.querySelector('#content [data-action="quick-add"]')?.click();return;}
+      if(target==="new-customer"){openDialog("Yeni M\u00fc\u015fteri","CRM",customerForm(),form=>saveCustomer(form),"M\u00fc\u015fteri Ekle");return;}
+      if(target==="vehicle-record"){if(typeof window.openAutomotiveVehicleShortcut==="function")window.openAutomotiveVehicleShortcut();else toast("Arac kaydi akisi yuklenemedi.","error");return;}
+      navigate(target);
+      return;
+    }
+    const statusButton=event.target.closest("[data-dashboard-appointment-status]");
+    if(statusButton){
+      const menu=statusButton.parentElement.querySelector("[data-dashboard-appointment-menu]");
+      const open=statusButton.getAttribute("aria-expanded")==="true";
+      statusButton.setAttribute("aria-expanded",String(!open));
+      if(menu)menu.hidden=open;
+      return;
+    }
+    const statusOption=event.target.closest("[data-dashboard-appointment-set]");
+    if(statusOption){updateDashboardAppointmentStatus(statusOption.dataset.dashboardAppointmentSet,statusOption.dataset.status);return;}
     const filter=event.target.closest("[data-dashboard-parity-filter]");
     if(filter){dashboardFilter=filter.dataset.dashboardParityFilter;navigate("service-status");return}
   });
+  async function updateDashboardAppointmentStatus(id,status){
+    if(!id||!status)return;
+    try{
+      await apiFetch("/api/desktop/table/appointments",{method:"POST",body:JSON.stringify({id:Number(id),_action:"update",status})});
+      const appointment=(db.appointments||[]).find(row=>String(row.id)===String(id));
+      if(appointment)appointment.status=status;
+      render();
+    }catch(error){toast("Randevu durumu g\u00fcncellenemedi: "+(error.message||""),"error");}
+  }
   if(typeof render==="function")render();
 })();

@@ -129,6 +129,58 @@ def test_mixed_currency_offer_converts_without_reducing_stock(
     db.close()
 
 
+def test_sales_offer_accepts_explicit_line_price_and_description(tmp_path, monkeypatch):
+    path = tmp_path / "custom-priced-offer.db"
+    customer_id, part_ids = _sales_database(path)
+    _configure_web_database(monkeypatch, path)
+
+    result = web_main.commit_sales_hub(
+        {
+            "mode": "proforma",
+            "customer_id": customer_id,
+            "customer_name": "Currency Test Customer",
+            "currency": "USD",
+            "exchange_rate": 40,
+            "rates": {"TRY": 1, "USD": 40, "EUR": 50},
+            "lines": [{"product_id": part_ids[0], "qty": 2, "unit_price": 3.5,
+                       "description": "Screen replacement labor"}],
+            "vat_rate": 0,
+            "offer_no": "CUSTOM-PRICE-1",
+        }
+    )
+
+    db = Database(str(path))
+    item = db.cursor.execute(
+        "SELECT unit_price,line_total,description,payload_json FROM offer_items WHERE offer_id=?",
+        (result["offer_id"],),
+    ).fetchone()
+    db.close()
+
+    assert result["subtotal"] == pytest.approx(7)
+    assert float(item[0]) == pytest.approx(3.5)
+    assert float(item[1]) == pytest.approx(7)
+    assert item[2] == "Screen replacement labor"
+    assert json.loads(item[3])["price_overridden"] is True
+
+
+@pytest.mark.parametrize("unit_price", [-1, float("nan"), 1_000_000_001])
+def test_sales_offer_rejects_invalid_explicit_line_price(tmp_path, monkeypatch, unit_price):
+    path = tmp_path / f"invalid-price-{str(unit_price).replace('.', '-')}.db"
+    customer_id, part_ids = _sales_database(path)
+    _configure_web_database(monkeypatch, path)
+
+    with pytest.raises(ValueError):
+        web_main.commit_sales_hub(
+            {
+                "mode": "proforma", "customer_id": customer_id,
+                "customer_name": "Currency Test Customer", "currency": "TRY",
+                "exchange_rate": 1, "rates": {"TRY": 1, "USD": 40, "EUR": 50},
+                "lines": [{"product_id": part_ids[0], "qty": 1, "unit_price": unit_price}],
+                "vat_rate": 0,
+            }
+        )
+
+
 def test_mixed_currency_paid_sale_updates_stock_income_and_cost(
     tmp_path, monkeypatch
 ):
@@ -175,6 +227,41 @@ def test_mixed_currency_paid_sale_updates_stock_income_and_cost(
     assert tuple(cost[:2]) == pytest.approx((750, 750))
     assert cost[2] == "TRY"
     db.close()
+
+
+def test_paid_sale_uses_explicit_line_price_and_keeps_line_description(tmp_path, monkeypatch):
+    path = tmp_path / "custom-priced-sale.db"
+    customer_id, part_ids = _sales_database(path)
+    _configure_web_database(monkeypatch, path)
+
+    result = web_main.commit_sales_hub(
+        {
+            "mode": "payment", "customer_id": customer_id,
+            "customer_name": "Currency Test Customer", "currency": "EUR",
+            "exchange_rate": 50, "rates": {"TRY": 1, "USD": 40, "EUR": 50},
+            "lines": [{"product_id": part_ids[0], "qty": 2, "unit_price": 4.5,
+                       "description": "Screen replacement labor"}],
+            "vat_rate": 0, "reference": "CUSTOM-SALE-1",
+        }
+    )
+
+    db = Database(str(path))
+    stock = db.cursor.execute("SELECT stock FROM parts WHERE id=?", (part_ids[0],)).fetchone()[0]
+    income = db.cursor.execute(
+        "SELECT amount,original_amount,currency FROM accounting WHERE id=?",
+        (result["income_id"],),
+    ).fetchone()
+    movement = db.cursor.execute(
+        "SELECT description FROM stock_movements WHERE id=?", (result["movement_ids"][0],)
+    ).fetchone()[0]
+    db.close()
+
+    assert result["subtotal"] == pytest.approx(9)
+    assert float(stock) == pytest.approx(8)
+    assert float(income[0]) == pytest.approx(450)
+    assert float(income[1]) == pytest.approx(9)
+    assert income[2] == "EUR"
+    assert "Screen replacement labor" in movement
 
 
 def test_sales_hub_applies_discount_before_vat_and_persists_summary(
@@ -236,7 +323,8 @@ def test_web_offer_update_replaces_items_without_creating_duplicate(
         {
             **payload,
             "offer_id": created["offer_id"],
-            "lines": [{"product_id": part_ids[1], "qty": 2}],
+            "lines": [{"product_id": part_ids[1], "qty": 2,
+                       "description": "Install and configure device"}],
         }
     )
 
@@ -270,7 +358,8 @@ def test_web_service_commit_persists_device_and_customer_debt(
             "currency": "USD",
             "exchange_rate": 40,
             "rates": {"TRY": 1, "USD": 40, "EUR": 50},
-            "lines": [{"product_id": part_ids[1], "qty": 2}],
+            "lines": [{"product_id": part_ids[1], "qty": 2,
+                       "description": "Install and configure device"}],
             "vat_rate": 0,
             "reference": "WEB-SERVICE-1",
         }
@@ -278,7 +367,7 @@ def test_web_service_commit_persists_device_and_customer_debt(
 
     db = Database(str(path))
     device = db.cursor.execute(
-        "SELECT customer_id,tracking_no,service_source FROM devices WHERE id=?",
+        "SELECT customer_id,tracking_no,service_source,repair_details FROM devices WHERE id=?",
         (result["device_id"],),
     ).fetchone()
     balance = db.cursor.execute(
@@ -286,13 +375,54 @@ def test_web_service_commit_persists_device_and_customer_debt(
         "WHERE customer_id=? AND currency='USD'",
         (customer_id,),
     ).fetchone()
-    assert tuple(device) == (customer_id, "WEB-SERVICE-1", "Web Sales Hub")
+    assert tuple(device[:3]) == (customer_id, "WEB-SERVICE-1", "Web Sales Hub")
+    assert "Install and configure device" in device[3]
     assert float(balance[0]) == pytest.approx(-20)
     income_count = db.cursor.execute(
         "SELECT COUNT(*) FROM accounting WHERE tracking_no='WEB-SERVICE-1' "
         "AND type='Gelir'"
     ).fetchone()[0]
     assert int(income_count) == 0
+
+
+def test_sales_commit_accepts_service_lines_without_stock_movements(
+    tmp_path, monkeypatch
+):
+    path = tmp_path / "service-line-offer.db"
+    customer_id, part_ids = _sales_database(path)
+    _configure_web_database(monkeypatch, path)
+
+    result = web_main.commit_sales_hub(
+        {
+            "mode": "proforma",
+            "customer_id": customer_id,
+            "customer_name": "Currency Test Customer",
+            "currency": "TRY",
+            "exchange_rate": 1,
+            "rates": {"TRY": 1, "USD": 40, "EUR": 50},
+            "lines": [{
+                "line_type": "service",
+                "service_id": 45,
+                "service_name": "Installation",
+                "service_description": "On-site setup",
+                "unit_price": 750,
+                "qty": 2,
+            }],
+            "offer_no": "SERVICE-OFFER-1",
+        }
+    )
+
+    db = Database(str(path))
+    item = db.cursor.execute(
+        "SELECT item_id,item_type,service,qty,unit_price,line_total "
+        "FROM offer_items WHERE offer_id=?",
+        (result["offer_id"],),
+    ).fetchone()
+    stock = db.cursor.execute(
+        "SELECT stock FROM parts WHERE id=?", (part_ids[0],)
+    ).fetchone()[0]
+    assert tuple(item) == (None, "service", "Installation", 2.0, 750.0, 1500.0)
+    assert float(stock) == 10.0
     db.close()
 
 
@@ -378,6 +508,7 @@ def test_customer_payment_preserves_currency_rate_and_open_debt(
             "reference": f"PAY-{currency}",
             "description": "Cross-platform payment",
             "payment_method": "Bank",
+            "date": "2026-10-01",
         }
     )
 
@@ -387,24 +518,26 @@ def test_customer_payment_preserves_currency_rate_and_open_debt(
     assert result["try_equivalent"] == pytest.approx(expected_try)
     with sqlite3.connect(path) as conn:
         accounting = conn.execute(
-            "SELECT amount,original_amount,currency,exchange_rate,try_equivalent "
+            "SELECT amount,original_amount,currency,exchange_rate,try_equivalent,date "
             "FROM accounting WHERE id=?",
             (result["finance_id"],),
         ).fetchone()
         transaction = conn.execute(
-            "SELECT amount,currency,exchange_rate,try_equivalent,current_balance "
+            "SELECT amount,currency,exchange_rate,try_equivalent,current_balance,created_at "
             "FROM currency_transactions WHERE id=?",
             (result["currency_transaction_id"],),
         ).fetchone()
     assert float(accounting[0]) == pytest.approx(expected_try)
     assert float(accounting[1]) == pytest.approx(payment)
     assert accounting[2] == currency
-    assert tuple(map(float, accounting[3:])) == pytest.approx((rate, expected_try))
+    assert tuple(map(float, accounting[3:5])) == pytest.approx((rate, expected_try))
+    assert accounting[5] == "2026-10-01"
     assert float(transaction[0]) == pytest.approx(payment)
     assert transaction[1] == currency
-    assert tuple(map(float, transaction[2:])) == pytest.approx(
+    assert tuple(map(float, transaction[2:5])) == pytest.approx(
         (rate, expected_try, payment - debt)
     )
+    assert transaction[5].startswith("2026-10-01 ")
 
 
 def test_customer_payment_allocates_to_selected_invoice_debt(

@@ -1,4 +1,5 @@
 import sqlite3
+import importlib.util
 import os
 import subprocess
 import sys
@@ -150,12 +151,14 @@ def test_main_window_keeps_assistant_import_lazy():
 def test_windows_runtime_preload_allows_torch_after_qt_import():
     if os.name != "nt":
         pytest.skip("The bundled Windows Qt runtime collision is Windows-specific")
+    if importlib.util.find_spec("torch") is None:
+        pytest.skip("The current Python runtime does not include the optional torch package")
 
     root = Path(__file__).resolve().parents[1]
     from src.utils.path_helper import PathHelper
 
     asr_model = Path(PathHelper.get_app_data_dir()) / "Speech" / "whisper-small"
-    required_files = ("model.bin", "config.json", "tokenizer.json")
+    required_files = ("model.bin", "config.json", "tokenizer.json", "vocabulary.txt")
     if any(not (asr_model / name).is_file() for name in required_files):
         pytest.skip("The local offline speech model is not installed")
     main_source = (root / "Main.py").read_text(encoding="utf-8")

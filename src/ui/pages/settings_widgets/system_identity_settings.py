@@ -67,24 +67,29 @@ class SystemIdentitySettingsWidget(QWidget):
         layout.setContentsMargins(12, 10, 12, 10)
         layout.setSpacing(8)
 
-        title = QLabel("⚙️ Sistem Kimliği & Modüler Yapı")
-        title.setStyleSheet(theme_qss("font-size: 24px; font-weight: bold; color: @text;"))
+        title = QLabel("\u2699\ufe0f Sistem Kimli\u011fi & Mod\u00fcler Yap\u0131")
+        title.setStyleSheet(theme_qss("font-size: 20px; font-weight: bold; color: @text;"))
         title_row = QHBoxLayout()
-        title_row.setContentsMargins(6, 2, 6, 2)
+        title_row.setContentsMargins(6, 2, 6, 0)
         title_column = QVBoxLayout()
         title_column.setContentsMargins(0, 0, 0, 0)
-        title_column.setSpacing(1)
-        title_column.addWidget(title)
-        subtitle = QLabel("Y\u00f6netim Konsolu  \u2022  Dinamik Konfig\u00fcrasyon ve Mod\u00fcl Durumu")
-        subtitle.setStyleSheet(theme_qss("font-size: 9px; color: @text_muted;"))
-        title_column.addWidget(subtitle)
-        title_row.addLayout(title_column)
+        title_column.setSpacing(2)
+        title_line = QHBoxLayout()
+        title_line.setContentsMargins(0, 0, 0, 0)
+        title_line.setSpacing(8)
+        title_line.addWidget(title)
         edition = QLabel("ENTERPRISE PRO")
         edition.setStyleSheet(theme_qss(
             "color: @accent; background: @surface_alt; border: 1px solid @border; "
-            "border-radius: 5px; padding: 5px 9px; font-size: 10px; font-weight: 800;"
+            "border-radius: 5px; padding: 4px 8px; font-size: 10px; font-weight: 800;"
         ))
-        title_row.addWidget(edition)
+        title_line.addWidget(edition)
+        title_line.addStretch(1)
+        title_column.addLayout(title_line)
+        subtitle = QLabel("Y\u00f6netim Konsolu \u2022 Dinamik Konfig\u00fcrasyon ve Mod\u00fcl Y\u00f6netimi")
+        subtitle.setStyleSheet(theme_qss("color: @text_muted; font-size: 12px;"))
+        title_column.addWidget(subtitle)
+        title_row.addLayout(title_column)
         title_row.addStretch(1)
         self.db_status = QLabel("\u25cf Veritaban\u0131: Ba\u011fl\u0131")
         self.db_status.setStyleSheet(theme_qss("color: @success; font-size: 11px; font-weight: 700;"))
@@ -93,6 +98,10 @@ class SystemIdentitySettingsWidget(QWidget):
         self.refresh_button.clicked.connect(self.refresh_system_info)
         title_row.addWidget(self.refresh_button)
         layout.addLayout(title_row)
+        title_separator = QFrame()
+        title_separator.setFrameShape(QFrame.Shape.HLine)
+        title_separator.setStyleSheet(theme_qss("color: @border; background: @border; max-height: 1px;"))
+        layout.addWidget(title_separator)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -117,20 +126,14 @@ class SystemIdentitySettingsWidget(QWidget):
 
         btn_save = QPushButton("💾 Değişiklikleri Uygula ve Kaydet")
         btn_save.setObjectName("system_identity_save")
-        btn_save.setStyleSheet(theme_qss(DesignTokens.get_button_qss("primary")))
         btn_save.setFixedHeight(50)
-        btn_save.setStyleSheet(
-            "QPushButton { background: qlineargradient(x1:0,y1:0,x2:1,y2:0, "
-            "stop:0 #10b981, stop:1 #14b8a6); color: #04131d; border: none; "
-            "border-radius: 10px; font-size: 15px; font-weight: 700; } "
-            "QPushButton:hover { background: #34d399; }"
-        )
+        btn_save.setStyleSheet(theme_qss(DesignTokens.get_button_qss("success")))
         btn_save.clicked.connect(self.save_settings)
         layout.addWidget(btn_save)
 
     def _build_sector_group(self):
         group_sector = QGroupBox("1. Sektörel Kimlik (Master Switch)")
-        group_sector.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+        group_sector.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         group_sector.setStyleSheet(theme_qss(
             "QGroupBox { font-size: 14px; font-weight: 700; padding-top: 14px; "
             "border: 1px solid @border; border-radius: 8px; background: @surface; } "
@@ -198,7 +201,7 @@ class SystemIdentitySettingsWidget(QWidget):
 
     def _build_modules_group(self):
         group_modules = QGroupBox("2. Modül Paketleri (Toggle Switch)")
-        group_modules.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+        group_modules.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         group_modules.setStyleSheet(theme_qss(
             "QGroupBox { font-size: 14px; font-weight: 700; padding-top: 14px; "
             "border: 1px solid @border; border-radius: 8px; background: @surface; } "
@@ -224,11 +227,11 @@ class SystemIdentitySettingsWidget(QWidget):
 
         for i, (key, label) in enumerate(modules):
             row, col = divmod(i, 2)
-            toggle = ToggleSwitch(active_color="#10b981")
-            toggle.setFixedSize(58, 30)
+            toggle = ToggleSwitch(active_color=tc("success"))
+            toggle.setFixedSize(44, 22)
             self.module_toggles[key] = toggle
             lbl = QLabel(label)
-            lbl.setStyleSheet(theme_qss("font-size: 14px; font-weight: 500; color: @text;"))
+            lbl.setStyleSheet(theme_qss("font-size: 12px; font-weight: 500; color: @text;"))
 
             card = QFrame()
             card.setObjectName("SystemIdentityOptionCard")
@@ -248,7 +251,7 @@ class SystemIdentitySettingsWidget(QWidget):
 
     def _build_features_group(self):
         group_features = QGroupBox("3. Özellik Bazlı Kontroller")
-        group_features.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+        group_features.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         group_features.setStyleSheet(theme_qss(
             "QGroupBox { font-size: 14px; font-weight: 700; padding-top: 14px; "
             "border: 1px solid @border; border-radius: 8px; background: @surface; } "
@@ -276,7 +279,7 @@ class SystemIdentitySettingsWidget(QWidget):
             toggle.setFixedSize(54, 28)
             self.feature_toggles[key] = toggle
             lbl = QLabel(label)
-            lbl.setStyleSheet(theme_qss("font-size: 13px; font-weight: 500; color: @text;"))
+            lbl.setStyleSheet(theme_qss("font-size: 11px; font-weight: 500; color: @text;"))
 
             card = QFrame()
             card.setObjectName("SystemIdentityOptionCard")
@@ -344,15 +347,16 @@ class SystemIdentitySettingsWidget(QWidget):
 
     def _build_system_info_group(self):
         group_system_info = QGroupBox("4. Sistem ve Veritabani Bilgileri")
-        group_system_info.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Expanding)
-        group_system_info.setMinimumHeight(650)
+        self.group_system_info = group_system_info
+        group_system_info.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        group_system_info.setMinimumHeight(760)
         group_system_info.setStyleSheet(theme_qss(
             "QGroupBox { font-size: 14px; font-weight: 700; padding-top: 14px; "
             "border: 1px solid @border; border-radius: 8px; background: @surface; } "
             "QGroupBox::title { subcontrol-origin: margin; left: 12px; top: 34px; padding: 0 5px; }"
         ))
         system_info_layout = QVBoxLayout(group_system_info)
-        system_info_layout.setContentsMargins(10, 18, 10, 10)
+        system_info_layout.setContentsMargins(10, 63, 10, 10)
         system_info_layout.setSpacing(5)
 
         import os
@@ -450,7 +454,7 @@ class SystemIdentitySettingsWidget(QWidget):
         btn_copy_path.setStyleSheet(
             theme_qss(
                 "background-color: @accent; color: @selection_text; padding: 8px; "
-                "border-radius: 4px; font-weight: 600; font-size: 12px; border: none;"
+                "border-radius: 4px; font-weight: 600; font-size: 10px; border: none;"
             )
         )
         btn_copy_path.setFixedHeight(30)
@@ -464,7 +468,7 @@ class SystemIdentitySettingsWidget(QWidget):
         btn_open_folder.setStyleSheet(
             theme_qss(
                 "background-color: @success; color: @selection_text; padding: 8px; "
-                "border-radius: 4px; font-weight: 600; font-size: 12px; border: none;"
+                "border-radius: 4px; font-weight: 600; font-size: 10px; border: none;"
             )
         )
         btn_open_folder.setFixedHeight(30)
@@ -485,7 +489,8 @@ class SystemIdentitySettingsWidget(QWidget):
 
     def _build_startup_group(self):
         group_startup = QGroupBox("5. Başlangıç ve Kısayol Ayarları")
-        group_startup.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+        self.group_startup = group_startup
+        group_startup.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         group_startup.setStyleSheet(theme_qss(
             "QGroupBox { font-size: 14px; font-weight: 700; padding-top: 14px; "
             "border: 1px solid @border; border-radius: 8px; background: @surface; } "
@@ -516,22 +521,24 @@ class SystemIdentitySettingsWidget(QWidget):
         btn_desktop = QPushButton("Masaüstü kısayolu oluştur")
         btn_desktop.setStyleSheet(
             theme_qss(
-                "background-color: @surface_alt; color: @text; padding: 8px; border-radius: 4px; "
-                "font-weight: normal; border: 1px solid @border;"
+                "background-color: @surface_alt; color: @text; padding: 4px; border-radius: 4px; "
+                "font-weight: normal; font-size: 9px; border: 1px solid @border;"
             )
         )
         btn_desktop.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_desktop.setMinimumWidth(0)
         if self.main_window and hasattr(self.main_window, "create_desktop_shortcut"):
             btn_desktop.clicked.connect(self.main_window.create_desktop_shortcut)
 
         btn_start_menu = QPushButton("Başlangıç menüsü kısayolu oluştur")
         btn_start_menu.setStyleSheet(
             theme_qss(
-                "background-color: @surface_alt; color: @text; padding: 8px; border-radius: 4px; "
-                "font-weight: normal; border: 1px solid @border;"
+                "background-color: @surface_alt; color: @text; padding: 4px; border-radius: 4px; "
+                "font-weight: normal; font-size: 9px; border: 1px solid @border;"
             )
         )
         btn_start_menu.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_start_menu.setMinimumWidth(0)
         if self.main_window and hasattr(self.main_window, "create_start_menu_shortcut"):
             btn_start_menu.clicked.connect(self.main_window.create_start_menu_shortcut)
 

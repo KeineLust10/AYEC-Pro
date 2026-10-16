@@ -43,7 +43,7 @@ class CustomerWorker(QThread):
                         WHERE (d.customer_id = c.id OR (d.customer_id IS NULL AND d.customer_name = c.name))
                           AND COALESCE(d.is_deleted, 0) = 0
                           AND COALESCE(d.is_archived, 0) = 0
-                          AND COALESCE(d.status, '') NOT LIKE '%Teslim%'
+                          AND COALESCE(d.status, '') NOT LIKE '%Teslim Edildi%'
                           AND COALESCE(d.status, '') NOT LIKE '%Tamamland%'
                           AND COALESCE(d.status, '') NOT LIKE '%Iptal%'
                           AND COALESCE(d.status, '') NOT LIKE '%\u0130ptal%'
@@ -96,7 +96,7 @@ class CustomerWorker(QThread):
                         WHERE (d.customer_id = c.id OR (d.customer_id IS NULL AND d.customer_name = c.name))
                           AND COALESCE(d.is_deleted, 0) = 0
                           AND COALESCE(d.is_archived, 0) = 0
-                          AND COALESCE(d.status, '') NOT LIKE '%Teslim%'
+                          AND COALESCE(d.status, '') NOT LIKE '%Teslim Edildi%'
                           AND COALESCE(d.status, '') NOT LIKE '%Iptal%'
                           AND COALESCE(d.status, '') NOT LIKE '%\u0130ptal%'
                           AND COALESCE(d.status, '') NOT LIKE '%Tamamland%'
@@ -107,7 +107,7 @@ class CustomerWorker(QThread):
                         WHERE (d.customer_id = c.id OR (d.customer_id IS NULL AND d.customer_name = c.name))
                           AND COALESCE(d.is_deleted, 0) = 0
                           AND COALESCE(d.is_archived, 0) = 0
-                          AND COALESCE(d.status, '') NOT LIKE '%Teslim%'
+                          AND COALESCE(d.status, '') NOT LIKE '%Teslim Edildi%'
                           AND COALESCE(d.status, '') NOT LIKE '%Iptal%'
                           AND COALESCE(d.status, '') NOT LIKE '%\u0130ptal%'
                           AND COALESCE(d.status, '') NOT LIKE '%Tamamland%'
@@ -118,11 +118,41 @@ class CustomerWorker(QThread):
                         WHERE (d.customer_id = c.id OR (d.customer_id IS NULL AND d.customer_name = c.name))
                           AND COALESCE(d.is_deleted, 0) = 0
                           AND COALESCE(d.is_archived, 0) = 0
-                          AND COALESCE(d.status, '') NOT LIKE '%Teslim%'
+                          AND COALESCE(d.status, '') NOT LIKE '%Teslim Edildi%'
                           AND COALESCE(d.status, '') NOT LIKE '%Iptal%'
                           AND COALESCE(d.status, '') NOT LIKE '%\u0130ptal%'
                           AND COALESCE(d.status, '') NOT LIKE '%Tamamland%'
                     ), 0) AS open_repair_count,
+                    COALESCE((
+                        SELECT COUNT(*)
+                        FROM devices d
+                        WHERE (d.customer_id = c.id OR (d.customer_id IS NULL AND d.customer_name = c.name))
+                          AND COALESCE(d.is_deleted, 0) = 0
+                          AND COALESCE(d.is_archived, 0) = 0
+                          AND LOWER(COALESCE(d.status, '')) LIKE '%bak%'
+                          AND COALESCE(d.status, '') NOT LIKE '%Teslim Edildi%'
+                          AND COALESCE(d.status, '') NOT LIKE '%Iptal%'
+                          AND COALESCE(d.status, '') NOT LIKE '%\u0130ptal%'
+                          AND COALESCE(d.status, '') NOT LIKE '%Tamamland%'
+                    ), 0) AS open_maintenance_count,
+                    COALESCE((
+                        SELECT COUNT(*)
+                        FROM devices d
+                        WHERE (d.customer_id = c.id OR (d.customer_id IS NULL AND d.customer_name = c.name))
+                          AND COALESCE(d.is_deleted, 0) = 0
+                          AND COALESCE(d.is_archived, 0) = 0
+                          AND LOWER(COALESCE(d.status, '')) LIKE '%teslimata haz%'
+                          AND COALESCE(d.status, '') NOT LIKE '%Teslim Edildi%'
+                          AND COALESCE(d.status, '') NOT LIKE '%Iptal%'
+                          AND COALESCE(d.status, '') NOT LIKE '%\u0130ptal%'
+                          AND COALESCE(d.status, '') NOT LIKE '%Tamamland%'
+                    ), 0) AS open_delivery_ready_count,
+                    COALESCE((
+                        SELECT COUNT(*)
+                        FROM offers o
+                        WHERE o.customer_id = c.id
+                          AND LOWER(COALESCE(o.status, '')) IN ('sent', 'pending', 'waiting', 'beklemede', 'revision_pending')
+                    ), 0) AS pending_offer_count,
                     COALESCE((
                         SELECT COUNT(*)
                         FROM devices d

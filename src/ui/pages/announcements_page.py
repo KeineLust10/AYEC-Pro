@@ -258,13 +258,13 @@ class AnnouncementsPage(QWidget):
                 background-color: @surface_alt;
             }
             QHeaderView::section {
-                background-color: @text;
-                color: white;
+                background-color: @surface_alt;
+                color: @text;
                 padding: 12px;
                 font-weight: 600;
                 font-size: 11pt;
                 border: none;
-                border-right: 1px solid @text;
+                border-right: 1px solid @border;
             }
             QHeaderView::section:last {
                 border-right: none;

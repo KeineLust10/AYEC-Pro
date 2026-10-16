@@ -5,11 +5,13 @@ Tum sayfalar sol sidebar + icerik alani yap\u0131s\u0131nda burada bir araya get
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
     QLabel, QPushButton, QFrame, QStackedWidget, QSizePolicy,
-    QSpacerItem, QMessageBox, QTableWidget, QAbstractItemView, QComboBox
+    QSpacerItem, QMessageBox, QTableWidget, QAbstractItemView, QComboBox,
+    QLineEdit, QProgressBar
 )
-from PyQt6.QtCore import Qt, QSize, pyqtSignal
-from PyQt6.QtGui import QFont, QIcon
+from PyQt6.QtCore import Qt, QSize, QThread, QTimer, pyqtSignal
+from PyQt6.QtGui import QColor, QFont, QFontDatabase, QIcon, QPainter, QPainterPath, QPen, QPixmap
 
+from pathlib import Path
 import config
 import api_client
 import logging
@@ -54,6 +56,17 @@ _NAV_ITEMS = [
 ]
 
 
+class _HeaderStatusWorker(QThread):
+    done = pyqtSignal(dict)
+    failed = pyqtSignal(str)
+
+    def run(self):
+        try:
+            self.done.emit(api_client.server_status())
+        except Exception as exc:
+            self.failed.emit(str(exc))
+
+
 _STYLESHEET = """
 QMainWindow { background: #0b1220; }
 QWidget { background: #0b1220; color: #e8eef8; font-family: 'Segoe UI'; }
@@ -77,73 +90,105 @@ QWidget { background: #0b1220; color: #e8eef8; font-family: 'Segoe UI'; }
 #sidebarDivider { background: #22304a; max-height: 1px; }
 
 /* Header */
-#topBar { background: #0e1b2f; border-bottom: 1px solid #263a58; }
-#pageHeaderTitle { color: #f4f8ff; font-size: 18px; font-weight: 800; }
-#headerEyebrow { color: #6f8dad; font-size: 9px; font-weight: 800;
-                 letter-spacing: 1px; }
-#serverStatus { background: #112541; border: 1px solid #315477;
-                border-radius: 12px; }
-#serverDot { color: #35d399; font-size: 16px; }
-#serverCaption { color: #7f9ab9; font-size: 9px; font-weight: 800; }
-#serverUrl { color: #cfe3ff; font-size: 11px; font-weight: 700; }
+#topBar { background: rgba(9, 14, 28, 230); border-bottom: 1px solid rgba(66, 71, 84, 51); font-family: 'Plus Jakarta Sans', 'Segoe UI', Arial; }
+#topBar[referenceStyle="license"] { background: rgba(22, 27, 42, 242); border-bottom: 0; }
+#pageHeaderTitle { color: #dee2f6; font-size: 13px; font-weight: 700; }
+#headerEyebrow { color: #8c909f; font-size: 10px; }
+#globalSearch { background: #161b2a; border: 1px solid #424754; border-radius: 3px;
+                padding: 6px 9px; color: #dee2f6; min-width: 170px; }
+#telemetryBar { background: #161b2a; border: 1px solid #424754; border-radius: 3px; }
+#telemetryLabel { color: #8c909f; font-size: 9px; font-weight: 700; }
+#telemetryValue { color: #4edea3; font-size: 9px; font-weight: 700; }
+#headerMetrics { background: #161b2a; border: 1px solid #252a39; border-radius: 4px; }
+#headerMetricLabel { color: #8c909f; font: 700 8px "Segoe UI", Arial; }
+#headerMetricValue { color: #4edea3; font: 700 8px "Segoe UI", Arial; }
+#headerMetricValue[tone="ram"] { color: #4cd7f6; }
+#headerMetricValue[tone="disk"] { color: #adc6ff; }
+QProgressBar#headerMetricBar { border: 0; border-radius: 2px; background: #303444; min-height: 4px; max-height: 4px; }
+QProgressBar#headerMetricBar::chunk { border-radius: 2px; background: #4edea3; }
+QProgressBar#headerMetricBar[tone="ram"]::chunk { background: #4cd7f6; }
+QProgressBar#headerMetricBar[tone="disk"]::chunk { background: #adc6ff; }
+#headerAction { background: #252a39; color: #dee2f6; border: none; border-radius: 3px;
+                padding: 7px 10px; font-size: 11px; }
+#headerPrimaryAction { background: #adc6ff; color: #002e6a; border: none; border-radius: 3px;
+                       padding: 7px 10px; font-size: 11px; font-weight: 700; }
+#serverStatus { background: #161b2a; border: 1px solid #424754; border-radius: 3px; }
+#serverDot { color: #4edea3; font-size: 14px; }
+#serverCaption { color: #8c909f; font-size: 8px; font-weight: 700; }
+#serverUrl { color: #c2c6d6; font-size: 9px; font-weight: 700; }
 
 /* Content area */
-#contentArea { background: #091322; }
+#contentArea { background: #0e1321; }
+#contentArea QWidget { background: #0e1321; color: #dee2f6; font-family: 'Plus Jakarta Sans', 'Segoe UI', Arial; }
+QDialog, QMessageBox { font-family: 'Plus Jakarta Sans', 'Segoe UI', Arial; }
+QDialog QWidget, QMessageBox QWidget { font-family: 'Plus Jakarta Sans', 'Segoe UI', Arial; }
 
 /* Page titles */
-#pageTitle { color: #f7faff; font-size: 25px; font-weight: 800; margin-bottom: 4px; }
-#pageSubtitle { color: #8da3c0; font-size: 12px; }
-#sectionTitle { color: #9db0ca; font-size: 13px; font-weight: 700;
+#pageTitle { color: #dee2f6; font-size: 25px; font-weight: 800; margin-bottom: 4px; }
+#pageSubtitle { color: #c2c6d6; font-size: 12px; }
+#sectionTitle { color: #c2c6d6; font-size: 13px; font-weight: 700;
                 text-transform: uppercase; letter-spacing: 1px; }
-#panelTitle { color: #f4f8ff; font-size: 16px; font-weight: 800; }
+#panelTitle { color: #dee2f6; font-size: 16px; font-weight: 800; }
 
 /* Panels */
-#leftPanel { background: #101b2f; border-right: 1px solid #22304a; }
-#detailPanel { background: #0b1220; }
-#detailTitle { color: #f4f8ff; font-size: 19px; font-weight: 800; }
+#leftPanel { background: #161b2a; border-right: 1px solid #29394f; }
+#detailPanel { background: #0e1321; }
+#detailTitle { color: #dee2f6; font-size: 22px; font-weight: 800; }
 
 /* Cards */
-#metricCard { background: #10213a; border: 1px solid #294463;
-              border-radius: 16px; min-height: 112px; }
-#metricCard:hover { background: #122744; border: 1px solid #4e80c9; }
-#metricCard[tone="blue"] { border-left: 3px solid #5b9df5; }
-#metricCard[tone="green"] { border-left: 3px solid #35c99a; }
-#metricCard[tone="amber"] { border-left: 3px solid #f2b84b; }
-#metricCard[tone="violet"] { border-left: 3px solid #9a7cf5; }
-#metricTitle { color: #9db0ca; font-size: 12px; }
-#metricValue { color: #f4f8ff; font-size: 24px; font-weight: 800; }
-#metricSub { color: #7890b1; font-size: 11px; }
-#statusCard { background: #111f35; border: 1px solid #263b5b;
-              border-radius: 14px; min-height: 86px; }
-#statusCard:hover { border: 1px solid #4e80c9; }
-#cardName { color: #f4f8ff; font-size: 14px; font-weight: 700; }
+#metricCard { background: #161b2a; border: 1px solid #424754;
+              border-radius: 6px; min-height: 112px; }
+#metricCard:hover { background: #1a1f2e; border: 1px solid #4d8eff; }
+#metricCard[tone="blue"] { border-left: 3px solid #adc6ff; }
+#metricCard[tone="green"] { border-left: 3px solid #4edea3; }
+#metricCard[tone="amber"] { border-left: 3px solid #f59e0b; }
+#metricCard[tone="violet"] { border-left: 3px solid #8b5cf6; }
+#metricTitle { color: #c2c6d6; font-size: 12px; }
+#metricValue { color: #dee2f6; font-size: 24px; font-weight: 800; }
+#metricSub { color: #8c909f; font-size: 11px; }
+#statusCard { background: #161b2a; border: 1px solid #424754;
+              border-radius: 6px; min-height: 86px; }
+#statusCard:hover { border: 1px solid #4d8eff; }
+#cardName { color: #dee2f6; font-size: 14px; font-weight: 700; }
 #cardStatus { font-size: 12px; font-weight: bold; }
-#cardDetail { color: #7890b1; font-size: 11px; }
-#formCard, #ctrlFrame { background: #10213a; border: 1px solid #294463;
-            border-radius: 16px; }
-#detailCard, #tableCard { background: #0f1d31; border: 1px solid #294463;
-              border-radius: 14px; }
-#card { background: #10213a; border: 1px solid #294463; border-radius: 14px; }
-#tableToolbar { background: #10213a; border: none;
-                border-bottom: 1px solid #294463; }
-#selectionInfo { color: #cfe3ff; background: #132d4d;
-                 border: 1px solid #31577d; border-radius: 9px;
+#cardDetail { color: #8c909f; font-size: 11px; }
+#formCard, #ctrlFrame { background: #161b2a; border: 1px solid #424754;
+            border-radius: 6px; }
+#detailCard, #tableCard { background: #161b2a; border: 1px solid #424754;
+              border-radius: 6px; }
+#card { background: #161b2a; border: 1px solid #424754; border-radius: 6px; }
+#tableToolbar { background: #161b2a; border: none;
+                border-bottom: 1px solid #424754; }
+#selectionInfo { color: #dee2f6; background: #252a39;
+                 border: 1px solid #424754; border-radius: 4px;
                  padding: 8px 12px; font-size: 12px; }
-#groupBox { color: #9db0ca; font-size: 11px; border: 1px solid #263b5b;
-            border-radius: 10px; margin-top: 12px; padding-top: 12px; }
-#groupBox::title { color: #8bb8ff; subcontrol-origin: margin;
+#groupBox { color: #c2c6d6; font-size: 11px; border: 1px solid #424754;
+            border-radius: 6px; margin-top: 12px; padding-top: 12px; }
+#groupBox::title { color: #adc6ff; subcontrol-origin: margin;
                    subcontrol-position: top left; padding: 0 6px; left: 12px; }
 
 /* Tables */
-#dataTable, QTableWidget { background: #0f1c31; border: 1px solid #294463;
-             border-radius: 14px; gridline-color: transparent;
+QLineEdit, QTextEdit, QPlainTextEdit, QComboBox, QSpinBox, QDoubleSpinBox,
+QDateEdit, QDateTimeEdit, QTimeEdit {
+    background: #090e1c; color: #dee2f6; border: 1px solid #424754;
+    border-radius: 3px; padding: 7px 9px; selection-background-color: #4d8eff;
+}
+QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus, QComboBox:focus,
+QSpinBox:focus, QDoubleSpinBox:focus, QDateEdit:focus, QDateTimeEdit:focus,
+QTimeEdit:focus { border: 1px solid #4d8eff; }
+QPushButton { background: #252a39; color: #dee2f6; border: 1px solid #424754;
+              border-radius: 3px; padding: 7px 10px; }
+QPushButton:hover { background: #343948; }
+QPushButton:disabled { color: #8c909f; background: #1a1f2e; }
+#dataTable, QTableWidget { background: #090e1c; border: 1px solid #424754;
+             border-radius: 6px; gridline-color: transparent;
              selection-background-color: transparent; selection-color: #ffffff;
              outline: none; }
 #dataTable QHeaderView::section, QTableWidget QHeaderView::section {
-    background: #182d4b; color: #c8d7ea; border: none;
-    border-bottom: 1px solid #365779; padding: 11px 12px; font-size: 11px;
+    background: #252a39; color: #c2c6d6; border: none;
+    border-bottom: 1px solid #424754; padding: 8px 10px; font-size: 11px;
     font-weight: 800; }
-#dataTable::item, QTableWidget::item { padding: 10px 12px; color: #edf4ff; }
+#dataTable::item, QTableWidget::item { padding: 8px 10px; color: #dee2f6; }
 #dataTable::item:selected, QTableWidget::item:selected { background: transparent; color: #ffffff; }
 #dataTable::item:hover, QTableWidget::item:hover { background: transparent; }
 QTableWidget QLineEdit { background: #172943; color: #ffffff; border: 2px solid #78aefc;
@@ -208,11 +253,12 @@ QDateEdit:disabled, QDateTimeEdit:disabled { color: #627895; background: #0b1728
               border-radius: 8px; padding: 7px 16px; font-size: 12px; }
 #successBtn:hover { background: #1e3d29; }
 QPushButton { min-height: 20px; }
-#companyBtn { background: #111f35; color: #9db0ca; border: none;
-              border-radius: 6px; padding: 10px 12px; text-align: left;
-              font-size: 13px; }
-#companyBtn:hover { background: #1b3558; color: #ffffff; }
-#companyBtn:checked { background: #2455a5; color: #ffffff; font-weight: bold; }
+#companyBtn { background: #161b2a; color: #c2c6d6; border: 1px solid #29394f;
+              border-radius: 8px; padding: 12px; text-align: left;
+              font-size: 12px; }
+#companyBtn:hover { background: #1a1f2e; color: #ffffff; border-color: #4d8eff; }
+#companyBtn:checked { background: #1b3558; color: #ffffff; font-weight: bold;
+                      border: 1px solid #4d8eff; }
 #companyBtn:focus { outline: none; border: 1px solid #4e80c9; }
 
 /* Lists & scrolls */
@@ -265,8 +311,34 @@ QGroupBox::title { subcontrol-origin: margin; left: 14px; padding: 0 8px;
 class MainWindow(QMainWindow):
     logged_out = pyqtSignal()
 
+    @staticmethod
+    def _notification_icon() -> QIcon:
+        pixmap = QPixmap(20, 20)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setPen(QPen(QColor("#adc6ff"), 1.6, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        bell = QPainterPath()
+        bell.moveTo(5, 14)
+        bell.cubicTo(7, 12, 6, 8, 7, 6)
+        bell.cubicTo(9, 2, 15, 4, 15, 8)
+        bell.cubicTo(15, 11, 15, 13, 17, 14)
+        painter.drawPath(bell)
+        painter.drawLine(5, 14, 17, 14)
+        painter.drawArc(8, 15, 6, 4, 180 * 16, 180 * 16)
+        painter.end()
+        return QIcon(pixmap)
+
     def __init__(self):
         super().__init__()
+        font_root = Path(__file__).resolve().parent / "assets" / "fonts"
+        for weight in (400, 500, 600, 700):
+            font_path = font_root / f"PlusJakartaSans-{weight}.ttf"
+            if font_path.is_file():
+                QFontDatabase.addApplicationFont(str(font_path))
+        mono_font_path = Path(__file__).resolve().parents[1] / "assets" / "fonts" / "JetBrainsMono-Regular.ttf"
+        if mono_font_path.is_file():
+            QFontDatabase.addApplicationFont(str(mono_font_path))
         self.setWindowTitle(config.APP_NAME)
         self.setMinimumSize(1240, 780)
         self.resize(1440, 900)
@@ -275,9 +347,15 @@ class MainWindow(QMainWindow):
         self._nav_btns: dict[str, QPushButton] = {}
         self._current_page = ""
         self._active_product = "AYEC Pro Teknik Servis"
+        self._header_status_thread = None
         api_client.set_product_context(product_code(self._active_product))
         self._build_ui()
         self._navigate("dashboard")
+        self._header_status_timer = QTimer(self)
+        self._header_status_timer.setInterval(30_000)
+        self._header_status_timer.timeout.connect(self._refresh_header_status)
+        self._header_status_timer.start()
+        self._refresh_header_status()
 
     def _build_ui(self):
         central = QWidget()
@@ -343,46 +421,96 @@ class MainWindow(QMainWindow):
 
         # Top bar
         top_bar = QFrame()
+        self._top_bar = top_bar
         top_bar.setObjectName("topBar")
-        top_bar.setFixedHeight(78)
+        top_bar.setFixedHeight(56)
         top_bar_lay = QHBoxLayout(top_bar)
-        top_bar_lay.setContentsMargins(28, 0, 28, 0)
+        top_bar_lay.setContentsMargins(16, 0, 16, 0)
+        top_bar_lay.setSpacing(8)
 
         header_col = QVBoxLayout()
-        header_col.setSpacing(2)
-        header_eyebrow = QLabel("AYEC PRO  /  YONETIM MERKEZI")
+        header_col.setSpacing(0)
+        header_col.addStrut(251)
+        header_eyebrow = QLabel("Sistem  /  Yonetim Konsolu  /")
         header_eyebrow.setObjectName("headerEyebrow")
         header_col.addWidget(header_eyebrow)
         self._header_title = QLabel("Dashboard")
         self._header_title.setObjectName("pageHeaderTitle")
         header_col.addWidget(self._header_title)
         top_bar_lay.addLayout(header_col)
-        top_bar_lay.addStretch()
+        self._global_search = QLineEdit()
+        self._global_search.setObjectName("globalSearch")
+        self._global_search.setPlaceholderText("Firma, lisans veya hata ara...")
+        self._global_search.setClearButtonEnabled(True)
+        self._global_search.setFixedWidth(320)
+        self._global_search.returnPressed.connect(self._submit_global_search)
+        top_bar_lay.addWidget(self._global_search)
 
         self._product_selector = QComboBox()
         self._product_selector.setToolTip("Yonetilecek urunu secin")
         self._product_selector.addItems(product_names())
         self._product_selector.currentTextChanged.connect(self._product_changed)
-        top_bar_lay.addWidget(self._product_selector)
+        self._product_selector.hide()
 
-        server_status = QFrame()
-        server_status.setObjectName("serverStatus")
-        server_lay = QHBoxLayout(server_status)
-        server_lay.setContentsMargins(13, 7, 15, 7)
-        server_lay.setSpacing(9)
-        server_dot = QLabel("\u25cf")
-        server_dot.setObjectName("serverDot")
-        server_lay.addWidget(server_dot)
-        server_text = QVBoxLayout()
-        server_text.setSpacing(0)
-        server_caption = QLabel("CANLI SUNUCU")
-        server_caption.setObjectName("serverCaption")
-        server_text.addWidget(server_caption)
-        server_url = QLabel(config.server_url())
-        server_url.setObjectName("serverUrl")
-        server_text.addWidget(server_url)
-        server_lay.addLayout(server_text)
-        top_bar_lay.addWidget(server_status)
+        telemetry = QFrame()
+        telemetry.setObjectName("headerMetrics")
+        telemetry.setToolTip("Sistem kaynak telemetrisi")
+        telemetry_layout = QHBoxLayout(telemetry)
+        telemetry_layout.setContentsMargins(8, 4, 8, 4)
+        telemetry_layout.setSpacing(8)
+        self._header_metric_widgets = {}
+        for key, label, tone in (("cpu_percent", "CPU", "cpu"), ("ram_percent", "RAM", "ram"), ("disk_percent", "DISK", "disk")):
+            metric = QWidget(telemetry)
+            metric_layout = QHBoxLayout(metric)
+            metric_layout.setContentsMargins(0, 0, 0, 0)
+            metric_layout.setSpacing(4)
+            metric_label = QLabel(label)
+            metric_label.setObjectName("headerMetricLabel")
+            metric_value = QLabel("--")
+            metric_value.setObjectName("headerMetricValue")
+            metric_value.setProperty("tone", tone)
+            metric_bar = QProgressBar()
+            metric_bar.setObjectName("headerMetricBar")
+            metric_bar.setProperty("tone", tone)
+            metric_bar.setRange(0, 100)
+            metric_bar.setValue(0)
+            metric_bar.setTextVisible(False)
+            metric_bar.setFixedWidth(36)
+            metric_bar.setAccessibleName(label + " utilization")
+            metric_value.setAccessibleName(label + " usage percentage")
+            metric_layout.addWidget(metric_label)
+            metric_layout.addWidget(metric_bar)
+            metric_layout.addWidget(metric_value)
+            telemetry_layout.addWidget(metric)
+            self._header_metric_widgets[key] = (metric_bar, metric_value)
+        telemetry.setFixedWidth(385)
+        top_bar_lay.addWidget(telemetry)
+        refresh_header = QPushButton("\u21bb")
+        refresh_header.setObjectName("headerAction")
+        refresh_header.setFixedSize(32, 32)
+        refresh_header.setToolTip("Telemetriyi yenile")
+        refresh_header.clicked.connect(self._refresh_shell_status)
+        top_bar_lay.addWidget(refresh_header)
+        quick_header = QPushButton("\u26a1\nHizli Islem")
+        quick_header.setObjectName("headerPrimaryAction")
+        quick_header.setFixedSize(88, 48)
+        quick_header.clicked.connect(lambda: self._navigate("license_requests"))
+        top_bar_lay.addWidget(quick_header)
+        self._header_notifications = QPushButton()
+        self._header_notifications.setObjectName("headerAction")
+        self._header_notifications.setFixedSize(34, 34)
+        self._header_notifications.setIcon(self._notification_icon())
+        self._header_notifications.setIconSize(QSize(16, 16))
+        self._header_notifications.setAccessibleName("Bildirimlere git")
+        self._header_notifications.setToolTip("Bildirimleri ac")
+        self._header_notifications.clicked.connect(lambda: self._navigate("notifications"))
+        self._header_notifications.hide()
+        account = QLabel("PA")
+        account.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        account.setFixedSize(32, 32)
+        account.setStyleSheet("background: #adc6ff; color: #002e6a; border-radius: 16px; font-weight: 700;")
+        account.setToolTip("Platform Admin")
+        top_bar_lay.addWidget(account)
         right_lay.addWidget(top_bar)
 
         # Stacked pages
@@ -404,6 +532,54 @@ class MainWindow(QMainWindow):
         setter = getattr(page, 'set_product_filter', None)
         if setter:
             setter(self._active_product)
+
+    def _refresh_shell_status(self):
+        self._refresh_current_page()
+        self._refresh_header_status()
+
+    def _refresh_header_status(self):
+        worker = self._header_status_thread
+        if worker and worker.isRunning():
+            return
+        worker = _HeaderStatusWorker(self)
+        worker.done.connect(self._update_header_metrics)
+        worker.failed.connect(self._clear_header_metrics)
+        self._header_status_thread = worker
+        worker.start()
+
+    def _update_header_metrics(self, data: dict):
+        for key, (bar, value_label) in self._header_metric_widgets.items():
+            raw_value = data.get(key)
+            if raw_value is None:
+                bar.setValue(0)
+                value_label.setText("--")
+                continue
+            try:
+                value = max(0, min(100, int(float(raw_value))))
+            except (TypeError, ValueError):
+                bar.setValue(0)
+                value_label.setText("--")
+                continue
+            bar.setValue(value)
+            value_label.setText(f"{value}%")
+
+    def _clear_header_metrics(self, _error: str):
+        self._update_header_metrics({})
+
+    def _submit_global_search(self):
+        page = self._pages.get(self._current_page)
+        query = self._global_search.text().strip()
+        if not page or not query:
+            return
+        fields = page.findChildren(QLineEdit)
+        if fields:
+            fields[0].setText(query)
+
+    def _refresh_current_page(self):
+        page = self._pages.get(self._current_page)
+        refresh = getattr(page, "_refresh", None)
+        if callable(refresh):
+            refresh()
 
     def _get_page(self, page_id: str) -> QWidget:
         if page_id not in self._pages:
@@ -434,6 +610,8 @@ class MainWindow(QMainWindow):
                     page = QLabel(f"Sayfa yuklenemedi: {page_id}\\n{type(exc).__name__}: {exc}")
                     page.setAlignment(Qt.AlignmentFlag.AlignCenter)
                 self._prepare_tables(page)
+                if hasattr(page, "navigate_requested"):
+                    page.navigate_requested.connect(self._navigate)
                 self._pages[page_id] = page
                 self._stack.addWidget(page)
                 setter = getattr(page, 'set_product_filter', None)
@@ -477,6 +655,24 @@ class MainWindow(QMainWindow):
         # Header basligini guncelle
         labels = {pid: label for pid, _, label in _NAV_ITEMS}
         self._header_title.setText(labels.get(page_id, ""))
+        self._apply_reference_header_layout(page_id)
+
+    def _apply_reference_header_layout(self, page_id: str):
+        is_license = page_id == "license_requests"
+        self._top_bar.setFixedHeight(48 if is_license else 56)
+        self._global_search.setFixedWidth(256 if is_license else 320)
+        self._top_bar.setProperty("referenceStyle", "license" if is_license else "standard")
+        self._top_bar.style().unpolish(self._top_bar)
+        self._top_bar.style().polish(self._top_bar)
+
+    def closeEvent(self, event):
+        timer = getattr(self, "_header_status_timer", None)
+        if timer:
+            timer.stop()
+        worker = getattr(self, "_header_status_thread", None)
+        if worker and worker.isRunning():
+            worker.wait(5000)
+        super().closeEvent(event)
 
     def _logout(self):
         reply = QMessageBox.question(self, "Cikis", "Oturumu kapatmak istiyor musunuz?",

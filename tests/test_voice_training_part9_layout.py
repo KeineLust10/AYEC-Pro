@@ -6,7 +6,8 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from PyQt6.QtGui import QFont, QFontDatabase
-from PyQt6.QtWidgets import QApplication, QToolButton
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QApplication, QLabel, QToolButton
 
 from src.ui.pages.settings_widgets.voice_training_reference import VoiceTrainingWidget
 from src.utils.path_helper import PathHelper
@@ -46,17 +47,31 @@ def test_part9_voice_settings_fill_page_and_keep_controls_functional(tmp_path, m
     monkeypatch.setattr(PathHelper, "get_app_data_dir", lambda: str(tmp_path))
     db = VoiceSettingsDb()
     widget = VoiceTrainingWidget(db)
-    widget.resize(1280, 900)
+    widget.resize(1280, 901)
     widget.show()
     app.processEvents()
 
     assert widget.width() == 1280
-    assert widget.height() == 900
+    assert widget.height() == 901
+    brand = next(label for label in widget.findChildren(QLabel) if "Komut Merkezi" in label.text())
+    assert brand.text() == "AYEC Pro | Sesli Senaryo & AI Komut Merkezi"
+    assert brand.textFormat() == Qt.TextFormat.PlainText
+    assert brand.font().family() == "Inter"
     assert not widget.btn_save.isVisible()
     assert widget.list_recommended_commands.count() == 6
     first_row = widget.list_recommended_commands.itemWidget(widget.list_recommended_commands.item(0))
     assert first_row.objectName() == "voiceCommandRow"
-    first_row.findChildren(QToolButton)[0].click()
+    first_title = first_row.findChildren(QLabel)[0]
+    assert first_title.text() == "Asistan finans \u00f6zet"
+    assert "#22d3ee" in first_title.styleSheet()
+    trigger = next(label for label in first_row.findChildren(QLabel) if label.text().startswith("Tetikleyici:"))
+    assert trigger.width() == 100
+    assert "background:transparent" in trigger.styleSheet()
+    command_buttons = first_row.findChildren(QToolButton)
+    assert len(command_buttons) == 2
+    assert all(button.isVisible() for button in command_buttons)
+    assert all(button.geometry().right() <= first_row.width() for button in command_buttons)
+    command_buttons[0].click()
     assert QApplication.clipboard().text() == "Asistan finans \u00f6zet"
     capture_dir = Path("output/part9-captures")
     capture_dir.mkdir(parents=True, exist_ok=True)

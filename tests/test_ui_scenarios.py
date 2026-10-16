@@ -57,7 +57,9 @@ class TestUIScenarios(unittest.TestCase):
         self.assertEqual(page.table.rowCount(), 1)
         
         # Tablodaki veri doğru mu?
-        self.assertEqual(page.table.item(0, 1).text(), "#001")
+        customer_id_cell = page.table.cellWidget(0, 1)
+        self.assertIsNotNone(customer_id_cell)
+        self.assertIn("#001", [label.text() for label in customer_id_cell.findChildren(QLabel)])
         identity = page.table.cellWidget(0, 2)
         self.assertIsNotNone(identity)
         names = [label.text() for label in identity.findChildren(QLabel)]

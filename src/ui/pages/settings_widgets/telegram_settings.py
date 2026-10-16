@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
 
 from src.utils.secure_setting_store import SecureSettingStore
 from src.utils.theme_colors import theme_qss
+from src.utils.reference_typography import load_reference_fonts
 
 
 class TelegramSwitch(QCheckBox):
@@ -67,53 +68,66 @@ class TelegramSettingsWidget(QWidget):
     DEFAULT_WEBHOOK_URL = "https://api.ayecpro.com.tr/v4/telegram/webhook/inbound"
 
     THEME_QSS = """
-        QWidget#telegramRoot { background: @window; color: @text; font-family: "Segoe UI", Arial, sans-serif; }
+        QWidget#telegramRoot { background: @window; color: @text; font-family: "Inter", "Segoe UI", sans-serif; }
         QWidget#telegramContent, QScrollArea#telegramScroll { background: @window; border: 0; }
         QFrame#telegramCard { background: @surface; border: 1px solid @border; border-radius: 6px; }
         QFrame#telegramPreference { background: @surface_alt; border: 1px solid @border; border-radius: 6px; }
         QFrame#telegramMessagePreview { background: @window; border: 1px solid @border; border-radius: 6px; }
         QPushButton#telegramSettingsTab { background: @surface_alt; border: 0; border-bottom: 1px solid @border; border-radius: 4px 4px 0 0; color: @text_muted; padding: 7px 10px; }
         QPushButton#telegramSettingsTab[active="true"] { background: @surface; border-bottom: 2px solid @accent; color: @accent; font-weight: bold; }
-        QLabel { background: transparent; border: 0; padding: 0; color: @text; font-family: "Segoe UI", "Arial", sans-serif; }
+        QLabel { background: transparent; border: 0; padding: 0; color: @text; font-family: "Inter", "Segoe UI", sans-serif; }
         QLabel#telegramPreferenceIcon { min-width: 22px; max-width: 22px; min-height: 22px; max-height: 22px; background: @surface_alt; color: @accent; border-radius: 3px; font-size: 14px; font-weight: bold; qproperty-alignment: AlignCenter; }
         QLabel#telegramPreferenceTitle { font-size: 9px; font-weight: 600; }
         QLabel#telegramPreferenceDetail, QLabel[muted="true"] { color: @text_muted; }
         QLabel#telegramPreferenceDetail { font-size: 8px; }
-        QLabel#telegramMessageId { color: @accent; font: 700 9px Consolas, monospace; }
-        QLabel#telegramMessageState { background: @success_bg; color: @success; font: 700 8px Consolas, monospace; padding: 3px 5px; }
+        QLabel#telegramMessageId { color: @accent; font: 700 9px "JetBrains Mono", Consolas, monospace; }
+        QLabel#telegramMessageState { background: @success_bg; color: @success; font: 700 8px "JetBrains Mono", Consolas, monospace; padding: 3px 5px; }
         QLabel#telegramMessageBody { background: @surface_alt; color: @text; font-size: 9px; padding: 5px; }
         QLabel#telegramPreviewAction { background: @surface_alt; color: @accent; border-radius: 3px; padding: 4px; font-size: 8px; }
         QLabel#telegramPreviewApproved { background: @surface_alt; color: @success; border-radius: 3px; padding: 4px; font-size: 8px; }
         QLabel#telegramMessageTime, QLabel#telegramBotState, QLabel#telegramSuccessLabel { color: @text_muted; }
-        QLabel#telegramMessageTime { font: 8px Consolas, monospace; }
+        QLabel#telegramStatusLabel { color: @accent; font: 7px "JetBrains Mono", Consolas, monospace; }
+        QLabel#telegramMessageTime { font: 8px "JetBrains Mono", Consolas, monospace; }
         QLabel#telegramBotIcon { min-width: 24px; max-width: 24px; min-height: 24px; max-height: 24px; background: @accent; color: @selection_text; border-radius: 5px; font-size: 9px; font-weight: bold; qproperty-alignment: AlignCenter; }
         QLabel#telegramBotName { font-size: 10px; font-weight: bold; }
         QLabel#telegramBotState, QLabel#telegramSuccessLabel { font-size: 8px; }
         QLabel#telegramSuccessValue { color: @success; font-size: 16px; font-weight: bold; }
         QLabel#telegramStepNumber { min-width: 18px; max-width: 18px; min-height: 18px; max-height: 18px; background: @surface_alt; color: @accent; border-radius: 3px; font-size: 9px; font-weight: bold; qproperty-alignment: AlignCenter; }
-        QLineEdit { background: @window; border: 1px solid @border; border-radius: 5px; color: @text; padding: 8px; font-family: "Arial", "Segoe UI", sans-serif; }
-        QPushButton { background: @surface_alt; border: 1px solid @border; border-radius: 5px; color: @text; padding: 8px 12px; font-family: "Arial", "Segoe UI", sans-serif; }
+        QLineEdit { background: @window; border: 1px solid @border; border-radius: 5px; color: @text; padding: 8px; font-family: "Inter", "Segoe UI", sans-serif; }
+        QLineEdit#telegramTokenInput, QLineEdit#telegramChatIdInput { font-family: "JetBrains Mono", Consolas, monospace; font-size: 9px; }
+        QPushButton { background: @surface_alt; border: 1px solid @border; border-radius: 5px; color: @text; padding: 8px 12px; font-family: "Inter", "Segoe UI", sans-serif; }
         QPushButton#telegramPrimary { background: @accent; border: 0; color: @selection_text; font-weight: bold; }
         QPushButton#telegramDanger { color: @danger; }
-        QListWidget { background: @window; border: 1px solid @border; border-radius: 5px; color: @text; font-family: "Arial", "Segoe UI", sans-serif; }
-        QListWidget#telegramChatList { background: transparent; border: 0; color: @text; font-family: "Arial", "Segoe UI", sans-serif; }
+        QListWidget { background: @window; border: 1px solid @border; border-radius: 5px; color: @text; font-family: "Inter", "Segoe UI", sans-serif; }
+        QListWidget#telegramChatList { background: transparent; border: 0; color: @text; font: 9px "JetBrains Mono", Consolas, monospace; }
         QListWidget#telegramChatList::item { min-height: 22px; padding: 2px 7px; background: @surface_alt; border: 1px solid @border; border-radius: 4px; }
         QListWidget#telegramActivityList { background: @window; border: 1px solid @border; border-radius: 4px; color: @text; font-size: 9px; }
         QListWidget#telegramActivityList::item { min-height: 36px; padding: 4px 7px; border-bottom: 1px solid @border; }
-        QLabel#telegramLogTotal { color: @text_muted; font: 9px Consolas, "Segoe UI", Arial, sans-serif; }
+        QLabel#telegramLogTotal { color: @text_muted; font: 9px "JetBrains Mono", Consolas, monospace; }
         QPushButton#telegramLogButton { background: transparent; border: 0; color: @accent; padding: 4px; }
-        QCheckBox { color: @text; spacing: 8px; font-family: "Arial", "Segoe UI", sans-serif; }
+        QCheckBox { color: @text; spacing: 8px; font-family: "Inter", "Segoe UI", sans-serif; }
     """
 
     def __init__(self, db, main_window=None):
         super().__init__()
         self.db = db
         self.main_window = main_window
+        load_reference_fonts()
         self.setObjectName("telegramRoot")
-        self.setFont(QFont("Arial", 9))
+        self.setFont(QFont("Inter", 9))
         self.setStyleSheet(theme_qss(self.THEME_QSS))
         self.setup_ui()
         self.load_data()
+
+    @staticmethod
+    def _style_reference_action(button):
+        button.setProperty("skipThemeTransform", True)
+        button.setStyleSheet(
+            "QPushButton { background:#1f2937; color:#dbeafe; border:1px solid #334155; "
+            "border-radius:5px; padding:4px 8px; font-family:'Segoe UI','Arial'; "
+            "font-size:8px; font-weight:600; } "
+            "QPushButton:hover { background:#273449; border-color:#0ea5e9; color:#f8fafc; }"
+        )
 
     def _card(self, layout, title, description=None):
         frame = QFrame()
@@ -124,7 +138,7 @@ class TelegramSettingsWidget(QWidget):
         box.setSpacing(6)
         if title:
             heading = QLabel(title)
-            heading.setFont(QFont("Arial", 10, QFont.Weight.Bold))
+            heading.setFont(QFont("Inter", 10, QFont.Weight.Bold))
             box.addWidget(heading)
         if description:
             detail = QLabel(description)
@@ -146,16 +160,16 @@ class TelegramSettingsWidget(QWidget):
         self.content_scroll.setWidget(self.content)
         outer.addWidget(self.content_scroll)
         root = QVBoxLayout(self.content)
-        root.setContentsMargins(8, 6, 8, 6)
-        root.setSpacing(6)
+        root.setContentsMargins(8, 0, 8, 6)
+        root.setSpacing(4)
         tabs = QHBoxLayout()
         tabs.setSpacing(4)
         tabs.addStretch(1)
         self.settings_tab_buttons = {}
         for page_id, label in (
-            (2, "SMS D\u00f6ng\u00fcleri"),
+            (1, "SMS D\u00f6ng\u00fcleri"),
             (3, "\u015eablonlar"),
-            (1, "SMTP Mail"),
+            (2, "SMTP Mail"),
             (16, "Telegram Bot"),
         ):
             button = QPushButton(label)
@@ -167,10 +181,11 @@ class TelegramSettingsWidget(QWidget):
         root.addLayout(tabs)
         heading = QHBoxLayout()
         title = QLabel("Telegram Bot \u00d6zel Entegrasyonu")
-        title.setFont(QFont("Arial", 15, QFont.Weight.Bold))
+        title.setFont(QFont("Inter", 14, QFont.Weight.Bold))
         heading.addWidget(title)
         heading.addStretch()
         self.status_label = QLabel("BOT DURUMU: KURULUM BEKLIYOR")
+        self.status_label.setObjectName("telegramStatusLabel")
         self.status_label.setProperty("muted", True)
         heading.addWidget(self.status_label)
         root.addLayout(heading)
@@ -227,13 +242,16 @@ class TelegramSettingsWidget(QWidget):
         frame, box = self._card(left_layout, "Telegram Bot Token (HTTP API Belirteci)")
         token_row = QHBoxLayout()
         self.inp_token = QLineEdit()
+        self.inp_token.setObjectName("telegramTokenInput")
         self.inp_token.setEchoMode(QLineEdit.EchoMode.Password)
         self.inp_token.setPlaceholderText("123456789:ABCdefGHIjklMNOpqrsTUVwx_yz")
         token_row.addWidget(self.inp_token, 1)
-        self.token_eye = QPushButton("Goster")
+        self.token_eye = QPushButton("G\u00f6ster")
+        self._style_reference_action(self.token_eye)
         self.token_eye.clicked.connect(self._toggle_token)
         token_row.addWidget(self.token_eye)
         self.btn_copy_token = QPushButton("Kopyala")
+        self._style_reference_action(self.btn_copy_token)
         self.btn_copy_token.clicked.connect(self.copy_token)
         token_row.addWidget(self.btn_copy_token)
         box.addLayout(token_row)
@@ -244,10 +262,12 @@ class TelegramSettingsWidget(QWidget):
         self.webhook_url = QLabel(self.DEFAULT_WEBHOOK_URL)
         self.webhook_url.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         webhook_row.addWidget(self.webhook_url, 1)
-        self.btn_reset_webhook = QPushButton("Webhook URL Sifirla")
+        self.btn_reset_webhook = QPushButton("Webhook URL S\u0131f\u0131rla")
+        self._style_reference_action(self.btn_reset_webhook)
         self.btn_reset_webhook.clicked.connect(self.reset_webhook_url)
         webhook_row.addWidget(self.btn_reset_webhook)
         self.btn_drop_pending = QPushButton("Telegram Drop Pending")
+        self._style_reference_action(self.btn_drop_pending)
         self.btn_drop_pending.clicked.connect(self.show_pending_updates)
         webhook_row.addWidget(self.btn_drop_pending)
         box.addLayout(webhook_row)
@@ -255,6 +275,7 @@ class TelegramSettingsWidget(QWidget):
         frame, box = self._card(left_layout, "Yonetici ve teknisyen Telegram Chat ID'leri")
         ids_row = QHBoxLayout()
         self.inp_chat_id = QLineEdit()
+        self.inp_chat_id.setObjectName("telegramChatIdInput")
         self.inp_chat_id.setPlaceholderText("Yeni Chat ID (or. 981234567)")
         ids_row.addWidget(self.inp_chat_id, 1)
         add_id = QPushButton("+ Ekle")
@@ -277,7 +298,7 @@ class TelegramSettingsWidget(QWidget):
         remove_id.clicked.connect(self.remove_chat_id)
         box.addWidget(remove_id, 0, Qt.AlignmentFlag.AlignRight)
 
-        frame, box = self._card(left_layout, "Anlik Telegram Bildirim Tercihleri")
+        frame, box = self._card(left_layout, "Anl\u0131k Telegram Bildirim Tercihleri")
         pref_grid = QGridLayout()
         pref_grid.setHorizontalSpacing(8)
         pref_grid.setVerticalSpacing(6)
@@ -415,14 +436,14 @@ class TelegramSettingsWidget(QWidget):
         right_layout.addStretch(1)
 
         actions = QHBoxLayout()
-        test_button = QPushButton("Baglantiyi test et")
+        test_button = QPushButton("Ba\u011flant\u0131y\u0131 Test Et")
         test_button.clicked.connect(self.test_connection)
         actions.addWidget(test_button)
         clear_button = QPushButton("Temizle")
         clear_button.clicked.connect(self.clear_form)
         actions.addWidget(clear_button)
         actions.addStretch(1)
-        save_button = QPushButton("Kaydet ve botu baslat")
+        save_button = QPushButton("KAYDET & BOTU BA\u015eLAT")
         save_button.setObjectName("telegramPrimary")
         save_button.clicked.connect(self.save_data)
         actions.addWidget(save_button)

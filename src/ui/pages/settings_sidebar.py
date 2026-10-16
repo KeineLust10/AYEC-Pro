@@ -13,6 +13,7 @@ from src.utils.reference_typography import load_reference_fonts
 
 SETTINGS_GLYPHS = {
     4: 'building', 9: 'globe', 25: 'percent', 6: 'palette', 21: 'plug', 20: 'plug', 16: 'plug',
+    1: 'plug', 2: 'plug', 3: 'document',
     5: 'truck', 14: 'pencil', 12: 'box', 7: 'save', 19: 'people',
     24: 'monitor', 10: 'shield', 11: 'lock', 17: 'document',
     18: 'monitor', 22: 'settings',
@@ -361,6 +362,9 @@ class PremiumSettingsSidebar(QWidget):
                 ("plug", "Entegrasyonlar & API", 21),
                 ("plug", "WhatsApp Entegrasyonu", 20),
                 ("plug", "Telegram Bot", 16),
+                ("plug", "SMS D\u00f6ng\u00fcleri", 1),
+                ("plug", "SMTP Mail", 2),
+                ("document", "SMS \u015eablonlar\u0131", 3),
             ]),
             ("TICARI & LISTELER", [
                 ("truck", "Kargo Firmalari", 5),
@@ -444,6 +448,9 @@ class PremiumSettingsSidebar(QWidget):
     def _handle_item_click(self, item):
         row = self.list_widget.row(item)
         if row in self._category_rows:
+            diagnostics = getattr(self.window(), "_menu_window_diagnostics", None)
+            if diagnostics is not None:
+                diagnostics.record_menu_click("Settings group", item.text().strip())
             self._toggle_category(row)
 
     def _toggle_category(self, category_row):

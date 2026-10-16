@@ -1,5 +1,6 @@
 import os
 import sqlite3
+import time
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -245,6 +246,23 @@ def test_dashboard_delayed_refresh_preserves_active_filter():
         DashboardPage._refresh_initial_device_list(dashboard)
         assert dashboard.table.rowCount() == 1
         assert dashboard.table.item(0, 0).text() == "SRV-CARGO"
+    finally:
+        dashboard.db.conn.close()
+
+
+def test_dashboard_delayed_initial_refresh_skips_recent_table_reload():
+    dashboard = _DashboardHarness()
+    table_refreshes = []
+    dashboard.populate_table = lambda: table_refreshes.append(True)
+    dashboard._last_dashboard_refresh_monotonic = time.monotonic()
+
+    try:
+        DashboardPage._refresh_initial_device_list(dashboard)
+        assert table_refreshes == []
+
+        dashboard._last_dashboard_refresh_monotonic -= 11
+        DashboardPage._refresh_initial_device_list(dashboard)
+        assert table_refreshes == [True]
     finally:
         dashboard.db.conn.close()
 

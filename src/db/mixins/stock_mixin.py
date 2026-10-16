@@ -1108,6 +1108,7 @@ class StockMixin:
         """Parca kullan - stok dusum, used_parts kaydi eklenir."""
         try:
             location_id = kwargs.get("location_id")
+            note = str(kwargs.get("note") or "").strip()[:500]
             # Mevcut stoku kontrol et
             self.cursor.execute(
                 "SELECT name, stock, price, purchase_price, COALESCE(currency, 'TRY') FROM parts WHERE id=?",
@@ -1158,7 +1159,8 @@ class StockMixin:
                 delta=-quantity,
                 current_stock=current_stock,
                 type_val="\u00c7\u0131k\u0131\u015f",
-                desc=f"Servis Kullanimi: {tracking_no or '-'}",
+                desc=f"Servis Kullanimi: {tracking_no or '-'}"
+                + (f" - {note}" if note else ""),
                 commit=False,
                 location_id=location_id,
             )

@@ -3,6 +3,7 @@ import sqlite3
 import pytest
 
 from src.db.mixins.stock_location_mixin import StockLocationMixin
+from src.database import Database
 
 
 class LocationDatabase(StockLocationMixin):
@@ -60,6 +61,54 @@ def balances(database, part_id):
             (part_id,),
         )
     }
+
+
+@pytest.mark.parametrize("location_type", ["personnel", "project"])
+def test_desktop_location_types_can_be_created(location_db, location_type):
+    location_db.ensure_stock_location_schema()
+    location_id = location_db.create_stock_location("Scoped stock", location_type)
+    location = next(
+        item for item in location_db.get_stock_locations()
+        if item["id"] == location_id
+    )
+    assert location["location_type"] == location_type
+
+
+def test_use_part_note_is_saved_with_stock_movement(tmp_path):
+    db = Database(str(tmp_path / "stock_location_note.db"))
+    try:
+        customer_id = db.add_customer({"name": "Note Test Customer"})
+        tracking_no = "NOTE-TEST-001"
+        db.add_device(
+            {
+                "tracking_no": tracking_no,
+                "customer_id": customer_id,
+                "customer_name": "Note Test Customer",
+                "device_type": "Computer",
+                "device_brand": "Test",
+                "device_model": "Note Test Device",
+                "status": "Tamirde",
+            }
+        )
+        part_id = db.add_part("Note Test Part", "Computer", 5, 10, code="NOTE-TEST-PART")
+        db.ensure_stock_location_schema()
+        main_location_id = next(
+            item["id"] for item in db.get_stock_locations()
+            if item["location_type"] == "main"
+        )
+
+        assert db.use_part(
+            part_id, 1, tracking_no, location_id=main_location_id,
+            note="Replace damaged cable",
+        )
+        row = db.cursor.execute(
+            "SELECT description FROM stock_movements "
+            "WHERE part_id=? ORDER BY id DESC LIMIT 1",
+            (part_id,),
+        ).fetchone()
+        assert "Replace damaged cable" in row[0]
+    finally:
+        db.close()
 
 
 def test_vehicle_transfer_preserves_total_stock(location_db):

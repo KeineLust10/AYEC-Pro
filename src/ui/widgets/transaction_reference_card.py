@@ -8,14 +8,14 @@ class TransactionReferenceCard(QFrame):
     quantity_requested = pyqtSignal(str, int)
     action_requested = pyqtSignal(str, str)
 
-    def __init__(self, item, index, amount, unit_price, parent=None, *, vat_text='', try_reference='', code=''):
+    def __init__(self, item, index, amount, unit_price, parent=None, *, vat_text='', try_reference='', code='', compact=False):
         super().__init__(parent)
         self.item_id = str(item['id'])
         self.setObjectName('TransactionLineCard')
-        self.setMinimumHeight(120)
+        self.setFixedHeight(80 if compact else 120)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
         self.setStyleSheet(theme_qss(
-            'QFrame#TransactionLineCard { background: @finance_surface_lowest; '
+            'QFrame#TransactionLineCard { background: @finance_surface_container; '
             'border: 1px solid @finance_outline; border-radius: 12px; } '
             'QLabel { background: transparent; border: none; color: @finance_text; } '
             'QPushButton { background: @finance_surface; color: @finance_text_muted; '
@@ -24,8 +24,8 @@ class TransactionReferenceCard(QFrame):
             'QPushButton:hover { background: @finance_surface_high; color: @finance_text; }'
         ))
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 8, 10, 8)
-        layout.setSpacing(4)
+        layout.setContentsMargins(8 if compact else 10, 5 if compact else 8, 8 if compact else 10, 5 if compact else 16)
+        layout.setSpacing(2 if compact else 1)
         top = QHBoxLayout()
         number = QLabel(str(index))
         number.setFixedSize(24, 24)
@@ -47,7 +47,7 @@ class TransactionReferenceCard(QFrame):
         self.amount.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop)
         self.amount.setStyleSheet(theme_qss(
             'background: transparent; border: none; color: @finance_text; '
-            'font-size: 12px; font-weight: 700;'
+            'font: 700 14px "JetBrains Mono";'
         ))
         top.addWidget(number, 0, Qt.AlignmentFlag.AlignTop)
         top.addWidget(self.title, 1)
@@ -67,16 +67,15 @@ class TransactionReferenceCard(QFrame):
         amount_column = QVBoxLayout()
         amount_column.setSpacing(3)
         amount_column.addWidget(self.amount)
-        self.try_reference = QLabel(try_reference)
+        self.try_reference = QLabel(try_reference, self)
         self.try_reference.setAlignment(Qt.AlignmentFlag.AlignRight)
         self.try_reference.setStyleSheet(theme_qss(
             'background: transparent; border: none; color: @finance_text_muted; font-size: 11px;'
         ))
         self.try_reference.setVisible(bool(try_reference))
         amount_column.addWidget(self.try_reference)
-        top.addLayout(amount_column)
         layout.addLayout(top)
-        self.description = QLabel(str(code or item.get('description') or ''))
+        self.description = QLabel(str(code or item.get('description') or ''), self)
         self.description.setWordWrap(True)
         self.description.setToolTip(self.description.text())
         self.description.setStyleSheet(theme_qss(
@@ -103,11 +102,10 @@ class TransactionReferenceCard(QFrame):
         ))
         self.tax.setVisible(False)
         metadata.addWidget(self.tax)
+        if compact:
+            self.date.hide()
+            self.tax.hide()
         layout.addLayout(metadata)
-        rule = QFrame()
-        rule.setFixedHeight(1)
-        rule.setStyleSheet(theme_qss('background: @finance_outline; border: none;'))
-        layout.addWidget(rule)
         bottom = QHBoxLayout()
         bottom.setSpacing(6)
         self.minus = self._button('-', 'Adet azalt', 'decrease')
@@ -118,20 +116,51 @@ class TransactionReferenceCard(QFrame):
         unit = 'Hizmet' if service else 'Adet'
         self.unit_price = QLabel(f'x {unit_price} / {unit}')
         self.unit_price.setStyleSheet(theme_qss(
-            'background: transparent; border: none; color: @finance_text_muted; font-size: 11px;'
+            'background: transparent; border: none; color: @finance_text_muted; font: 10px "JetBrains Mono";'
         ))
+        amount_column.insertWidget(0, self.unit_price)
         self.edit = self._button('\u270e', 'Kalemi duzenle', 'edit')
         self.remove = self._button('\u00d7', 'Sepetten cikar', 'remove')
+        top.addWidget(self.remove, 0, Qt.AlignmentFlag.AlignTop)
         self.minus.clicked.connect(lambda: self.quantity_requested.emit(self.item_id, -1))
         self.plus.clicked.connect(lambda: self.quantity_requested.emit(self.item_id, 1))
         self.edit.clicked.connect(lambda: self.action_requested.emit(self.item_id, 'edit'))
         self.remove.clicked.connect(lambda: self.action_requested.emit(self.item_id, 'remove'))
-        for widget in (self.minus, self.quantity, self.plus, self.unit_price):
+        for widget in (self.minus, self.quantity, self.plus):
             bottom.addWidget(widget)
         bottom.addStretch()
+        bottom.addLayout(amount_column)
         bottom.addWidget(self.edit)
-        bottom.addWidget(self.remove)
+        layout.addStretch(1)
         layout.addLayout(bottom)
+        if compact:
+            self.description.setMaximumHeight(20)
+            self.description.setStyleSheet(theme_qss(
+                'background: transparent; border: none; color: @finance_primary; '
+                'font: 9px "JetBrains Mono"; padding: 0;'
+            ))
+            self.title.setStyleSheet(theme_qss(
+                'background: transparent; border: none; color: @finance_text; '
+                'font-size: 9px; font-weight: 600;'
+            ))
+            self.amount.setStyleSheet(theme_qss(
+                'background: transparent; border: none; color: @finance_text; '
+                'font-size: 9px; font-weight: 700;'
+            ))
+            self.unit_price.setStyleSheet(theme_qss(
+                'background: transparent; border: none; color: @finance_text_muted; font-size: 9px;'
+            ))
+            if try_reference:
+                self.amount.setText(f'{amount} ({try_reference})')
+                self.try_reference.hide()
+            self.minus.setFixedSize(20, 20)
+            self.plus.setFixedSize(20, 20)
+            self.edit.setFixedSize(18, 18)
+            self.remove.setFixedSize(18, 18)
+        else:
+            self.minus.setFixedSize(24, 32)
+            self.plus.setFixedSize(24, 32)
+            self.remove.setFixedSize(24, 24)
         for label in (
             self.title, self.amount, self.try_reference, self.description,
             self.date, self.quantity, self.unit_price, self.kind_label, self.tax,

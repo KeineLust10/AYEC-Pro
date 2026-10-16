@@ -13,7 +13,7 @@ from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from PyQt6.QtCore import QObject, QTimer, QVariantAnimation, QEasingCurve, pyqtSignal, QThread
 from PyQt6.QtWidgets import QApplication, QLabel, QGraphicsOpacityEffect
 from PyQt6.QtGui import QIcon
-from src.services.assistant_workers import AssistantMonitoringWorker
+from src.services.assistant_workers import AssistantMonitoringWorker, PaymentReminderWorker
 from src.ui.widgets.jarvis_toast import AssistantToast
 from src.utils.system_config import SystemConfig
 from src.services.whatsapp_service import WhatsAppService, WhatsAppDeliveryError
@@ -45,6 +45,7 @@ class AssistantManager(QObject):
         self.pending_action = None
         self.last_report_date = getattr(main_window, "last_report_date", None)
         self.assistant_monitor_worker = None
+        self.payment_reminder_worker = None
         self.voice_assistant_thread = None
         self._voice_assistant_restart_pending = False
         self._voice_assistant_restart_notify = False
@@ -56,6 +57,11 @@ class AssistantManager(QObject):
         self._last_spoken_response = ""
         self._dictation_mode = False
         self._assistant_help_state = None
+        self._payment_reminder_timer = QTimer(self)
+        self._payment_reminder_timer.setInterval(30000)
+        self._payment_reminder_timer.timeout.connect(self._check_payment_reminders)
+        self._payment_reminder_timer.start()
+        QTimer.singleShot(0, self._check_payment_reminders)
         QTimer.singleShot(0, self._preload_turkish_speech)
 
     def _voice_feature_enabled(self, key):
@@ -125,7 +131,9 @@ class AssistantManager(QObject):
         try:
             user_alias = self.db.get_setting("asistan_user_name", "Efendim")
             hitap_aktif = self.db.get_setting("asistan_hitap_aktif", "0") == "1"
-            return f"{user_alias}, " if hitap_aktif else ""
+            style = self.db.get_setting("asistan_greeting_style", "formal")
+            separator = " " if style == "compact" else ", "
+            return f"{user_alias}{separator}" if hitap_aktif else ""
         except Exception:
             return ""
 
@@ -140,7 +148,7 @@ class AssistantManager(QObject):
 
     def is_voice_assistant_enabled(self):
         try:
-            return self.db.get_setting("voice_assistant_active", "0") == "1"
+            return self.db.get_setting("voice_assistant_active", "1") == "1"
         except Exception:
             return False
 
@@ -161,8 +169,9 @@ class AssistantManager(QObject):
         try:
             from src.utils.asistan_motoru import BulutAsistan
 
+            raw_device = str(self.db.get_setting("voice_input_device", "default") or "default")
             self._voice_assistant_notify_when_ready = bool(notify)
-            self.voice_assistant_thread = BulutAsistan()
+            self.voice_assistant_thread = BulutAsistan(input_device_key=raw_device)
             self.voice_assistant_thread.tetik_sinyali.connect(self.aksiyon_merkezi)
             self.voice_assistant_thread.hata_sinyali.connect(self._handle_voice_assistant_error)
             self.voice_assistant_thread.hazir_sinyali.connect(self._handle_voice_assistant_ready)
@@ -191,7 +200,7 @@ class AssistantManager(QObject):
             if self.voice_assistant_thread is thread and not thread.isRunning():
                 self.voice_assistant_thread = None
             elif thread.isRunning():
-                logger.warning("Voice assistant listener is still stopping; restart is deferred.")
+                logger.info("Voice assistant listener is stopping; restart is deferred until shutdown completes.")
             if notify and not thread.isRunning():
                 self.main_window.show_notification("Sesli asistan durduruldu.", "info")
         except Exception as exc:
@@ -419,7 +428,7 @@ class AssistantManager(QObject):
             logger.warning(f"Vehicle maintenance alert process error: {e}")
 
     def _process_payment_reminders(self, now):
-        """Send the configured weekly debt reminder once per scheduled minute."""
+        """Queue the configured reminder when its weekly schedule is due."""
         try:
             if self.db.get_setting("whatsapp_payment_reminder_enabled", "0") != "1":
                 return
@@ -430,49 +439,40 @@ class AssistantManager(QObject):
             run_key = now.strftime("%Y-%m-%d-%H:%M")
             if self.db.get_internal_setting("whatsapp_payment_last_run", "") == run_key:
                 return
-            service = WhatsAppService(self.db)
-            template_name = str(self.db.get_setting("whatsapp_cloud_template", "") or "").strip()
-            template = self.db.get_setting(
-                "whatsapp_payment_template",
-                "Merhaba {musteri_adi}, {firma_adi} hesabinizda {borc_tutari} TRY borc bulunuyor.",
+            worker = self.payment_reminder_worker
+            if worker is not None and worker.isRunning():
+                return
+            worker = PaymentReminderWorker(
+                getattr(self.db, "_db_name", "ayecpro.db"), run_key, self
             )
-            minimum = float(self.db.get_setting("whatsapp_payment_min_debt_try", "0") or 0)
-            company = str(self.db.get_setting("company_name", "AYEC Pro") or "AYEC Pro")
-            sent = 0
-            manual = 0
-            for customer in self.db.get_customers() or []:
-                phone = customer[2] if len(customer) > 2 else ""
-                if not phone:
-                    continue
-                balance = float(self.db.get_customer_balance(customer[0]) or 0)
-                debt = max(0.0, -balance)
-                if debt < minimum:
-                    continue
-                name = str(customer[1] or "Musteri")
-                values = {
-                    "musteri_adi": name,
-                    "borc_tutari": f"{debt:,.2f}",
-                    "referans_no": str(customer[0]),
-                }
-                message = service.render_template(template, values)
-                try:
-                    ordered_values = []
-                    for key, value in (("musteri_adi", name), ("firma_adi", company), ("borc_tutari", f"{debt:,.2f}"), ("referans_no", str(customer[0]))):
-                        if "{" + key + "}" in template or "{{" + key + "}}" in template:
-                            ordered_values.append(value)
-                    result = service.send(phone, message, template_name, ordered_values)
-                    sent += 1
-                    if result.get("manual_required"):
-                        manual += 1
-                except WhatsAppDeliveryError as error:
-                    logger.warning("Payment reminder skipped for customer %s: %s", customer[0], error)
-            self.db.set_internal_setting("whatsapp_payment_last_run", run_key)
-            if manual:
-                self.show_assistant_alert("WhatsApp hatirlatmasi", f"{manual} mesaj kullanici onayi icin hazirlandi.")
-            elif sent:
-                self.show_assistant_alert("WhatsApp hatirlatmasi", f"{sent} borc odeme hatirlatmasi gonderildi.")
+            self.payment_reminder_worker = worker
+            worker.result_ready.connect(self._on_payment_reminder_result)
+            worker.finished.connect(lambda current=worker: self._clear_payment_reminder_worker(current))
+            worker.finished.connect(worker.deleteLater)
+            worker.start()
         except Exception as error:
-            logger.warning("Payment reminder process error: %s", error)
+            logger.warning("Payment reminder scheduling error: %s", error)
+
+    def _check_payment_reminders(self):
+        self._process_payment_reminders(datetime.now())
+
+    def _clear_payment_reminder_worker(self, worker):
+        if self.payment_reminder_worker is worker:
+            self.payment_reminder_worker = None
+
+    def _on_payment_reminder_result(self, result):
+        manual = int(result.get("manual", 0) or 0)
+        sent = int(result.get("sent", 0) or 0)
+        if manual:
+            self.show_assistant_alert(
+                "WhatsApp hatirlatmasi",
+                f"{manual} mesaj kullanici onayi icin hazirlandi.",
+            )
+        elif sent:
+            self.show_assistant_alert(
+                "WhatsApp hatirlatmasi",
+                f"{sent} borc odeme hatirlatmasi gonderildi.",
+            )
 
     def _send_vehicle_maintenance_whatsapp_reminders(self, target_date):
         try:
@@ -646,6 +646,46 @@ class AssistantManager(QObject):
             return
 
         if aksiyon == "assistant_named_target":
+            form_intake = getattr(self, "_pending_form_intake", None)
+            if form_intake:
+                if form_intake.get("status") == "active":
+                    page_id = getattr(self.main_window, "_current_page_index", None)
+                    current_root = self._assistant_action_root(page_id)
+                    if (
+                        time.monotonic() <= form_intake.get("expires_at", 0)
+                        and form_intake.get("page_id") == page_id
+                        and form_intake.get("root") is current_root
+                    ):
+                        self._start_local_conversation(parametre)
+                        return
+                    self._pending_form_intake = None
+                    self._set_form_voice_followup(False)
+                if form_intake.get("status") == "awaiting_consent":
+                    answer = "".join(
+                        char for char in unicodedata.normalize(
+                            "NFKD", str(parametre or "").casefold()
+                        )
+                        if not unicodedata.combining(char)
+                    ).replace("\u0131", "i")
+                    words = set(re.findall(r"\w+", answer))
+                    affirmative = words.intersection({
+                        "evet", "tamam", "olur", "baslayalim", "dolduralim",
+                        "dolduruyoruz", "soyluyorum", "hadi",
+                    })
+                    negative = words.intersection({
+                        "hayir", "istemiyorum", "vazgectim", "sonra",
+                    })
+                    if affirmative:
+                        self._resolve_form_assistance_confirmation(True)
+                        return
+                    if negative:
+                        self._resolve_form_assistance_confirmation(False)
+                        return
+            elif self._is_form_assistance_phrase(parametre):
+                page_id = getattr(self.main_window, "_current_page_index", None)
+                if self._offer_form_assistance(page_id, force=True):
+                    self._resolve_form_assistance_confirmation(True)
+                    return
             self._resolve_named_ui_target(parametre)
             return
 
@@ -1065,6 +1105,11 @@ class AssistantManager(QObject):
             from src.services.assistant_conversation import LocalAssistantConversation
             from src.services.assistant_ui_actions import describe_controls
 
+            pending_form = getattr(self, "_pending_form_intake", None)
+            if pending_form and pending_form.get("status") == "active":
+                pending_form["expires_at"] = time.monotonic() + 300.0
+                self._set_form_voice_followup(True)
+
             page_id = getattr(self.main_window, "_current_page_index", None)
             root = self._assistant_action_root(page_id)
             controls, bindings = describe_controls(root, utterance=utterance)
@@ -1373,6 +1418,7 @@ class AssistantManager(QObject):
             return "Sesle form doldurma ayarlardan kapali."
         if self._pending_form_intake and time.monotonic() > self._pending_form_intake.get("expires_at", 0):
             self._pending_form_intake = None
+            self._set_form_voice_followup(False)
         if (
             not self._pending_form_intake
             or self._pending_form_intake.get("root") is not root
@@ -1801,6 +1847,22 @@ class AssistantManager(QObject):
         self._speak_async(message)
         return True
 
+    @staticmethod
+    def _is_form_assistance_phrase(utterance):
+        normalized = "".join(
+            char for char in unicodedata.normalize(
+                "NFKD", str(utterance or "").casefold()
+            )
+            if not unicodedata.combining(char)
+        ).replace("\u0131", "i")
+        phrases = (
+            "formu beraber doldur", "formu birlikte doldur",
+            "beraber form doldur", "birlikte form doldur",
+            "form doldurmama yardim", "formu doldurmama yardim",
+            "musteri adini soyl", "musteri adini doldur",
+        )
+        return any(phrase in normalized for phrase in phrases)
+
     def _resolve_form_assistance_confirmation(self, confirmed):
         pending = self._pending_form_intake
         self._pending_form_intake = None
@@ -1812,15 +1874,19 @@ class AssistantManager(QObject):
             self._speak_async(message)
             return False
         if time.monotonic() > pending.get("expires_at", 0):
+            self._set_form_voice_followup(False)
             message = "Form doldurma iste\u011fi zaman a\u015f\u0131m\u0131na u\u011frad\u0131. Yeniden yard\u0131m isteyebilirsiniz."
         elif pending.get("page_id") != getattr(self.main_window, "_current_page_index", None):
+            self._set_form_voice_followup(False)
             message = "Form ekran\u0131 de\u011fi\u015fti; doldurma oturumunu kapatt\u0131m."
         elif pending.get("root") is not QApplication.activeModalWidget():
+            self._set_form_voice_followup(False)
             message = "Form kapand\u0131 veya de\u011fi\u015fti; doldurma oturumunu kapatt\u0131m."
         elif confirmed:
             pending["status"] = "active"
             pending["expires_at"] = time.monotonic() + 300.0
             self._pending_form_intake = pending
+            self._set_form_voice_followup(True)
             message = (
                 "Tamam, formu birlikte doldural\u0131m. Bilgileri alan adlar\u0131yla "
                 "s\u00f6yleyin; \u00f6rnek: m\u00fc\u015fteri ad\u0131 Burak \u015eahin, "
@@ -1830,12 +1896,20 @@ class AssistantManager(QObject):
             )
             self._conversation_history.append(("user", "Evet, formu dolduralim."))
         else:
+            self._set_form_voice_followup(False)
             message = "Peki, formu a\u00e7\u0131k b\u0131rakt\u0131m. \u0130stedi\u011finiz zaman doldurmam\u0131 s\u00f6yleyin."
         self._conversation_history.append(("assistant", message))
         self._conversation_history = self._conversation_history[-12:]
         self.main_window.show_notification(message, "info")
         self._speak_async(message)
         return bool(confirmed)
+
+    def _set_form_voice_followup(self, enabled):
+        thread = getattr(self, "voice_assistant_thread", None)
+        if thread is None:
+            return
+        thread.followup_mode = bool(enabled)
+        thread.followup_expires_at = time.time() + 300.0 if enabled else 0.0
 
     def _remember_voice_change(self, control, before, after, root, page_id):
         self._last_voice_change = {

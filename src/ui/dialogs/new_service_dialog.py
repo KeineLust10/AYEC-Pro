@@ -165,16 +165,6 @@ class NewServiceDialog(
         if not self.is_automotive:
             self.header.setFixedHeight(56)
             self._build_reference_service_header()
-            accent = QFrame(self.card)
-            accent.setFixedHeight(4)
-            accent.setProperty("skipThemeTransform", True)
-            accent.setStyleSheet(
-                "QFrame { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, "
-                "stop:0 #2563EB, stop:0.52 #6366F1, stop:1 #22D3EE); "
-                "border: none; border-top-left-radius: 12px; "
-                "border-top-right-radius: 12px; }"
-            )
-            self.card_layout.insertWidget(0, accent)
         self.clear_footer()
         self.content_layout.setContentsMargins(0, 0, 0, 0)
         self.content_layout.setSpacing(0)

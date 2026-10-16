@@ -18,6 +18,7 @@ class CustomerSelectDialog(PremiumDialog):
         super().__init__("Müşteri Seçim Paneli", parent)
         self.db = db
         self.selected_customer = None
+        self.selected_customer_id = None
         self.resize(1000, 700)
         self.setup_ui()
         
@@ -182,6 +183,11 @@ class CustomerSelectDialog(PremiumDialog):
         row = self.list_widget.currentRow()
         if row >= 0:
             self.selected_customer = self.list_widget.item(row, 0).data(Qt.ItemDataRole.UserRole)
+            selected = self.selected_customer
+            if isinstance(selected, dict):
+                self.selected_customer_id = selected.get("id")
+            elif isinstance(selected, (tuple, list)) and selected:
+                self.selected_customer_id = selected[0]
             self.accept()
 
     def show_history(self):

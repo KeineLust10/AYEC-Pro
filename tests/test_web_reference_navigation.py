@@ -1,3 +1,4 @@
+import json
 import shutil
 import re
 import subprocess
@@ -35,6 +36,8 @@ const assert=require('node:assert/strict');
 const ayecSectorMenuModels={};
 const modernMenu=[],menu=[];
 let currentSector='teknik_servis',page='brands',stored={};
+const sectorPages={teknik_servis:new Set(['loans']),otomotiv:new Set(['loans'])};
+const titles={},genericModules={};
 const hidden=new Set();
 const nav={innerHTML:''};
 const localStorage={getItem:()=>JSON.stringify(stored),setItem:(_key,value)=>{stored=JSON.parse(value)}};
@@ -48,13 +51,21 @@ const menuLabels=()=>({}),menuVisibility=()=>({});
 assert.deepEqual(ayecMenuPath('brands').map(item=>item.id),['service-settings-parent','brands']);
 assert.equal(ayecParentForPage('brands'),'service-settings-parent');
 assert.deepEqual(ayecMenuPath('dashboard').map(item=>item.id),['service-parent','dashboard']);
+    assert.equal(ayecMenuItem('sales').label,'Teklif Olu\u015ftur');
+    assert.equal(ayecParentForPage('sales'),'offer-parent');
+    page='sales';
+    renderNav();
+    assert.ok(nav.innerHTML.includes('data-main-page="sales"'));
+    assert.ok(nav.innerHTML.includes('nav-parent open'));
+    page='brands';
 for(const sector of ['teknik_servis','otomotiv']){
-  for(const id of ['brands','product-groups','report-templates','service-definitions','services']){
+  for(const id of ['brands','product-groups','report-templates','service-definitions']){
     assert.equal(ayecMenuItems(sector).filter(item=>item.id===id).length,1);
     assert.equal(ayecMenuItem(id,sector).id,id);
   }
+  assert.equal(ayecMenuItem('loans',sector).id,'loans');
 }
-assert.deepEqual(ayecMenuPath('brands','otomotiv').map(item=>item.id),['service-settings-parent','brands']);
+assert.deepEqual(ayecMenuPath('brands','otomotiv').map(item=>item.id),['automotive-service-parent','service-settings-parent','brands']);
 renderNav();
 assert.ok(nav.innerHTML.includes('data-parent="nav-teknik_servis-service-settings-parent"'));
 assert.ok(nav.innerHTML.includes('active" data-page="brands"'));
@@ -100,6 +111,49 @@ def test_web_status_footer_matches_the_desktop_shell():
     assert 'html[data-theme="forest"] .customer-workspace-head' in styles
     assert 'grid-template-columns: repeat(4, max-content)' in styles
     assert 'html[data-theme="forest"] .customer-data-table td' in styles
+    assert 'const sectorLicense=$(".sidebar-license strong")' in source
+    assert 'sectorLicense.textContent=sector==="otomotiv"?"Otomotiv":"Teknik Servis"' in source
+
+
+def test_web_context_menu_preferences_keep_desktop_page_scopes():
+    source = SOURCE.read_text(encoding="utf-8")
+    desktop = (ROOT / "src" / "utils" / "context_menu_settings.py").read_text(encoding="utf-8")
+    service = (ROOT / "Web_Arayuzu" / "web" / "service-list-reference.js").read_text(encoding="utf-8")
+    keys = [
+        "rc_dashboard", "rc_stock", "rc_service_form", "rc_announcements", "rc_personnel",
+        "rc_bank", "rc_contracts", "rc_projects", "rc_loaner", "rc_customers",
+        "rc_accounting", "rc_appointments", "rc_knowledge_base", "rc_services",
+        "rc_reminders", "rc_job_service", "rc_logistics",
+    ]
+    for key in keys:
+        assert key in source
+    assert 'settingsDefinitions["context-settings"]' in source
+    assert 'data-rc-toggle-all' in source
+    assert 'saveRightClickSettings(controls.map(control=>control.dataset.settingKey))' in source
+    assert 'if (!ayecContextMenuEnabled()) return;' in service
+    assert 'PAGE_CONTEXT_KEYS' in desktop
+    helper = re.search(
+        r"const ayecContextSettingByPage=.*?;\nfunction ayecContextMenuEnabled\(pageId=page\).*?\n",
+        source,
+    )
+    assert helper
+    script = r'''
+const assert=require('node:assert/strict');
+const settingBool=value=>['1','true','yes','on'].includes(String(value??'').toLowerCase());
+let db={settings:{contextMenu:true}},desktopSettings={rc_dashboard:'0',rc_stock:'1'},page='service-list';
+''' + helper.group(0) + r'''
+assert.equal(ayecContextMenuEnabled(),false);
+desktopSettings.rc_dashboard='1';
+assert.equal(ayecContextMenuEnabled(),true);
+page='stock';
+assert.equal(ayecContextMenuEnabled(),true);
+desktopSettings.rc_stock='0';
+assert.equal(ayecContextMenuEnabled(),false);
+db.settings.contextMenu=false;
+assert.equal(ayecContextMenuEnabled(),false);
+'''
+    result = subprocess.run([NODE, "-e", script], capture_output=True, text=True, timeout=20)
+    assert result.returncode == 0, result.stderr
 
 
 def test_opening_nested_accordion_preserves_its_ancestor():
@@ -197,19 +251,35 @@ def test_desktop_parity_shell_uses_one_full_width_sidebar_contract():
     index = (ROOT / 'Web_Arayuzu' / 'web' / 'index.html').read_text(encoding='utf-8')
     styles = (ROOT / 'Web_Arayuzu' / 'web' / 'styles.css').read_text(encoding='utf-8')
     assert '--sidebar:260px' not in styles
+    assert 'html[data-theme="midnight"]' in styles and '--sidebar-bg:#080e1a' in styles
     assert 'One shared Midnight Slate navigation contract' not in styles
     assert '<div class="sidebar-license">' in index
+    assert '<small id="brandProductName">Servis Y&#246;netimi</small>' in index
+    sidebar_css = (ROOT / 'Web_Arayuzu' / 'web' / 'midnight-reference.css').read_text(encoding='utf-8')
+    assert '.sidebar-bottom{height:124px;min-height:124px;padding:20px 0 10px;box-sizing:border-box}' in sidebar_css
+    assert '.sidebar-bottom .user-profile{display:none}' in sidebar_css
+    desktop_parity = (ROOT / 'Web_Arayuzu' / 'web' / 'desktop-parity.css').read_text(encoding='utf-8')
+    assert 'padding: 14px 12px 0;' in desktop_parity
+    assert 'padding-top: 20px;' in desktop_parity and 'padding-bottom: 12px;' in desktop_parity
+    assert '.sidebar .sidebar-bottom .user {\n  margin-top: 17px;' in desktop_parity
+    assert '.sidebar #nav {\n  width: calc(100% + 4px);\n  margin-left: -4px;' in desktop_parity
+    assert '.sidebar #nav > .nav-button {\n  width: calc(100% - 7px);\n  margin-left: 0;\n  padding-left: 14px;\n  gap: 13px;' in desktop_parity
+
+
     assert 'v2.0.4 Premium</span>' in index
     assert 'id="logoutBtn"' in index and 'Oturumu Kapat</button>' in index
-    assert '.sidebar-bottom .user-logout{width:100%;height:42px' in styles
+    assert '.sidebar-bottom .user-logout{width:100%;height:44px' in styles
     styles = (ROOT / 'Web_Arayuzu' / 'web' / 'desktop-parity.css').read_text(encoding='utf-8')
     styles = (ROOT / 'Web_Arayuzu' / 'web' / 'desktop-parity.css').read_text(encoding='utf-8')
     assert index.index('midnight-reference.css') < index.index('desktop-parity.css')
     assert index.index('automotive-parity.css') < index.index('desktop-parity.css')
-    assert 'desktop-parity.css?v=' in index
+    assert 'desktop-parity.css?v=20261016-sidebar-brand-mark-1' in index
     assert '--sidebar: 320px' in styles
     assert '.sidebar .nav-button.active' in styles
     assert '.sidebar-bottom > .nav-button[data-page="settings"]' in styles
+    assert '"sidebar topbar"\n    "sidebar main"' in styles
+    assert 'grid-row: 1 / span 2;' in styles
+    assert 'top: 0;\n  height: 100vh;' in styles
     assert 'customer-banners button[data-customer-filter="vip"]' in styles
     assert 'customer-export-actions .mini' in styles
     assert '@media (max-width: 760px)' in styles
@@ -232,28 +302,123 @@ def test_desktop_parity_shell_uses_one_full_width_sidebar_contract():
     assert '.appointment-ref-toolbar [aria-selected=\"true\"]' in styles
 
 
+
+def test_sidebar_uses_desktop_navigation_glyphs_for_page_ids():
+    root = ROOT / 'Web_Arayuzu' / 'web'
+    index = (root / 'index.html').read_text(encoding='utf-8')
+    icons = (root / 'navigation-icons.js').read_text(encoding='utf-8')
+    assert 'navigation-icons.js?v=20261014-sidebar-svg-icons-1' in index
+    assert 'ayecDesktopPageIds[button.dataset.page]' in icons
+    assert 'button.dataset.parent.replace(/^nav-(?:teknik_servis|otomotiv)-/,"")' in icons
+    assert '"41":"board"' in icons and '"42":"clipboard"' in icons
+    assert 'viewBox="0 0 24 24" fill="none" stroke="currentColor"' in icons
+    desktop_parity = (root / 'desktop-parity.css').read_text(encoding='utf-8')
+    assert '.sidebar .nav-button .nav-icon {\n  width: 20px !important;\n  height: 20px;' in desktop_parity
+    assert 'background: transparent !important;' in desktop_parity
+
+
+def test_sidebar_logo_placeholder_matches_desktop_without_company_logo():
+    app = (ROOT / 'Web_Arayuzu' / 'web' / 'app.js').read_text(encoding='utf-8')
+    start = app.index('function refreshCompanyLogo(){')
+    end = app.index('\nasync function uploadCompanyLogo', start)
+    source = app[start:end]
+    assert 'if(initial)initial.hidden=true;' in source
+    assert 'image.onerror=()=>{image.hidden=true;if(initial)initial.hidden=true};' in source
+
+def test_settings_route_is_not_duplicated_between_navigation_and_sidebar_footer():
+    index = (ROOT / "Web_Arayuzu" / "web" / "index.html").read_text(encoding="utf-8")
+    app = SOURCE.read_text(encoding="utf-8")
+
+    assert 'data-page="settings"' not in index
+    assert 'id:"settings"' in app
+    assert '.sidebar-bottom [data-page=' not in app
+    assert '$(".sidebar-bottom [data-page]").onclick' not in app
+
+
+def test_sidebar_filters_pages_using_the_authenticated_user_permission_catalog():
+    app = SOURCE.read_text(encoding="utf-8")
+    start = app.index("menuVisible=function(item,sector=currentSector){")
+    end = app.index("function ayecMenuItems(", start)
+    menu_visibility = app[start:end]
+
+    assert "const user=currentAuthUser" in menu_visibility
+    assert "const allowedPages=user?desktopAllowedMenuPages(user.permissions,user.role):null" in menu_visibility
+    assert "if(pageId&&allowedPages&&!allowedPages.has(pageId))return false" in menu_visibility
+
+
+def test_sidebar_permission_filter_matches_desktop_saved_formats_and_empty_fallback():
+    app = SOURCE.read_text(encoding="utf-8")
+    start = app.index("function desktopAllowedMenuPages(")
+    end = app.index("menuVisible=function(", start)
+    helper = app[start:end]
+    cases = [
+        {"raw": None, "role": "Technician"},
+        {"raw": "", "role": "Technician"},
+        {"raw": {"mode": "all"}, "role": "Technician"},
+        {"raw": {"pages": [21, "50"]}, "role": "Technician"},
+        {"raw": {"pages": []}, "role": "Technician"},
+        {"raw": {"logs": True}, "role": "Technician"},
+        {"raw": "not-json", "role": "Technician"},
+        {"raw": [60], "role": "Technician"},
+        {"raw": {"pages": [60, "invalid"]}, "role": "Technician"},
+        {"raw": {"pages": [21]}, "role": "Admin"},
+    ]
+    expected = [
+        None, None, None, [21, 50], None, None, None, [60, 62], None, None,
+    ]
+    script = (
+        helper
+        + "\nfunction userAdminRole(role) { return role === 'Admin'; }\n"
+        + "const cases = " + json.dumps(cases) + ";\n"
+        + "const result = cases.map(item => { const pages = desktopAllowedMenuPages(item.raw, item.role); return pages ? [...pages].sort((a,b) => a-b) : null; });\n"
+        + "process.stdout.write(JSON.stringify(result));"
+    )
+    result = subprocess.run([NODE, "-e", script], capture_output=True, text=True, check=True)
+    assert json.loads(result.stdout) == expected
+
+
 def test_web_sidebar_uses_the_desktop_menu_sections_and_retains_page_routes():
     app = SOURCE.read_text(encoding='utf-8')
     menu = app[app.index('ayecSectorMenuModels.teknik_servis=['):app.index('const ayecDesktopPageIds=')]
     for label in (
-        'SERVIS OPERASYON', 'TICARI & SATI\\u015e', 'FINANS & MUHASEBE',
+        'SERVIS OPERASYON', 'T\\u0130CAR\\u0130 & SATI\\u015e', 'F\\u0130NANS & MUHASEBE',
         'Y\\u00d6NET\\u0130M', 'S\\u0130STEM', 'service-settings-parent',
         'customer-parent', 'project-parent', 'offer-parent', 'management-parent',
     ):
         assert label in menu
     for route in (
         'dashboard', 'services', 'service-list', 'service-status', 'technician', 'field-service',
-        'appointments', 'logistics', 'job-reports', 'assistant', 'service-definitions',
+        'appointments', 'logistics', 'job-reports', 'service-definitions',
         'brands', 'customers', 'contracts', 'partners', 'reminders', 'announcements',
-        'stock', 'stock-locations', 'movements', 'import', 'loaners', 'sales',
-        'finance', 'income', 'expense', 'banks', 'loans', 'checks', 'invoices', 'personnel',
+        'stock', 'stock-locations', 'loaners',
+        'finance', 'income', 'banks', 'checks', 'invoices', 'personnel',
         'projects', 'project-archive', 'knowledge', 'settings', 'backup', 'support',
-        'audit', 'manual', 'dialog-catalog',
+        'audit', 'manual',
     ):
         assert f'id:"{route}"' in menu
+    for route in ('assistant', 'movements', 'import', 'expense', 'loans', 'dialog-catalog', 'control-center'):
+        assert f'id:"{route}"' not in menu
+    assert 'label:"Servis Y\\u00f6netim Ayar\\u0131"' in menu
+    assert 'label:"\\u0130\\u015f/Servis Takibi Raporlar\\u0131"' in menu
+    assert 'label:"Kargo & Lojistik"' in menu
+    assert 'mainPage:"sales"' in menu
     assert 'loans:{group:"Finans",title:"Krediler & Taksitler",table:"loans"' in app
     assert 'item.children.filter(child=>allowed.has(child.id))' in app
     assert 'item.children.length>0:allowed.has(item.id)' in app
+    automotive = app[app.index('ayecSectorMenuModels.otomotiv=['):app.index('modernMenu.splice(')]
+    for label in ('SERVIS OPERASYON', 'MUSTERI', 'TICARI', 'FINANS', 'IK VE PERSONEL', 'SISTEM'):
+        assert f'group:"{label}"' in automotive
+    for route in ('assistant', 'movements', 'import', 'expense', 'loans', 'dialog-catalog', 'control-center'):
+        assert f'id:"{route}"' not in automotive
+    for route in (
+        'dashboard', 'service-list', 'vehicle-maintenance', 'service-status', 'technician',
+        'appointments', 'product-groups', 'brands', 'report-templates', 'service-definitions',
+        'customers', 'partners', 'contracts', 'reminders', 'announcements', 'automotive-stock',
+        'loaners', 'stock-locations', 'sales', 'offers', 'offer-reports', 'finance', 'income',
+        'banks', 'checks', 'invoices', 'personnel', 'settings', 'audit', 'knowledge', 'backup',
+        'manual', 'support',
+    ):
+        assert f'id:"{route}"' in automotive
     assert '"service-list":42,"service-status":43' in app
     assert '"stock-locations":51' in app
 
@@ -276,12 +441,104 @@ def test_web_sidebar_uses_the_desktop_menu_sections_and_retains_page_routes():
     assert expected_page_ids <= mapped_page_ids
 
 
+def test_web_sidebar_page_ids_labels_and_paths_match_active_desktop_builders():
+    from src.ui.widgets.side_menu import SideMenu
+
+    model = _section('ayecSectorMenuModels.teknik_servis=[', 'modernMenu.splice(')
+    node_script = (
+        'const ayecSectorMenuModels={};\n'
+        + model
+        + '\nconsole.log(JSON.stringify(ayecSectorMenuModels).replace(/[^\\x00-\\x7F]/g, c => "\\\\u" + c.charCodeAt(0).toString(16).padStart(4,"0")));'
+    )
+    result = subprocess.run([NODE, '-e', node_script], capture_output=True, text=True, timeout=20)
+    assert result.returncode == 0, result.stderr
+    web_models = json.loads(result.stdout)
+    app = SOURCE.read_text(encoding='utf-8')
+    page_map_source = app[app.index('const ayecDesktopPageIds='):app.index('function ayecSectorMenu(')]
+    route_ids = {
+        route: int(page_id)
+        for route, page_id in re.findall(r'"?([a-z][a-z0-9-]*)"?\s*:\s*(\d+)', page_map_source)
+    }
+
+    class TechnicalMenu:
+        _legacy_product_group_reference_navigation = False
+
+        def _build_technical_sections_base(self):
+            return SideMenu._build_technical_sections_base(self)
+
+    class AutomotiveMenu:
+        def _current_sector(self):
+            return 'otomotiv'
+
+    def desktop_map(sections):
+        pages = {}
+        paths = {}
+
+        def collect(items, path):
+            for label, target in items:
+                if isinstance(target, (list, tuple)):
+                    collect(target, (*path, label))
+                elif isinstance(target, int):
+                    pages[target] = label
+                    paths[target] = (*path, label)
+
+        for section, groups in sections:
+            for group in groups:
+                title = group[0]
+                collect(group[2], (section, title))
+                if len(group) > 3 and isinstance(group[3], int):
+                    pages[group[3]] = title
+                    paths[group[3]] = (section, title)
+        return pages, paths
+
+    def web_map(model):
+        pages = {}
+        paths = {}
+        sections = []
+
+        def collect(item, path):
+            label = item.get('label', '')
+            route = item.get('id')
+            if route in route_ids:
+                page_id = route_ids[route]
+                pages[page_id] = label
+                paths[page_id] = (*path, label)
+            main_page = item.get('mainPage')
+            if main_page in route_ids:
+                page_id = route_ids[main_page]
+                pages[page_id] = label
+                paths[page_id] = (*path, label)
+            for child in item.get('children', []):
+                collect(child, (*path, label))
+
+        for group in model:
+            sections.append(group['group'])
+            for item in group['items']:
+                collect(item, (group['group'],))
+        return pages, paths, sections
+
+    technical = SideMenu._build_technical_sections(TechnicalMenu())
+    technical.extend(SideMenu._build_system_sections(TechnicalMenu()))
+    automotive = SideMenu._build_menu_from_plugin(AutomotiveMenu(), None)
+    for sections, sector in ((technical, 'teknik_servis'), (automotive, 'otomotiv')):
+        desktop_pages, desktop_paths = desktop_map(sections)
+        web_pages, web_paths, web_sections = web_map(web_models[sector])
+        desktop_sections = [section for section, _groups in sections]
+        assert web_pages == desktop_pages
+        assert web_paths == desktop_paths
+        assert web_sections == desktop_sections
+
+
 def test_unified_sidebar_pin_persists_desktop_expand_and_hover_behavior():
     index = (ROOT / 'Web_Arayuzu' / 'web' / 'index.html').read_text(encoding='utf-8')
     app = SOURCE.read_text(encoding='utf-8')
     styles = (ROOT / 'Web_Arayuzu' / 'web' / 'desktop-parity.css').read_text(encoding='utf-8')
     assert 'id="sidebarPin"' in index
     assert 'aria-pressed="true"' in index
+    assert 'class="sidebar-pin-glyph"' in index
+    assert 'top: 8px;' in styles and 'right: 8px;' in styles
+    assert '.sidebar-pin-glyph {' in styles and 'stroke-width: 1.7;' in styles
+    assert 'min-height: 24px;' in styles and 'min-height: 20px;' in styles
     assert 'localStorage.getItem("ayec-sidebar-pinned")' in app
     assert 'localStorage.setItem("ayec-sidebar-pinned"' in app
     assert 'pointerenter' in app and 'sidebar-peek' in app
@@ -340,3 +597,10 @@ assert.equal(storage.values['ayec-sidebar-pinned'],'0');
 
 
 
+
+
+def test_midnight_sidebar_brand_mark_matches_dark_blue_active_surface():
+    css = (ROOT / "Web_Arayuzu" / "web" / "desktop-parity.css").read_text(encoding="utf-8")
+    index = (ROOT / "Web_Arayuzu" / "web" / "index.html").read_text(encoding="utf-8")
+    assert 'html[data-theme="midnight"] .sidebar .brand-mark{background:#1e304d;border-color:#1b2a42}' in css
+    assert 'desktop-parity.css?v=20261016-sidebar-brand-mark-1' in index

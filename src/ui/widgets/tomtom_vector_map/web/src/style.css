@@ -10,6 +10,17 @@ body,
 
 body { background: #08111f; }
 
+#map-grid {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(31, 41, 61, 0.34) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(31, 41, 61, 0.34) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
 #map-status {
   position: absolute;
   top: 14px;
@@ -42,7 +53,7 @@ body { background: #08111f; }
 }
 
 .ayec-marker span { width: 9px; height: 9px; border-radius: 50%; background: currentColor; }
-.ayec-marker-center { color: #fbbf24; background: #201b10; }
+.ayec-marker-center { color: #10d6ae; background: #0b2827; }
 .ayec-marker-personnel { color: #34d399; background: #09251e; animation: ayec-pulse 1.8s ease-out infinite; }
 .ayec-marker-selected { color: #fb7185; background: #351522; }
 

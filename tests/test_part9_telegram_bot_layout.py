@@ -1,5 +1,6 @@
 import json
 import os
+import subprocess
 import sys
 import unittest
 from io import BytesIO
@@ -43,7 +44,7 @@ class Part9TelegramLayoutTests(unittest.TestCase):
     def test_reference_controls_and_full_width_capture(self):
         self.assertEqual(self.widget.chat_list.count(), 2)
         self.assertEqual(len(self.widget.preferences), 4)
-        self.assertEqual(list(self.widget.settings_tab_buttons), [2, 3, 1, 16])
+        self.assertEqual(list(self.widget.settings_tab_buttons), [1, 3, 2, 16])
         self.assertEqual(self.widget.inp_token.echoMode(), QLineEdit.EchoMode.Password)
         self.assertEqual(self.widget.findChild(type(self.widget.bot_card_status), "telegramMessageId").text(), "#SRV-2025-9921")
         self.assertIn("SERV", self.widget.findChild(type(self.widget.bot_card_status), "telegramMessageState").text())
@@ -51,17 +52,52 @@ class Part9TelegramLayoutTests(unittest.TestCase):
         self.assertTrue(self.widget.btn_copy_token.isEnabled())
         self.assertTrue(self.widget.btn_reset_webhook.isEnabled())
         self.assertTrue(self.widget.btn_drop_pending.isEnabled())
+        for button in (self.widget.token_eye, self.widget.btn_copy_token,
+                       self.widget.btn_reset_webhook, self.widget.btn_drop_pending):
+            self.assertTrue(button.text())
+            self.assertIn("color:#dbeafe", button.styleSheet())
         self.assertIn("ChatID: 893412781", self.widget.log_list.item(0).text())
         self.assertIn("Webhook Handshake Ping", self.widget.log_list.item(1).text())
         self.assertIn("MD5-CHECKSUM", self.widget.log_list.item(3).text())
         self.assertEqual(self.widget.log_total.text(), "Toplam \u0130letim: 1,482 adet")
         self.widget.resize(1280, 800)
         self.widget.setFont(QFont("Arial", 9))
-        self.widget.show()
-        APP.processEvents()
         output = Path(__file__).resolve().parents[1] / "output" / "part9-captures" / "telegram-bot-desktop.png"
         output.parent.mkdir(parents=True, exist_ok=True)
-        self.assertTrue(self.widget.grab().save(str(output), "PNG"))
+        script = "\n".join((
+            "import os",
+            "from pathlib import Path",
+            "from PyQt6.QtGui import QImage, QPainter",
+            "from runpy import run_path",
+            "module = run_path('tests/test_part9_telegram_bot_layout.py')",
+            "app = module['APP']",
+            "widget = module['TelegramSettingsWidget'](module['TelegramDatabaseStub']())",
+            "widget.resize(1280, 800)",
+            "widget.setFont(module['QFont']('Arial', 9))",
+            "widget.show()",
+            "app.processEvents()",
+            "image = QImage(widget.size(), QImage.Format.Format_ARGB32_Premultiplied)",
+            "image.fill(0xFFFFFFFF)",
+            "painter = QPainter(image)",
+            "widget.render(painter)",
+            "painter.end()",
+            "output = Path(os.environ['AYEC_TELEGRAM_CAPTURE_PATH'])",
+            "output.parent.mkdir(parents=True, exist_ok=True)",
+            "assert image.save(str(output), 'PNG')",
+            "widget.close()",
+        ))
+        child_env = os.environ.copy()
+        child_env["QT_QPA_PLATFORM"] = "offscreen"
+        child_env["AYEC_TELEGRAM_CAPTURE_PATH"] = str(output)
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            cwd=Path(__file__).resolve().parents[1],
+            env=child_env,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
 
     def test_settings_tabs_route_to_existing_native_pages(self):
         visited = []

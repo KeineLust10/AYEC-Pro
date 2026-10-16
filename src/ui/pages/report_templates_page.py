@@ -4,6 +4,7 @@ from PyQt6.QtCore import QRect, QSize, Qt
 import csv
 from PyQt6.QtWidgets import (
     QHBoxLayout,
+    QBoxLayout,
     QGridLayout,
     QHeaderView,
     QFrame,
@@ -166,6 +167,7 @@ class ReportTemplatesPage(QWidget):
         self.header_layout = header
         title_box = QVBoxLayout()
         title = QLabel("\u275d    Rapor C\u00fcmle Kal\u0131plar\u0131")
+        self.report_title = title
         title.setFixedWidth(286)
         title.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         title.setStyleSheet(
@@ -180,7 +182,9 @@ class ReportTemplatesPage(QWidget):
         description.setWordWrap(True)
         description.setStyleSheet(theme_qss("color: @text_muted; font-size: 12px; background: transparent; border: none;"))
         title_row = QHBoxLayout()
+        self.report_title_row = title_row
         title_row.setSpacing(10)
+        title_row.setAlignment(Qt.AlignmentFlag.AlignLeft)
         title_row.addWidget(title)
         self.total_badge = QLabel("Toplam 0 \u015eablon")
         self.total_badge.setFixedSize(163, 28)
@@ -190,7 +194,6 @@ class ReportTemplatesPage(QWidget):
             "border-radius: 14px; padding: 3px 10px; font-size: 12px; font-weight: 700; }"
         ))
         title_row.addWidget(self.total_badge, 0, Qt.AlignmentFlag.AlignVCenter)
-        title_row.addStretch(1)
         title_box.addLayout(title_row)
         title_box.addWidget(description)
         header.addLayout(title_box, 1)
@@ -203,6 +206,7 @@ class ReportTemplatesPage(QWidget):
         self.import_button.setMenu(import_menu)
         self.import_button.setToolTip("CSV kal\u0131plar\u0131n\u0131 i\u00e7e veya d\u0131\u015fa aktar")
         manage_button = QPushButton("Kal\u0131plar\u0131\nY\u00f6net")
+        self.manage_button = manage_button
         manage_button.setIcon(navigation_icon("filter", 16, "text_muted"))
         manage_button.setIconSize(QSize(16, 16))
         manage_button.clicked.connect(self.open_editor)
@@ -362,8 +366,8 @@ class ReportTemplatesPage(QWidget):
         self.table.setItemDelegateForColumn(1, _TemplateLabelDelegate(self.table))
         self.table.horizontalHeader().setFixedHeight(54)
         for column, width in {
-            0: 280, 1: 210, 2: 70, 3: 48,
-            4: 105, 5: 56, 6: 38, 7: 80,
+            0: 300, 1: 210, 2: 64, 3: 46,
+            4: 96, 5: 60, 6: 26, 7: 68,
         }.items():
             self.table.horizontalHeader().setSectionResizeMode(
                 column, QHeaderView.ResizeMode.Fixed
@@ -502,6 +506,7 @@ class ReportTemplatesPage(QWidget):
             'border-radius: 6px; padding: 12px; font-size: 14px;'
         ))
         receipt_layout.addWidget(self.preview_category)
+        self.preview_category.hide()
         receipt_layout.addSpacing(14)
         receipt_layout.addWidget(self.preview_template_type)
         receipt_layout.addSpacing(6)
@@ -631,13 +636,18 @@ class ReportTemplatesPage(QWidget):
         self.footer_widget.setFixedHeight(78)
         self.footer_widget.setFixedWidth(max(0, int(self.width() * 0.69)))
         footer = QHBoxLayout(self.footer_widget)
+        self.report_footer_layout = footer
         footer.setContentsMargins(0, 0, 0, 0)
         footer.setSpacing(6)
+        self.footer_info_widget = QWidget(self.footer_widget)
+        self.footer_info_layout = QHBoxLayout(self.footer_info_widget)
+        self.footer_info_layout.setContentsMargins(0, 0, 0, 0)
+        self.footer_info_layout.setSpacing(6)
         self.lbl_info = QLabel("")
-        footer.addWidget(self.lbl_info)
-        footer.addStretch()
-        footer.addWidget(QLabel("|"))
-        footer.addWidget(QLabel("Sayfa Ba\u015f\u0131na:"))
+        self.lbl_info.setWordWrap(True)
+        self.footer_info_layout.addWidget(self.lbl_info, 1)
+        self.footer_info_layout.addWidget(QLabel("|"))
+        self.footer_info_layout.addWidget(QLabel("Sayfa Ba\u015f\u0131na:"))
         self.page_size_combo = QComboBox()
         self.page_size_combo.addItem("10", 10)
         self.page_size_combo.addItem("25", 25)
@@ -648,8 +658,12 @@ class ReportTemplatesPage(QWidget):
             "border: 1px solid @border; border-radius: 6px; padding: 4px; }"
         ))
         self.page_size_combo.currentIndexChanged.connect(self._page_size_changed)
-        footer.addWidget(self.page_size_combo)
-        footer.addSpacing(8)
+        self.footer_info_layout.addWidget(self.page_size_combo)
+        footer.addWidget(self.footer_info_widget, 1)
+        self.footer_controls_widget = QWidget(self.footer_widget)
+        self.footer_controls_layout = QHBoxLayout(self.footer_controls_widget)
+        self.footer_controls_layout.setContentsMargins(0, 0, 0, 0)
+        self.footer_controls_layout.setSpacing(6)
         self.btn_first = QPushButton("\u00ab\u00ab\n\u0130lk")
         self.btn_first.setFixedSize(54, 48)
         self.btn_first.setToolTip("\u0130lk sayfa")
@@ -666,10 +680,11 @@ class ReportTemplatesPage(QWidget):
         self.btn_first.clicked.connect(lambda: self._go_to_page(1))
         self.btn_previous.clicked.connect(self.previous_page)
         self.btn_next.clicked.connect(self.next_page)
-        footer.addWidget(self.btn_first)
-        footer.addWidget(self.btn_previous)
-        footer.addLayout(self.page_numbers)
-        footer.addWidget(self.btn_next)
+        self.footer_controls_layout.addWidget(self.btn_first)
+        self.footer_controls_layout.addWidget(self.btn_previous)
+        self.footer_controls_layout.addLayout(self.page_numbers)
+        self.footer_controls_layout.addWidget(self.btn_next)
+        footer.addWidget(self.footer_controls_widget)
         self.table_panel_layout.addWidget(self.footer_widget, 0, Qt.AlignmentFlag.AlignLeft)
 
     def set_preview_context(self, *, customer='', device='', serial='', accessory='', date=''):
@@ -959,10 +974,16 @@ class ReportTemplatesPage(QWidget):
         self.btn_first.setEnabled(self.current_page > 1)
         self.btn_previous.setEnabled(self.current_page > 1)
         self.btn_next.setEnabled(self.current_page < total_pages)
-        self._update_preview()
+        if self.table.rowCount() and self.table.currentRow() < 0:
+            self._update_preview(0)
+        else:
+            self._update_preview()
 
-    def _update_preview(self):
+    def _update_preview(self, preview_index=None):
         index = self.table.currentRow()
+        has_selection = bool(self.table.selectionModel().selectedRows())
+        if index < 0 and preview_index is not None:
+            index = preview_index
         rows = getattr(self, "_visible_rows", [])
         if index < 0 or index >= len(rows):
             self.preview_category.clear()
@@ -998,14 +1019,13 @@ class ReportTemplatesPage(QWidget):
             'color: @finance_action_income; font-size: 11px;' if int(row['is_active'] or 0)
             else 'color: @text_muted; font-size: 11px;'
         ))
-        self.copy_button.setEnabled(True)
+        self.copy_button.setEnabled(has_selection)
 
     def _row_actions(self, index, row):
         actions = QWidget(self.table)
         layout = QHBoxLayout(actions)
-        layout.setContentsMargins(1, 0, 1, 0)
-        layout.setSpacing(4)
-        layout.addStretch(1)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(1)
         action_specs = (
             ("\u29c9", "Metni Kopyala", lambda: self._copy_template_row(row)),
             ("\u270e", "D\u00fczenle", lambda: self._edit_row(index)),
@@ -1016,11 +1036,11 @@ class ReportTemplatesPage(QWidget):
             button.setText(glyph)
             button.setAccessibleName(tooltip)
             button.setToolTip(tooltip)
-            button.setFixedSize(30, 30)
+            button.setFixedSize(20, 24)
             button.clicked.connect(callback)
             button.setStyleSheet(theme_qss(
                 "QToolButton { color: @text_muted; background: transparent; border: 1px solid transparent; "
-                "border-radius: 5px; font-size: 16px; } "
+                "border-radius: 5px; font-size: 13px; } "
                 "QToolButton:hover { color: @electric_blue; background: @surface_alt; "
                 "border-color: @finance_outline; }"
             ))
@@ -1128,6 +1148,7 @@ class ReportTemplatesPage(QWidget):
     def resizeEvent(self, event):
         super().resizeEvent(event)
         narrow_header = event.size().width() < 1050
+        mobile_layout = event.size().width() < 650
         if narrow_header != getattr(self, "_actions_in_mobile_row", False):
             for button in self.header_action_widgets:
                 self.header_layout.removeWidget(button)
@@ -1137,13 +1158,47 @@ class ReportTemplatesPage(QWidget):
                 else:
                     self.header_layout.addWidget(button)
             self._actions_in_mobile_row = narrow_header
+        if mobile_layout:
+            for button, width in zip(self.header_action_widgets, (82, 88, 140)):
+                button.setFixedWidth(width)
+            self.report_title_row.setDirection(QBoxLayout.Direction.TopToBottom)
+        else:
+            for button, width in zip(self.header_action_widgets, (143, 143, 192)):
+                button.setFixedWidth(width)
+            self.report_title_row.setDirection(QBoxLayout.Direction.LeftToRight)
         if hasattr(self, 'filter_grid'):
             self._layout_filters(event.size().width())
         if not hasattr(self, "template_splitter"):
             return
-        self.footer_widget.setFixedWidth(max(0, int(self.width() * 0.69)))
         compact_layout = self.width() < 1200
         stacked_layout = self.width() < 1150
+        self.footer_widget.setFixedWidth(
+            max(0, self.width() - 48) if mobile_layout
+            else max(0, int(self.width() * 0.69))
+        )
+        self.footer_widget.setFixedHeight(112 if mobile_layout else 78)
+        self.report_footer_layout.setDirection(
+            QBoxLayout.Direction.TopToBottom if mobile_layout
+            else QBoxLayout.Direction.LeftToRight
+        )
+        if mobile_layout:
+            self.btn_first.setFixedSize(36, 34)
+            self.btn_previous.setFixedSize(44, 34)
+            self.btn_next.setFixedSize(52, 34)
+            for index in range(self.page_numbers.count()):
+                item = self.page_numbers.itemAt(index)
+                widget = item.widget() if item is not None else None
+                if isinstance(widget, QPushButton):
+                    widget.setFixedSize(28, 30)
+        else:
+            self.btn_first.setFixedSize(54, 48)
+            self.btn_previous.setFixedSize(64, 48)
+            self.btn_next.setFixedSize(70, 48)
+            for index in range(self.page_numbers.count()):
+                item = self.page_numbers.itemAt(index)
+                widget = item.widget() if item is not None else None
+                if isinstance(widget, QPushButton):
+                    widget.setFixedSize(40, 40)
         self.template_scroll_content.setMinimumHeight(720 if stacked_layout else 0)
         self.preview_receipt.setFixedHeight(180 if compact_layout else 427)
         self.preview_stats.setFixedHeight(116 if compact_layout else 134)

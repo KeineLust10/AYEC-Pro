@@ -235,11 +235,11 @@ class StockLocationMixin:
         search_sql = ""
         if str(search or "").strip():
             term = f"%{str(search).strip()}%"
-            search_sql = " AND (p.name LIKE ? OR p.code LIKE ? OR p.barcode LIKE ?)"
-            params.extend([term, term, term])
+            search_sql = " AND (p.name LIKE ? OR p.code LIKE ? OR p.barcode LIKE ? OR p.category LIKE ?)"
+            params.extend([term, term, term, term])
         rows = self.conn.execute(
             """
-            SELECT p.id AS part_id, p.name, p.code, p.barcode,
+            SELECT p.id AS part_id, p.name, p.category, p.code, p.barcode,
                    COALESCE(p.unit, 'Adet') AS unit,
                    COALESCE(b.quantity, 0) AS quantity,
                    COALESCE(b.reserved_quantity, 0) AS reserved_quantity,

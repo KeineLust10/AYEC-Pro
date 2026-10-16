@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -106,14 +108,13 @@ def test_account_metrics_are_real_and_not_filtered_or_online_claims(monkeypatch,
         app.processEvents()
         db.close()
 
-
 def test_security_report_opens_real_tenant_audit_view_without_account_writes(monkeypatch, tmp_path):
     app = QApplication.instance() or QApplication([])
     monkeypatch.setenv("AYEC_VISUAL_ACCEPTANCE", "1")
     db = Database(str(tmp_path / "audit_reference.db"))
     seed_visual_fixture(db)
     db.conn.execute("INSERT INTO audit_logs (user_id, table_name, action, details, created_at) VALUES (?, ?, ?, ?, ?)",
-                    ("audit-user", "users", "UPDATE", "reference-audit-entry", "2026-09-30 21:00:00"))
+                    ("audit-user", "users", "UPDATE", "reference-audit-entry", datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     db.conn.commit()
     page = UserManagementWidget(db)
     users = [tuple(row) for row in db.conn.execute("SELECT * FROM users ORDER BY id")]
@@ -127,7 +128,8 @@ def test_security_report_opens_real_tenant_audit_view_without_account_writes(mon
         assert "audit-user" in values
         assert "reference-audit-entry" in values
         assert dialog.audit_page.inspector_details.text() == "reference-audit-entry"
-        assert "audit-user" in dialog.audit_page.inspector_metadata.text()
+        assert "UPDATE" in dialog.audit_page.inspector_metadata.text()
+        assert "users" in dialog.audit_page.inspector_metadata.text()
         assert "HWID" not in dialog.audit_page.inspector_metadata.text()
         assert dialog.audit_page._audit_metric_cards[3][0].text() == "-"
         opened.append(dialog)

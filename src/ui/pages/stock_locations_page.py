@@ -491,7 +491,7 @@ class StockLocationsPage(QWidget):
 
     def _card(self, title_text, value_text, click_handler=None, accent_token="@accent", detail_text=""):
         card = QFrame()
-        card.setFixedHeight(100)
+        card.setFixedHeight(128)
         if click_handler:
             card.setCursor(Qt.CursorShape.PointingHandCursor)
             card.mousePressEvent = lambda event: click_handler(card)
@@ -509,21 +509,33 @@ class StockLocationsPage(QWidget):
         """))
         lay = QVBoxLayout(card)
         lay.setContentsMargins(12, 10, 12, 10)
-        lay.setSpacing(6)
+        lay.setSpacing(4)
 
         lbl_t = QLabel(title_text)
         lbl_t.setStyleSheet(theme_qss(f"color: {accent_token}; font-family: Inter; font-size: 11px; font-weight: 600;"))
+        title_row = QHBoxLayout()
+        title_row.setContentsMargins(0, 0, 0, 0)
+        title_row.addWidget(lbl_t, 1)
+        icon = QLabel("\u25a3")
+        icon.setFixedSize(34, 34)
+        icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        icon.setStyleSheet(theme_qss(f"background: @surface_alt; color: {accent_token}; border: 1px solid @border; border-radius: 5px; font-size: 18px; font-weight: 700;"))
+        title_row.addWidget(icon)
+        lay.addLayout(title_row)
 
         lbl_v = QLabel(str(value_text))
-        lbl_v.setStyleSheet(theme_qss(f"color: {accent_token}; font-family: 'JetBrains Mono'; font-size: 24px; font-weight: 700;"))
+        lbl_v.setStyleSheet(theme_qss(f"color: {accent_token}; font-family: 'JetBrains Mono'; font-size: 23px; font-weight: 700;"))
 
-        lay.addWidget(lbl_t)
         lay.addWidget(lbl_v)
+        card.lbl_value = lbl_v
         if detail_text:
             lbl_d = QLabel(detail_text)
             lbl_d.setWordWrap(True)
             lbl_d.setStyleSheet(theme_qss("color: @text_muted; font-size: 11px; font-weight: 700;"))
             lay.addWidget(lbl_d)
+            card.lbl_detail = lbl_d
+        else:
+            card.lbl_detail = None
         return card
 
     def _build_ui(self):
@@ -561,10 +573,10 @@ class StockLocationsPage(QWidget):
         header.addWidget(system_badge, 0, Qt.AlignmentFlag.AlignVCenter)
 
         # Compact Stat Pills
-        self.card_depo = self._card("\u25cf MERKEZ DEPO / LOKASYON", "0", self._show_depot_filter, "@success")
-        self.card_arac = self._card("\u25cf SERV\u0130S ARA\u00c7LARI (MOB\u0130L)", "0", self._show_vehicle_filter, "@finance_action_collection")
-        self.card_urun = self._card("\u25cf KONUMDAK\u0130 \u00dcR\u00dcN \u00c7E\u015e\u0130D\u0130", "0", self._show_inventory_filter, "@finance_text")
-        self.card_hareket = self._card("\u25cf STOK TRANSFERLER\u0130", "0", self._show_transfer_filter, "@accent")
+        self.card_depo = self._card("MERKEZ DEPO (EREN DEPO)", "0 Kalem", self._show_depot_filter, "@success", "0 Aktif Lokasyon / Raf Kat\u0131")
+        self.card_arac = self._card("SERV\u0130S ARA\u00c7LARI (MOB\u0130L)", "0 Kalem", self._show_vehicle_filter, "@finance_action_collection", "0 Donan\u0131ml\u0131 Mobil Saha Arac\u0131")
+        self.card_urun = self._card("AKT\u0130F TRANSFER / YOLDA", "0 Sevkiyat", self._show_transfer_filter, "@accent", "Karekodlu Teslimat Bekleniyor")
+        self.card_hareket = self._card("KONS\u0130NYE / \u015eANT\u0130YE", "0 Kalem Cihaz", self._show_inventory_filter, "@danger", "0 Farkl\u0131 M\u00fc\u015fteri Sahas\u0131nda")
 
         header.addStretch()
 
@@ -742,6 +754,7 @@ class StockLocationsPage(QWidget):
             QComboBox:focus { border-color: @accent; }
         """))
         self.inventory_location.currentIndexChanged.connect(self._inventory_query_changed)
+        self.inventory_location.currentIndexChanged.connect(self._update_inventory_context)
 
         self.inventory_search = QLineEdit()
         self.inventory_search.setPlaceholderText("🔍 Ürün adı, stok kodu veya barkod ile arayın...")
@@ -763,11 +776,29 @@ class StockLocationsPage(QWidget):
         tools.addWidget(self.inventory_search, 2)
         layout.addLayout(tools)
 
+        location_context = QHBoxLayout()
+        self.inventory_location_meta = QLabel("Konum se\u00e7ilmedi")
+        self.inventory_location_meta.setStyleSheet(theme_qss("color: @finance_action_collection; font-family: 'JetBrains Mono'; font-size: 11px; font-weight: 600;"))
+        location_context.addWidget(self.inventory_location_meta, 1)
+        self.inventory_filter_button = self._button("\u2637")
+        self.inventory_filter_button.setFixedSize(34, 32)
+        self.inventory_filter_button.setToolTip("Konum filtresini a\u00e7")
+        self.inventory_filter_button.clicked.connect(self.inventory_location.showPopup)
+        self.inventory_refresh_button = self._button("\u21bb")
+        self.inventory_refresh_button.setFixedSize(34, 32)
+        self.inventory_refresh_button.setToolTip("Envanteri yenile")
+        self.inventory_refresh_button.clicked.connect(self.load_inventory)
+        location_context.addWidget(self.inventory_filter_button)
+        location_context.addWidget(self.inventory_refresh_button)
+        layout.addLayout(location_context)
+
         self.inventory_table = QTableWidget(0, 9)
         self.inventory_table.setHorizontalHeaderLabels(
             ["\u00dcr\u00fcn Tan\u0131m\u0131", "Stok Kodu", "Barkod", "Birim", "Mevcut Miktar", "Rezerve", "Kullan\u0131labilir", "Min. E\u015fik", "H\u0131zl\u0131 \u0130\u015flemler"]
         )
         self._configure_table(self.inventory_table)
+        self.inventory_table.verticalHeader().setDefaultSectionSize(50)
+        self.inventory_table.setWordWrap(True)
         for column in (1, 2, 3, 4, 5, 6, 7):
             self.inventory_table.horizontalHeader().setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
         self.inventory_table.horizontalHeader().setSectionResizeMode(8, QHeaderView.ResizeMode.Fixed)
@@ -801,7 +832,17 @@ class StockLocationsPage(QWidget):
 
     def _inventory_query_changed(self, *_args):
         self.inventory_page = 0
+        self._update_inventory_context()
         self.load_inventory()
+
+    def _update_inventory_context(self, *_args):
+        index = self.inventory_location.currentIndex()
+        location = self._locations[index] if 0 <= index < len(getattr(self, "_locations", [])) else None
+        if not location:
+            self.inventory_location_meta.setText("Konum se\u00e7ilmedi")
+            return
+        location_type = location.get("type") or location.get("location_type") or "location"
+        self.inventory_location_meta.setText(f"Aktif Konum: {location.get('name') or '-'}  |  Tip: {location_type}")
 
     def _change_inventory_page(self, delta):
         self.inventory_page += delta
@@ -1113,22 +1154,26 @@ class StockLocationsPage(QWidget):
         self._locations = locations
 
         # Update KPI Cards
-        depo_cnt = sum(
-            1
-            for loc in locations
-            if loc.get("type") in ("main", "warehouse")
-            or loc.get("location_type") in ("main", "warehouse")
-        )
-        arac_cnt = sum(1 for loc in locations if loc.get("type") == "vehicle" or loc.get("location_type") == "vehicle")
-
-        if hasattr(self, "card_depo"):
-            labels = self.card_depo.findChildren(QLabel)
-            if labels:
-                labels[-1].setText(str(depo_cnt))
-        if hasattr(self, "card_arac"):
-            labels = self.card_arac.findChildren(QLabel)
-            if labels:
-                labels[-1].setText(str(arac_cnt))
+        location_type = lambda loc: loc.get("type") or loc.get("location_type")
+        inventory_totals = {}
+        for location in locations:
+            location_id = int(location["id"])
+            rows = self.db.get_location_inventory(location_id)
+            inventory_totals[location_id] = sum(float(row.get("quantity") or 0) for row in rows)
+        depot_locations = [loc for loc in locations if location_type(loc) in ("main", "warehouse")]
+        vehicle_locations = [loc for loc in locations if location_type(loc) == "vehicle"]
+        site_locations = [loc for loc in locations if location_type(loc) in ("consignment", "site", "project")]
+        depot_total = sum(inventory_totals[int(loc["id"])] for loc in depot_locations)
+        vehicle_total = sum(inventory_totals[int(loc["id"])] for loc in vehicle_locations)
+        site_total = sum(inventory_totals[int(loc["id"])] for loc in site_locations)
+        transfer_total = len(self.db.get_stock_transfer_history(limit=250))
+        self.card_depo.lbl_value.setText(f"{depot_total:,.0f} Kalem")
+        self.card_depo.lbl_detail.setText(f"{len(depot_locations)} Aktif Lokasyon / Raf Kat\u0131")
+        self.card_arac.lbl_value.setText(f"{vehicle_total:,.0f} Kalem")
+        self.card_arac.lbl_detail.setText(f"{len(vehicle_locations)} Donan\u0131ml\u0131 Mobil Saha Arac\u0131")
+        self.card_urun.lbl_value.setText(f"{transfer_total} Sevkiyat")
+        self.card_hareket.lbl_value.setText(f"{site_total} Kalem Cihaz")
+        self.card_hareket.lbl_detail.setText(f"{len(site_locations)} Farkl\u0131 M\u00fc\u015fteri Sahas\u0131nda")
         
         combos = [
             self.inventory_location,
@@ -1163,6 +1208,7 @@ class StockLocationsPage(QWidget):
             for row in self.db.get_location_inventory(source_location_id):
                 self.kit_product.addItem(row["name"], row)
 
+        self._update_inventory_context()
         self.load_inventory()
         self.load_transfer_products()
         self.load_count()
@@ -1194,15 +1240,11 @@ class StockLocationsPage(QWidget):
         page_rows = visible[start:start + self.inventory_page_size]
         self.inventory_table.setRowCount(len(page_rows))
 
-        if hasattr(self, "card_urun"):
-            lbl = self.card_urun.findChildren(QLabel)[-1]
-            lbl.setText(str(len(visible)))
-
         for row_index, row in enumerate(page_rows):
             available = float(row["quantity"]) - float(row["reserved_quantity"])
             unit = row.get("unit") or "Adet"
             values = [
-                row["name"], row.get("code") or "-", row.get("barcode") or "-",
+            f"{row['name']}\n{row.get('category') or 'Genel'}", row.get("code") or "-", row.get("barcode") or "-",
                 unit, f"{float(row['quantity']):g}",
                 f"{float(row['reserved_quantity']):g}", f"{available:g}",
                 f"{float(row.get('min_quantity') or 0):g}",

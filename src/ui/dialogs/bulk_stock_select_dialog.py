@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from PyQt6.QtCore import QSize, Qt
-from PyQt6.QtGui import QKeySequence, QShortcut
+from PyQt6.QtGui import QColor, QKeySequence, QPainter, QPen, QPixmap, QShortcut
 from PyQt6.QtWidgets import (
     QAbstractSpinBox,
     QButtonGroup,
@@ -94,6 +94,31 @@ class BulkStockSelectDialog(BaseModernDialog):
         self.current_mode = "part"
         self.current_system = "all"
         super().__init__(parent=parent, title="Toplu \u00dcr\u00fcn & Hizmet Se\u00e7im Havuzu", width=864, height=840)
+        self.logo_label.setPixmap(QPixmap())
+        self.logo_label.setFixedSize(30, 30)
+        mark = QPixmap(30, 30)
+        mark.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(mark)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setPen(QPen(QColor("#22d3ee"), 1.4))
+        for x, y in ((9, 9), (16, 9), (9, 16), (16, 16)):
+            painter.drawRoundedRect(x, y, 4, 4, 1, 1)
+        painter.end()
+        self.logo_label.setPixmap(mark)
+        self.logo_label.setStyleSheet(theme_qss(
+            "QLabel { color: @accent; background: @surface_alt; border: 1px solid @border; "
+            "border-radius: 8px; font-size: 16px; font-weight: 700; }"
+        ))
+        self.lbl_title.setStyleSheet(theme_qss(
+            "color: @text; background: transparent; border: none; font-size: 14px; font-weight: 700;"
+        ))
+        self.btn_close.setText("\u00d7")
+        self.btn_close.setFixedSize(24, 24)
+        self.btn_close.setStyleSheet(theme_qss(
+            "QPushButton { background: @surface_alt; border: 1px solid @border; color: @text_muted; "
+            "font-size: 16px; font-weight: 500; border-radius: 6px; padding: 0px; } "
+            "QPushButton:hover { border-color: @danger; color: @danger; }"
+        ))
         self.content_container.setStyleSheet(
             theme_qss(
                 """
@@ -130,7 +155,7 @@ class BulkStockSelectDialog(BaseModernDialog):
 
     def _build_ui(self):
         layout = self.content_layout
-        layout.setContentsMargins(18, 16, 18, 18)
+        layout.setContentsMargins(0, 16, 18, 18)
         layout.setSpacing(12)
         layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
@@ -146,6 +171,7 @@ class BulkStockSelectDialog(BaseModernDialog):
         ))
         version.setFixedSize(92, 22)
         header_layout = self.header.layout()
+        header_layout.setSpacing(0)
         header_layout.removeWidget(self.lbl_title)
         title_stack = QWidget(self.header)
         title_stack_layout = QVBoxLayout(title_stack)
@@ -161,7 +187,7 @@ class BulkStockSelectDialog(BaseModernDialog):
         header_layout.insertWidget(2, title_stack)
 
         mode_row = QHBoxLayout()
-        mode_row.setContentsMargins(0, 0, 0, 0)
+        mode_row.setContentsMargins(18, 0, 0, 0)
         mode_row.setSpacing(10)
         self.btn_services = QPushButton("Hizmetler (Servis & \u0130\u015f\u00e7ilik)")
         self.btn_parts = QPushButton("Stok & Par\u00e7a (Envanter)")
@@ -197,7 +223,7 @@ class BulkStockSelectDialog(BaseModernDialog):
         self._refresh_mode_styles()
 
         system_row = QHBoxLayout()
-        system_row.setContentsMargins(0, 0, 0, 0)
+        system_row.setContentsMargins(18, 0, 0, 0)
         system_row.setSpacing(8)
         self.system_group = QButtonGroup(self)
         self.system_group.setExclusive(True)
@@ -217,21 +243,43 @@ class BulkStockSelectDialog(BaseModernDialog):
         self._refresh_system_styles()
 
         filter_row = QHBoxLayout()
-        filter_row.setContentsMargins(0, 0, 0, 0)
+        filter_row.setContentsMargins(18, 0, 0, 0)
         filter_row.setSpacing(8)
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("\u00dcr\u00fcn ad\u0131, barkod veya stok kodu ile ara... (Ctrl + F)")
+        self.search_input.setFixedHeight(32)
+        self.search_input.setTextMargins(18, 0, 38, 0)
+        search_icon = QPixmap(16, 16)
+        search_icon.fill(Qt.GlobalColor.transparent)
+        icon_painter = QPainter(search_icon)
+        icon_painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        icon_painter.setPen(QPen(QColor("#94a3b8"), 1.4))
+        icon_painter.drawEllipse(2, 2, 8, 8)
+        icon_painter.drawLine(9, 9, 14, 14)
+        icon_painter.end()
+        self.search_icon = QLabel(self.search_input)
+        self.search_icon.setFixedSize(16, 16)
+        self.search_icon.setPixmap(search_icon)
+        self.find_badge = QLabel("Ctrl+F", self.search_input)
+        self.find_badge.setFixedSize(28, 18)
+        self.find_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.find_badge.setStyleSheet(theme_qss(
+            "QLabel { color: @text_muted; background: @surface_alt; border: 1px solid @border; "
+            "border-radius: 3px; font-size: 8px; }"
+        ))
         self.search_input.textChanged.connect(self._filter_rows)
         self.find_shortcut = QShortcut(QKeySequence("Ctrl+F"), self)
         self.find_shortcut.activated.connect(self.search_input.setFocus)
         self.accept_shortcut = QShortcut(QKeySequence(Qt.Key.Key_Return), self)
         self.accept_shortcut.activated.connect(self._handle_accept)
-        filter_row.addWidget(self.search_input, 3)
+        filter_row.addWidget(self.search_input, 4)
         self.status_filter = QComboBox()
         self.status_filter.addItem("Durum: Yaln\u0131zca Stokta Olanlar", "available")
         self.status_filter.addItem("Durum: T\u00fcm\u00fcn\u00fc G\u00f6ster (Kritik Dahil)", "all")
         self.status_filter.addItem("Durum: Yaln\u0131zca Kritik Stok (<10)", "critical")
         self.status_filter.currentIndexChanged.connect(self._filter_rows)
+        self.status_filter.setMinimumWidth(0)
+        self.status_filter.setMaximumWidth(200)
         filter_row.addWidget(self.status_filter, 2)
         self.sort_filter = QComboBox()
         self.sort_filter.addItem("S\u0131ralama: Fiyata G\u00f6re Artan", "price_asc")
@@ -239,16 +287,19 @@ class BulkStockSelectDialog(BaseModernDialog):
         self.sort_filter.addItem("S\u0131ralama: En \u00c7ok Satanlar", "best_selling")
         self.sort_filter.addItem("S\u0131ralama: Stok Miktar\u0131na G\u00f6re", "stock")
         self.sort_filter.currentIndexChanged.connect(self._populate)
+        self.sort_filter.setMinimumWidth(0)
+        self.sort_filter.setMaximumWidth(200)
         filter_row.addWidget(self.sort_filter, 2)
         for combo in (self.status_filter, self.sort_filter):
-            combo.setMinimumHeight(40)
+            combo.setMinimumHeight(32)
             combo.setStyleSheet(theme_qss(
                 'QComboBox { background: @surface_alt; color: @text; '
-                'border: 1px solid @border; border-radius: 8px; padding: 0 10px; } '
+                'border: 1px solid @border; border-radius: 8px; padding: 0 5px; font-size: 9px; } '
                 'QComboBox QAbstractItemView { background: @surface; color: @text; '
                 'selection-background-color: @selection_bg; }'
             ))
         layout.addLayout(filter_row)
+        layout.addSpacing(7)
 
         self.tree = QTreeWidget()
         self.tree.setColumnCount(7)
@@ -259,7 +310,8 @@ class BulkStockSelectDialog(BaseModernDialog):
         self.tree.setMinimumHeight(280)
         self.tree.setMaximumHeight(420)
         self.tree.setSelectionMode(QTreeWidget.SelectionMode.NoSelection)
-        for section, width in enumerate((28, 300, 120, 122, 90, 98, 50)):
+        self.tree.header().setFixedHeight(35)
+        for section, width in enumerate((34, 300, 120, 122, 90, 98, 50)):
             self.tree.header().resizeSection(section, width)
         self.tree.header().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.tree.header().setStretchLastSection(False)
@@ -294,7 +346,8 @@ class BulkStockSelectDialog(BaseModernDialog):
                 color: @selection_text;
                 border: none;
                 border-radius: 12px;
-                padding: 0 16px;
+                padding: 0 10px;
+                font-size: 10px;
                 font-weight: 800;
             }
             """
@@ -306,7 +359,8 @@ class BulkStockSelectDialog(BaseModernDialog):
                 color: @text;
                 border: 1px solid @border;
                 border-radius: 12px;
-                padding: 0 16px;
+                padding: 0 10px;
+                font-size: 10px;
                 font-weight: 800;
             }
             QPushButton:hover {
@@ -325,7 +379,8 @@ class BulkStockSelectDialog(BaseModernDialog):
                 color: @text;
                 border: 1px solid @accent;
                 border-radius: 12px;
-                padding: 0 14px;
+                padding: 0 8px;
+                font-size: 9px;
                 font-weight: 800;
             }
             """
@@ -337,7 +392,8 @@ class BulkStockSelectDialog(BaseModernDialog):
                 color: @text_muted;
                 border: 1px solid @border;
                 border-radius: 12px;
-                padding: 0 14px;
+                padding: 0 8px;
+                font-size: 9px;
                 font-weight: 700;
             }
             QPushButton:hover {
@@ -407,6 +463,18 @@ class BulkStockSelectDialog(BaseModernDialog):
 
         return "computer"
 
+    def _row_is_selected(self, item):
+        return bool(item.data(0, Qt.ItemDataRole.UserRole))
+
+    def _set_row_selected(self, item, selected):
+        item.setData(0, Qt.ItemDataRole.UserRole, bool(selected))
+        checkbox_cell = self.tree.itemWidget(item, 0)
+        row_checkbox = checkbox_cell.findChild(QPushButton) if checkbox_cell else None
+        if row_checkbox is not None and row_checkbox.isChecked() != bool(selected):
+            row_checkbox.blockSignals(True)
+            row_checkbox.setChecked(bool(selected))
+            row_checkbox.blockSignals(False)
+
     def _populate(self):
         selected_state = {}
         if hasattr(self, "tree"):
@@ -416,7 +484,7 @@ class BulkStockSelectDialog(BaseModernDialog):
                 old_id = str(old_info.get("id") or old_info.get("name") or "")
                 old_qty = self.tree.itemWidget(old_item, 5)
                 selected_state[old_id] = (
-                    old_item.checkState(0) == Qt.CheckState.Checked,
+                    self._row_is_selected(old_item),
                     old_qty.value() if old_qty else 1,
                 )
         self.tree.clear()
@@ -437,18 +505,30 @@ class BulkStockSelectDialog(BaseModernDialog):
         entries.sort(key=sort_key)
         for _, info in entries:
             item = QTreeWidgetItem(self.tree)
-            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-            item.setCheckState(0, Qt.CheckState.Unchecked)
+            item.setData(0, Qt.ItemDataRole.UserRole, False)
             name = str(info.get("name") or "")
             item.setText(1, name)
             item.setData(1, Qt.ItemDataRole.UserRole, dict(info))
             item.setData(1, Qt.ItemDataRole.UserRole + 1, self.current_mode)
             item.setData(1, Qt.ItemDataRole.UserRole + 2, self._detect_system_group(info, self.current_mode))
             for column in range(self.tree.columnCount()):
-                item.setSizeHint(column, QSize(0, 52))
+                item.setSizeHint(column, QSize(0, 48))
+            row_checkbox = QPushButton("\u2713")
+            row_checkbox.setCheckable(True)
+            row_checkbox.setFixedSize(16, 16)
+            row_checkbox.setStyleSheet(theme_qss(
+                'QPushButton { color: transparent; background: @surface_alt; border: 1px solid @border; '
+                'border-radius: 4px; padding: 0; font-size: 10px; font-weight: 800; } '
+                'QPushButton:checked { color: @selection_text; background: @accent; border-color: @accent; }'
+            ))
+            checkbox_cell = QWidget()
+            checkbox_layout = QHBoxLayout(checkbox_cell)
+            checkbox_layout.setContentsMargins(0, 0, 0, 0)
+            checkbox_layout.addWidget(row_checkbox, 0, Qt.AlignmentFlag.AlignCenter)
+            self.tree.setItemWidget(item, 0, checkbox_cell)
 
             title_cell = QWidget()
-            title_cell.setMinimumHeight(52)
+            title_cell.setMinimumHeight(48)
             title_layout = QHBoxLayout(title_cell)
             title_layout.setContentsMargins(2, 3, 2, 3)
             title_layout.setSpacing(10)
@@ -559,13 +639,16 @@ class BulkStockSelectDialog(BaseModernDialog):
             row_id = str(info.get("id") or info.get("name") or "")
             checked, old_qty = selected_state.get(row_id, (False, 1))
             qty_spin.setValue(min(max(qty_spin.minimum(), old_qty), qty_spin.maximum()))
-            item.setCheckState(0, Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked)
+            self._set_row_selected(item, checked)
+            row_checkbox.toggled.connect(
+                lambda selected, row=item: self._set_row_selected(row, selected)
+            )
             select_button = QPushButton()
             select_button.setFixedSize(30, 30)
             select_button.setCursor(Qt.CursorShape.PointingHandCursor)
             select_button.clicked.connect(
-                lambda _checked=False, row=item: row.setCheckState(
-                    0, Qt.CheckState.Unchecked if row.checkState(0) == Qt.CheckState.Checked else Qt.CheckState.Checked
+                lambda _checked=False, row=item: self._set_row_selected(
+                    row, not self._row_is_selected(row)
                 )
             )
             self.tree.setItemWidget(item, 6, select_button)
@@ -615,7 +698,7 @@ class BulkStockSelectDialog(BaseModernDialog):
             for index in range(self.tree.topLevelItemCount()):
                 item = self.tree.topLevelItem(index)
                 if not item.isHidden():
-                    item.setCheckState(0, Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked)
+                    self._set_row_selected(item, checked)
         finally:
             self.tree.blockSignals(False)
         self._update_selected_count()
@@ -623,6 +706,15 @@ class BulkStockSelectDialog(BaseModernDialog):
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self._position_header_checkbox()
+        if hasattr(self, "find_badge"):
+            self.find_badge.move(
+                self.search_input.width() - self.find_badge.width() - 9,
+                (self.search_input.height() - self.find_badge.height()) // 2,
+            )
+            self.search_icon.move(
+                10,
+                (self.search_input.height() - self.search_icon.height()) // 2,
+            )
 
     def _update_selected_count(self):
         selected = 0
@@ -631,18 +723,18 @@ class BulkStockSelectDialog(BaseModernDialog):
         subtotal_try = 0.0
         for index in range(self.tree.topLevelItemCount()):
             item = self.tree.topLevelItem(index)
-            if item.checkState(0) == Qt.CheckState.Checked:
+            active = self._row_is_selected(item)
+            if active:
                 selected += 1
                 info = item.data(1, Qt.ItemDataRole.UserRole) or {}
                 qty_widget = self.tree.itemWidget(item, 5)
                 subtotal_try += float(info.get("price") or 0.0) * (qty_widget.value() if qty_widget else 1)
             if not item.isHidden():
                 visible += 1
-                if item.checkState(0) == Qt.CheckState.Checked:
+                if active:
                     selected_visible += 1
             button = self.tree.itemWidget(item, 6)
             if button is not None:
-                active = item.checkState(0) == Qt.CheckState.Checked
                 button.setText("\u2713" if active else "+")
                 button.setStyleSheet(theme_qss(
                     "QPushButton { background: @accent; color: @selection_text; border: none; border-radius: 7px; font-weight: 800; }"
@@ -666,7 +758,7 @@ class BulkStockSelectDialog(BaseModernDialog):
         selected = []
         for index in range(self.tree.topLevelItemCount()):
             item = self.tree.topLevelItem(index)
-            if item.checkState(0) != Qt.CheckState.Checked:
+            if not self._row_is_selected(item):
                 continue
             info = dict(item.data(1, Qt.ItemDataRole.UserRole) or {})
             item_type = item.data(1, Qt.ItemDataRole.UserRole + 1) or self.current_mode

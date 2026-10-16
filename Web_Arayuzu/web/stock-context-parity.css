@@ -1,0 +1,93 @@
+html[data-theme] .context-menu:has([data-context-action="stock-photo"]) {
+  width: 187px;
+  min-width: 187px;
+  z-index: 110;
+  padding: 0;
+  border: 1px solid #274463;
+  border-radius: 0;
+  background: #0b1c31 !important;
+  color: #eaf2ff !important;
+  box-shadow: none;
+}
+
+html[data-theme] .context-menu:has([data-context-action="stock-photo"]) button {
+  height: 23px;
+  min-height: 23px;
+  padding: 0 12px 0 16px;
+  border-radius: 0;
+  color: #eaf2ff !important;
+  font: 400 12px "Inter", "Segoe UI", Arial, sans-serif;
+}
+
+html[data-theme] .context-menu:has([data-context-action="stock-photo"]) button:hover,
+html[data-theme] .context-menu:has([data-context-action="stock-photo"]) button:focus-visible {
+  background: #1e40af !important;
+  color: #f8fbff !important;
+}
+
+html[data-theme] .context-menu:has([data-context-action="stock-photo"]) .context-menu-separator {
+  height: 2px;
+  margin: 0;
+  background: #274463;
+}
+
+.stock-photo-preview {
+  display: grid;
+  min-height: 320px;
+  place-items: center;
+  gap: 12px;
+}
+
+.stock-photo-preview img {
+  display: block;
+  max-width: min(100%, 680px);
+  max-height: 62vh;
+  object-fit: contain;
+  border: 1px solid var(--border, #29354a);
+  border-radius: 10px;
+  background: var(--surface-alt, #101927);
+}
+
+.stock-photo-preview p {
+  margin: 0;
+  color: var(--muted, #a5adbb);
+  text-align: center;
+}
+
+@media print {
+  body[data-page="stock"] .app-shell > .topbar,
+  body[data-page="stock"] .app-shell > .sidebar,
+  body[data-page="stock"] .shell-status-bar,
+  body[data-page="stock"] .page-head > .actions,
+  body[data-page="stock"] #contextMenu,
+  body[data-page="stock"] #toastRoot,
+  body[data-page="stock"] #appDialog {
+    display: none !important;
+  }
+
+  body[data-page="stock"] .app-shell,
+  body[data-page="stock"] .app-shell > .main {
+    display: block;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+  }
+
+  body[data-page="stock"] .content,
+  body[data-page="stock"] .table-wrap {
+    max-width: none;
+    max-height: none;
+    padding: 0;
+    overflow: visible;
+  }
+
+  body[data-page="stock"] table {
+    width: 100%;
+    min-width: 0;
+    font-size: 8pt;
+  }
+
+  body[data-page="stock"] tr {
+    break-inside: avoid;
+  }
+}

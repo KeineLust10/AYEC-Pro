@@ -58,6 +58,7 @@ RUNTIME_PACKAGE_ROOTS = (
     "av",
     "bcrypt",
     "certifi",
+    "comtypes",
     "cryptography",
     "ctranslate2",
     "cv2",
@@ -149,6 +150,30 @@ def collect_and_copy_runtime_resources(dest_dir):
                         os.makedirs(dest_folder, exist_ok=True)
                         shutil.copy2(src_file, os.path.join(dest_folder, file))
                         print(f"  [OK] {src_file} -> {os.path.join(rel_dir, file)}")
+
+
+def copy_offline_asr_model(dest_dir, source_dir=None):
+    app_local = os.environ.get(
+        "LOCALAPPDATA", os.path.join(os.path.expanduser("~"), "AppData", "Local")
+    )
+    source = Path(source_dir) if source_dir else (
+        Path(app_local) / "AYEC Pro" / "Data" / "Speech" / "whisper-small"
+    )
+    required_files = ("model.bin", "config.json", "tokenizer.json", "vocabulary.txt")
+    missing = [name for name in required_files if not (source / name).is_file()]
+    if missing:
+        raise FileNotFoundError(
+            "Offline Turkish ASR model is incomplete at "
+            + str(source)
+            + ": "
+            + ", ".join(missing)
+            + ". Run tools/setup/prepare_offline_asr.py first."
+        )
+    target = Path(dest_dir) / "Speech" / "whisper-small"
+    target.mkdir(parents=True, exist_ok=True)
+    for name in required_files:
+        shutil.copy2(source / name, target / name)
+    print("  [OK] Offline Turkish ASR model copied to Speech/whisper-small")
 
 
 def copy_pymupdf_runtime(dest_dir):
@@ -312,11 +337,8 @@ def main():
         "--nofollow-import-to=pdfminer",
         "--nofollow-import-to=pdfplumber",
         "--nofollow-import-to=pytesseract",
-        "--nofollow-import-to=pyaudio",
-        "--nofollow-import-to=pyaudiowpatch",
         "--nofollow-import-to=scipy",
         "--nofollow-import-to=skimage",
-        "--nofollow-import-to=speech_recognition",
         "--nofollow-import-to=torch",
         "--nofollow-import-to=torchvision",
         "--nofollow-import-to=torchgen",
@@ -354,6 +376,10 @@ def main():
         "--include-module=sunau",
         "--include-module=wave",
         "--include-package=unittest",
+        "--include-package=comtypes",
+        "--include-package=pyaudio",
+        "--include-package=pyaudiowpatch",
+        "--include-package=speech_recognition",
         "--include-package=faster_whisper",
         "--include-package=google.protobuf",
         "--include-package=src",
@@ -392,6 +418,7 @@ def main():
         print("\n  [OK] C++ Makine dili ikilileri ve kütüphaneler bin/ altina yerlestirildi.")
 
         collect_and_copy_runtime_resources(final_bin)
+        copy_offline_asr_model(final_bin)
         copy_pymupdf_runtime(final_bin)
         copy_tesseract_runtime(final_bin)
         copy_runtime_package_closure(final_bin)

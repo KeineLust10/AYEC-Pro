@@ -3,7 +3,7 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLayout, QFrame, QLabel,
                              QPushButton, QTableWidget, QTableWidgetItem, QHeaderView,
                              QTabWidget, QLineEdit, QFormLayout, QComboBox, QMessageBox,
-                             QDateTimeEdit, QMenu, QAbstractItemView, QFileDialog, QButtonGroup)
+                             QDateTimeEdit, QMenu, QAbstractItemView, QFileDialog, QButtonGroup, QSizePolicy)
 from PyQt6.QtCore import Qt, QDateTime, QTimer
 from PyQt6.QtGui import QFont, QFontDatabase, QFontMetrics, QColor, QCursor, QShortcut, QKeySequence
 from PyQt6.QtCore import QThread, pyqtSignal
@@ -64,6 +64,7 @@ class LoanerDevicesPage(QWidget):
         self.active_page_size = 5
         self._loaner_type_filter = "all"
         self.layout = QVBoxLayout(self)
+        self.layout.setSizeConstraint(QLayout.SizeConstraint.SetNoConstraint)
         self.layout.setContentsMargins(0, 0, 0, 0)
         self.layout.setSpacing(0)
         
@@ -72,6 +73,7 @@ class LoanerDevicesPage(QWidget):
         self._refresh_pending = False
         self._pending_inventory_rows = []
         self._pending_active_rows = []
+        QTimer.singleShot(0, lambda: self._configure_active_columns(self.table_active))
         QTimer.singleShot(0, self._prepare_initial_view)
         QTimer.singleShot(140, self.request_refresh)
 
@@ -90,7 +92,7 @@ class LoanerDevicesPage(QWidget):
     def setup_ui(self):
         # Header
         header_widget = QWidget()
-        header_widget.setFixedHeight(80)
+        header_widget.setFixedHeight(56)
         header_widget.setStyleSheet(theme_qss("background-color: @finance_surface_alt; border-bottom: 1px solid @finance_outline;"))
         
         header_layout = QHBoxLayout(header_widget)
@@ -112,7 +114,22 @@ class LoanerDevicesPage(QWidget):
         subtitle.setFont(QFont("Segoe UI", 11))
         subtitle.setStyleSheet(theme_qss("color: @finance_text_muted; background: transparent; border: none;"))
         
-        title_vbox.addWidget(title)
+        title_row = QHBoxLayout()
+        title_row.setSpacing(8)
+        title_row.addWidget(title)
+        custody_badge = QLabel("Z\u0130MMET TAK\u0130P")
+        custody_badge.setFixedHeight(22)
+        custody_badge.setStyleSheet(theme_qss(
+            "background: @selection_bg; color: @selection_text; border: none; "
+            "border-radius: 4px; padding: 2px 7px; font-size: 10px; font-weight: 800;"
+        ))
+        title_row.addWidget(custody_badge, 0, Qt.AlignmentFlag.AlignVCenter)
+        title_row.addStretch(1)
+        title_vbox.addLayout(title_row)
+        subtitle.setText("M\u00fc\u015fterilere verilen ikame cihazlar\u0131n depo, garanti taahh\u00fct ve iade durum denetimi.")
+        subtitle.setFont(QFont("Inter", 10))
+        subtitle.setWordWrap(True)
+        subtitle.setMaximumWidth(420)
         title_vbox.addWidget(subtitle)
         title_vbox.setAlignment(Qt.AlignmentFlag.AlignVCenter)
         header_layout.addLayout(title_vbox)
@@ -149,8 +166,8 @@ class LoanerDevicesPage(QWidget):
         header_layout.addWidget(btn_add_device)
 
         for label, callback, variant in [
-            ("Iade Al & Test Et", self._return_selected_active, "secondary"),
-            ("Sozlesme", self._open_commitments_tab, "secondary"),
+            ("\u0130ade Al & Test Et", self._return_selected_active, "secondary"),
+            ("S\u00f6zle\u015fme Yazd\u0131r", self._open_commitments_tab, "secondary"),
             ("Excel", self._show_export_notice, "secondary"),
         ]:
             action = QPushButton(label)
@@ -166,15 +183,16 @@ class LoanerDevicesPage(QWidget):
         metric_row.setContentsMargins(20, 10, 20, 10)
         metric_row.setSpacing(10)
         self.loaner_metric_values = []
+        self.loaner_metric_details = []
         for index, (title_text, value_text, accent) in enumerate([
-            ("Musterideki Ikameler", "0 Cihaz", "@finance_primary"),
-            ("Musait Konsinye Stok", "0 Cihaz", "@finance_secondary"),
-            ("Iadesi Gecikenler", "0 Acil", "@finance_tertiary"),
-            ("Sahadaki Cihaz Degeri", "0 TRY", "@finance_text"),
+            ("M\u00fc\u015fterideki \u0130kameler", "0 Cihaz", "@finance_primary"),
+            ("M\u00fcsait Konsinye Stok", "0 Cihaz", "@finance_secondary"),
+            ("\u0130adesi Gecikenler", "0 Acil", "@finance_tertiary"),
+            ("Sahadaki Cihaz De\u011feri", "-", "@finance_text"),
         ]):
             card = QFrame()
             card.setObjectName("LoanerMetricCard")
-            card.setMinimumHeight(84)
+            card.setMinimumHeight(92)
             card.setStyleSheet(theme_qss("QFrame#LoanerMetricCard { background: @finance_surface; border: 1px solid @finance_outline; border-radius: 6px; } QLabel { background: transparent; border: none; }"))
             card_layout = QVBoxLayout(card)
             card_layout.setContentsMargins(12, 8, 12, 8)
@@ -188,12 +206,23 @@ class LoanerDevicesPage(QWidget):
             title_row.addWidget(LoanerMetricIcon(("computer", "warehouse", "warning", "shield")[index], accent.lstrip("@")))
             card_layout.addLayout(title_row)
             card_layout.addWidget(value_label)
+            detail_label = QLabel((
+                "Aktif kullan\u0131mda", "Test edilmi\u015f / Haz\u0131r",
+                "\u0130ade s\u00fcresi a\u015fan kay\u0131tlar", "Teminat de\u011fer bilgisi yok",
+            )[index])
+            detail_label.setStyleSheet(theme_qss(
+                "color: @finance_text_muted; font-family: JetBrains Mono; font-size: 9px; border: none;"
+            ))
+            card_layout.addWidget(detail_label)
             self.loaner_metric_values.append(value_label)
+            self.loaner_metric_details.append(detail_label)
             metric_row.addWidget(card, 1)
         self.layout.addLayout(metric_row)
         
         # Tabs
         self.tabs = QTabWidget()
+        self.tabs.setMinimumWidth(0)
+        self.tabs.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Expanding)
         self.tabs.setStyleSheet(f"""
             QTabWidget::pane {{ border: none; border-top: 1px solid {tc('border')}; }}
             QTabBar::tab {{ 
@@ -258,8 +287,9 @@ class LoanerDevicesPage(QWidget):
         self.tabs.addTab(self.tab_commitments, "Iade Taahhutleri")
         
         content_container = QWidget()
+        content_container.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Expanding)
         content_layout = QVBoxLayout(content_container)
-        content_layout.setContentsMargins(12, 8, 12, 12)
+        content_layout.setContentsMargins(12, 4, 12, 8)
         self.tabs.tabBar().hide()
         navigation = QHBoxLayout()
         navigation.setSpacing(4)
@@ -278,7 +308,7 @@ class LoanerDevicesPage(QWidget):
         for label, destination, status in destinations:
             button = QPushButton(label)
             button.setCheckable(True)
-            button.setMinimumHeight(32)
+            button.setMinimumHeight(26)
             button.setStyleSheet(theme_qss(
                 "QPushButton { background: transparent; color: @finance_text_muted; border: none; padding: 6px 8px; font-size: 12px; font-weight: 600; } "
                 "QPushButton:checked { background: @finance_surface_alt; color: @finance_primary; border-bottom: 2px solid @primary; }"
@@ -294,7 +324,7 @@ class LoanerDevicesPage(QWidget):
         filter_bar = QHBoxLayout()
         filter_bar.setSpacing(8)
         self.loaner_search = QLineEdit()
-        self.loaner_search.setPlaceholderText("Cihaz, musteri veya seri no ara...")
+        self.loaner_search.setPlaceholderText("\u0130\u015flem ID, m\u00fc\u015fteri ad\u0131, seri no veya cihaz modeli ara...")
         self.loaner_search.setClearButtonEnabled(True)
         self.loaner_search.textChanged.connect(self._loaner_filter_changed)
         self.loaner_search_shortcut = QShortcut(QKeySequence("Ctrl+F"), self)
@@ -329,6 +359,7 @@ class LoanerDevicesPage(QWidget):
         wrapper = QFrame()
         wrapper.setObjectName("LoanerSummaryWrapper")
         wrapper.setFixedHeight(180)
+        wrapper.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
         wrapper.setStyleSheet(theme_qss(
             "QFrame#LoanerSummaryWrapper { background: @finance_surface_alt; border: 1px solid @finance_outline; border-radius: 6px; }"
         ))
@@ -383,7 +414,7 @@ class LoanerDevicesPage(QWidget):
 
     def setup_active_tab(self):
         ly = QVBoxLayout(self.tab_active)
-        ly.setContentsMargins(0, 10, 0, 0)
+        ly.setContentsMargins(0, 4, 0, 0)
         
         self.table_active = QTableWidget(0, 10)
         self.table_active.setHorizontalHeaderLabels([
@@ -632,6 +663,7 @@ class LoanerDevicesPage(QWidget):
         ly.addWidget(self.table_inventory)
 
     def _configure_table(self, table):
+        table.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Expanding)
         table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
@@ -652,7 +684,7 @@ class LoanerDevicesPage(QWidget):
                 outline: none;
             }
             QTableWidget::item {
-                padding: 8px 10px;
+                padding: 8px 6px;
                 border: none;
                 outline: none;
             }
@@ -680,20 +712,21 @@ class LoanerDevicesPage(QWidget):
 
     def _configure_active_columns(self, table):
         header = table.horizontalHeader()
-        wide = self.width() > 980
-        widths = (
-            (80, 180, 144, 112, 112, 136, 130, 110, 140, 108)
-            if not wide
-            else (56, 190, 165, 108, 108, 120, 138, 180, 128, 92)
-        )
+        window_width = self.width()
+        if window_width >= 1450:
+            widths = (56, 190, 165, 108, 108, 120, 138, 180, 128, 92)
+        elif window_width < 1000:
+            widths = (80, 180, 144, 112, 112, 136, 130, 110, 140, 108)
+        else:
+            available = max(640, window_width - 42)
+            proportions = (0.055, 0.13, 0.11, 0.11, 0.11, 0.09, 0.10, 0.12, 0.09, 0.08)
+            widths = tuple(max(42, round(available * ratio)) for ratio in proportions)
         for column, width in enumerate(widths):
             header.setSectionResizeMode(column, QHeaderView.ResizeMode.Fixed)
             table.setColumnWidth(column, width)
-        if wide:
+        if window_width >= 1450:
             for column in (1, 2, 3, 4, 8):
                 header.setSectionResizeMode(column, QHeaderView.ResizeMode.Stretch)
-        else:
-            header.setSectionResizeMode(7, QHeaderView.ResizeMode.Stretch)
 
     def _configure_inventory_columns(self, table):
         header = table.horizontalHeader()
@@ -838,6 +871,18 @@ class LoanerDevicesPage(QWidget):
             self.loaner_metric_values[2].setText(f"{overdue_count} Acil")
             self.loaner_metric_values[3].setText("-")
             self.loaner_metric_values[3].setToolTip("Cihaz degeri kaydedilmedigi icin hesaplanamiyor.")
+        for destination, status, button in getattr(self, "_loaner_nav_buttons", []):
+            base_label = button.property("loanerBaseLabel") or button.text()
+            if not button.property("loanerBaseLabel"):
+                button.setProperty("loanerBaseLabel", base_label)
+            count = None
+            if destination is self.tab_active and status == "Tum Durumlar":
+                count = active_count
+            elif destination is self.tab_inventory:
+                count = available_count
+            elif destination is self.tab_active and status == "Geciken":
+                count = overdue_count
+            button.setText("{}  {}".format(base_label, count) if count is not None else base_label)
         categories = {}
         for row in inventory_rows:
             category = str(row['device_type'] or 'Diger')
@@ -1028,7 +1073,7 @@ class LoanerDevicesPage(QWidget):
                     if item is None:
                         continue
                     font = QFont(DesignTokens.MONO_FONT_NAME)
-                    font.setPixelSize(11)
+                    font.setPixelSize(10 if column in (3, 4) else 11)
                     font.setBold(column in (0, 6, 8))
                     item.setFont(font)
                     if column not in (3, 4):

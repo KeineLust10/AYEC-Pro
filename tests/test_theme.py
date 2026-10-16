@@ -1,5 +1,6 @@
 import sys
 import os
+import re
 
 # Set up path to import src
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
@@ -33,6 +34,15 @@ def test_calendar_popup_styles_use_theme_text_and_selection_colors():
         assert "QCalendarWidget QAbstractItemView" in stylesheet
         assert "selection-background-color:" in stylesheet
         assert "selection-color:" in stylesheet
+
+
+def test_light_theme_uses_soft_surface_backgrounds():
+    palette = ThemeManager.current_palette("AYEC")
+    stylesheet = ThemeManager.get_stylesheet("AYEC")
+
+    assert palette["surface"].lower() == "#f1f5f9"
+    assert palette["finance_surface"].lower() == "#f1f5f9"
+    assert not re.search(r"background(?:-color)?\s*:\s*#ffffff\b", stylesheet, re.IGNORECASE)
 
 
 def test_light_calendar_popup_has_readable_month_and_day_colors(tmp_path):

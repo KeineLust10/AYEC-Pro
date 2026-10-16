@@ -9,17 +9,21 @@ from src.utils.theme_colors import tc, theme_qss
 class ReferenceDateEdit(QDateEdit):
     """Native date input with a painted calendar and the original Qt popup."""
 
-    def __init__(self, date, parent=None):
+    def __init__(self, date, parent=None, *, compact=False):
         super().__init__(date, parent)
         self.setCalendarPopup(True)
         self.setDisplayFormat('dd.MM.yyyy')
-        self.setFixedHeight(38)
+        self.setFixedHeight(32 if compact else 38)
         self.setProperty("referenceFont", "mono")
+        date_padding = '0 5px' if compact else '0 10px'
+        date_height = 30 if compact else 36
+        date_font = 9 if compact else 12
+        drop_width = 20 if compact else 28
         self.setStyleSheet(theme_qss(
             'QDateEdit { background: @finance_surface_lowest; color: @finance_text; '
             'border: 1px solid @finance_outline; border-radius: 4px; '
-            f'padding: 0 10px; min-height: 36px; max-height: 36px; font-size: 12px; font-family: "{DesignTokens.MONO_FONT_NAME}"; }} '
-            'QDateEdit::drop-down { width: 28px; background: transparent; border: none; } '
+            f'padding: {date_padding}; min-height: {date_height}px; max-height: {date_height}px; font-size: {date_font}px; font-family: "{DesignTokens.MONO_FONT_NAME}"; }} '
+            f'QDateEdit::drop-down {{ width: {drop_width}px; background: transparent; border: none; }} '
             'QDateEdit::down-arrow { image: none; width: 0; height: 0; border: none; }'
         ))
         self.setFont(QFont(DesignTokens.MONO_FONT_NAME))

@@ -1,11 +1,20 @@
 import { LngLatBounds, Marker, NavigationControl, Popup } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { TomTomConfig } from '@tomtom-org/maps-sdk/core';
-import { TomTomMap } from '@tomtom-org/maps-sdk/map';
+import {
+  applyMapPreset,
+  BaseMapModule,
+  POIsModule,
+  StylingFoundationsModule,
+  TomTomMap,
+} from '@tomtom-org/maps-sdk/map';
 import './style.css';
 
 let mapInstance = null;
+let sdkMapInstance = null;
 let apiKeyValue = '';
+let proxyMode = false;
+let vectorProxyUrl = '';
 let bridge = null;
 let trafficVisible = false;
 let routeSourceReady = false;
@@ -13,6 +22,48 @@ let routePoints = [];
 const personnelMarkers = new Map();
 let centerMarker = null;
 let selectedMarker = null;
+
+async function applyTacticalStyle() {
+  await applyMapPreset(sdkMapInstance, 'data-viz');
+  const baseMap = await BaseMapModule.get(sdkMapInstance);
+  baseMap.setVisible(false, {
+    layerGroups: {
+      show: 'only',
+      values: [
+        'allPlaceLabels',
+        'natureLabels',
+        'roadShields',
+        'houseNumbers',
+        'smallerTownLabels',
+        'stateLabels',
+        'cityLabels',
+        'capitalLabels',
+        'countryLabels',
+      ],
+    },
+  });
+  await POIsModule.get(sdkMapInstance, {
+    visible: false,
+    microMarkers: { visible: false },
+  });
+  await StylingFoundationsModule.get(sdkMapInstance, {
+    labels: { sizeFactor: 0.58 },
+    symbols: { sizeFactor: 0.68 },
+    colors: {
+      land: '#080d18',
+      water: '#091320',
+      vegetation: '#0c171b',
+      park: '#0d191e',
+      artificial: '#101827',
+      roadMajor: '#33435b',
+      road: '#202b3d',
+      roadOutline: '#172236',
+      label: '#536177',
+      labelHalo: '#0a111d',
+      accent: '#23c7ff',
+    },
+  });
+}
 
 function status(message, isError = false) {
   const element = document.getElementById('map-status');
@@ -34,7 +85,9 @@ function markerElement(kind, label) {
 
 function addTrafficLayer() {
   if (!mapInstance || !mapInstance.isStyleLoaded() || mapInstance.getSource('ayec-tomtom-traffic')) return;
-  const tile = `https://api.tomtom.com/maps/orbis/traffic/tile/flow/{z}/{x}/{y}.png?apiVersion=1&key=${encodeURIComponent(apiKeyValue)}`;
+  const tile = proxyMode
+    ? `${window.location.origin}/api/desktop/field-service/traffic/{z}/{x}/{y}`
+    : `https://api.tomtom.com/maps/orbis/traffic/tile/flow/{z}/{x}/{y}.png?apiVersion=1&key=${encodeURIComponent(apiKeyValue)}`;
   mapInstance.addSource('ayec-tomtom-traffic', {
     type: 'raster',
     tiles: [tile],
@@ -103,8 +156,9 @@ function connectBridge() {
 }
 
 window.initAyecTomTomMap = (key, latitude, longitude) => {
-  apiKeyValue = String(key || '').trim();
-  if (!apiKeyValue) {
+  proxyMode = String(key || '') === 'ayec-server-proxy';
+  apiKeyValue = proxyMode ? '' : String(key || '').trim();
+  if (!apiKeyValue && !proxyMode) {
     status('TomTom Maps API anahtari bulunamadi.', true);
     return false;
   }
@@ -112,34 +166,47 @@ window.initAyecTomTomMap = (key, latitude, longitude) => {
     const probeCanvas = document.createElement('canvas');
     const webgl2 = probeCanvas.getContext('webgl2', { failIfMajorPerformanceCaveat: false });
     if (!webgl2) {
-      const message = 'WebGL2 kullanilamiyor. Qt WebEngine GPU/WebGL destegini etkinlestirin.';
+      const message = 'WebGL2 is unavailable. Enable browser GPU support to use the vector map.';
       status(message, true);
       if (bridge && bridge.reportMapError) bridge.reportMapError(message);
       return false;
     }
     webgl2.getExtension('WEBGL_lose_context')?.loseContext();
-    TomTomConfig.instance.put({ apiKey: apiKeyValue, language: 'tr-TR' });
-    const sdkMap = new TomTomMap({
+    vectorProxyUrl = proxyMode
+      ? new URL('/api/desktop/field-service/vector-resource', window.location.origin).toString()
+      : 'https://api.tomtom.com';
+    TomTomConfig.instance.put(proxyMode
+      ? { apiKey: '', commonBaseURL: vectorProxyUrl, language: 'tr-TR' }
+      : { apiKey: apiKeyValue, language: 'tr-TR' });
+    sdkMapInstance = new TomTomMap({
+      style: 'streetDark',
       mapLibre: {
         container: 'map',
         center: [Number(longitude), Number(latitude)],
-        zoom: 14,
-        pitch: 52,
+        zoom: 18,
+        pitch: 0,
         maxZoom: 20,
         attributionControl: true,
       },
     });
-    mapInstance = sdkMap.mapLibreMap;
+    mapInstance = sdkMapInstance.mapLibreMap;
     mapInstance.addControl(new NavigationControl({ showCompass: true, visualizePitch: true }), 'bottom-right');
-    mapInstance.on('load', () => {
-      addRouteLayer();
-      if (routePoints.length) publishRoute(routePoints);
-      if (trafficVisible) addTrafficLayer();
-      centerMarker = new Marker({ element: markerElement('center', 'Varsayilan merkez') })
-        .setLngLat([Number(longitude), Number(latitude)]).addTo(mapInstance);
-      status('Harita hazir');
-      if (bridge && bridge.reportMapLoaded) bridge.reportMapLoaded();
-      window.dispatchEvent(new Event('ayec-map-ready'));
+    mapInstance.on('load', async () => {
+      try {
+        await applyTacticalStyle();
+        addRouteLayer();
+        if (routePoints.length) publishRoute(routePoints);
+        if (trafficVisible) addTrafficLayer();
+        centerMarker = new Marker({ element: markerElement('center', 'Varsayilan merkez') })
+          .setLngLat([Number(longitude), Number(latitude)]).addTo(mapInstance);
+        status('Harita hazir');
+        if (bridge && bridge.reportMapLoaded) bridge.reportMapLoaded();
+        window.dispatchEvent(new Event('ayec-map-ready'));
+      } catch (error) {
+        const message = error?.message || 'TomTom tactical style could not be applied.';
+        status(message, true);
+        if (bridge && bridge.reportMapError) bridge.reportMapError(message);
+      }
     });
     mapInstance.on('style.load', () => {
       routeSourceReady = false;

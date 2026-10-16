@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PyQt6.QtWidgets import QApplication, QTableWidgetItem, QLabel, QPushButton
+from PyQt6.QtWidgets import QApplication, QTableWidgetItem, QLabel, QPushButton, QToolButton
 from PyQt6.QtCore import QDate, QPoint, QRect, Qt
 from PyQt6.QtTest import QTest
 from PyQt6.QtGui import QFontMetrics
@@ -111,10 +111,10 @@ def test_report_reference_dates_filters_and_original_change_callbacks(monkeypatc
         page.apply_job_filter = lambda: calls.append('jobs')
         page.apply_service_filter = lambda: calls.append('services')
         page._refresh_profitability = lambda: calls.append('profitability')
-        page.report_date_from.setDate(QDate(2026, 9, 1))
+        page.report_date_from.setDate(QDate(2026, 9, 2))
         assert page.report_date_enabled.isChecked()
         assert calls == ['jobs', 'services', 'profitability']
-        assert page.report_date_from.date() == QDate(2026, 9, 1)
+        assert page.report_date_from.date() == QDate(2026, 9, 2)
     finally:
         page.close()
         ThemeManager.apply_theme(APP, old_theme, animate=False)
@@ -140,8 +140,23 @@ def test_job_report_counts_matching_credits_without_losing_job_details(monkeypat
     db = SimpleNamespace(cursor=connection.cursor(), get_setting=lambda key, default=None: default)
     page = JobServiceTrackingPage(db)
     assert page.job_table.rowCount() == 2
+    assert page.job_table.columnCount() == 10
     rows = {page.job_table.item(row, 0).text(): row for row in range(2)}
     paid = rows["JOB-1"]
+    assert page.job_table.item(paid, 8).text() == "Al\u0131nd\u0131"
+    assert page.job_table.item(rows["JOB-2"], 8).text() == "K\u0131smi \u00d6deme"
+    detail_calls = []
+    monkeypatch.setattr(page, "_open_job_detail", lambda row: detail_calls.append(row))
+    action_buttons = page.job_table.cellWidget(paid, 9).findChildren(QToolButton)
+    assert len(action_buttons) == 2
+    action_buttons[0].click()
+    assert detail_calls == [paid]
+    from PyQt6.QtWidgets import QFileDialog
+    job_pdf_path = tmp_path / "job.pdf"
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *args: (str(job_pdf_path), "PDF"))
+    action_buttons[1].click()
+    assert job_pdf_path.read_bytes().startswith(b"%PDF-")
+    assert job_pdf_path.stat().st_size > 1000
     for row in rows.values():
         for column in (0, 4, 5, 6):
             assert page.job_table.item(row, column).font().family() == DesignTokens.MONO_FONT_NAME
@@ -162,11 +177,10 @@ def test_job_report_counts_matching_credits_without_losing_job_details(monkeypat
     assert page.job_table.isRowHidden(paid)
     page.job_search_input.setText("no matching record")
     page.apply_job_filter()
-    assert page.job_result_label.text() == "Goruntulenen: 0 / 2 Is Kaydi"
+    assert page.job_result_label.text() == "G\u00f6r\u00fcnt\u00fclenen: 0 / 2 \u0130\u015f Kayd\u0131 \u2022 Sayfa: 1 / 1"
     page.job_search_input.clear()
     page.job_currency_filter.setCurrentIndex(0)
     assert not any(page.job_table.isRowHidden(row) for row in range(2))
-    from PyQt6.QtWidgets import QFileDialog
     pdf_path = tmp_path / "report.pdf"
     monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *args: (str(pdf_path), "PDF"))
     page.btn_pdf.click()
@@ -263,7 +277,7 @@ def test_report_pagination_and_technician_filter_preserve_row_identity(monkeypat
     assert page.job_page_label.text() == "2 / 2"
     assert sum(not page.job_table.isRowHidden(row) for row in range(20)) == 5
     page.job_select_all.click()
-    assert page.job_selection_label.text() == "Secilen: 5 satir"
+    assert page.job_selection_label.text() == "Se\u00e7ilen: 5 sat\u0131r"
     assert all(not page.job_table.isRowHidden(index.row()) for index in page.job_table.selectionModel().selectedRows())
     page.job_table.clearSelection()
     headings, values = page._report_export_data()
@@ -287,7 +301,7 @@ def test_report_pagination_and_technician_filter_preserve_row_identity(monkeypat
     assert len(page._report_export_data()[1]) == 10
     selected = page._job_matching_rows[0]
     page.job_table.selectRow(selected)
-    assert page.job_selection_label.text() == "Secilen: 1 satir"
+    assert page.job_selection_label.text() == "Se\u00e7ilen: 1 sat\u0131r"
     assert [page.job_table.horizontalHeader().logicalIndex(index) for index in range(8)] == [0, 1, 7, 3, 2, 4, 6, 5]
     page.close()
     connection.close()

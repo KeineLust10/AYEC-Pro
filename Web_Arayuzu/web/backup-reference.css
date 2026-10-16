@@ -1,0 +1,199 @@
+.backup-reference-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  margin: 18px 0;
+}
+
+.backup-reference-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.backup-reference-metrics article {
+  display: grid;
+  gap: 7px;
+  min-height: 104px;
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.backup-reference-metrics small {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .07em;
+}
+
+.backup-reference-metrics strong {
+  color: var(--ink);
+  font-size: 18px;
+}
+
+.backup-reference-metrics span,
+.backup-reference-archive td small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.backup-reference-archive {
+  padding: 16px;
+}
+
+.backup-reference-drive {
+  margin-top: 18px;
+  padding: 18px;
+}
+
+.backup-reference-drive > header,
+.backup-reference-drive-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.backup-reference-drive > p {
+  margin: 14px 0 0;
+}
+
+.backup-reference-drive-actions {
+  justify-content: flex-start;
+  margin-top: 16px;
+}
+
+.drive-client-file {
+  display: grid;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.drive-client-file input {
+  max-width: min(100%, 360px);
+  font-weight: 400;
+}
+
+#backupDriveStatus {
+  color: var(--accent, #6558e8);
+  font-size: 12px;
+}
+
+#backupDriveRedirectUri {
+  display: block;
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
+@media (max-width: 760px) {
+  .backup-reference-drive > header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .backup-reference-drive-actions > button,
+  .drive-client-file,
+  .drive-client-file input {
+    width: 100%;
+    max-width: 100%;
+  }
+}
+
+.backup-reference-archive > header,
+.backup-reference-lower article > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.backup-reference-archive h3,
+.backup-reference-lower h3 {
+  margin: 0 0 4px;
+}
+
+.backup-reference-table {
+  min-width: 850px;
+}
+
+.backup-reference-table th,
+.backup-reference-table td {
+  padding: 11px 12px;
+  vertical-align: middle;
+}
+
+.backup-reference-table td strong,
+.backup-reference-table td small {
+  display: block;
+}
+
+.backup-reference-table code {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.backup-reference-lower {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(260px, .8fr);
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.backup-reference-lower > .card {
+  padding: 16px;
+}
+
+.backup-reference-settings {
+  display: grid;
+  gap: 14px;
+}
+
+.backup-reference-json .actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+@media (max-width: 900px) {
+  .backup-reference-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .backup-reference-lower {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .backup-reference-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .backup-reference-metrics {
+    gap: 8px;
+  }
+
+  .backup-reference-metrics article {
+    min-height: 95px;
+    padding: 11px;
+  }
+
+  .backup-reference-metrics strong {
+    font-size: 15px;
+  }
+
+  .backup-reference-archive > header,
+  .backup-reference-lower article > header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

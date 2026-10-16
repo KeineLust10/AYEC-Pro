@@ -84,7 +84,15 @@ class ReferenceMetricValueLabel(ReferenceTotalLabel):
 
 def draw_financial_glyph(painter, kind):
     painter.setBrush(Qt.BrushStyle.NoBrush)
-    if kind in ("income", "expense", "collection"):
+    if kind == "cart":
+        painter.drawLine(2, 3, 5, 3)
+        painter.drawLine(5, 3, 7, 13)
+        painter.drawLine(7, 13, 15, 13)
+        painter.drawLine(15, 13, 17, 6)
+        painter.drawLine(5, 5, 17, 5)
+        painter.drawEllipse(7, 15, 2, 2)
+        painter.drawEllipse(14, 15, 2, 2)
+    elif kind in ("income", "expense", "collection"):
         if kind == "collection":
             painter.drawLine(3, 10, 7, 14)
             painter.drawLine(7, 14, 15, 5)

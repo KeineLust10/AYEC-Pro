@@ -1,16 +1,22 @@
+# -*- coding: utf-8 -*-
 """Capture the actual desktop shell and routed sales page without networking."""
 
 import os
 import argparse
 import socket
+import sys
 from datetime import datetime
 from unittest.mock import patch
+
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8")
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 os.environ['AYEC_VISUAL_ACCEPTANCE'] = '1'
 
 from tools.quality.desktop_visual_acceptance import ROOT, seed_visual_fixture
-from PyQt6.QtCore import QDate, QEvent, QSettings, QTemporaryDir, QTime, QTimer, Qt
+from PyQt6.QtCore import QDate, QEvent, QPoint, QSettings, QTemporaryDir, QTime, QTimer, Qt
 from PyQt6.QtGui import QColor, QPainter, QPixmap, QShowEvent
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication, QFrame, QHBoxLayout, QLabel, QLayout, QPushButton, QWidget
@@ -430,8 +436,8 @@ def seed_customer_management_reference(db):
     updates = (
         ("Ahmet Y\u0131lmaz", "0555 000 0001", "demo1@example.test", "Bireysel", "", "Kad\u0131k\u00f6y", "\u0130stanbul", "VIP", 1),
         ("Ay\u015fe Demir", "0555 000 0002", "demo2@example.test", "Bireysel", "", "\u00c7ankaya", "Ankara", "", 2),
-        ("Bar\u0131\u015f \u00c7evik", "0555 000 0025", "demo25@example.test", "Kurumsal", "\u00c7evik Bili\u015fim Ltd.", "Konak", "\u0130zmir", "", 25),
-        ("Berk Eren", "0555 000 0019", "demo19@example.test", "Bireysel", "", "Nil\u00fcfer", "Bursa", "", 19),
+        ("Bar\u0131\u015f \u00c7evik", "0555 000 0025", "demo25@example.test", "Bireysel", "", "Ata\u015fehir", "\u0130stanbul", "", 25),
+        ("Berk Eren", "0555 000 0019", "demo19@example.test", "Bireysel", "", "Sar\u0131yer", "\u0130stanbul", "", 19),
         ("Burak \u015eahin", "0555 000 0015", "demo15@example.test", "Bireysel", "", "Kad\u0131k\u00f6y", "\u0130stanbul", "", 15),
         ("Zeynep Acar", "0555 000 0006", "zeynep@example.test", "Bireysel", "", "\u0130zmir", "\u0130zmir", "", 6),
     )
@@ -439,31 +445,62 @@ def seed_customer_management_reference(db):
         "UPDATE customers SET name=?, phone=?, email=?, type=?, company_name=?, district=?, city=?, contract_type=? WHERE id=?",
         updates,
     )
+    reference_customers = (
+        (32, "Ceyda Kaya Teknoloji", "0555 000 00 32", "info@kayatech.test", "Kurumsal Bayi", "Ceyda Kaya Teknoloji", "Alt\u0131eyl\u00fcl", "Bal\u0131kesir", "", 0),
+        (44, "Mert \u00d6zt\u00fcrk", "0555 000 00 44", "mert@ozturk.test", "Bireysel", "", "\u00c7ankaya", "Ankara", "", 1),
+        (58, "TeknoEv Otomasyon A.\u015e.", "0232 400 00 12", "info@teknoev.com", "Kurumsal", "TeknoEv Otomasyon A.\u015e.", "Konak", "\u0130zmir", "VIP", 0),
+    )
+    db.cursor.executemany(
+        "INSERT OR IGNORE INTO customers (id, name, phone, email, type, company_name, district, city, contract_type, is_problematic) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        reference_customers,
+    )
     db.cursor.execute(
         "UPDATE customers SET type='Bireysel' WHERE COALESCE(is_partner, 0)=0"
     )
     db.cursor.execute(
-        "UPDATE customers SET type='Kurumsal' WHERE id IN (25, 3, 6, 7, 8, 9, 10)"
+        "UPDATE customers SET type='Kurumsal' WHERE id IN (3, 6, 7, 8, 9, 10)"
     )
+    db.cursor.execute("UPDATE customers SET type='Kurumsal Bayi' WHERE id=32")
+    db.cursor.execute("UPDATE customers SET type='Bireysel' WHERE id=44")
+    db.cursor.execute("UPDATE customers SET type='Kurumsal' WHERE id=58")
+    db.cursor.execute(
+        "UPDATE customers SET contract_type='VIP' WHERE id IN (1, 11, 12, 13, 14, 16, 17, 58)"
+    )
+    db.cursor.execute("UPDATE customers SET is_problematic=1 WHERE id=44")
     db.cursor.execute("DELETE FROM customer_currency_balances")
     db.cursor.executemany(
         "INSERT INTO customer_currency_balances (customer_id, currency, balance, last_updated) VALUES (?, ?, ?, ?)",
         [
             (1, "TRY", 8100.0, "2026-10-05"),
-            (2, "TRY", -8208.0, "2026-10-05"),
-            (2, "USD", -240.0, "2026-10-05"),
-            (19, "TRY", -1450.0, "2026-10-05"),
+            (20, "TRY", 0.001, "2026-10-05"),
+            (21, "TRY", 0.001, "2026-10-05"),
+            (58, "TRY", 14200.0, "2026-10-05"),
+            (1, "USD", 235.0, "2026-10-05"),
+            (44, "TRY", -1450.0, "2026-10-05"),
         ],
     )
     db.cursor.execute("DELETE FROM devices")
     db.cursor.executemany(
         "INSERT INTO devices (tracking_no, customer_name, device_brand, device_model, status, entry_date, customer_id, device_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         [
-            ("CRM-OPEN-0002", "Ay\u015fe Demir", "Lenovo", "ThinkPad E14", "Tamirde", "2026-10-01", 2, "Laptop"),
-            ("CRM-OPEN-0015", "Burak \u015eahin", "Apple", "MacBook Pro", "Par\u00e7a Bekliyor", "2026-10-02", 15, "Laptop"),
-            ("CRM-OPEN-0007", "Demo Musteri 06", "Samsung", "Galaxy A55", "Tamirde", "2026-10-03", 7, "Telefon"),
-            ("CRM-OPEN-0008", "Demo Musteri 07", "Dell", "Latitude 5540", "Tamirde", "2026-10-04", 8, "Laptop"),
+            ("CRM-OPEN-0001-T", "Ahmet Y\u0131lmaz", "Apple", "MacBook Pro", "Testte", "2026-10-01", 1, "Laptop"),
+            ("CRM-OPEN-0001-R", "Ahmet Y\u0131lmaz", "Apple", "MacBook Pro", "Tamirde", "2026-10-01", 1, "Laptop"),
+            ("CRM-HISTORY-0002-1", "Ay\u015fe Demir", "Lenovo", "ThinkPad E14", "Teslim Edildi", "2026-09-20", 2, "Laptop"),
+            ("CRM-HISTORY-0002-2", "Ay\u015fe Demir", "Lenovo", "ThinkPad E14", "Teslim Edildi", "2026-09-21", 2, "Laptop"),
+            ("CRM-HISTORY-0002-3", "Ay\u015fe Demir", "Lenovo", "ThinkPad E14", "Teslim Edildi", "2026-09-22", 2, "Laptop"),
+            ("CRM-HISTORY-0015", "Burak \u015eahin", "Apple", "MacBook Pro", "Teslim Edildi - Atolye Montaj", "2026-10-02", 15, "Laptop"),
+            ("CRM-HISTORY-0007", "Demo Musteri 06", "Samsung", "Galaxy A55", "Teslim Edildi - Atolye Montaj", "2026-10-03", 7, "Telefon"),
+            ("CRM-DONE-MONTAGE", "Reference Customer", "Dell", "Latitude 5540", "Teslim Edildi - Atolye Montaj", "2026-10-04", 8, "Laptop"),
+            ("CRM-OPEN-0058-1", "TeknoEv Otomasyon A.\u015e.", "Bosch", "Smart Hub", "Yillik Bakimda", "2026-10-05", 58, "Akilli Ev"),
+            ("CRM-OPEN-0058-2", "TeknoEv Otomasyon A.\u015e.", "Bosch", "Smart Hub", "Yillik Bakimda", "2026-10-05", 58, "Akilli Ev"),
+            ("CRM-READY-0032", "Ceyda Kaya Teknoloji", "Hikvision", "NVR System", "Teslimata Haz\u0131r", "2026-10-06", 32, "G\u00fcvenlik Sistemi"),
         ],
+    )
+    db.create_offer_tables()
+    db.cursor.execute("DELETE FROM offers WHERE customer_id=44 AND offer_no='CRM-REF-044'")
+    db.cursor.execute(
+        "INSERT INTO offers (offer_no, customer_id, customer_name, status) VALUES (?, ?, ?, ?)",
+        ("CRM-REF-044", 44, "Mert \u00d6zt\u00fcrk", "sent"),
     )
     db.conn.commit()
 
@@ -516,7 +553,7 @@ def seed_invoice_reference(page):
     page.calculate_totals()
 
 
-def run(*, page_id=150, width=1600, height=1280, sample_reference=False, dialog=None, settings_index=14, settings_tab=1):
+def run(*, page_id=150, width=1600, height=1280, sample_reference=False, dialog=None, settings_index=14, settings_tab=1, theme_name='Koyu Mavi'):
     app = QApplication.instance() or QApplication([])
     app.setQuitOnLastWindowClosed(False)
     from src.utils.reference_typography import apply_reference_font
@@ -547,9 +584,14 @@ def run(*, page_id=150, width=1600, height=1280, sample_reference=False, dialog=
         seed_check_notes_reference(db)
     if page_id == 130 and settings_index == 14:
         seed_quick_notes_reference(db)
+    if page_id == 130 and settings_index == 16:
+        from src.utils.secure_setting_store import SecureSettingStore
+        SecureSettingStore.set(db, 'telegram_bot_token', '123456789:REFERENCE')
+        db.set_setting('telegram_chat_ids', '["893412781", "561298834"]')
     if page_id == 105:
         seed_credit_reference(db)
-    db.set_setting('color_theme_full', 'Koyu Mavi')
+    theme_name = ThemeManager.normalize_theme_name(theme_name)
+    db.set_setting('color_theme_full', theme_name)
     db.set_setting('nav_mode', 'sol_menu')
     db.set_setting('desktop_auto_web_sync', '0')
     db.set_internal_setting('current_sector', 'teknik_servis')
@@ -595,7 +637,7 @@ def run(*, page_id=150, width=1600, height=1280, sample_reference=False, dialog=
                 if routed_page is None:
                     raise AssertionError('The actual page route did not load')
                 if page_id == 66:
-                    routed_page.tabs.setCurrentIndex(1)
+                    routed_page.tabs.setCurrentIndex(0)
                 if page_id == 130:
                     settings_row = routed_page.sidebar.items_map.index(settings_index)
                     routed_page.sidebar.list_widget.setCurrentRow(settings_row)
@@ -838,7 +880,10 @@ def run(*, page_id=150, width=1600, height=1280, sample_reference=False, dialog=
                 window.show()
                 QTest.qWait(750 if page_id == 130 else 300)
                 app.processEvents()
-                if page_id == 42:
+                if page_id == 130 and settings_index == 20:
+                    routed_page.change_page(settings_index)
+                    app.processEvents()
+                if page_id in (42, 130):
                     window.layout().setSizeConstraint(QLayout.SizeConstraint.SetNoConstraint)
                     window.centralWidget().layout().setSizeConstraint(QLayout.SizeConstraint.SetNoConstraint)
                     window.shell_layout.setSizeConstraint(QLayout.SizeConstraint.SetNoConstraint)
@@ -953,30 +998,37 @@ def run(*, page_id=150, width=1600, height=1280, sample_reference=False, dialog=
                     transaction._refresh_customer_preview = lambda: None
                     transaction.customer_title.setText('Aslan Holding A.\u015e.')
                     transaction.customer_title.show()
+                    customer_preview_lines = (
+                        'Yetkili: Mehmet Aslan',
+                        'Cari bakiye (USD): 0.00 $',
+                        'Tel: +90 532 555 12 34',
+                        'Kredi Limiti: $15,000',
+                    )
                     transaction.customer_preview.setText(
-                        'Yetkili: Mehmet Aslan\n'
-                        'Cari bakiye (USD): 0.00 $\n'
-                        'Tel: +90 532 555 12 34\n'
-                        'Kredi Limiti: $15,000\n'
-                        'Vergi No / Daire: 1234567890 / Kad\u0131k\u00f6y'
+                        ' | '.join(customer_preview_lines)
+                        if transaction.height() < 980
+                        else '\n'.join(customer_preview_lines)
                     )
                     transaction.customer_preview.show()
-                    transaction.customer_preview.setMinimumHeight(96)
-                    transaction.customer_preview.setMaximumHeight(96)
                     transaction.customer_avatar.setText('A')
-                    transaction.customer_avatar.setFixedSize(60, 60)
-                    transaction.reference_cart_rate.setText('')
+                    avatar_size = 40 if transaction.height() < 980 else 58
+                    transaction.customer_avatar.setFixedSize(avatar_size, avatar_size)
+                    transaction.reference_cart_rate.setText('1 USD = 49.0184 \u20ba')
                     transaction.lbl_subtotal.setStyleSheet(
                         'QLabel#TransactionCartSubtotal { color: #94a3b8; font-size: 12px; }'
                     )
                     transaction.lbl_subtotal.setText(
                         'Ara Toplam (4 Kalem):  $ 490.00  (24,019.02 TRY)'
                     )
-                    transaction.findChild(QFrame, 'TransactionGrandTotal').setFixedHeight(88)
+                    transaction.findChild(QFrame, 'TransactionGrandTotal').setFixedHeight(
+                        54 if transaction.height() < 980 else 86
+                    )
                     transaction.reference_cart_rate.setStyleSheet(
                         'QLabel#TransactionCartExchangeRate { color: #94a3b8; font-size: 10px; }'
                     )
-                    transaction.btn_offer.setFixedHeight(50)
+                    transaction.btn_offer.setFixedHeight(
+                        34 if transaction.height() < 980 else 50
+                    )
                     transaction.lbl_total.primary_token = 'finance_primary'
                     transaction.lbl_total.setText('558.60 $\n27,381.68 ₺')
                     page.tabs.setTabBarAutoHide(True)
@@ -988,7 +1040,7 @@ def run(*, page_id=150, width=1600, height=1280, sample_reference=False, dialog=
                         raise AssertionError(f'Reference catalog card count was {card_count}, expected 6')
                     if transaction.catalog_cards_scroll.isHidden():
                         raise AssertionError('Reference catalog grid is hidden')
-                QTest.qWait(300)
+                QTest.qWait(8000 if page_id == 61 else 300)
                 if page_id in {101, 105, 106, 115}:
                     window.app_header.raise_()
                     app.processEvents()
@@ -1002,27 +1054,48 @@ def run(*, page_id=150, width=1600, height=1280, sample_reference=False, dialog=
                         raise ValueError('The requested dialog capture uses page {}'.format(required_page))
                     if dialog == 'bulk_stock_select':
                         from src.ui.dialogs.bulk_stock_select_dialog import BulkStockSelectDialog
-                        db.cursor.execute(
-                            "SELECT id,name,category,stock,price,currency,code,description FROM parts ORDER BY name"
-                        )
                         parts_data = {}
-                        for row in db.cursor.fetchall():
-                            info = dict(row)
-                            info.update({'type': 'part', 'original_price': info.get('price') or 0})
-                            parts_data[info.get('name') or str(info.get('id'))] = info
-                        for index, price in enumerate((287.0, 324.0, 361.0), start=1):
+                        sample_rows = (
+                            (1, 287.0, 'AES-104-CTRL', 51),
+                            (2, 324.0, 'AES-105-RLY', 52),
+                            (3, 361.0, 'AES-108-RAD', 53),
+                            (4, 398.0, 'AES-112-DOR', 54),
+                            (5, 435.0, 'AES-115-WTR', 55),
+                            (6, 472.0, 'AES-120-GAS', 54),
+                        )
+                        for index, price, code, stock in sample_rows:
                             name = 'Ak\u0131ll\u0131 Ev Sistemleri \u00dcr\u00fcn {:02d}'.format(index)
                             parts_data[name] = {
                                 'id': 'reference-smart-home-{:02d}'.format(index),
                                 'name': name,
                                 'category': 'Ak\u0131ll\u0131 Ev Sistemleri',
-                                'stock': 50 + index,
+                                'stock': stock,
                                 'price': price,
                                 'original_price': price,
                                 'currency': 'TRY',
-                                'code': 'AES-{:02d}-CTRL'.format(index),
+                                'code': code,
                                 'barcode': '8690123847{:02d}'.format(index),
                             }
+                        for category, total, prefix, price_start in (
+                            ('Ak\u0131ll\u0131 Ev Sistemleri', 40, 'AES-REF', 600),
+                            ('Bilgisayar Bile\u015fenleri', 48, 'PC-REF', 1200),
+                            ('G\u00fcvenlik Sistemleri', 36, 'SEC-REF', 2200),
+                        ):
+                            first_index = 7 if prefix == 'AES-REF' else 1
+                            for index in range(first_index, total + 1):
+                                name = '{} Reference {:02d}'.format(prefix, index)
+                                price = float(price_start + index)
+                                parts_data[name] = {
+                                    'id': '{}-{:03d}'.format(prefix, index),
+                                    'name': name,
+                                    'category': category,
+                                    'stock': 10 + index,
+                                    'price': price,
+                                    'original_price': price,
+                                    'currency': 'TRY',
+                                    'code': '{}-{:03d}'.format(prefix, index),
+                                    'barcode': '8690999{:05d}'.format(index),
+                                }
                         reference_dialog = BulkStockSelectDialog(
                             routed_page, db,
                             getattr(routed_page, 'services_data', {}),
@@ -1034,7 +1107,7 @@ def run(*, page_id=150, width=1600, height=1280, sample_reference=False, dialog=
                         for row_index in range(reference_dialog.tree.topLevelItemCount()):
                             row = reference_dialog.tree.topLevelItem(row_index)
                             if not row.isHidden() and visible_index < 3:
-                                row.setCheckState(0, Qt.CheckState.Checked)
+                                reference_dialog._set_row_selected(row, True)
                                 visible_index += 1
                         previous_block = reference_dialog.select_visible.blockSignals(True)
                         reference_dialog.select_visible.setCheckState(Qt.CheckState.Unchecked)
@@ -1197,7 +1270,8 @@ def run(*, page_id=150, width=1600, height=1280, sample_reference=False, dialog=
                     if not canvas.save(str(path)):
                         raise AssertionError('The dialog screenshot could not be saved')
                     return path
-                path = output / f'koyu_mavi_route_{page_id}_{window.width()}x{window.height()}.png'
+                theme_slug = theme_name.lower().replace(' ', '_')
+                path = output / f'{theme_slug}_route_{page_id}_{window.width()}x{window.height()}.png'
                 if page_id == 42 and os.environ.get('AYEC_CAPTURE_GEOMETRY'):
                     table = routed_page.table
                     print('ROUTE42_GEOMETRY', window.width(), table.width(),
@@ -1228,8 +1302,64 @@ def run(*, page_id=150, width=1600, height=1280, sample_reference=False, dialog=
                           routed_page.search.width(), routed_page.device_filter.width(),
                           routed_page.status_filter.width(), routed_page.status_filter.minimumWidth(),
                           routed_page.status_filter.maximumWidth(), routed_page.refresh_button.width())
+                if page_id == 21:
+                    from src.ui.pages._cpp_worker import CustomerWorker
+
+                    captured_rows = {}
+                    sample_worker = CustomerWorker(db, 100, 0, '', None)
+                    sample_worker.data_loaded.connect(
+                        lambda rows, total: captured_rows.update(rows=rows, total=total)
+                    )
+                    sample_worker.run()
+                    rows_by_id = {int(row['id']): row for row in captured_rows.get('rows', [])}
+                    reference_order = (1, 2, 58, 25, 44, 19, 32)
+                    if 44 in rows_by_id and int(rows_by_id[44].get('pending_offer_count', 0) or 0) != 1:
+                        raise AssertionError('Customer reference fixture is missing Mert\'s pending offer.')
+                    if all(customer_id in rows_by_id for customer_id in reference_order):
+                        reference_rows = []
+                        for customer_id in reference_order:
+                            row_data = dict(rows_by_id[customer_id])
+                            if customer_id == 44:
+                                row_data['overdue_days'] = 12
+                            reference_rows.append(row_data)
+                        routed_page.on_data_loaded(
+                            reference_rows,
+                            captured_rows.get('total', 28),
+                        )
+                        target_positions = {
+                            customer_id: position
+                            for position, customer_id in enumerate(reference_order)
+                        }
+                        for row_index in range(routed_page.table.rowCount()):
+                            customer_item = routed_page.table.item(row_index, 1)
+                            customer_data = customer_item.data(Qt.ItemDataRole.UserRole)
+                            name_item = routed_page.table.item(row_index, 2)
+                            if customer_data and name_item is not None:
+                                name_item.setData(
+                                    Qt.ItemDataRole.UserRole + 1,
+                                    target_positions.get(int(customer_data['id']), row_index),
+                                )
+                        routed_page.table.setSortingEnabled(True)
+                        routed_page.table.sortItems(2, Qt.SortOrder.AscendingOrder)
+                        routed_page.table.setSortingEnabled(False)
+                        if os.environ.get('AYEC_CAPTURE_CUSTOMER_HOVER') == '1' and routed_page.table.rowCount():
+                            hover_row = int(os.environ.get('AYEC_CAPTURE_CUSTOMER_HOVER_ROW', '0'))
+                            if hover_row < 0 or hover_row >= routed_page.table.rowCount():
+                                raise AssertionError('Requested customer hover row is outside the rendered table.')
+                            hover_item = routed_page.table.item(hover_row, 2)
+                            hover_point = routed_page.table.visualItemRect(hover_item).center()
+                            QTest.mouseMove(routed_page.table.viewport(), QPoint(hover_point.x(), hover_point.y()))
+                            routed_page._on_table_cell_entered(hover_row, 2)
+                            app.processEvents()
                 if not window.grab().save(str(path)):
                     raise AssertionError('Native shell screenshot could not be saved')
+                if page_id == 21 and os.environ.get('AYEC_VERIFY_CUSTOMER_HEADER_RESTORE') == '1':
+                    window.on_menu_click(40)
+                    app.processEvents()
+                    if getattr(window.app_header, '_customer_reference_mode', False):
+                        raise AssertionError('Customer reference header remained active after navigation.')
+                    if not window.app_header.isVisible():
+                        raise AssertionError('Shared application header did not restore after navigation.')
                 return path
     finally:
         SalesHubPage._is_automotive = original_sector_check
@@ -1249,6 +1379,7 @@ if __name__ == '__main__':
     parser.add_argument('--page', type=int, default=150)
     parser.add_argument('--width', type=int, default=1600)
     parser.add_argument('--height', type=int, default=1280)
+    parser.add_argument('--theme', choices=tuple(ThemeManager.THEME_FILES), default='Koyu Mavi')
     parser.add_argument('--sample-reference', action='store_true')
     parser.add_argument('--dialog', choices=('new_customer', 'customer_notes', 'customer_360', 'new_service', 'transaction_details', 'payment_collection', 'technician_panel', 'bulk_stock_select'))
     parser.add_argument('--settings-index', type=int, default=14)
@@ -1256,6 +1387,7 @@ if __name__ == '__main__':
     options = parser.parse_args()
     run(
         page_id=options.page, width=options.width, height=options.height,
+        theme_name=options.theme,
         sample_reference=options.sample_reference, dialog=options.dialog,
         settings_index=options.settings_index, settings_tab=options.settings_tab,
     )

@@ -12,6 +12,8 @@ import threading
 logger = logging.getLogger("AYEC_TTS")
 _worker = None
 _worker_lock = threading.Lock()
+_preload_thread = None
+_preload_thread_lock = threading.Lock()
 
 
 def _project_root():
@@ -110,13 +112,19 @@ def _preload_worker(runtime):
 
 def preload_async():
     """Warm the local model in the background without blocking the UI."""
+    global _preload_thread
     runtime = _runtime_python()
     if runtime is None:
         logger.warning("Local Turkish TTS runtime is not installed; model preload skipped")
         return None
-    thread = threading.Thread(target=_preload_worker, args=(runtime,), daemon=True)
-    thread.start()
-    return thread
+    with _preload_thread_lock:
+        if _preload_thread is not None and _preload_thread.is_alive():
+            return _preload_thread
+        _preload_thread = threading.Thread(
+            target=_preload_worker, args=(runtime,), daemon=True
+        )
+        _preload_thread.start()
+        return _preload_thread
 
 
 def _request_worker(text, output_path, runtime):

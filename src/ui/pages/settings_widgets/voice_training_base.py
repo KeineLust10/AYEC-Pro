@@ -8,8 +8,6 @@ from PyQt6.QtCore import Qt, QTime
 from PyQt6.QtGui import QFont
 import json
 import os
-import subprocess
-import sys
 from src.utils.theme_colors import theme_qss, tc
 from src.utils.path_helper import PathHelper
 from src.utils.toast_notification import show_success, show_error, show_warning
@@ -1087,57 +1085,75 @@ class VoiceTrainingWidget(QWidget):
             show_warning(self.main_window or self, "Komut tetiklenmedi. Uyanma adı ve tetikleyicileri kontrol edin.")
 
     def run_healthcheck(self):
+        worker = getattr(self, "_healthcheck_worker", None)
+        if worker is not None and worker.isRunning():
+            return
+
         try:
             project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
             script_path = os.path.join(project_root, "scripts", "voice_scenario_healthcheck.py")
-            result = subprocess.run(
-                [sys.executable, script_path],
-                cwd=project_root,
-                capture_output=True,
-                text=True,
-                timeout=25,
-            )
-            stdout = (result.stdout or "").strip()
-            stderr = (result.stderr or "").strip()
-            if result.returncode != 0:
-                self.lbl_test_result.setText(f"Sağlık testi başarısız.\nÇıkış kodu: {result.returncode}\nHata: {stderr or stdout or '-'}")
-                show_error(self.main_window or self, "Sağlık testi çalıştırılamadı.")
-                return
+            from .voice_healthcheck_worker import VoiceHealthcheckWorker
 
-            json_start = stdout.find("{")
-            if json_start < 0:
-                self.lbl_test_result.setText(f"Sağlık testi çıktısı okunamadı.\nÇıktı: {stdout or '-'}")
-                show_warning(self.main_window or self, "Sağlık testi çıktısı çözümlenemedi.")
-                return
-
-            data = json.loads(stdout[json_start:])
-            self.last_healthcheck_result = data
-            total = len(data.get("scenario_results", []))
-            passed = sum(1 for item in data.get("scenario_results", []) if item.get("ok"))
-            db_total = len(data.get("db_dependency_results", []))
-            db_passed = sum(1 for item in data.get("db_dependency_results", []) if item.get("ok"))
-            wake_word = data.get("wake_word", "-")
-            overall_ok = bool(data.get("overall_ok"))
-            status = "Başarılı" if overall_ok else "Sorun Var"
-            self.lbl_test_result.setText(
-                f"Sağlık testi: {status}\n"
-                f"Uyanma adı: {wake_word}\n"
-                f"Senaryo testi: {passed}/{total}\n"
-                f"Bağımlılık testi: {db_passed}/{db_total}"
-            )
-            self.btn_healthcheck_details.setVisible(True)
-            if overall_ok:
-                show_success(self.main_window or self, f"Sesli asistan sağlık testi başarılı: {passed}/{total}")
-            else:
-                failed = [item.get("phrase", item.get("name", "?")) for item in data.get("scenario_results", []) if not item.get("ok")]
-                failed += [item.get("name", "?") for item in data.get("db_dependency_results", []) if not item.get("ok")]
-                show_warning(self.main_window or self, f"Sağlık testinde sorun bulundu: {', '.join(failed[:4])}")
+            worker = VoiceHealthcheckWorker(script_path, project_root, self)
+            self._healthcheck_button_original_text = self.btn_healthcheck.text()
+            self.btn_healthcheck.setText("Test s\u00fcr\u00fcyor...")
+            self.btn_healthcheck.setEnabled(False)
+            self.lbl_test_result.setText("Sesli asistan sa\u011fl\u0131k testi \u00e7al\u0131\u015f\u0131yor...")
+            worker.completed.connect(self._on_healthcheck_completed)
+            worker.failed.connect(self._on_healthcheck_failed)
+            worker.finished.connect(self._on_healthcheck_finished)
+            self._healthcheck_worker = worker
+            worker.start()
         except Exception as e:
-            logger.error(f"Voice healthcheck run error: {e}")
+            logger.error("Voice healthcheck start error: %s", e)
             self.last_healthcheck_result = None
+            self.btn_healthcheck.setEnabled(True)
+            original_text = getattr(self, "_healthcheck_button_original_text", None)
+            if original_text is not None:
+                self.btn_healthcheck.setText(original_text)
             self.lbl_test_result.setText(f"Sağlık testi sırasında hata oluştu:\n{e}")
             self.btn_healthcheck_details.setVisible(False)
             show_error(self.main_window or self, f"Sağlık testi hatası: {e}")
+
+    def _on_healthcheck_completed(self, data):
+        self.last_healthcheck_result = data
+        total = len(data.get("scenario_results", []))
+        passed = sum(1 for item in data.get("scenario_results", []) if item.get("ok"))
+        db_total = len(data.get("db_dependency_results", []))
+        db_passed = sum(1 for item in data.get("db_dependency_results", []) if item.get("ok"))
+        wake_word = data.get("wake_word", "-")
+        overall_ok = bool(data.get("overall_ok"))
+        status = "Ba\u015far\u0131l\u0131" if overall_ok else "Sorun Var"
+        self.lbl_test_result.setText(
+            f"Sa\u011fl\u0131k testi: {status}\n"
+            f"Uyanma ad\u0131: {wake_word}\n"
+            f"Senaryo testi: {passed}/{total}\n"
+            f"Ba\u011f\u0131ml\u0131l\u0131k testi: {db_passed}/{db_total}"
+        )
+        self.btn_healthcheck_details.setVisible(True)
+        if overall_ok:
+            show_success(self.main_window or self, f"Sesli asistan sa\u011fl\u0131k testi ba\u015far\u0131l\u0131: {passed}/{total}")
+        else:
+            failed = [item.get("phrase", item.get("name", "?")) for item in data.get("scenario_results", []) if not item.get("ok")]
+            failed += [item.get("name", "?") for item in data.get("db_dependency_results", []) if not item.get("ok")]
+            show_warning(self.main_window or self, f"Sa\u011fl\u0131k testinde sorun bulundu: {', '.join(failed[:4])}")
+
+    def _on_healthcheck_failed(self, message):
+        logger.error("Voice healthcheck error: %s", message)
+        self.last_healthcheck_result = None
+        self.lbl_test_result.setText(f"Sa\u011fl\u0131k testi s\u0131ras\u0131nda hata olu\u015ftu:\n{message}")
+        self.btn_healthcheck_details.setVisible(False)
+        show_error(self.main_window or self, f"Sa\u011fl\u0131k testi hatas\u0131: {message}")
+
+    def _on_healthcheck_finished(self):
+        self.btn_healthcheck.setEnabled(True)
+        original_text = getattr(self, "_healthcheck_button_original_text", None)
+        if original_text is not None:
+            self.btn_healthcheck.setText(original_text)
+        worker = getattr(self, "_healthcheck_worker", None)
+        self._healthcheck_worker = None
+        if worker is not None:
+            worker.deleteLater()
 
     def open_healthcheck_details(self):
         if not self.last_healthcheck_result:

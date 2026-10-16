@@ -4,7 +4,7 @@
 
 import os
 
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import QSignalBlocker, Qt, QTimer
 from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import (
     QButtonGroup,
@@ -21,6 +21,8 @@ from PyQt6.QtWidgets import (
     QRadioButton,
     QScrollArea,
     QSlider,
+    QSizePolicy,
+    QTabBar,
     QTabWidget,
     QTextEdit,
     QVBoxLayout,
@@ -129,6 +131,41 @@ class BackgroundSettingsWidget(QWidget):
         app = QApplication.instance()
         return bool(app and app.property("appearanceMode") == AppearanceModeManager.CLASSIC)
 
+    def _reference_section(self, title, marker_color, note, content):
+        section = QFrame()
+        section.setObjectName("ThemeReferenceSection")
+        section.setMinimumWidth(0)
+        section.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        content.setMinimumWidth(0)
+        content.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        section.setStyleSheet(theme_qss(
+            "QFrame#ThemeReferenceSection { background: @surface; border: 1px solid @border; "
+            "border-radius: 12px; }"
+        ))
+        section_layout = QVBoxLayout(section)
+        section_layout.setContentsMargins(14, 11, 14, 12)
+        section_layout.setSpacing(8)
+
+        header = QHBoxLayout()
+        marker = QLabel("\u25cf")
+        marker.setStyleSheet(f"color: {marker_color}; border: none; font-size: 13px;")
+        header.addWidget(marker)
+        heading = QLabel(title)
+        heading.setStyleSheet(theme_qss("color: @text; border: none; font-size: 13px; font-weight: 700;"))
+        header.addWidget(heading)
+        header.addStretch(1)
+        note_label = QLabel(note)
+        note_label.setStyleSheet(theme_qss("color: @text_muted; border: none; font-size: 11px;"))
+        header.addWidget(note_label)
+        section_layout.addLayout(header)
+
+        divider = QFrame()
+        divider.setFrameShape(QFrame.Shape.HLine)
+        divider.setStyleSheet(theme_qss("color: @border; background: @border; max-height: 1px;"))
+        section_layout.addWidget(divider)
+        section_layout.addWidget(content)
+        return section
+
     def _tabs_qss(self):
         if self._is_classic_appearance():
             return AppearanceModeManager.classic_tab_qss()
@@ -136,7 +173,7 @@ class BackgroundSettingsWidget(QWidget):
 
     def init_ui(self):
         layout = QVBoxLayout(self)
-        margin = 10 if self._is_classic_appearance() else 24
+        margin = 10 if self._is_classic_appearance() else 12
         layout.setContentsMargins(margin, margin, margin, margin)
         layout.setSpacing(12 if self._is_classic_appearance() else 16)
 
@@ -154,32 +191,70 @@ class BackgroundSettingsWidget(QWidget):
         self.container = container
         container.setStyleSheet("QWidget { background: #FFFFFF; color: #111827; }" if self._is_classic_appearance() else theme_qss("QWidget { background: @surface; }"))
         cl = QVBoxLayout(container)
-        cl.setSpacing(16)
+        cl.setSpacing(2)
 
         title = QLabel("Temalar & Yazı Tipi")
         title.setFont(QFont(DesignTokens.FONT_NAME, 20, QFont.Weight.Bold))
-        title.setStyleSheet("color: #111827; margin-bottom: 4px; background: transparent; border: none;" if self._is_classic_appearance() else theme_qss("color: @text; margin-bottom: 10px;"))
+        title.setStyleSheet("color: #111827; background: transparent; border: none;" if self._is_classic_appearance() else theme_qss("color: @text; border: none;"))
         self.title_label = title
-        cl.addWidget(title)
+        title_column = QVBoxLayout()
+        title_column.setContentsMargins(0, 0, 0, 0)
+        title_column.setSpacing(2)
+        title_line = QHBoxLayout()
+        title_line.setSpacing(10)
+        title_line.addWidget(title)
+        config_badge = QLabel("Aray\u00fcz Konfig\u00fcrasyonu")
+        config_badge.setStyleSheet(theme_qss(
+            "color: @accent; background: @surface_alt; border: 1px solid @border; "
+            "border-radius: 5px; padding: 3px 8px; font-size: 10px; font-weight: 600;"
+        ))
+        title_line.addWidget(config_badge)
+        title_line.addStretch(1)
+        title_column.addLayout(title_line)
+        description = QLabel(
+            "Aray\u00fcz temas\u0131, tipografi boyutlar\u0131, renk vurgular\u0131 ve pencere yerle\u015fim davran\u0131\u015flar\u0131n\u0131 yap\u0131land\u0131r\u0131n."
+        )
+        description.setStyleSheet(theme_qss("color: @text_muted; font-size: 11px; border: none;"))
+        title_column.addWidget(description)
+
+        header_tabs = QTabBar()
+        header_tabs.setExpanding(False)
+        header_tabs.setDrawBase(False)
+        header_tabs.setStyleSheet(theme_qss(
+            "QTabBar { background: @surface_alt; border: 1px solid @border; border-radius: 8px; "
+            "padding: 3px; } QTabBar::tab { color: @text_muted; padding: 7px 14px; "
+            "border-radius: 6px; font-size: 11px; } QTabBar::tab:selected { color: @selection_text; "
+            "background: @selection_bg; font-weight: 700; }"
+        ))
+        page_header = QWidget(container)
+        page_header.setStyleSheet(theme_qss("background: @surface; border: none;"))
+        page_header_layout = QHBoxLayout(page_header)
+        page_header_layout.setContentsMargins(8, 6, 8, 4)
+        page_header_layout.addLayout(title_column, 1)
+        page_header_layout.addWidget(header_tabs, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        cl.addWidget(page_header)
         
         tabs = QTabWidget()
         tabs.setObjectName("SettingsInnerTabs")
         tabs.setProperty("settingsTabs", True)
         if self._is_classic_appearance():
             tabs.setProperty("skipThemeTransform", False)
-        tabs.setStyleSheet(self._tabs_qss())
+        tabs.setStyleSheet(theme_qss("QTabWidget::pane { border: none; background: transparent; }"))
+        tabs.tabBar().hide()
         self.tabs = tabs
         general_tab = QWidget()
         general_layout = QVBoxLayout(general_tab)
-        general_layout.setSpacing(16)
+        general_layout.setSpacing(10)
+        general_layout.setContentsMargins(10, 10, 10, 4)
         right_click_tab = QWidget()
         right_click_layout = QVBoxLayout(right_click_tab)
         right_click_layout.setSpacing(16)
+        right_click_layout.setContentsMargins(0, 0, 0, 0)
 
         theme_group = QGroupBox("Tema Seçimi")
         theme_group.setStyleSheet(self._card_qss())
-        theme_layout = QHBoxLayout(theme_group)
-        theme_layout.setSpacing(12)
+        theme_layout = QVBoxLayout(theme_group)
+        theme_layout.setSpacing(8)
 
         lbl_theme = QLabel("Uygulama Teması:")
         lbl_theme.setStyleSheet(theme_qss("font-weight: 700; color: @text; border: none;"))
@@ -204,14 +279,23 @@ class BackgroundSettingsWidget(QWidget):
         )
         theme_layout.addWidget(lbl_theme)
         theme_layout.addWidget(self.cmb_theme)
+        theme_hint = QLabel("Arka plan ve kart renk profillerini belirler.")
+        theme_hint.setStyleSheet(theme_qss("color: @text_muted; font-size: 11px; border: none;"))
+        theme_layout.addWidget(theme_hint)
         theme_layout.addStretch()
         general_layout.addWidget(theme_group)
 
         scale_group = QGroupBox("Yaz\u0131 ve \u0130kon Boyutu")
         scale_group.setStyleSheet(self._card_qss())
         scale_layout = QVBoxLayout(scale_group)
-        scale_layout.setSpacing(10)
-        scale_layout.addStretch(1)
+        scale_layout.setSpacing(6)
+
+        scale_heading_row = QHBoxLayout()
+        scale_heading = QLabel("Yaz\u0131 ve \u0130kon Boyutu")
+        scale_heading.setStyleSheet(theme_qss("color: @text; font-size: 12px; font-weight: 600; border: none;"))
+        scale_heading_row.addWidget(scale_heading)
+        scale_heading_row.addStretch(1)
+        scale_layout.addLayout(scale_heading_row)
 
         scale_desc = QLabel(
             "Program genelindeki yaz\u0131lar\u0131 ve ikonlar\u0131 kademeli olarak b\u00fcy\u00fct\u00fcn veya k\u00fc\u00e7\u00fclt\u00fcn."
@@ -231,10 +315,11 @@ class BackgroundSettingsWidget(QWidget):
         self.lbl_interface_scale.setMinimumWidth(58)
         self.lbl_interface_scale.setStyleSheet(
             theme_qss(
-                "background: @selection_bg; color: @selection_text; border-radius: 10px; "
-                "padding: 6px 10px; font-weight: 800;"
+                "background: rgba(59, 130, 246, 0.12); color: @accent; border: 1px solid @border; "
+                "border-radius: 5px; padding: 4px 8px; font-weight: 800;"
             )
         )
+        scale_heading_row.addWidget(self.lbl_interface_scale)
 
         self.interface_scale_steps = ThemeManager.INTERFACE_SCALE_STEPS
         self.sld_interface_scale = QSlider(Qt.Orientation.Horizontal)
@@ -272,14 +357,27 @@ class BackgroundSettingsWidget(QWidget):
         scale_row.addWidget(small_label)
         scale_row.addWidget(self.sld_interface_scale, 1)
         scale_row.addWidget(large_label)
-        scale_row.addWidget(self.lbl_interface_scale)
         scale_layout.addLayout(scale_row)
+        scale_legend = QHBoxLayout()
+        scale_legend.addWidget(QLabel("%80"))
+        scale_legend.addStretch(1)
+        scale_legend.addWidget(QLabel("%100 (Varsay\u0131lan)"), 0, Qt.AlignmentFlag.AlignCenter)
+        scale_legend.addStretch(1)
+        scale_legend.addWidget(QLabel("%130"))
+        for index in (0, 2, 4):
+            scale_legend.itemAt(index).widget().setStyleSheet(
+                theme_qss("color: @text_muted; font-size: 10px; border: none;")
+            )
+        scale_layout.addLayout(scale_legend)
         general_layout.addWidget(scale_group)
 
         menu_label_group = QGroupBox("Sol Men\u00fc G\u00f6r\u00fcn\u00fcm\u00fc")
         menu_label_group.setStyleSheet(self._card_qss())
         menu_label_layout = QVBoxLayout(menu_label_group)
-        menu_label_layout.setSpacing(16)
+        menu_label_layout.setSpacing(8)
+        menu_label_heading = QLabel("Sol Men\u00fc G\u00f6r\u00fcn\u00fcm\u00fc")
+        menu_label_heading.setStyleSheet(theme_qss("color: @text; font-size: 12px; font-weight: 600; border: none;"))
+        menu_label_layout.addWidget(menu_label_heading)
         menu_label_text = QLabel(
             "Men\u00fcde yaln\u0131zca simgeleri veya simge ile men\u00fc ad\u0131n\u0131 birlikte g\u00f6sterin."
         )
@@ -323,19 +421,22 @@ class BackgroundSettingsWidget(QWidget):
         appearance_group = QGroupBox("Arayüz Görünümü")
         appearance_group.setStyleSheet(self._card_qss())
         appearance_lay = QVBoxLayout(appearance_group)
-        appearance_lay.setSpacing(12)
+        appearance_lay.setSpacing(8)
 
         appearance_desc = QLabel(
             "Programın görsel yoğunluğunu seçin. Klasik görünüm daha düz, az efektli ve hızlı çalışmaya odaklıdır."
         )
         appearance_desc.setWordWrap(True)
         appearance_desc.setStyleSheet(theme_qss("font-weight: 700; color: @text; font-size: 13px;"))
-        appearance_lay.addWidget(appearance_desc)
+        density_label = QLabel("G\u00f6rsel Yo\u011funluk Modu:")
+        density_label.setStyleSheet(theme_qss("font-size: 12px; font-weight: 600; color: @text_muted;"))
+        appearance_lay.addWidget(density_label)
+        appearance_desc.hide()
 
         self._appearance_btn_group = QButtonGroup(self)
         self._appearance_radio_btns = {}
-        appearance_cards_lay = QHBoxLayout()
-        appearance_cards_lay.setSpacing(14)
+        appearance_cards_lay = QVBoxLayout()
+        appearance_cards_lay.setSpacing(6)
 
         appearance_options = [
             ("modern", "Modern", "Mevcut görsel zengin arayüz,\ngölge ve geniş boşluklar."),
@@ -351,7 +452,7 @@ class BackgroundSettingsWidget(QWidget):
             ))
             card_lay = QVBoxLayout(card)
             card_lay.setSpacing(4)
-            card_lay.setContentsMargins(14, 12, 14, 12)
+            card_lay.setContentsMargins(9, 8, 9, 8)
 
             rb = QRadioButton(title)
             rb.setStyleSheet(theme_qss(
@@ -379,7 +480,7 @@ class BackgroundSettingsWidget(QWidget):
         combo_group = QGroupBox("ComboBox Davranışı")
         combo_group.setStyleSheet(self._card_qss())
         combo_lay = QVBoxLayout(combo_group)
-        combo_lay.setSpacing(15)
+        combo_lay.setSpacing(8)
 
         combo_toggle_lay = QHBoxLayout()
         combo_text = QVBoxLayout()
@@ -412,7 +513,7 @@ class BackgroundSettingsWidget(QWidget):
         info_lbl.setWordWrap(True)
         info_lbl.setStyleSheet(theme_qss("color: @text_muted; font-size: 12px; font-weight: 500;"))
         color_layout.addWidget(info_lbl)
-        color_layout.addSpacing(32)
+        color_layout.addSpacing(8)
 
         self.preset_accent_colors = [
             "#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#EC4899", "#64748B", "#14B8A6", "#0EA5E9"
@@ -429,7 +530,7 @@ class BackgroundSettingsWidget(QWidget):
             lambda: self.select_custom_color("accent"),
             lambda: self.apply_custom_color("", "accent"),
         ))
-        color_layout.addSpacing(30)
+        color_layout.addSpacing(8)
 
         color_layout.addWidget(self._build_color_row(
             "2) Yazı rengi (metinler/başlıklar)",
@@ -445,15 +546,15 @@ class BackgroundSettingsWidget(QWidget):
         nav_group = QGroupBox("Navigasyon Menüsü")
         nav_group.setStyleSheet(self._card_qss())
         nav_lay = QVBoxLayout(nav_group)
-        nav_lay.setSpacing(12)
+        nav_lay.setSpacing(8)
 
         nav_desc = QLabel("Uygulamanın navigasyon düzenini seçin:")
         nav_desc.setStyleSheet(theme_qss("font-weight: 700; color: @text; font-size: 13px;"))
         nav_lay.addWidget(nav_desc)
 
         self._nav_btn_group = QButtonGroup(self)
-        nav_cards_lay = QHBoxLayout()
-        nav_cards_lay.setSpacing(14)
+        nav_cards_lay = QVBoxLayout()
+        nav_cards_lay.setSpacing(6)
 
         nav_options = [
             ("sol_menu",   "🗂  Sol Menü",    "Klasik sol kenar çubuğu\nnavigasyonu kullanılır."),
@@ -521,7 +622,7 @@ class BackgroundSettingsWidget(QWidget):
         ticker_group = QGroupBox("Kayan Yazı ve Duyuru Sistemi")
         ticker_group.setStyleSheet(self._card_qss())
         tl = QVBoxLayout(ticker_group)
-        tl.setSpacing(15)
+        tl.setSpacing(8)
 
         feat_lay = QHBoxLayout()
         fl_text = QVBoxLayout()
@@ -619,31 +720,34 @@ class BackgroundSettingsWidget(QWidget):
         page_header.addWidget(self.toggle_all_pages_button)
         page_group_layout.addLayout(page_header)
         page_list_frame = QFrame()
-        page_list_frame.setStyleSheet(theme_qss("background: @surface_alt; border-radius: 10px; border: 1px solid @border; padding: 15px;"))
+        page_list_frame.setStyleSheet(theme_qss("background: transparent; border: none; padding: 0;"))
         pll = QGridLayout(page_list_frame)
+        pll.setContentsMargins(0, 0, 0, 0)
         pll.setHorizontalSpacing(16)
         pll.setVerticalSpacing(12)
         pll.setAlignment(Qt.AlignmentFlag.AlignTop)
+        pll.setColumnStretch(0, 1)
+        pll.setColumnStretch(1, 1)
 
         self.page_toggles = {}
         pages = [
             ("Dashboard (Son İşlemler)", "rc_dashboard"),
-            ("Müşteri & Cari Listesi", "rc_customers"),
             ("Stok & Envanter", "rc_stock"),
-            ("Kasa İşlemleri", "rc_accounting"),
             ("Servis Formu Sayfası", "rc_service_form"),
-            ("Randevu Takvimi", "rc_appointments"),
             ("Duyurular", "rc_announcements"),
-            ("Bilgi Bankası", "rc_knowledge_base"),
             ("Personeller", "rc_personnel"),
-            ("Hizmetler", "rc_services"),
             ("Bankalar", "rc_bank"),
-            ("Hatırlatıcılar", "rc_reminders"),
             ("Bakım Sözleşmeleri", "rc_contracts"),
-            ("İş/Servis Takip Raporları", "rc_job_service"),
             ("Proje Yönetimi", "rc_projects"),
-            ("Lojistik Garanti Yönetimi", "rc_logistics"),
             ("Emanet (Konsinye) Cihazlar", "rc_loaner"),
+            ("M\u00fc\u015fteri & Cari Listesi", "rc_customers"),
+            ("Kasa \u0130\u015flemleri", "rc_accounting"),
+            ("Randevu Takvimi", "rc_appointments"),
+            ("Bilgi Bankas\u0131", "rc_knowledge_base"),
+            ("Hizmetler", "rc_services"),
+            ("Hat\u0131rlat\u0131c\u0131lar", "rc_reminders"),
+            ("\u0130\u015f/Servis Takip Raporlar\u0131", "rc_job_service"),
+            ("Lojistik Garanti Y\u00f6netimi", "rc_logistics"),
         ]
 
         for i, (name, setting_key) in enumerate(pages):
@@ -654,9 +758,19 @@ class BackgroundSettingsWidget(QWidget):
 
             name_lbl = QLabel(name)
             name_lbl.setStyleSheet(theme_qss("color: @text; font-size: 15px; font-weight: 600;"))
-
-            pll.addWidget(toggle, i // 2, (i % 2) * 2)
-            pll.addWidget(name_lbl, i // 2, (i % 2) * 2 + 1)
+            card = QFrame()
+            card.setObjectName("RightClickPageCard")
+            card.setStyleSheet(theme_qss(
+                "QFrame#RightClickPageCard { background: @surface_alt; border: 1px solid @border; "
+                "border-radius: 8px; }"
+            ))
+            card.setMinimumHeight(52)
+            card_layout = QHBoxLayout(card)
+            card_layout.setContentsMargins(14, 8, 14, 8)
+            card_layout.setSpacing(12)
+            card_layout.addWidget(toggle)
+            card_layout.addWidget(name_lbl, 1)
+            pll.addWidget(card, i % 9, i // 9)
 
         page_group_layout.addWidget(page_list_frame)
         right_click_layout.addWidget(page_group)
@@ -665,31 +779,138 @@ class BackgroundSettingsWidget(QWidget):
         while general_layout.count():
             general_layout.takeAt(0)
 
+        settings_grid = QGridLayout()
+        settings_grid.setContentsMargins(0, 0, 0, 0)
+        settings_grid.setHorizontalSpacing(10)
+        settings_grid.setVerticalSpacing(10)
+        general_layout.addLayout(settings_grid)
+        left_column = QWidget(general_tab)
+        left_column.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        left_layout = QVBoxLayout(left_column)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(10)
+        right_column = QWidget(general_tab)
+        right_column.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        right_layout = QVBoxLayout(right_column)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(10)
+
         theme_appearance_row = QWidget(general_tab)
-        theme_appearance_layout = QHBoxLayout(theme_appearance_row)
+        theme_appearance_layout = QVBoxLayout(theme_appearance_row)
         theme_appearance_layout.setContentsMargins(0, 0, 0, 0)
-        theme_appearance_layout.setSpacing(16)
+        theme_appearance_layout.setSpacing(8)
+        theme_appearance_row.setMinimumHeight(0)
+        for group in (theme_group, appearance_group):
+            group.setFlat(True)
+            group.setTitle("")
+            group.setStyleSheet(theme_qss(
+                "QGroupBox { border: none; margin: 0; padding: 0; background: transparent; } "
+                "QLabel { color: @text; background: transparent; border: none; }"
+            ))
+            group.layout().setContentsMargins(0, 0, 0, 0)
         theme_appearance_layout.addWidget(theme_group, 1)
         theme_appearance_layout.addWidget(appearance_group, 2)
-        general_layout.addWidget(theme_appearance_row)
+        left_layout.addWidget(self._reference_section(
+            "Tema Se\u00e7imi & Aray\u00fcz G\u00f6r\u00fcn\u00fcm\u00fc", "#3b82f6",
+            "Genel sistem \u015fablonu", theme_appearance_row
+        ))
 
         scale_navigation_row = QWidget(general_tab)
-        scale_navigation_layout = QHBoxLayout(scale_navigation_row)
+        scale_navigation_layout = QVBoxLayout(scale_navigation_row)
         scale_navigation_layout.setContentsMargins(0, 0, 0, 0)
-        scale_navigation_layout.setSpacing(16)
+        scale_navigation_layout.setSpacing(8)
+        scale_navigation_row.setMinimumHeight(0)
+        for group in (scale_group, menu_label_group):
+            group.setTitle("")
+            group.setStyleSheet(theme_qss(
+                "QGroupBox { background: @surface_alt; border: 1px solid @border; "
+                "border-radius: 9px; margin: 0; padding: 14px; } "
+                "QLabel { color: @text; background: transparent; border: none; }"
+            ))
         scale_navigation_layout.addWidget(scale_group, 1)
         scale_navigation_layout.addWidget(menu_label_group, 1)
-        general_layout.addWidget(scale_navigation_row)
+        left_layout.addWidget(self._reference_section(
+            "Yaz\u0131, \u0130kon Boyutu ve Sol Men\u00fc G\u00f6r\u00fcn\u00fcm\u00fc", "#22d3ee",
+            "\u00d6l\u00e7eklendirme", scale_navigation_row
+        ))
 
-        general_layout.addWidget(color_group)
-        general_layout.addWidget(nav_group)
-        general_layout.addWidget(combo_group)
-        general_layout.addWidget(display_group)
-        general_layout.addWidget(ticker_group)
-        general_layout.addStretch(1)
+        color_group.setTitle("")
+        color_group.setFlat(True)
+        color_layout.setContentsMargins(0, 0, 0, 0)
+        color_group.setStyleSheet(theme_qss(
+            "QGroupBox { border: none; margin: 0; padding: 0; background: transparent; } "
+            "QLabel { color: @text; background: transparent; border: none; }"
+        ))
+        left_layout.addWidget(self._reference_section(
+            "Tema Renkleri (Vurgu + Metin)", "#34d399", "Bi\u00e7im Boyas\u0131", color_group
+        ))
+
+        navigation_content = QWidget(general_tab)
+        navigation_content_layout = QVBoxLayout(navigation_content)
+        navigation_content_layout.setContentsMargins(0, 0, 0, 0)
+        navigation_content_layout.setSpacing(8)
+        nav_group.setTitle("")
+        nav_group.setStyleSheet(theme_qss(
+            "QGroupBox { border: none; margin: 0; padding: 0; background: transparent; } "
+            "QLabel { color: @text; background: transparent; border: none; }"
+        ))
+        nav_group.layout().setContentsMargins(0, 0, 0, 0)
+        navigation_content_layout.addWidget(nav_group)
+        display_combo_row = QWidget(navigation_content)
+        display_combo_layout = QVBoxLayout(display_combo_row)
+        display_combo_layout.setContentsMargins(0, 0, 0, 0)
+        display_combo_layout.setSpacing(8)
+        for group in (combo_group, display_group):
+            group.setTitle("")
+            group.setStyleSheet(theme_qss(
+                "QGroupBox { background: @surface_alt; border: 1px solid @border; "
+                "border-radius: 9px; margin: 0; padding: 14px; } "
+                "QLabel { color: @text; background: transparent; border: none; }"
+            ))
+        display_combo_layout.addWidget(combo_group, 1)
+        display_combo_layout.addWidget(display_group, 1)
+        navigation_content_layout.addWidget(display_combo_row)
+        right_layout.addWidget(self._reference_section(
+            "Navigasyon D\u00fczeni & Pencere Davran\u0131\u015f\u0131", "#818cf8",
+            "Pencere Mimarisi", navigation_content
+        ))
+
+        right_layout.addWidget(self._reference_section(
+            "Kayan Yaz\u0131 ve Duyuru Sistemi", "#fbbf24", "", ticker_group
+        ))
+        right_layout.addStretch(1)
+        settings_grid.addWidget(left_column, 0, 0)
+        settings_grid.addWidget(right_column, 0, 1)
+        settings_grid.setColumnStretch(0, 1)
+        settings_grid.setColumnStretch(1, 1)
 
         tabs.addTab(general_tab, "Genel")
         tabs.addTab(right_click_tab, "Fare Sağ Tuş Yönetimi")
+        header_tabs.addTab("Genel")
+        header_tabs.addTab("Fare Sa\u011f Tu\u015f Y\u00f6netimi")
+
+        def sync_header_layout(index):
+            if index == 1:
+                page_header_layout.removeWidget(header_tabs)
+                page_header_layout.setContentsMargins(8, 6, 8, 4)
+                title_column.setSpacing(10)
+                title_column.addWidget(header_tabs, 0, Qt.AlignmentFlag.AlignLeft)
+                config_badge.hide()
+                description.hide()
+            else:
+                title_column.removeWidget(header_tabs)
+                page_header_layout.setContentsMargins(8, 6, 8, 23)
+                page_header_layout.addWidget(
+                    header_tabs, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+                )
+                title_column.setSpacing(2)
+                config_badge.show()
+                description.show()
+
+        tabs.currentChanged.connect(sync_header_layout)
+        header_tabs.currentChanged.connect(tabs.setCurrentIndex)
+        tabs.currentChanged.connect(header_tabs.setCurrentIndex)
+        sync_header_layout(tabs.currentIndex())
         cl.addWidget(tabs)
         cl.addStretch()
 
@@ -727,9 +948,14 @@ class BackgroundSettingsWidget(QWidget):
         self.save_data()
 
     def _build_color_row(self, title, colors, custom_btn_text, on_color_click, on_custom_click, on_reset_click):
-        wrapper = QWidget()
+        wrapper = QFrame()
+        wrapper.setObjectName("ThemeColorPresetRow")
+        wrapper.setStyleSheet(theme_qss(
+            "QFrame#ThemeColorPresetRow { background: @surface_alt; border: 1px solid @border; "
+            "border-radius: 9px; }"
+        ))
         row_layout = QVBoxLayout(wrapper)
-        row_layout.setContentsMargins(0, 0, 0, 0)
+        row_layout.setContentsMargins(14, 12, 14, 12)
         row_layout.setSpacing(8)
 
         title_lbl = QLabel(title)
@@ -795,7 +1021,18 @@ class BackgroundSettingsWidget(QWidget):
         self.db.set_setting(AppearanceModeManager.SETTING_KEY, mode)
         if self.main_window and hasattr(self.main_window, "apply_appearance_mode"):
             self.main_window.apply_appearance_mode(mode)
+        self._refresh_appearance_cards()
         self.apply_theme_styles()
+
+    def _refresh_appearance_cards(self):
+        for radio in self._appearance_radio_btns.values():
+            card = radio.parentWidget()
+            border_color = "@accent" if radio.isChecked() else "@border"
+            card.setStyleSheet(theme_qss(
+                "QFrame#AppearanceModeCard { background: @surface_alt; border: 2px solid "
+                f"{border_color}; border-radius: 12px; padding: 4px; }}"
+                "QFrame#AppearanceModeCard:hover { border-color: @accent; }"
+            ))
 
     def apply_theme_styles(self):
         if self._is_classic_appearance():
@@ -919,10 +1156,14 @@ class BackgroundSettingsWidget(QWidget):
             self._nav_radio_btns["sol_menu"].setChecked(True)
 
         menu_label_mode = self.db.get_setting("side_menu_label_mode", "labels")
+        radio_signal_blockers = [
+            QSignalBlocker(radio) for radio in self._menu_label_radio_btns.values()
+        ]
         if menu_label_mode in self._menu_label_radio_btns:
             self._menu_label_radio_btns[menu_label_mode].setChecked(True)
         else:
             self._menu_label_radio_btns["labels"].setChecked(True)
+        del radio_signal_blockers
 
         display_profile = self.db.get_setting("display_profile", "auto")
         idx_display = self.cmb_display_profile.findData(display_profile)
@@ -937,6 +1178,7 @@ class BackgroundSettingsWidget(QWidget):
             toggle.setChecked(self.db.get_setting(key, "1") == "1")
             toggle.setEnabled(is_global_enabled)
             toggle.setCursor(Qt.CursorShape.PointingHandCursor if is_global_enabled else Qt.CursorShape.ForbiddenCursor)
+        self._refresh_appearance_cards()
 
     def save_data(self):
         selected_theme = ThemeManager.normalize_theme_name(self.cmb_theme.currentText())

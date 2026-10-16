@@ -31,10 +31,27 @@ def test_autonomous_agent_scenarios_load_and_persist():
 
     assert len(toggles) == 7
     assert sum(toggle.isChecked() for toggle in toggles) == 6
+    assert widget.active_rules_label.text() == "6 Kural Aktif"
+    assert widget.validate_webhook_button.text() == "Test Paketi G\u00f6nder"
 
     disabled = next(toggle for toggle in toggles if not toggle.isChecked())
     disabled.setChecked(True)
     assert db.settings["agent_voice_feedback"] == "1"
+    assert widget.active_rules_label.text() == "7 Kural Aktif"
+    widget.close()
+
+
+def test_runtime_status_polling_runs_only_while_widget_is_visible():
+    widget = AutonomousAgentsWidget(_Db())
+
+    assert not widget.status_timer.isActive()
+    widget.show()
+    APP.processEvents()
+    assert widget.status_timer.isActive()
+
+    widget.hide()
+    APP.processEvents()
+    assert not widget.status_timer.isActive()
     widget.close()
 
 
@@ -64,6 +81,29 @@ def test_autonomous_agent_log_action_opens_audit_settings_page():
     assert search.text() == ""
     widget.close()
     host.close()
+
+
+def test_voice_feature_button_opens_the_feature_switch_dialog(tmp_path, monkeypatch):
+    from src.services.voice_feature_settings import VoiceFeatureSettingsDialog
+
+    db = Database(str(tmp_path / "voice_feature_button.db"))
+    widget = AutonomousAgentsWidget(db, SimpleNamespace(db=db, assistant=None))
+    calls = []
+    dialog = SimpleNamespace(exec=lambda: calls.append("exec"))
+
+    monkeypatch.setattr(
+        VoiceFeatureSettingsDialog,
+        "create",
+        lambda parent, dialog_db: (calls.append((parent, dialog_db)), dialog)[1],
+    )
+
+    try:
+        widget.voice_features_button.click()
+        assert calls == [(widget, db), "exec"]
+    finally:
+        widget.status_timer.stop()
+        widget.close()
+        db.conn.close()
 
 
 def test_floating_assistant_toggle_hides_widget_immediately():

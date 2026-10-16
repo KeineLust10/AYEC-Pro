@@ -76,6 +76,7 @@ def test_team_dialog_matches_reference_default_assignment_and_capture(qapp):
     dialog.setMaximumSize(1600, 1200)
     dialog.resize(840, 1044)
     qapp.processEvents()
+    assert not dialog.scroll_area.verticalScrollBar().isVisible()
     output = Path(__file__).resolve().parents[1] / "output" / "part9-captures" / "project-team-member-desktop.png"
     output.parent.mkdir(parents=True, exist_ok=True)
     assert dialog.card.grab().save(str(output), "PNG")

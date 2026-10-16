@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import (
     QLayout,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QStackedWidget,
     QTabBar,
     QTableWidget,
@@ -133,11 +134,12 @@ class ProductGroupsPage(QWidget):
         self.db.conn.commit()
 
     def _build_ui(self):
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setMinimumSize(0, 0)
         root = QVBoxLayout(self)
         self._root_layout = root
         root.setSizeConstraint(QLayout.SizeConstraint.SetNoConstraint)
-        root.setContentsMargins(24, 24, 24, 20)
+        root.setContentsMargins(24, 8, 24, 12)
         root.setSpacing(13)
 
         header = QHBoxLayout()
@@ -286,6 +288,7 @@ class ProductGroupsPage(QWidget):
 
         card = QFrame()
         self.table_card = card
+        card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         card.setMinimumWidth(0)
         card.setStyleSheet(
             theme_qss(DesignTokens.get_card_qss(hover=False))
@@ -295,6 +298,7 @@ class ProductGroupsPage(QWidget):
         card_layout.setSpacing(2)
         self.table = QTableWidget(0, 6)
         self.table.setMinimumWidth(0)
+        self.table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.table.setHorizontalHeaderLabels(
             [
                 "#",
@@ -396,6 +400,7 @@ class ProductGroupsPage(QWidget):
         footer.addWidget(self.btn_next)
         card_layout.addLayout(footer)
         self.views = QStackedWidget()
+        self.views.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.views.addWidget(card)
         self.cards_scroll = QScrollArea()
         self.cards_scroll.setWidgetResizable(True)
@@ -598,7 +603,7 @@ class ProductGroupsPage(QWidget):
         footer_height = self._table_footer.sizeHint().height()
         natural_card_height = natural_table_height + footer_height + 4
         available_card_height = max(
-            220, self.height() - (344 if self.width() < 1200 else 256)
+            220, self.height() - (344 if self.width() < 900 else 234)
         )
         card_height = min(natural_card_height, available_card_height)
         table_height = max(140, card_height - footer_height - 4)
@@ -943,14 +948,15 @@ class ProductGroupsPage(QWidget):
         page_width = window.width() - (sidebar.width() if sidebar else 192)
         side_margin = max(16, min(24, (page_width - 924) // 2))
         reference_page = getattr(window, "_current_page_index", None) == 146
-        if self.width() <= 1200:
+        if self.width() <= 900:
             self._root_layout.setContentsMargins(side_margin + 12, 21, side_margin, 12)
             self._root_layout.setSpacing(14)
         else:
             self._root_layout.setContentsMargins(
-                side_margin, 19 if reference_page else 24,
+                side_margin, 5 if reference_page else 24,
                 side_margin, 12 if reference_page else 20,
             )
+            self._root_layout.setSpacing(9 if reference_page else 13)
 
     def add_group(self):
         name, accepted = ModernInputDialog.get_text(

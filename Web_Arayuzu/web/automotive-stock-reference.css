@@ -1,0 +1,17 @@
+.automotive-stock-tabs{display:flex;flex-wrap:wrap;gap:5px;margin:4px 0 12px}
+.automotive-stock-tabs .tab{width:auto;flex:0 0 auto}
+.automotive-stock-table-wrap{max-height:52vh;overflow:auto}
+.automotive-stock-table{min-width:1450px}
+.automotive-stock-table th,.automotive-stock-table td{white-space:nowrap}
+.automotive-stock-table td:nth-child(8){min-width:180px;max-width:260px;white-space:normal}
+.automotive-stock-table td:nth-child(15){min-width:150px}
+.automotive-stock-table th:nth-child(11) button{border:0;background:transparent;color:inherit;font:inherit;font-weight:inherit;padding:0;cursor:pointer}
+.automotive-purchase-price{border:0;background:transparent;color:inherit;font:inherit;min-width:48px;padding:2px 4px;cursor:pointer}
+.automotive-stock-guide{padding:22px 24px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2);color:var(--ink);line-height:1.6}
+.automotive-stock-guide h2{margin:0 0 12px;color:var(--brand);font-size:20px}
+.automotive-stock-guide h3{margin:20px 0 8px;font-size:15px}
+.automotive-stock-guide p,.automotive-stock-guide li{color:var(--muted);font-size:13px}
+.automotive-stock-guide ul{padding-left:24px}
+.automotive-stock-guide[hidden]{display:none}
+.automotive-stock-tabs~.stock-category-strip[hidden],#content .card[hidden]{display:none}
+@media(max-width:720px){.automotive-stock-tabs{overflow-x:auto;flex-wrap:nowrap}.automotive-stock-tabs .tab{white-space:nowrap}.automotive-stock-guide{padding:16px}.automotive-stock-table-wrap{max-height:none}.automotive-stock-table{min-width:0}}

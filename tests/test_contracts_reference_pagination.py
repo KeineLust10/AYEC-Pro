@@ -40,13 +40,13 @@ def test_contract_reference_pagination_and_filters():
     page = ContractsPage(_Db())
 
     assert page.table.rowCount() == 6
-    assert page.table.item(0, 8).text().startswith("1,000")
-    assert page.table.item(0, 7).text() != "-"
-    assert page.table.cellWidget(0, 6).findChild(QLabel).text() == page.table.item(0, 6).text()
+    assert page.table.item(0, 5).text().startswith("1,000")
+    assert page.table.item(0, 4).text() != "-"
+    assert page.table.cellWidget(0, 8).findChild(QLabel).text() == page.table.item(0, 8).text()
     opened = []
-    page.open_details = lambda: opened.append(page.table.item(page.table.currentRow(), 0).text())
+    page.open_details = lambda: opened.append(page.table.item(page.table.currentRow(), 0).data(Qt.ItemDataRole.UserRole))
     page.table.cellWidget(1, 9).click()
-    assert opened == ["2"]
+    assert opened == [2]
     assert [page.table.isRowHidden(index) for index in range(6)] == [
         False, False, False, False, True, True
     ]
@@ -85,13 +85,12 @@ def test_contract_record_fonts_keep_complete_dates_prices_and_adaptive_volume():
     try:
         assert page.table.columnCount() == 10
         for row in range(page.table.rowCount()):
-            for column in (0, 4, 5, 8):
+            for column in (0, 3, 5):
                 item = page.table.item(row, column)
                 assert item.font().family() == DesignTokens.MONO_FONT_NAME
-                assert item.toolTip() == item.text()
-                assert QFontMetrics(item.font()).horizontalAdvance(item.text()) + 16 <= page.table.columnWidth(column)
-            assert page.table.item(row, 4).text() == '2026-01-01'
-            assert page.table.item(row, 5).text() == '2027-01-01'
+                assert item.toolTip()
+                assert max(QFontMetrics(item.font()).horizontalAdvance(line) for line in item.text().splitlines()) + 16 <= page.table.columnWidth(column)
+            assert page.table.item(row, 3).text().splitlines() == ['2026-01-01', '2027-01-01']
         volume = page.contract_metric_values[2]
         assert isinstance(volume, ReferenceMetricValueLabel)
         amount = '2,500,000.00 TRY'
@@ -134,7 +133,7 @@ def test_sla_filter_unicode_search_and_shortcut_preserve_contract_rows():
     page.contract_type_filter.setCurrentText("Bakim")
     assert page._matching_contract_rows == []
     page.contract_type_filter.setCurrentText("Tum turler")
-    page.table.item(0, 2).setText("\u0130\u015f Bak\u0131m\u0131")
+    page.table.item(0, 6).setText("\u0130\u015f Bak\u0131m\u0131")
     page.contract_search.setText("is bakimi")
     assert page._matching_contract_rows == [0]
     page.contract_search.clear()
@@ -152,9 +151,9 @@ def test_sla_filter_unicode_search_and_shortcut_preserve_contract_rows():
 
 def test_contract_expiry_and_renewal_filters_use_dates_and_exclusive_selection():
     page = ContractsPage(_Db())
-    page.table.item(0, 5).setText(QDate.currentDate().addDays(-1).toString("yyyy-MM-dd"))
-    page.table.item(1, 6).setText("Taslak")
-    page.table.item(2, 5).setText(QDate.currentDate().addDays(14).toString("yyyy-MM-dd"))
+    page.table.item(0, 3).setData(Qt.ItemDataRole.UserRole, QDate.currentDate().addDays(-1).toString("yyyy-MM-dd"))
+    page.table.item(1, 8).setText("Taslak")
+    page.table.item(2, 3).setData(Qt.ItemDataRole.UserRole, QDate.currentDate().addDays(14).toString("yyyy-MM-dd"))
     page._update_contract_metrics(21000)
     assert page.contract_metric_values[0].text() == "4"
     assert page.contract_metric_values[1].text() == "1"
@@ -195,7 +194,7 @@ def test_contract_footer_reads_active_maintenance_and_routes_calendar():
     assert "Repair Company" not in summary
     page.contract_footer_actions[0].click()
     assert navigation.visited == [30]
-    page.table.item(0, 5).setText(QDate.currentDate().addDays(14).toString("yyyy-MM-dd"))
+    page.table.item(0, 3).setData(Qt.ItemDataRole.UserRole, QDate.currentDate().addDays(14).toString("yyyy-MM-dd"))
     page._update_contract_metrics(21000)
     page.contract_footer_actions[1].click()
     assert [row for row in range(6) if not page.table.isRowHidden(row)] == [0]
@@ -213,11 +212,11 @@ def test_contract_export_includes_all_matching_pages(tmp_path, monkeypatch):
     with path.open(encoding="utf-8-sig", newline="") as report:
         rows = list(csv.reader(report, delimiter=";"))
     assert len(rows) == 7
-    assert rows[-1][0] == "6"
+    assert rows[-1][0] == "AGR-2026-006"
     page.contract_type_filter.setCurrentText("Bakim")
     page.contract_export_button.click()
     with path.open(encoding="utf-8-sig", newline="") as report:
         filtered = list(csv.reader(report, delimiter=";"))
-    assert [row[0] for row in filtered[1:]] == ["2", "4", "6"]
+    assert [row[0] for row in filtered[1:]] == ["AGR-2026-002", "AGR-2026-004", "AGR-2026-006"]
     assert "1,000" not in str(filtered)
     page.close()

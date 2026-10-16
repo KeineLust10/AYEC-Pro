@@ -35,8 +35,9 @@ def test_audit_buttons_export_only_visible_real_events_and_selected_pdf(monkeypa
             assert page.table.item(row, 1).text() == str(raw[1])
             assert str(raw[2]) in page.table.cellWidget(row, 3).text()
             assert page.table.item(row, 4).text() == str(raw[4])
-            assert page.table.item(row, 5).text() == "-"
-            assert page.table.item(row, 6).text() == "-"
+            severity, station = _audit_record_metadata(raw)
+            assert page.table.item(row, 5).text() == severity
+            assert page.table.item(row, 6).text() == station
         known_name = page.table.cellWidget(0, 1).text().split("\n")[0]
         page.audit_search.setText(known_name)
         assert not page.table.isRowHidden(0)
@@ -134,7 +135,7 @@ def test_audit_paging_and_filters_cover_records_beyond_first_hundred(monkeypatch
         assert page.table.item(0, 5).text() == "WARN"
         page.audit_search.clear()
         page.audit_severity_buttons["WARN"].click()
-        assert page.audit_filtered_count == 125
+        assert page.audit_filtered_count == 126
         page._reset_audit_filters()
         page.btn_live_stream.click()
         db.conn.execute("INSERT INTO audit_logs (user_id, table_name, action, details, created_at) VALUES ('1','users','UPDATE','timer-record','2026-09-30 13:00:00')")

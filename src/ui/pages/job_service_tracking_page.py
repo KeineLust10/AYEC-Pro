@@ -3,7 +3,8 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTabWidget, QTableWidget, QTableWidgetItem,
     QHeaderView, QAbstractItemView, QMenu, QLabel, QFrame, QPushButton, QDialog,
-    QGridLayout, QLineEdit, QSizePolicy, QComboBox, QFileDialog, QDateEdit, QCheckBox, QProgressBar, QDoubleSpinBox
+    QGridLayout, QLineEdit, QSizePolicy, QComboBox, QFileDialog, QDateEdit, QCheckBox, QProgressBar, QDoubleSpinBox,
+    QToolButton
 )
 from PyQt6.QtCore import Qt, QDate, QSize, QItemSelectionModel
 from PyQt6.QtGui import QFont, QColor
@@ -52,11 +53,12 @@ class JobServiceTrackingPage(QWidget):
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setContentsMargins(20, 4, 20, 20)
         layout.setSpacing(12)
         report_today = QDate.currentDate()
+        report_month = report_today.addMonths(-1)
         breadcrumb = QLabel("TEKN\u0130K SERV\u0130S MOD\u00dcL\u00dc / OPERASYONEL RAPORLAR / AYEC-Q{}-{}".format(
-            (report_today.month() - 1) // 3 + 1, report_today.year()))
+            (report_month.month() - 1) // 3 + 1, report_month.year()))
         breadcrumb.setStyleSheet(theme_qss("color:@finance_text_muted;font-size:11px;font-weight:700;border:none;"))
         layout.addWidget(breadcrumb)
 
@@ -75,10 +77,14 @@ class JobServiceTrackingPage(QWidget):
         export_row = QHBoxLayout()
         self.report_date_enabled = QCheckBox("Tarih")
         self.report_date_enabled.setToolTip("Tarih aral\u0131\u011f\u0131n\u0131 i\u015f ve servis raporlar\u0131na uygula")
+        self.report_date_enabled.setChecked(True)
         export_row.addWidget(self.report_date_enabled)
-        today = QDate.currentDate()
-        self.report_date_from = ReferenceDateEdit(QDate(today.year(), today.month(), 1))
-        self.report_date_to = ReferenceDateEdit(today)
+        self.report_date_from = ReferenceDateEdit(
+            QDate(report_month.year(), report_month.month(), 1)
+        )
+        self.report_date_to = ReferenceDateEdit(
+            QDate(report_month.year(), report_month.month(), report_month.daysInMonth())
+        )
         for date_edit in (self.report_date_from, self.report_date_to):
             date_edit.setCalendarPopup(True)
             date_edit.setDisplayFormat("dd.MM.yyyy")
@@ -106,8 +112,10 @@ class JobServiceTrackingPage(QWidget):
             ))
         self.btn_report.clicked.connect(self.show_monthly_report)
         header_row.addWidget(self.btn_report, 1, 1, Qt.AlignmentFlag.AlignLeft)
-        self.btn_excel = QPushButton("Excel Ciktisi")
-        self.btn_pdf = QPushButton("PDF Ozeti")
+        self.btn_excel = QPushButton("Excel \u00c7\u0131kt\u0131s\u0131")
+        self.btn_pdf = QPushButton("PDF \u00d6zeti")
+        self.btn_excel.setMinimumWidth(112)
+        self.btn_pdf.setMinimumWidth(96)
         for export_button in (self.btn_excel, self.btn_pdf):
             export_button.setFixedHeight(36)
             export_button.setStyleSheet(theme_qss(
@@ -176,7 +184,7 @@ class JobServiceTrackingPage(QWidget):
         layout.addLayout(stats_layout)
 
         # Boşluk
-        layout.addSpacing(8)
+        layout.addSpacing(16)
 
         self.tabs = QTabWidget()
         self.tabs.setTabPosition(QTabWidget.TabPosition.North)
@@ -209,9 +217,10 @@ class JobServiceTrackingPage(QWidget):
 
         # İş Takip sekmesi (Yeni İşlemler)
         self.job_table = QTableWidget()
-        self.job_table.setColumnCount(8)
+        self.job_table.setColumnCount(10)
         self.job_table.setHorizontalHeaderLabels([
-            "\u0130\u015f No", "M\u00fc\u015fteri", "Durum", "A\u00e7\u0131klama", "Tutar", "Tarih", "Para Br.", "Teknisyen"
+            "\u0130\u015f No", "M\u00fc\u015fteri / Kurum", "Durum", "A\u00e7\u0131klama / Yap\u0131lan \u0130\u015flem",
+            "Tutar", "Tarih", "Para Br.", "Teknisyen", "Tahsilat", "\u0130\u015flemler"
         ])
         self._style_table(self.job_table)
         job_header = self.job_table.horizontalHeader()
@@ -225,17 +234,17 @@ class JobServiceTrackingPage(QWidget):
         self.job_tab = QWidget()
         job_tab_layout = QVBoxLayout(self.job_tab)
         job_tab_layout.setContentsMargins(0, 0, 0, 0)
-        job_tab_layout.setSpacing(8)
+        job_tab_layout.setSpacing(14)
         self.job_search_input = QLineEdit()
         self.job_search_input.setPlaceholderText("İş no, müşteri, açıklama, durum veya para birimi ara...")
         self.job_search_button = QPushButton("Ara")
         self.job_search_clear_button = QPushButton("Temizle")
-        job_tab_layout.addLayout(self._create_search_bar(
+        job_search_row = self._create_search_bar(
             self.job_search_input,
             self.job_search_button,
             self.job_search_clear_button,
             self.apply_job_filter,
-        ))
+        )
         filter_bar = QHBoxLayout()
         filter_bar.setSpacing(8)
         self.job_status_filter = ModernComboBox()
@@ -258,7 +267,7 @@ class JobServiceTrackingPage(QWidget):
         self.job_advanced_button.setStyleSheet(theme_qss(DesignTokens.get_button_qss("secondary", size="sm")))
         filter_bar.addWidget(self.job_advanced_button)
         filter_bar.addStretch()
-        self.job_result_label = QLabel("Goruntulenen: 0 Is Kaydi")
+        self.job_result_label = QLabel("G\u00f6r\u00fcnt\u00fclenen: 0 / 0 \u0130\u015f Kayd\u0131 \u2022 Sayfa: 1 / 1")
         self.job_result_label.setStyleSheet(theme_qss("color: @text_muted; padding: 5px;"))
         filter_bar.addWidget(self.job_result_label)
         job_tab_layout.addLayout(filter_bar)
@@ -302,11 +311,12 @@ class JobServiceTrackingPage(QWidget):
         self.job_empty_state = EmptyState("Açık iş kaydı yok", "Bu görünümde gösterilecek iş kaydı bulunamadı.", parent=self)
         self.job_empty_state.hide()
         self.job_table.setMinimumHeight(250)
-        self.job_table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        job_tab_layout.addWidget(self.job_table, 1)
+        self.job_table.setFixedHeight(445)
+        self.job_table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        job_tab_layout.addWidget(self.job_table)
         job_tab_layout.addWidget(self.job_empty_state)
         pager = QHBoxLayout()
-        self.job_selection_label = QLabel("Secilen: 0 satir")
+        self.job_selection_label = QLabel("Se\u00e7ilen: 0 sat\u0131r")
         self.job_table.itemSelectionChanged.connect(self._update_job_selection_count)
         pager.addWidget(self.job_selection_label)
         self.job_select_all = QPushButton("T\u00fcm\u00fcn\u00fc Se\u00e7")
@@ -331,9 +341,9 @@ class JobServiceTrackingPage(QWidget):
         summary_row = QHBoxLayout()
         summary_row.setSpacing(10)
         for title_text, value_text, color_name in (
-            ("ORTALAMA ONARIM SURESI", "-", "accent"),
-            ("MUSTERI MEMNUNIYET SKORU", "-", "success"),
-            ("ILK SEFERDE COZUM ORANI", "-", "accent"),
+            ("ORTALAMA ONARIM S\u00dcRES\u0130", "-", "accent"),
+            ("M\u00dc\u015eTER\u0130 MEMNUN\u0130YET SKORU", "-", "success"),
+            ("\u0130LK SEFERDE \u00c7\u00d6Z\u00dcM ORANI", "-", "accent"),
         ):
             summary_card = QFrame()
             summary_card.setFixedHeight(68)
@@ -352,6 +362,7 @@ class JobServiceTrackingPage(QWidget):
             summary_box.addWidget(summary_value)
             summary_row.addWidget(summary_card)
         job_tab_layout.addLayout(summary_row)
+        job_tab_layout.addStretch(1)
         self.tabs.addTab(self.job_tab, "\u0130\u015f Takip Raporu")
 
         # Servis Takip sekmesi (Servis Formları / Devices)
@@ -436,6 +447,34 @@ class JobServiceTrackingPage(QWidget):
         profitability_layout.addWidget(self.profitability_status)
         self.tabs.addTab(self.profitability_tab, "K\u00e2rl\u0131l\u0131k")
 
+        self.tabs.tabBar().hide()
+        report_toolbar = QWidget(self)
+        report_toolbar.setObjectName("JobReportToolbar")
+        report_toolbar.setStyleSheet(theme_qss(
+            "QWidget#JobReportToolbar{background:transparent;border:none;}"
+        ))
+        toolbar_layout = QHBoxLayout(report_toolbar)
+        toolbar_layout.setContentsMargins(0, 0, 0, 0)
+        toolbar_layout.setSpacing(8)
+        self._report_tab_buttons = []
+        tab_button_labels = [
+            "\u0130\u015f Takip Raporu", "Servis Takip", "Teknisyen Matrisi", "K\u00e2rl\u0131l\u0131k"
+        ]
+        for index, label in enumerate(tab_button_labels):
+            tab_button = QPushButton(label, report_toolbar)
+            tab_button.setCursor(Qt.CursorShape.PointingHandCursor)
+            tab_button.setFixedHeight(48)
+            tab_button.clicked.connect(
+                lambda _checked=False, tab_index=index: self.tabs.setCurrentIndex(tab_index)
+            )
+            self._report_tab_buttons.append(tab_button)
+            toolbar_layout.addWidget(tab_button)
+        self.job_search_input.setMinimumWidth(160)
+        toolbar_layout.addLayout(job_search_row, 1)
+        layout.insertWidget(layout.indexOf(self.tabs), report_toolbar)
+        self._update_report_tab_buttons(0)
+        self.tabs.currentChanged.connect(self._update_report_tab_buttons)
+
     def _wire_ui_signals(self):
         self.job_search_button.clicked.connect(self._on_ui_widget_changed)
         self.job_search_clear_button.clicked.connect(self._on_ui_widget_changed)
@@ -447,6 +486,21 @@ class JobServiceTrackingPage(QWidget):
         self.tabs.currentChanged.connect(self._refresh_technician_matrix)
         self.tabs.currentChanged.connect(self._refresh_profitability)
         self.profitability_period.currentIndexChanged.connect(self._refresh_profitability)
+
+    def _update_report_tab_buttons(self, active_index):
+        for index, button in enumerate(self._report_tab_buttons):
+            if index == active_index:
+                style = (
+                    "QPushButton{background:@finance_primary;color:@background;border:1px solid @finance_primary;"
+                    "border-radius:5px;padding:6px 14px;font-weight:700;font-size:13px;}"
+                )
+            else:
+                style = (
+                    "QPushButton{background:@background;color:@text;border:1px solid @finance_outline;"
+                    "border-radius:5px;padding:6px 14px;font-weight:700;font-size:13px;}"
+                    "QPushButton:hover{background:@selection_bg;}"
+                )
+            button.setStyleSheet(theme_qss(style))
 
     def _refresh_profitability(self, *_args):
         if self.tabs.currentWidget() is not self.profitability_tab:
@@ -562,8 +616,11 @@ class JobServiceTrackingPage(QWidget):
         rows = (getattr(self, "_job_matching_rows", list(range(table.rowCount())))
                 if table is self.job_table else [row for row in range(table.rowCount()) if not table.isRowHidden(row)])
         header = table.horizontalHeader()
-        columns = [header.logicalIndex(index) for index in range(table.columnCount())
-                   if table is not self.service_table or header.logicalIndex(index) != 8]
+        columns = [
+            header.logicalIndex(index) for index in range(table.columnCount())
+            if not (table is self.service_table and header.logicalIndex(index) == 8)
+            and not (table is self.job_table and header.logicalIndex(index) == 9)
+        ]
         headings = [table.horizontalHeaderItem(column).text() for column in columns]
         values = [[self._table_text(table, row, column) for column in columns] for row in rows]
         return headings, values
@@ -686,7 +743,10 @@ class JobServiceTrackingPage(QWidget):
             header.setSectionResizeMode(7, QHeaderView.ResizeMode.ResizeToContents)
         if table.columnCount() > 8:
             header.setSectionResizeMode(8, QHeaderView.ResizeMode.Fixed)
-            table.setColumnWidth(8, 140)
+            table.setColumnWidth(8, 116 if table is self.job_table else 140)
+        if table is self.job_table and table.columnCount() > 9:
+            header.setSectionResizeMode(9, QHeaderView.ResizeMode.Fixed)
+            table.setColumnWidth(9, 82)
         table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         table.setAlternatingRowColors(True)
@@ -729,7 +789,7 @@ class JobServiceTrackingPage(QWidget):
         """Renkli istatistik kartı oluştur"""
         card = QFrame()
         card.setObjectName("JobReportMetricCard")
-        card.setFixedHeight(112)
+        card.setFixedHeight(132)
         card.setStyleSheet(theme_qss(f"""
             QFrame#JobReportMetricCard {{
                 background: @finance_surface;
@@ -897,7 +957,11 @@ class JobServiceTrackingPage(QWidget):
         self.job_next.setEnabled(self.job_page + 1 < pages)
         self.job_table.setVisible(count > 0)
         self.job_empty_state.setVisible(count == 0)
-        self.job_result_label.setText("Goruntulenen: {} / {} Is Kaydi".format(count, self.job_table.rowCount()))
+        self.job_result_label.setText(
+            "G\u00f6r\u00fcnt\u00fclenen: {} / {} \u0130\u015f Kayd\u0131 \u2022 Sayfa: {} / {}".format(
+                len(page_rows), self.job_table.rowCount(), self.job_page + 1, pages
+            )
+        )
 
     def _change_job_page(self, delta):
         self.job_page += delta
@@ -909,7 +973,7 @@ class JobServiceTrackingPage(QWidget):
 
     def _update_job_selection_count(self):
         count = len(self.job_table.selectionModel().selectedRows())
-        self.job_selection_label.setText("Secilen: {} satir".format(count))
+        self.job_selection_label.setText("Se\u00e7ilen: {} sat\u0131r".format(count))
 
     def _select_visible_jobs(self):
         selection = self.job_table.selectionModel()
@@ -998,6 +1062,36 @@ class JobServiceTrackingPage(QWidget):
 
     def _open_job_detail_from_cell(self, row, column):
         self._open_job_detail(row)
+
+    def _print_job_detail(self, row):
+        job_no = self._table_text(self.job_table, row, 0)
+        if not job_no:
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "\u0130\u015f Kayd\u0131 PDF", "{}.pdf".format(job_no), "PDF (*.pdf)"
+        )
+        if not path:
+            return
+        from PyQt6.QtCore import QMarginsF
+        from PyQt6.QtGui import QTextDocument, QPageLayout, QPageSize, QPdfWriter
+        detail = self._fetch_job_detail(job_no)
+        headings = ["\u0130\u015f No", "M\u00fc\u015fteri / Kurum", "Teknisyen", "A\u00e7\u0131klama",
+                    "Durum", "Tutar", "Para Birimi", "Tahsilat"]
+        values = [[
+            job_no, detail.get("customer", ""), self._table_text(self.job_table, row, 7),
+            detail.get("description", ""), detail.get("status", ""),
+            "{:,.2f}".format(detail.get("debit", 0)), detail.get("currency", ""),
+            "{:,.2f}".format(detail.get("credit", 0)),
+        ]]
+        writer = QPdfWriter(path)
+        writer.setResolution(1200)
+        writer.setPageLayout(QPageLayout(
+            QPageSize(QPageSize.PageSizeId.A4), QPageLayout.Orientation.Landscape,
+            QMarginsF(10, 10, 10, 10)
+        ))
+        document = QTextDocument(self)
+        document.setHtml(self._report_print_html(headings, values))
+        document.print(writer)
 
     def _open_service_detail_from_cell(self, row, column):
         tracking_no = self._table_text(self.service_table, row, 0)
@@ -1418,11 +1512,68 @@ class JobServiceTrackingPage(QWidget):
             self.job_table.item(r, 5).setToolTip(str(date_val or ''))
             self.job_table.setItem(r, 6, QTableWidgetItem(currency))
             self.job_table.setItem(r, 7, QTableWidgetItem(technicians.get(job_no, '-')))
+            payment_status = "Al\u0131nd\u0131" if remaining <= 0.01 else (
+                "K\u0131smi \u00d6deme" if remaining < amt else "Beklemede"
+            )
+            self.job_table.setItem(r, 8, QTableWidgetItem(payment_status))
+            self.job_table.item(r, 8).setToolTip(
+                "Tahsil edilen: {:,.2f} {} / Kalan: {:,.2f} {}".format(
+                    max(amt - remaining, 0.0), currency, max(remaining, 0.0), currency
+                )
+            )
+            actions = QWidget(self.job_table)
+            action_layout = QHBoxLayout(actions)
+            action_layout.setContentsMargins(3, 0, 3, 0)
+            action_layout.setSpacing(4)
+            detail_button = QToolButton(actions)
+            detail_button.setText("\u25c9")
+            detail_button.setToolTip("\u0130\u015f detay\u0131n\u0131 g\u00f6r\u00fcnt\u00fcle")
+            detail_button.setAccessibleName("OpenJobDetails")
+            detail_button.setText("")
+            print_button = QToolButton(actions)
+            print_button.setText("\u2399")
+            print_button.setToolTip("\u0130\u015f kayd\u0131n\u0131 PDF olarak yazd\u0131r")
+            print_button.setAccessibleName("PrintJobDetails")
+            print_button.setText("")
+            icon_color = tc("text_muted", default="#94a3b8")
+            detail_svg = (
+                '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" '
+                'stroke="#000" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
+                '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z"/>'
+                '<circle cx="12" cy="12" r="3"/></svg>'
+            )
+            print_svg = (
+                '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" '
+                'stroke="#000" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
+                '<path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>'
+                '<path d="M6 14h12v7H6zM18 12h.01"/></svg>'
+            )
+            detail_button.setIcon(render_svg_icon(detail_svg, icon_color, size=16))
+            print_button.setIcon(render_svg_icon(print_svg, icon_color, size=16))
+            for action_button in (detail_button, print_button):
+                action_button.setIconSize(QSize(16, 16))
+            for action_button in (detail_button, print_button):
+                action_button.setFixedSize(28, 26)
+                action_button.setStyleSheet(theme_qss(
+                    "QToolButton{background:@finance_surface_alt;color:@finance_text;border:1px solid @finance_outline;"
+                    "border-radius:5px;font-size:13px;}QToolButton:hover{color:@finance_primary;border-color:@finance_primary;}"
+                ))
+            detail_button.clicked.connect(lambda _checked=False, row_index=r: self._open_job_detail(row_index))
+            print_button.clicked.connect(lambda _checked=False, row_index=r: self._print_job_detail(row_index))
+            action_layout.addWidget(detail_button)
+            action_layout.addWidget(print_button)
+            self.job_table.setCellWidget(r, 9, actions)
             self._set_report_number_fonts(self.job_table, r, (0, 4, 5, 6))
             self._set_report_status_badge(self.job_table, r)
         has_rows = self.job_table.rowCount() > 0
         if hasattr(self, "job_result_label"):
-            self.job_result_label.setText(f"Goruntulenen: {self.job_table.rowCount()} Is Kaydi")
+            self.job_result_label.setText(
+                "G\u00f6r\u00fcnt\u00fclenen: {} / {} \u0130\u015f Kayd\u0131 \u2022 Sayfa: {} / {}".format(
+                    min(self.job_page_size, self.job_table.rowCount()),
+                    self.job_table.rowCount(), self.job_page + 1,
+                    max(1, (self.job_table.rowCount() + self.job_page_size - 1) // self.job_page_size),
+                )
+            )
         self.job_table.setVisible(has_rows)
         self.job_empty_state.setVisible(not has_rows)
         self._update_job_filter_options()

@@ -187,7 +187,7 @@ class DesignTokens(metaclass=_DesignTokensMeta):
         spinbox.setStyleSheet(theme_qss(cls.get_input_qss()))
 
     @classmethod
-    def get_combobox_qss(cls, dark_mode=False):
+    def get_combobox_qss(cls, dark_mode=False, min_height=42):
         return f"""
             QComboBox {{
                 background-color: @surface;
@@ -195,7 +195,7 @@ class DesignTokens(metaclass=_DesignTokensMeta):
                 border: 1px solid @border;
                 border-radius: {cls.RADIUS_MD};
                 padding: 2px 12px 2px 12px;
-                min-height: 42px;
+                min-height: {int(min_height)}px;
                 min-width: 140px;
                 font-family: {cls.FONT_FAMILY};
                 font-size: {cls.FONT_SIZE_BASE};

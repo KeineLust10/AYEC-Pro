@@ -321,6 +321,7 @@ def test_technical_service_partial_and_customer_payment_refresh_status(
         database_path, tracking_no=tracking_no
     )
     web_main.clear_tenant_context()
+
     monkeypatch.setattr(web_main, "DB_PATH", database_path)
 
     partial = web_main.update_technician_job(
@@ -369,6 +370,45 @@ def test_technical_service_partial_and_customer_payment_refresh_status(
     db.close()
     web_main.clear_tenant_context()
 
+
+def test_technician_service_collection_keeps_selected_bank_account(tmp_path, monkeypatch):
+    database_path = tmp_path / "technical-bank-payment.db"
+    tracking_no = "TECH-BANK-1"
+    _customer_id, device_id, _part_id = _prepare_service_database(
+        database_path, tracking_no=tracking_no
+    )
+    db = Database(str(database_path))
+    assert db.add_bank_account("QA Bank", "QA Branch", "QA Account", "QA-001", "", 0)
+    bank_account_id = db.conn.execute(
+        "SELECT id FROM bank_accounts ORDER BY id DESC LIMIT 1"
+    ).fetchone()[0]
+    db.close()
+    web_main.clear_tenant_context()
+    monkeypatch.setattr(web_main, "DB_PATH", database_path)
+
+    result = web_main.update_technician_job(
+        {
+            "device_id": device_id,
+            "tracking_no": tracking_no,
+            "status": "Delivered",
+            "labor_cost": 250,
+            "collect_payment": True,
+            "payment_amount": 250,
+            "payment_currency": "TRY",
+            "payment_method": "Havale/EFT",
+            "bank_account_id": bank_account_id,
+        }
+    )
+
+    assert result["finance_id"] is not None
+    with web_main.closing(web_main.db_connect()) as conn:
+        saved = conn.execute(
+            "SELECT bank_account_id,payment_method FROM accounting WHERE id=?",
+            (result["finance_id"],),
+        ).fetchone()
+    assert saved["bank_account_id"] == bank_account_id
+    assert saved["payment_method"] == "Havale/EFT"
+    web_main.clear_tenant_context()
 
 def test_technical_service_rejects_overpayment_without_extra_records(
     tmp_path, monkeypatch
@@ -454,3 +494,20 @@ def test_technical_service_currency_and_payment_status_ui_guards():
     assert "totals.set(currency" in parity_text
     assert "money(total,currency)" in parity_text
     assert "paymentStatus.disabled=true" in parity_text
+
+
+def test_technician_payment_selects_and_persists_a_bank_account():
+    web_root = Path(__file__).resolve().parents[1] / "Web_Arayuzu" / "web"
+    app = (web_root / "app.js").read_text(encoding="utf-8")
+    technician = app[
+        app.index("technicianDialog=async function(customer,service)"):
+        app.index("const technicianDialogWithoutLock=technicianDialog")
+    ]
+
+    assert 'apiFetch("/api/desktop/table/bank_accounts?limit=500")' in technician
+    assert 'name="bank_account_id"' in technician
+    assert "Havale/EFT" in technician
+    assert "bank_account_id:Number(values.bank_account_id)||0" in technician
+    assert '"bank_account_id": bank_account_id or None' in Path(
+        __file__
+    ).resolve().parents[1].joinpath("Web_Arayuzu", "Main.py").read_text(encoding="utf-8")

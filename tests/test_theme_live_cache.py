@@ -1,5 +1,6 @@
 import os
 import sys
+import weakref
 from types import SimpleNamespace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -40,6 +41,27 @@ def test_theme_prewarm_builds_each_display_theme_cache():
     assert set(ThemeManager.DISPLAY_THEMES) <= compiled_names
     assert set(ThemeManager.DISPLAY_THEMES) <= palette_names
 
+
+def test_apply_raw_skips_reinstalling_identical_application_stylesheet(monkeypatch):
+    old_theme = ThemeManager._current_theme
+    target_theme = "Koyu Mavi"
+    ThemeManager._activate_runtime_cache(target_theme)
+    stylesheet = ThemeManager.get_stylesheet(target_theme)
+    target_palette = ThemeManager._build_palette(target_theme)
+    calls = []
+    fake_app = SimpleNamespace(
+        palette=lambda: target_palette,
+        styleSheet=lambda: stylesheet,
+        setPalette=lambda _palette: None,
+        setStyleSheet=lambda value: calls.append(value),
+    )
+
+    try:
+        monkeypatch.setattr(ThemeManager, "_install_stylesheet_patch", lambda: None)
+        ThemeManager._apply_raw(fake_app, target_theme, refresh_widgets=False)
+        assert calls == []
+    finally:
+        ThemeManager._current_theme = old_theme
 
 def test_reapplying_unchanged_stylesheet_skips_theme_transformation(monkeypatch):
     old_theme = ThemeManager._current_theme
@@ -264,6 +286,37 @@ def test_reapplying_identical_application_stylesheet_skips_qt_cascade(monkeypatc
     APP.setStyleSheet(previous_stylesheet)
 
 
+def test_theme_switch_suspends_top_level_paints_during_qss_cascade(monkeypatch):
+    root = QWidget()
+    root.show()
+    APP.processEvents()
+    original_setter = ThemeManager._original_app_set_stylesheet
+    updates_during_cascade = []
+
+    def counted_setter(target, stylesheet):
+        updates_during_cascade.append(
+            [(widget, widget.updatesEnabled()) for widget in APP.topLevelWidgets()]
+        )
+        return original_setter(target, stylesheet)
+
+    monkeypatch.setattr(
+        ThemeManager, "_original_app_set_stylesheet", counted_setter
+    )
+    previous_theme = ThemeManager._current_theme
+    target_theme = "AYEC" if previous_theme != "AYEC" else "Koyu Mavi"
+
+    try:
+        ThemeManager.apply_theme(APP, target_theme, window=root)
+        APP.processEvents()
+
+        assert updates_during_cascade
+        assert all(not enabled for _widget, enabled in updates_during_cascade[-1])
+        assert root.updatesEnabled()
+    finally:
+        ThemeManager.apply_theme(APP, previous_theme, window=root)
+        root.close()
+
+
 def test_window_scoped_theme_switch_skips_global_widget_replay(monkeypatch):
     root = QWidget()
     root.show()
@@ -469,6 +522,40 @@ def test_scoped_widget_tree_refresh_replays_nested_styles():
     finally:
         ThemeManager._activate_runtime_cache(previous_theme)
         root.close()
+
+
+def test_full_theme_refresh_visits_each_styled_widget_owner_once(monkeypatch):
+    ThemeManager._install_stylesheet_patch()
+    previous_theme = ThemeManager._current_theme
+
+    class CountingLabel(QLabel):
+        def __init__(self, parent=None):
+            super().__init__("Theme refresh", parent)
+            self.window_lookups = 0
+
+        def window(self):
+            self.window_lookups += 1
+            return super().window()
+
+    root = QWidget()
+    other_root = QWidget()
+    label = CountingLabel(root)
+    label.setStyleSheet("QLabel { color: @text; }")
+    label.window_lookups = 0
+    monkeypatch.setattr(ThemeManager, "_styled_widgets", weakref.WeakSet([label]))
+
+    try:
+        root.show()
+        other_root.show()
+        APP.processEvents()
+        ThemeManager._activate_runtime_cache("AYEC")
+        ThemeManager.refresh_all_widgets(APP)
+        assert label.window_lookups == 1
+        assert "@" not in label.styleSheet()
+    finally:
+        root.close()
+        other_root.close()
+        ThemeManager._activate_runtime_cache(previous_theme)
 
 
 def test_style_filter_skips_text_repair_during_theme_style_change(monkeypatch):

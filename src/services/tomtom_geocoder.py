@@ -1,7 +1,6 @@
 import json
 
 from PyQt6.QtCore import QObject, QUrl, QUrlQuery, pyqtSignal
-from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 
 
 class TomTomGeocoder(QObject):
@@ -11,7 +10,11 @@ class TomTomGeocoder(QObject):
 
     def __init__(self, api_key, parent=None):
         super().__init__(parent)
+        from PyQt6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
+
         self.api_key = str(api_key or "").strip()
+        self._network_reply_type = QNetworkReply
+        self._network_request_type = QNetworkRequest
         self.network = QNetworkAccessManager(self)
 
     def geocode(self, address, request_id=""):
@@ -49,7 +52,7 @@ class TomTomGeocoder(QObject):
         else:
             params.addQueryItem("view", "TR")
         url.setQuery(params)
-        request = QNetworkRequest(url)
+        request = self._network_request_type(url)
         request.setTransferTimeout(12000)
         reply = self.network.get(request)
         reply.setProperty("tomtomRequestId", str(request_id))
@@ -61,7 +64,7 @@ class TomTomGeocoder(QObject):
         result = None
         try:
             response_body = bytes(reply.readAll())
-            if reply.error() != QNetworkReply.NetworkError.NoError:
+            if reply.error() != self._network_reply_type.NetworkError.NoError:
                 error = reply.errorString()
                 try:
                     payload = json.loads(response_body.decode("utf-8"))

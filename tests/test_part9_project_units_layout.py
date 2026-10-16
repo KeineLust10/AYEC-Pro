@@ -64,6 +64,8 @@ class Part9ProjectUnitsLayoutTests(unittest.TestCase):
         self.assertTrue(hasattr(self.page, "btn_bulk_status"))
         self.assertEqual(self.page.grid.count(), 8)
         self.assertEqual(self.page.status_filter_buttons["all"].text(), "T\u00fcm\u00fc (8)")
+        self.assertIn("Ortalama Tamamlanma %48.8", self.page.block_summary.text())
+        self.assertEqual(self.page.block_progress.value(), 49)
         self.assertEqual(self.page.status_filter_buttons["active"].text(), "Devam Eden (4)")
         self.page.status_filter_buttons["completed"].click()
         APP.processEvents()
@@ -76,7 +78,7 @@ class Part9ProjectUnitsLayoutTests(unittest.TestCase):
         self.assertEqual(self.page.block_summary.text().split("|")[1].strip(), "8 Ba\u011f\u0131ms\u0131z B\u00f6l\u00fcm")
         self.page.search_inp.clear()
         APP.processEvents()
-        self.page.resize(1440, 900)
+        self.page.resize(1280, 800)
         screenshot_font = QFont()
         screenshot_font.setFamilies(["Segoe UI", "Arial"])
         screenshot_font.setPointSize(10)
@@ -88,6 +90,12 @@ class Part9ProjectUnitsLayoutTests(unittest.TestCase):
         output = Path(__file__).resolve().parents[1] / "output" / "part9-captures" / "project-units-desktop.png"
         output.parent.mkdir(parents=True, exist_ok=True)
         self.assertTrue(self.page.grab().save(str(output), "PNG"))
+        self.page.resize(1052, 690)
+        APP.processEvents()
+        positions = [self.page.grid.getItemPosition(index)[1] for index in range(self.page.grid.count())]
+        self.assertEqual(max(positions), 3)
+        reference_crop = output.with_name("project-inside-content-reference.png")
+        self.assertTrue(self.page.grab().save(str(reference_crop), "PNG"))
 
     def test_compact_mode_uses_single_full_width_column(self):
         self.page.btn_view_mode.setChecked(True)

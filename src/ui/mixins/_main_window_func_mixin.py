@@ -104,7 +104,7 @@ class MainWindowFuncMixin:
 
     def is_assistant_silent_mode(self):
         try:
-            return self.db.get_setting("voice_assistant_active", "0") != "1"
+            return self.db.get_setting("voice_assistant_active", "1") != "1"
         except Exception:
             return True
 

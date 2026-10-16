@@ -1,0 +1,80 @@
+/* Midnight Enterprise Slate: WhatsApp integration reference surface. */
+.messaging-reference{display:grid;gap:12px;min-width:0;color:#e2e8f0;font-family:Inter,Arial,sans-serif}
+.settings-content:has(.messaging-reference){min-width:0;max-width:none;width:100%;padding:12px;background:#080c14;color:#e2e8f0;border-color:#1e2e4a}
+.messaging-ref-status-strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.messaging-ref-status-strip article{display:flex;align-items:center;gap:8px;min-width:0;min-height:64px;padding:9px 12px;border:1px solid #1e2e4a;border-radius:9px;background:#131e32}
+.messaging-ref-status-strip article small{align-self:flex-start;color:#94a3b8;font-size:10px;font-weight:700;letter-spacing:.06em;white-space:nowrap}
+.messaging-ref-status-strip article strong{flex:1;min-width:0;color:#25d366;font-size:12px;font-weight:800}
+.messaging-ref-status-strip article strong.secure{color:#fb7185}.messaging-ref-status-strip article strong.planned{color:#a78bfa}
+.messaging-ref-tag,.messaging-ref-status{display:inline-flex;align-items:center;justify-content:center;flex:none;padding:3px 7px;border:1px solid #1e2e4a;border-radius:5px;background:#0b1322;color:#94a3b8;font:10px "JetBrains Mono",monospace;white-space:nowrap}
+.messaging-ref-tag.danger{color:#fb7185;border-color:#7f1d3d;background:#251322}
+.messaging-ref-status.ready{color:#10b981;border-color:#065f46;background:#062720}.messaging-ref-status.idle{color:#94a3b8}
+.messaging-ref-notice,.messaging-ref-policy{display:flex;align-items:center;gap:8px;min-width:0;padding:8px 10px;border:1px solid #1e2e4a;border-radius:7px;background:#0b1322;color:#9caec6;font-size:10px;line-height:1.45}
+.messaging-ref-notice>b,.messaging-ref-policy>b{display:grid;place-items:center;flex:none;width:18px;height:18px;border-radius:50%;background:#2563eb;color:#fff;font-size:11px}
+.messaging-ref-layout{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);align-items:start;gap:12px;min-width:0}
+.messaging-ref-main,.messaging-ref-aside{display:grid;align-content:start;gap:10px;min-width:0}
+.messaging-ref-card{min-width:0;padding:12px;border:1px solid #1e2e4a;border-radius:10px;background:#131e32;box-shadow:0 4px 12px rgba(0,0,0,.16)}
+.messaging-ref-card>header{display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid rgba(30,46,74,.72)}
+.messaging-ref-card>header>div{display:flex;align-items:center;gap:9px;min-width:0}
+.messaging-ref-card h3{margin:0;color:#f1f5f9;font-size:12px;font-weight:750;line-height:1.3}
+.messaging-ref-card p{margin:3px 0 0;color:#94a3b8;font-size:10px;line-height:1.45}
+.messaging-ref-live{flex:none;padding:4px 7px;border:1px solid #1e2e4a;border-radius:5px;color:#94a3b8;font:10px "JetBrains Mono",monospace}
+.messaging-ref-live.ready{border-color:#065f46;background:#062720;color:#10b981}
+.messaging-ref-icon{display:grid;place-items:center;flex:none;width:28px;height:28px;border:1px solid rgba(37,211,102,.35);border-radius:8px;background:rgba(37,211,102,.12);color:#25d366;font:700 10px "JetBrains Mono",monospace}
+.messaging-ref-mode-field{display:none}
+.messaging-ref-mode-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin-bottom:9px;padding:4px;border:1px solid #1e2e4a;border-radius:7px;background:#0b1322}
+.messaging-ref-mode-tabs button{min-width:0;padding:6px 5px;border:1px solid transparent;border-radius:5px;background:transparent;color:#94a3b8;font-size:10px;cursor:pointer}
+.messaging-ref-mode-tabs button:hover{color:#e2e8f0;background:#162338}
+.messaging-ref-mode-tabs button.active{border-color:#10b981;background:#132c29;color:#25d366;font-weight:700}
+.messaging-ref-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;min-width:0}
+.messaging-ref-fields .field{min-width:0;margin:0}.messaging-ref-fields .field.full{grid-column:1/-1}
+.messaging-ref-fields .field label{display:block;margin:0 0 4px;color:#a8b5c8;font-size:10px;font-weight:550}
+.messaging-ref-fields .field input,.messaging-ref-fields .field select,.messaging-ref-fields .field textarea{box-sizing:border-box;width:100%;min-width:0;max-width:100%;min-height:29px;padding:6px 8px;border:1px solid #1e2e4a;border-radius:6px;outline:0;background:#0b1322;color:#e2e8f0;font:10px Inter,Arial,sans-serif}
+.messaging-ref-fields .field input:focus,.messaging-ref-fields .field select:focus,.messaging-ref-fields .field textarea:focus{border-color:#25d366;box-shadow:0 0 0 1px rgba(37,211,102,.28)}
+.messaging-ref-fields .field input[type=password]{font-family:"JetBrains Mono",monospace;letter-spacing:.04em}
+.messaging-ref-fields .field textarea{min-height:58px;resize:vertical;font:10px "JetBrains Mono",monospace;line-height:1.45}
+.messaging-ref-switch{margin-top:8px}.messaging-ref-switch .setting,.messaging-ref-reminder>header .setting{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0;padding:5px 7px;border:1px solid #1e2e4a;border-radius:6px;background:#0b1322;color:#dbe5f3;font-size:10px}
+.messaging-ref-switch .setting small,.messaging-ref-reminder>header .setting small{display:none}
+.messaging-reference .switch{accent-color:#10b981}
+.messaging-ref-variables{display:grid;gap:5px;margin-top:9px;padding-top:8px;border-top:1px solid rgba(30,46,74,.72)}
+.messaging-ref-variables>small{color:#94a3b8;font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+.messaging-ref-variables>div{display:flex;flex-wrap:wrap;gap:5px}
+.messaging-ref-variables button,.messaging-ref-macro{padding:4px 7px;border:1px solid #334155;border-radius:5px;background:#1e293b;color:#cbd5e1;font:9px "JetBrains Mono",monospace;cursor:pointer}
+.messaging-ref-variables button:hover,.messaging-ref-macro:hover{border-color:#10b981;color:#25d366}
+.messaging-ref-template{margin-top:8px}.messaging-ref-template>.field{margin:0}
+.messaging-ref-policy{margin-top:8px;padding:7px 8px;border-color:#1e3a63;background:#0b1c35;color:#93c5fd;font-size:9px}
+.messaging-ref-policy>b{width:16px;height:16px;background:#1d4ed8;font-size:10px}
+.messaging-ref-preview>header{margin-bottom:9px}.messaging-ref-preview>header>div{display:flex;align-items:center;gap:6px;min-width:180px}
+.messaging-ref-preview>header small{color:#94a3b8;font-size:9px;white-space:nowrap}
+.messaging-ref-preview>header .field{min-width:0;flex:1;margin:0}.messaging-ref-preview>header .field label{display:none}
+.messaging-ref-preview>header input,.messaging-ref-preview>header select{box-sizing:border-box;width:100%;min-height:26px;padding:4px 6px;border:1px solid #1e2e4a;border-radius:5px;background:#0b1322;color:#cbd5e1;font-size:9px}
+.messaging-ref-bubble{max-width:100%;padding:9px 10px;border:1px solid #128c7e;border-radius:8px;background:#075e54;color:#e2e8f0}
+.messaging-ref-bubble>b{display:block;margin-bottom:5px;color:#a7f3d0;font-size:10px}.messaging-ref-bubble p{margin:0;color:#e2e8f0;font:10px/1.5 "JetBrains Mono",monospace;white-space:pre-wrap}
+.messaging-ref-bubble>small{display:block;margin-top:6px;padding-top:5px;border-top:1px solid rgba(16,185,129,.25);color:#a7f3d0;text-align:right;font:9px "JetBrains Mono",monospace}
+.messaging-ref-matrix>header{align-items:flex-start}.messaging-ref-matrix>header .messaging-ref-tag{margin-left:auto}
+.messaging-ref-table-wrap{width:100%;overflow:auto;border:1px solid rgba(30,46,74,.7);border-radius:6px}
+.messaging-ref-matrix table{width:100%;min-width:650px;border-collapse:collapse;color:#cbd5e1;font-size:9px}
+.messaging-ref-matrix th{padding:6px 5px;border-bottom:1px solid #1e2e4a;color:#94a3b8;text-align:left;font-size:8px;font-weight:700;letter-spacing:.035em;text-transform:uppercase;white-space:nowrap}
+.messaging-ref-matrix td{height:27px;padding:3px 5px;border-bottom:1px solid rgba(30,46,74,.55);white-space:nowrap}
+.messaging-ref-matrix tr:last-child td{border-bottom:0}.messaging-ref-matrix tbody tr:hover{background:#0f1c30}
+.messaging-ref-stage-dot{display:inline-block;width:6px;height:6px;margin-right:6px;border-radius:50%;background:#10b981;vertical-align:1px}
+.messaging-ref-check{text-align:center;color:#64748b}.messaging-ref-check.ready{color:#25d366;font-size:12px;font-weight:800}
+.messaging-ref-table-input{box-sizing:border-box;width:100%;min-width:48px;max-width:94px;padding:4px 5px;border:1px solid #1e2e4a;border-radius:4px;background:#0b1322;color:#cbd5e1;font:9px "JetBrains Mono",monospace}
+.messaging-ref-table-input.messaging-ref-code{min-width:105px;max-width:150px;color:#a9bad3}
+.messaging-ref-sms-settings{margin-top:8px;border-top:1px solid #1e2e4a;padding-top:7px}
+.messaging-ref-sms-settings summary{color:#94a3b8;font-size:9px;cursor:pointer}.messaging-ref-sms-settings .messaging-ref-fields{margin-top:8px}
+.messaging-ref-reminder>header{align-items:center;margin-bottom:8px}.messaging-ref-reminder>header .setting{flex:none;padding:3px 6px}
+.messaging-ref-reminder-fields{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+.messaging-ref-addons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;min-width:0}
+.messaging-ref-addon{display:grid;align-content:start;gap:7px;padding:10px}
+.messaging-ref-addon>header{margin:0;padding:0;border:0}.messaging-ref-addon h3{font-size:10px}
+.messaging-ref-addon .messaging-ref-fields{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.messaging-ref-addon .messaging-ref-fields .field label{font-size:9px}.messaging-ref-addon .messaging-ref-fields .field input,.messaging-ref-addon .messaging-ref-fields .field select{min-height:26px;padding:4px 6px;font-size:9px}
+.messaging-ref-link{justify-self:start;padding:4px 7px;border:1px solid #1e2e4a;border-radius:5px;background:#0b1322;color:#94a3b8;font-size:9px;cursor:pointer}
+.messaging-ref-link:hover{border-color:#2563eb;color:#60a5fa}
+.messaging-ref-macros{display:flex;flex-wrap:wrap;gap:5px}.messaging-ref-macro{font-family:Inter,Arial,sans-serif;color:var(--macro-tone,#94a3b8)}
+.messaging-ref-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:8px;border-top:1px solid #1e2e4a;color:#94a3b8;font-size:9px}
+.messaging-ref-footer>div{display:flex;flex-wrap:wrap;gap:7px}.messaging-ref-footer button{min-height:30px;padding:6px 10px;border-radius:6px;font-size:10px}
+@media(max-width:1180px){.messaging-ref-status-strip{grid-template-columns:repeat(2,minmax(0,1fr))}.messaging-ref-layout{grid-template-columns:minmax(0,1fr)}.messaging-ref-main,.messaging-ref-aside{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:760px){.settings-content:has(.messaging-reference){padding:9px}.messaging-reference{gap:9px}.messaging-ref-status-strip{gap:7px}.messaging-ref-status-strip article{min-height:58px;padding:7px}.messaging-ref-layout{gap:9px}.messaging-ref-card{padding:9px}.messaging-ref-addons{gap:7px}.messaging-ref-reminder-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.messaging-ref-footer{align-items:stretch;flex-direction:column}.messaging-ref-footer>div{display:grid;grid-template-columns:1fr 1fr}.messaging-ref-preview>header{align-items:flex-start;flex-direction:column}.messaging-ref-preview>header>div{width:100%}}
+@media(max-width:480px){.messaging-ref-status-strip{grid-template-columns:minmax(0,1fr)}.messaging-ref-status-strip article{min-height:50px}.messaging-ref-fields,.messaging-ref-reminder-fields,.messaging-ref-addons{grid-template-columns:minmax(0,1fr)}.messaging-ref-fields .field.full{grid-column:auto}.messaging-ref-card>header{align-items:flex-start}.messaging-ref-live{white-space:normal}.messaging-ref-mode-tabs button{padding:6px 3px;font-size:9px}.messaging-ref-footer>div{grid-template-columns:minmax(0,1fr)}.messaging-ref-addon .messaging-ref-fields{grid-template-columns:minmax(0,1fr)}}

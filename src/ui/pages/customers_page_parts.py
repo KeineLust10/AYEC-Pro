@@ -32,7 +32,19 @@ class PartnersPage(QWidget, PartnersPageDbMixin, PartnersPageStyleMixin, Partner
         self.search_timer.timeout.connect(self.apply_filters)
 
         self.setup_ui()
-        QTimer.singleShot(100, self.load_data)
+        self._partners_loaded = False
+        self._initial_load_timer = QTimer(self)
+        self._initial_load_timer.setSingleShot(True)
+        self._initial_load_timer.timeout.connect(self.load_data)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if not self._partners_loaded and not self._initial_load_timer.isActive():
+            self._initial_load_timer.start(100)
+
+    def hideEvent(self, event):
+        self._initial_load_timer.stop()
+        super().hideEvent(event)
 
     def notify(self, message, level="info"):
         from src.utils.toast_notification import show_success, show_error, show_warning, show_info
@@ -47,6 +59,7 @@ class PartnersPage(QWidget, PartnersPageDbMixin, PartnersPageStyleMixin, Partner
             raw_rows = self.customer_manager.get_customers() or []
             rows = [dict(r) if hasattr(r, "keys") else r for r in raw_rows]
             self.all_partners = [r for r in rows if self._is_partner_row(r)]
+            self._partners_loaded = True
         except Exception as e:
             self.all_partners = []
             self.notify(f"Calisma ortaklari yuklenemedi: {e}", "error")

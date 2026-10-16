@@ -1,0 +1,16 @@
+.loan-bulk-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-top:10px}
+.loan-bulk-actions button:disabled{opacity:.45;cursor:default}
+.loan-early-closure{display:grid;gap:16px;max-height:min(62vh,560px);overflow:auto;padding:2px}
+.early-loan-summary{display:grid;gap:5px;padding:14px;border:1px solid var(--line);border-radius:9px;background:var(--surface-2)}
+.early-loan-summary strong{font-size:17px;color:var(--ink)}
+.early-loan-summary span,.loan-early-note{color:var(--muted);font-size:12px}
+.loan-early-comparison{margin:0;padding:15px;border-left:4px solid var(--warning);border-radius:8px;background:var(--surface-2);color:var(--warning);font-size:13px;font-weight:700;line-height:1.5}
+.loan-penalty-input{display:flex;align-items:center;gap:8px;max-width:170px}
+.loan-penalty-input input{width:120px;min-width:0}
+.loan-early-closure table{width:100%;min-width:0}
+.loan-early-closure tr.saving td{color:var(--success);font-weight:600}
+.loan-early-closure tr.penalty td{color:var(--danger)}
+.loan-early-closure tr.total td{border-top:2px solid var(--line);color:var(--success);font-size:15px;font-weight:800}
+.loan-early-note{margin:0;padding:11px;border-radius:8px;background:var(--surface-2);line-height:1.55}
+dialog:has(.loan-early-closure){width:min(700px,calc(100vw - 28px))}
+@media(max-width:600px){.loan-bulk-actions{justify-content:stretch}.loan-bulk-actions button{flex:1 1 42%}}

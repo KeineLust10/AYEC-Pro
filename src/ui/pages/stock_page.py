@@ -118,39 +118,39 @@ class StockPage(
     def init_ui(self):
         self.setStyleSheet(theme_qss("background-color: @surface_alt;"))
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 15, 0, 14)
-        layout.setSpacing(21)
+        layout.setContentsMargins(16, 8, 8, 8)
+        layout.setSpacing(10)
 
         self._setup_hero(layout)
 
         header = QFrame()
-        header.setFixedHeight(83)
+        header.setFixedHeight(76)
         header.setStyleSheet(theme_qss("QFrame { background: @finance_surface; border: 1px solid @finance_outline; border-radius: 8px; }"))
         header_layout = QHBoxLayout(header)
-        header_layout.setContentsMargins(14, 7, 14, 7)
+        header_layout.setContentsMargins(12, 6, 12, 6)
         title_block = QVBoxLayout()
         title_row = QHBoxLayout()
         title_row.setSpacing(10)
         title = QLabel("Stok & Envanter Takibi")
-        title.setStyleSheet(theme_qss("color: @finance_text; font-size: 19px; font-weight: 800; border: none;"))
+        title.setStyleSheet(theme_qss("color: @finance_text; font-size: 18px; font-weight: 800; border: none;"))
         title_row.addWidget(title)
         self.lbl_active_stock = QLabel("0 Kalem Aktif")
         self.lbl_active_stock.setStyleSheet(theme_qss("color: @finance_primary; background: @finance_surface_high; border: 1px solid @finance_outline; border-radius: 12px; padding: 4px 10px; font-size: 11px; font-weight: 700;"))
         title_row.addWidget(self.lbl_active_stock)
         title_row.addStretch()
         title_block.addLayout(title_row)
-        subtitle = QLabel("Urun ve parca stoklarini, kategori dagilimini, kritik seviyeleri ve maliyetleri takip edin.")
+        subtitle = QLabel("\u00dcr\u00fcn ve par\u00e7a stoklar\u0131n\u0131, kategori da\u011f\u0131l\u0131m\u0131n\u0131, kritik seviyeleri ve anl\u0131k k\u00e2rl\u0131l\u0131k marjlar\u0131n\u0131 takip edin.")
         subtitle.setStyleSheet(theme_qss("color: @finance_text_muted; font-size: 11px; border: none;"))
         title_block.addWidget(subtitle)
         header_layout.addLayout(title_block, 1)
         btn_refresh = QPushButton("Envanteri Yenile")
         btn_refresh.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_refresh.setStyleSheet(theme_qss("QPushButton { background: @finance_primary; color: @selection_text; border-radius: 6px; padding: 9px 14px; font-weight: 700; } QPushButton:hover { background: @accent_hover; }"))
+        btn_refresh.setStyleSheet(theme_qss("QPushButton { background: @finance_primary; color: @selection_text; border-radius: 6px; padding: 6px 12px; font-weight: 700; } QPushButton:hover { background: @accent_hover; }"))
         btn_refresh.clicked.connect(self.refresh_data)
         header_layout.addWidget(btn_refresh)
         btn_add_header = QPushButton("+ Yeni \u00dcr\u00fcn Ekle")
         btn_add_header.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_add_header.setStyleSheet(theme_qss("QPushButton { background: @finance_primary; color: @selection_text; border-radius: 6px; padding: 9px 14px; font-weight: 700; } QPushButton:hover { background: @accent_hover; }"))
+        btn_add_header.setStyleSheet(theme_qss("QPushButton { background: @finance_primary; color: @selection_text; border-radius: 6px; padding: 6px 12px; font-weight: 700; } QPushButton:hover { background: @accent_hover; }"))
         btn_add_header.clicked.connect(lambda: self.open_add_stock_dialog(None))
         header_layout.addWidget(btn_add_header)
         layout.addWidget(header)
@@ -168,6 +168,36 @@ class StockPage(
         self.setup_history_tab()
         self.tabs.addTab(self.tab_list, "📦 Stok Durumu")
         self.tabs.addTab(self.tab_history, "📋 Stok Hareketleri")
+        self.tab_transfers = QWidget()
+        transfer_layout = QVBoxLayout(self.tab_transfers)
+        transfer_layout.setContentsMargins(18, 18, 18, 18)
+        transfer_layout.setSpacing(12)
+        transfer_title = QLabel("Depo Transferleri")
+        transfer_title.setStyleSheet(theme_qss(
+            "color: @finance_text; font-size: 16px; font-weight: 800; border: none;"
+        ))
+        transfer_description = QLabel(
+            "Depolar, servis ara\u00e7lar\u0131 ve konsinye noktalar\u0131 aras\u0131ndaki stok hareketlerini y\u00f6netin."
+        )
+        transfer_description.setWordWrap(True)
+        transfer_description.setStyleSheet(theme_qss(
+            "color: @finance_text_muted; font-size: 12px; border: none;"
+        ))
+        transfer_open = QPushButton("Depo Transferlerini A\u00e7")
+        transfer_open.setCursor(Qt.CursorShape.PointingHandCursor)
+        transfer_open.setStyleSheet(theme_qss(
+            "QPushButton { background: @finance_primary; color: @finance_primary_text; "
+            "border: none; border-radius: 4px; padding: 8px 14px; font-weight: 700; }"
+        ))
+        transfer_open.clicked.connect(
+            lambda: self.main_window.on_menu_click(PageIds.STOCK_LOCATIONS)
+            if self.main_window and hasattr(self.main_window, "on_menu_click") else None
+        )
+        transfer_layout.addWidget(transfer_title)
+        transfer_layout.addWidget(transfer_description)
+        transfer_layout.addWidget(transfer_open, 0, Qt.AlignmentFlag.AlignLeft)
+        transfer_layout.addStretch(1)
+        self.tabs.addTab(self.tab_transfers, "Depo Transferleri")
         self.tabs.currentChanged.connect(self._on_tab_changed)
 
         # Usage guide tab
@@ -186,24 +216,25 @@ class StockPage(
         ):
             card = QPushButton()
             card.setCursor(Qt.CursorShape.PointingHandCursor)
-            card.setMinimumHeight(50)
+            card.setMinimumHeight(30)
             card.clicked.connect(
                 lambda _checked=False, target=page_id: self.main_window.on_menu_click(target)
                 if self.main_window and hasattr(self.main_window, "on_menu_click") else None
             )
             card.setStyleSheet(theme_qss(
                 f"QPushButton {{ text-align: left; background: @finance_surface; border: 1px solid @finance_outline; "
-                f"border-top: 2px solid {accent}; border-radius: 7px; }}"
+                f"border-left: 2px solid {accent}; border-radius: 5px; }}"
                 f"QPushButton:hover {{ background: @finance_surface_alt; }}"
             ))
-            card_layout = QVBoxLayout(card)
-            card_layout.setContentsMargins(12, 8, 12, 8)
+            card_layout = QHBoxLayout(card)
+            card_layout.setContentsMargins(8, 4, 8, 4)
+            card_layout.setSpacing(6)
             heading = QLabel(title_text)
-            heading.setStyleSheet(theme_qss("color: @finance_text; font-weight: 800; border: none;"))
+            heading.setStyleSheet(theme_qss("color: @finance_text; font-size: 9px; font-weight: 800; border: none;"))
             heading.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
             detail = QLabel(body_text)
-            detail.setStyleSheet(theme_qss("color: @finance_text_muted; font-size: 10px; border: none;"))
-            detail.setWordWrap(True)
+            detail.setStyleSheet(theme_qss("color: @finance_text_muted; font-size: 9px; border: none;"))
+            detail.setWordWrap(False)
             detail.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
             card_layout.addWidget(heading)
             card_layout.addWidget(detail)
@@ -309,10 +340,10 @@ class StockPage(
         )
 
         cards = [
-            ("Toplam \u00c7e\u015fit", stats.get("total_types", 0), "📦", tc("accent"), "all"),
-            (f"Stok De\u011feri ({display_currency})", value_text, "💰", tc("success"), "value"),
-            ("Kritik Stok", stats.get("critical_count", 0), "⚠️", tc("danger"), "critical"),
-            ("Potansiyel Kazan\u00e7", potential_profit, "P", tc("warning"), "profit"),
+            ("Toplam \u00dcr\u00fcn \u00c7e\u015fidi", stats.get("total_types", 0), "\U0001f4e6", tc("accent"), "all"),
+            (f"Toplam Stok De\u011feri (Maliyet)", value_text, "\U0001f4b0", tc("success"), "value"),
+            ("Kritik Stok Uyar\u0131s\u0131", stats.get("critical_count", 0), "\u26a0\ufe0f", tc("danger"), "critical"),
+            ("Potansiyel Net K\u00e2r / Kazan\u00e7", potential_profit, "P", tc("warning"), "profit"),
         ]
         variants = {
             'all': ('finance_text', 'inventory'),

@@ -25,6 +25,10 @@ class CustomerDatabase:
             "id INTEGER PRIMARY KEY, customer_id INTEGER, customer_name TEXT, "
             "status TEXT, is_deleted INTEGER, is_archived INTEGER)"
         )
+        self.conn.execute(
+            "CREATE TABLE offers ("
+            "id INTEGER PRIMARY KEY, customer_id INTEGER, status TEXT)"
+        )
         self.conn.executemany(
             "INSERT INTO customers VALUES (?, ?, '', '', '', ?, 0, 0)",
             (
@@ -62,3 +66,36 @@ def test_vip_filter_returns_corporate_and_explicit_vip_customers_only():
         "VIP Account",
     ]
     assert [row["open_service_count"] for row in result["rows"]] == [1, 0]
+
+
+def test_delivery_ready_is_open_for_customer_rows_but_not_marked_delivered():
+    db = CustomerDatabase()
+    db.conn.execute(
+        "INSERT INTO devices VALUES (?, ?, ?, ?, 0, 0)",
+        (3, 2, "Individual Account", "Teslimata Haz\u0131r"),
+    )
+    db.conn.commit()
+    worker = CustomerWorker(db, 50, 0, "", None)
+    result = {}
+    worker.data_loaded.connect(lambda rows, total: result.update(rows=rows, total=total))
+
+    worker.run()
+
+    ready_row = next(row for row in result["rows"] if row["id"] == 2)
+    assert ready_row["open_service_count"] == 1
+    assert ready_row["open_delivery_ready_count"] == 1
+    assert ready_row["delivered_device_count"] == 0
+
+
+def test_sent_offer_is_reported_as_pending_customer_activity():
+    db = CustomerDatabase()
+    db.conn.execute("INSERT INTO offers VALUES (1, 2, 'sent')")
+    db.conn.commit()
+    worker = CustomerWorker(db, 50, 0, "", None)
+    result = {}
+    worker.data_loaded.connect(lambda rows, total: result.update(rows=rows, total=total))
+
+    worker.run()
+
+    customer = next(row for row in result["rows"] if row["id"] == 2)
+    assert customer["pending_offer_count"] == 1

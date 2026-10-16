@@ -35,6 +35,7 @@ class _MapBridge(QObject):
 
 class TomTomVectorMapView(QWidget):
     coordinateSelected = pyqtSignal(float, float)
+    mapLoaded = pyqtSignal()
     searchRequested = pyqtSignal(str)
     routeCalculationRequested = pyqtSignal(list)
     routeShareRequested = pyqtSignal(list)
@@ -208,6 +209,7 @@ class TomTomVectorMapView(QWidget):
 
     def _on_map_loaded(self):
         self.status_label.setText("TomTom vektor haritasi hazir")
+        self.mapLoaded.emit()
 
     def _run_js(self, script):
         if self._map_ready:
@@ -284,12 +286,14 @@ class TomTomVectorMapView(QWidget):
     def focus_coordinates(self, latitude, longitude):
         self.center = (float(latitude), float(longitude))
         self.selected_coordinates = self.center
+        self.coordinateSelected.emit(*self.selected_coordinates)
         self._run_js("window.ayecTomTomMap.flyTo({}, {}, 15);".format(latitude, longitude))
         return True
 
     def set_selected_coordinates(self, latitude, longitude, zoom=16):
         self.center = (float(latitude), float(longitude))
         self.selected_coordinates = self.center
+        self.coordinateSelected.emit(*self.selected_coordinates)
         self._run_js("window.ayecTomTomMap.select({}, {});".format(latitude, longitude))
         self._run_js("window.ayecTomTomMap.flyTo({}, {}, {});".format(latitude, longitude, zoom))
         return True

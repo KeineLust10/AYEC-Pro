@@ -3,7 +3,7 @@ import os
 
 from PyQt6.QtCore import Qt, QPoint, QSize, QRect, QEvent
 from PyQt6.QtGui import QIcon, QPixmap, QColor, QPainter, QFont
-from PyQt6.QtWidgets import QApplication, QFrame, QHBoxLayout, QLabel, QPushButton, QStyle, QToolButton, QWidget, QMenu
+from PyQt6.QtWidgets import QApplication, QFrame, QHBoxLayout, QVBoxLayout, QLabel, QPushButton, QStyle, QToolButton, QWidget, QMenu
 
 from src.ui.components.notification_center import NotificationBell, NotificationPanel
 from src.ui.widgets.breadcrumb import Breadcrumb
@@ -362,6 +362,8 @@ class AppHeader(QWidget):
     def _apply_compact_width_presentation(self):
         if not hasattr(self, "service_profile"):
             return
+        if getattr(self, "_customer_reference_mode", False):
+            return
         page_id = getattr(self.main_window, "_current_page_index", None)
         compact = self.width() < 1400
         layout = self.layout()
@@ -405,6 +407,7 @@ class AppHeader(QWidget):
             self.cmb_theme.setMaximumWidth(180)
             self.service_profile.setFixedSize(42, 38)
             self.service_profile.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+            self.service_profile.show()
             self.btn_shortcuts.setVisible(True)
             self.btn_theme_toggle.setVisible(True)
             self.btn_interface_edit.setVisible(self._can_show_interface_editor())
@@ -440,6 +443,9 @@ class AppHeader(QWidget):
 
     def _apply_shared_header_presentation(self):
         """Keep the same app bar controls and geometry on every menu."""
+        if getattr(self, "_customer_reference_mode", False):
+            self._apply_customer_reference_header()
+            return
         layout = self.layout()
         self.setFixedHeight(70)
         layout.setContentsMargins(12, 0, 12, 0)
@@ -462,6 +468,243 @@ class AppHeader(QWidget):
         ):
             layout.addWidget(widget, 1 if widget is self.breadcrumb else 0)
         self._shared_header_layout_ready = True
+
+    def set_customer_reference_mode(self, enabled):
+        enabled = bool(enabled)
+        if enabled == getattr(self, "_customer_reference_mode", False):
+            if enabled:
+                self._apply_customer_reference_header()
+            return
+        controls = (
+            self.btn_back, self.lbl_logo, self.lbl_brand_pro,
+            self.brand_separator, self.breadcrumb_separator,
+            self.lbl_app_name, self.lbl_module_path, self.breadcrumb,
+            self.btn_invoice_integration, self.btn_web_sync, self.btn_update,
+            self.notification_bell, self.btn_interface_edit, self.btn_settings,
+            self.btn_shortcuts, self.btn_theme_toggle, self.cmb_theme,
+            self.service_profile, self.btn_minimize, self.btn_maximize,
+            self.btn_close,
+        )
+        if enabled:
+            self._customer_reference_previous_visibility = {
+                control: control.isVisible() for control in controls
+            }
+            self._customer_reference_mode = True
+            self._apply_customer_reference_header()
+            return
+        self._customer_reference_mode = False
+        if hasattr(self, "customer_reference_header"):
+            self.customer_reference_header.hide()
+            self.customer_reference_spacer.hide()
+        self._apply_shared_header_presentation()
+        for control, was_visible in getattr(
+            self, "_customer_reference_previous_visibility", {}
+        ).items():
+            control.setVisible(was_visible)
+
+    def _apply_customer_reference_header(self):
+        if not hasattr(self, "customer_reference_header"):
+            self._build_customer_reference_header()
+        layout = self.layout()
+        while layout.count():
+            layout.takeAt(0)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        self.setFixedHeight(70)
+        for control in (
+            self.btn_back, self.lbl_logo, self.lbl_brand_pro,
+            self.brand_separator, self.breadcrumb_separator,
+            self.lbl_app_name, self.lbl_module_path, self.breadcrumb,
+            self.btn_invoice_integration, self.btn_web_sync, self.btn_update,
+            self.notification_bell, self.btn_interface_edit, self.btn_settings,
+            self.btn_shortcuts, self.btn_theme_toggle, self.cmb_theme,
+            self.service_profile, self.btn_minimize, self.btn_maximize,
+            self.btn_close,
+        ):
+            control.hide()
+        self.service_profile.show()
+        right_container = getattr(self.main_window, "right_container", None)
+        spacer_width = max(0, right_container.geometry().x()) if right_container is not None else 0
+        if spacer_width <= 0:
+            sidebar = getattr(self.main_window, "app_sidebar", None)
+            spacer_width = max(0, sidebar.width()) if sidebar is not None else 0
+        if spacer_width <= 0:
+            spacer_width = 320
+        self.customer_reference_spacer.setFixedWidth(spacer_width)
+        self.customer_reference_spacer.show()
+        layout.addWidget(self.customer_reference_spacer)
+        layout.addWidget(self.customer_reference_header, 1, Qt.AlignmentFlag.AlignTop)
+        self.customer_reference_header.setVisible(True)
+        self._apply_customer_reference_header_responsive()
+
+    def _build_customer_reference_header(self):
+        from src.utils.page_ids import PageIds
+
+        self.customer_reference_header = QWidget(self)
+        self.customer_reference_header.setObjectName("CustomerReferenceHeader")
+        self.customer_reference_header.setFixedHeight(56)
+        self.customer_reference_header.setStyleSheet(
+            "QWidget#CustomerReferenceHeader { background: #090e19; }"
+        )
+        row = QHBoxLayout(self.customer_reference_header)
+        row.setContentsMargins(16, 0, 12, 0)
+        row.setSpacing(6)
+
+        logo = QLabel("AP", self.customer_reference_header)
+        logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        logo.setFixedSize(36, 36)
+        logo.setStyleSheet(
+            "color: #e0fdff; background: #171b27; border: none; border-radius: 10px; "
+            "font: 700 13px 'Times New Roman', 'Segoe UI', Arial;"
+        )
+        row.addWidget(logo)
+        brand = QVBoxLayout()
+        brand.setContentsMargins(0, 0, 0, 0)
+        brand.setSpacing(0)
+        brand_title = QLabel("AYEC PRO")
+        brand_title.setStyleSheet(
+            "color: #f8fafc; font-family: 'Times New Roman', 'Segoe UI', Arial; "
+            "font-size: 12px; font-weight: 800;"
+        )
+        brand_subtitle = QLabel("CLIENT INTEL HUB")
+        brand_subtitle.setStyleSheet(
+            "color: #94a3b8; font-family: 'JetBrains Mono', 'Segoe UI', Arial; "
+            "font-size: 8px;"
+        )
+        brand.addWidget(brand_title)
+        brand.addWidget(brand_subtitle)
+        brand_widget = QWidget(self.customer_reference_header)
+        brand_widget.setLayout(brand)
+        brand_widget.setFixedWidth(105)
+        brand_widget.setStyleSheet("background: transparent;")
+        self.customer_reference_brand_widget = brand_widget
+        row.addWidget(brand_widget)
+
+        branch_name = self.db.get_setting("active_branch_name", "Merkez \u015eube")
+        self.customer_reference_branch = QPushButton(
+            "\U0001f3e2  {}  \u2022  Canl\u0131  \u2304".format(branch_name),
+            self.customer_reference_header,
+        )
+        self.customer_reference_branch.setFixedSize(156, 34)
+        self.customer_reference_branch.setProperty("skipThemeTransform", True)
+        self.customer_reference_branch.setStyleSheet(
+            "QPushButton { color: #dee2f2; background: #171b27; border: none; "
+            "border-radius: 9px; padding: 0 8px; font: 600 9px 'Times New Roman', 'Segoe UI', Arial; } "
+            "QPushButton:hover { background: #252a36; }"
+        )
+        self.customer_reference_branch.clicked.connect(
+            lambda: self.main_window.on_menu_click(130)
+        )
+        row.addWidget(self.customer_reference_branch)
+        row.addSpacing(24)
+
+        nav = QHBoxLayout()
+        nav.setContentsMargins(0, 0, 0, 0)
+        nav.setSpacing(6)
+        self.customer_reference_nav_buttons = []
+        for title, page_id in (
+            ("M\u00fc\u015fteri Rehberi", PageIds.CUSTOMER_LIST),
+            ("Cari & Bakiye", PageIds.INCOME_EXPENSE),
+            ("Servis Ge\u00e7mi\u015fi", PageIds.SERVICE_LIST),
+            ("Teklif & S\u00f6zle\u015fmeler", PageIds.ALL_OFFERS),
+            ("Otomasyonlar", PageIds.SERVICE_SETTINGS),
+        ):
+            button = QPushButton(title, self.customer_reference_header)
+            button.setCursor(Qt.CursorShape.PointingHandCursor)
+            button.setFixedHeight(36)
+            button.setStyleSheet(
+                "QPushButton { color: #b9cacb; background: transparent; border: none; "
+                "border-radius: 9px; padding: 0 12px; font: 600 12px 'Times New Roman', 'Segoe UI', Arial; } "
+                "QPushButton:hover { color: #dee2f2; background: #151b28; }"
+            )
+            button.clicked.connect(
+                lambda checked=False, target=page_id: self.main_window.on_menu_click(target)
+            )
+            nav.addWidget(button)
+            self.customer_reference_nav_buttons.append((int(page_id), button))
+        nav_widget = QWidget(self.customer_reference_header)
+        nav_widget.setLayout(nav)
+        self.customer_reference_nav_widget = nav_widget
+        row.addWidget(nav_widget)
+        row.addStretch(1)
+
+        self.customer_reference_status_badges = []
+        for text, color in (("Teknisyen: 9", "#94a3b8"), ("Aktif \u00c7a\u011fr\u0131: 14", "#00dce6")):
+            badge = QLabel(text, self.customer_reference_header)
+            badge.setFixedHeight(24)
+            badge.setStyleSheet(
+                "color: %s; background: #171b27; border-radius: 10px; "
+                "padding: 5px 7px; font: 600 9px 'JetBrains Mono', 'Segoe UI', Arial;" % color
+            )
+            row.addWidget(badge)
+            self.customer_reference_status_badges.append(badge)
+
+        self.customer_reference_notification = QPushButton("\U0001f514", self.customer_reference_header)
+        self.customer_reference_notification.setFixedSize(28, 30)
+        self.customer_reference_notification.setStyleSheet(
+            "QPushButton { color: #b9cacb; background: transparent; border: none; font-size: 14px; } "
+            "QPushButton:hover { background: #151b28; border-radius: 8px; }"
+        )
+        self.customer_reference_notification.clicked.connect(self.open_notification_panel)
+        row.addWidget(self.customer_reference_notification)
+
+        profile_text = QLabel("Sistem Y\u00f6neticisi\nAKT\u0130F OTURUM", self.customer_reference_header)
+        self.customer_reference_profile_text = profile_text
+        profile_text.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight)
+        profile_text.setStyleSheet(
+            "color: #f8fafc; font: 700 9px 'Times New Roman', 'Segoe UI', Arial;"
+        )
+        row.addWidget(profile_text)
+        self.service_profile.show()
+        row.addWidget(self.service_profile)
+        self.customer_reference_spacer = QWidget(self)
+        self.customer_reference_spacer.setFixedWidth(0)
+        self.customer_reference_spacer.hide()
+        self.customer_reference_header.hide()
+        self.customer_reference_header.setProperty("skipThemeTransform", True)
+        for child in self.customer_reference_header.findChildren(QWidget):
+            child.setProperty("skipThemeTransform", True)
+
+    def _apply_customer_reference_header_responsive(self):
+        if not hasattr(self, "customer_reference_nav_widget"):
+            return
+        content_width = self.width() - self.customer_reference_spacer.width()
+        compact = content_width < 1180
+        self.customer_reference_branch.setVisible(not compact)
+        self.customer_reference_profile_text.setVisible(not compact)
+        for badge in self.customer_reference_status_badges:
+            badge.setVisible(not compact)
+        for target_page, button in self.customer_reference_nav_buttons:
+            is_active = target_page == int(getattr(self.main_window, "_current_page_index", -1))
+            font_size = 10 if compact else 12
+            padding = 8 if compact else 12
+            button.setStyleSheet(
+                "QPushButton { color: %s; background: %s; border: none; "
+                "border-radius: 9px; padding: 0 %dpx; font: %s %dpx 'Times New Roman', 'Segoe UI', Arial; } "
+                "QPushButton:hover { color: #dee2f2; background: #151b28; }"
+                % (
+                    "#00dce6" if is_active else "#b9cacb",
+                    "#151b28" if is_active else "transparent",
+                    padding,
+                    "700" if is_active else "600",
+                    font_size,
+                )
+            )
+
+    def _sync_customer_reference_header(self, page_id):
+        active_page_id = int(page_id)
+        for target_page, button in getattr(self, "customer_reference_nav_buttons", []):
+            is_active = target_page == active_page_id
+            button.setStyleSheet(
+                "QPushButton { color: %s; background: %s; border: none; "
+                "border-radius: 9px; padding: 0 12px; font: %s 12px 'Times New Roman', 'Segoe UI', Arial; } "
+                "QPushButton:hover { color: #dee2f2; background: #151b28; }"
+                % (
+                    "#00dce6" if is_active else "#b9cacb",
+                    "#151b28" if is_active else "transparent",
+                    "700" if is_active else "600",
+                )
+            )
 
         self.btn_back.setFixedSize(68, 32)
         self.btn_back.setText("\u2190  Geri")

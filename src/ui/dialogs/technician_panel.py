@@ -169,7 +169,9 @@ class TechnicianPanel(TechnicianPanelInventoryMixin, _TpStyles, _TpHelpers, _TpA
             block.addWidget(value_label)
             summary_grid.addLayout(block, 0, column)
         summary_grid.setColumnStretch(4, 1)
-        self.header.layout().insertWidget(3, summary, 1)
+        # Keep the summary out of the fixed-height title bar.  A long customer
+        # or tracking number must not squeeze the navigation controls.
+        self.content_layout.insertWidget(0, summary)
 
         station_bar = QFrame()
         station_bar.setObjectName("TechnicianStationBar")
@@ -248,7 +250,8 @@ class TechnicianPanel(TechnicianPanelInventoryMixin, _TpStyles, _TpHelpers, _TpA
         for index, caption in enumerate(("Genel Bak\u0131\u015f", "Test Uygulama", "\u0130\u015flem Ge\u00e7mi\u015fi")):
             button = QPushButton(caption)
             button.setCheckable(True)
-            button.setFixedSize(90, 26)
+            button_width = (124, 124, 136)[index]
+            button.setFixedSize(button_width, 32)
             button.setStyleSheet(theme_qss("QPushButton{background:@finance_canvas;color:@finance_text_muted;border:1px solid @finance_outline;border-radius:4px;padding:0 4px;min-height:22px;font-size:10px;}QPushButton:checked{background:@accent;color:@selection_text;}"))
             button.clicked.connect(lambda checked=False, tab_index=index: self.tabs.setCurrentIndex(tab_index))
             self.reference_tab_group.addButton(button, index)
@@ -257,7 +260,7 @@ class TechnicianPanel(TechnicianPanelInventoryMixin, _TpStyles, _TpHelpers, _TpA
         self.reference_tab_buttons[0].setChecked(True)
         self.tabs.currentChanged.connect(lambda index: self.reference_tab_buttons[index].setChecked(True) if 0 <= index < len(self.reference_tab_buttons) else None)
         self.reference_station_button = QPushButton("Istasyon")
-        self.reference_station_button.setFixedSize(64, 26)
+        self.reference_station_button.setFixedSize(96, 32)
         self.reference_station_button.setStyleSheet(theme_qss("QPushButton{background:@finance_surface_alt;color:@finance_text;border:1px solid @finance_outline;border-radius:4px;padding:0 4px;min-height:22px;font-size:10px;}"))
         self.reference_station_button.clicked.connect(self._show_reference_station)
         self.header.layout().insertWidget(self.header.layout().count() - 2, self.reference_station_button)

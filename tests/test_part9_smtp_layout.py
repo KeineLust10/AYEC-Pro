@@ -39,16 +39,20 @@ def test_part9_smtp_layout_presets_and_connection_status():
     widget.resize(1336, 970)
     widget.show()
     APP.processEvents()
-    assert widget.smtp_metric_test.parentWidget().height() == 48
-    assert widget.smtp_metric_test.parentWidget().parentWidget().height() == 48
+    assert widget.smtp_metric_test.parentWidget().height() == 32
+    assert widget.smtp_metric_test.parentWidget().parentWidget().height() == 32
     assert widget.lbl_connection_state.text() == "SSL \u015e\u0130FREL\u0130 (Port 465)"
     assert widget.smtp_metric_test.text() == "13:12:04"
     assert widget.smtp_metric_test_detail.text() == "BASARILI"
     assert widget.inp_smtp_password.echoMode() == QLineEdit.EchoMode.Password
     assert widget.inp_smtp_server.width() > 250
-    assert widget.smtp_form_card.height() >= 600
-    assert widget.smtp_test_card.height() >= 450
+    assert widget.smtp_form_card.height() <= 550
+    assert widget.smtp_test_card.height() <= 360
+    assert widget.log_card.height() <= 150
+    assert widget.smtp_test_card.height() >= 340
 
+    widget.resize(1280, 753)
+    APP.processEvents()
     output = Path(__file__).resolve().parents[1] / "output" / "part9-captures" / "email-smtp-desktop.png"
     output.parent.mkdir(parents=True, exist_ok=True)
     assert widget.grab().save(str(output), "PNG")

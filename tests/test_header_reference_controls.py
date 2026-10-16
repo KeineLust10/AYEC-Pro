@@ -95,13 +95,13 @@ def test_reference_header_preserves_every_original_control_callback(monkeypatch,
         header.cmb_theme.setCurrentIndex(index)
         assert calls[-1] == ('on_header_theme_changed', (header.cmb_theme.currentText(),), {})
         assert header.cmb_theme.property('referenceChevron')
-        assert header.cmb_theme.height() == 32
+        assert header.cmb_theme.height() == 34
         for control in (
             header.btn_back, header.btn_interface_edit, header.btn_settings,
             header.btn_shortcuts, header.btn_theme_toggle, header.btn_web_sync,
             header.btn_minimize, header.btn_maximize, header.btn_close, header.cmb_theme,
         ):
-            radius = '6px' if control is header.btn_back else '4px'
+            radius = '7px' if control is header.btn_back else '4px'
             assert f'border-radius: {radius}' in control.styleSheet()
             assert '@finance_' not in control.styleSheet()
             assert header.rect().contains(control.mapTo(header, control.rect().topLeft()))

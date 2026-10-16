@@ -33,6 +33,15 @@ def test_reference_fonts_load_offline_and_preserve_point_size():
         app.setFont(original)
 
 
+def test_system_fallback_fonts_resolve_after_reference_font_registration():
+    app = QApplication.instance() or QApplication([])
+    apply_reference_font(app)
+    windir = Path(os.environ.get('WINDIR', 'C:/Windows')) / 'Fonts'
+    for family, filename in (('Segoe UI', 'segoeui.ttf'), ('Arial', 'arial.ttf')):
+        if (windir / filename).is_file():
+            assert QFontInfo(QFont(family)).family() == family
+
+
 def test_web_and_desktop_share_offline_font_payloads():
     root = Path(__file__).resolve().parents[1]
     web = root / 'Web_Arayuzu' / 'web'

@@ -443,7 +443,7 @@ class BrandsPage(QWidget):
         table_font.setPointSizeF(10.0)
         self.table.setFont(table_font)
         self.table.setMinimumHeight(160)
-        tlay.addWidget(self.table, 0)
+        tlay.addWidget(self.table, 1)
         table_frame.setMinimumHeight(162)
         layout.addSpacing(8)
         layout.addWidget(table_frame, 0)
@@ -503,9 +503,34 @@ class BrandsPage(QWidget):
         self.page_buttons_layout.setSpacing(4)
         navigation.addWidget(self.page_buttons_container)
         navigation.addWidget(self.btn_next)
-        layout.addStretch(1)
         layout.addLayout(self.footer_grid)
         self._layout_reference_toolbar(self.width())
+        self._apply_table_viewport_mode(self.width())
+
+    def _apply_table_viewport_mode(self, page_width):
+        if not hasattr(self, 'table_frame'):
+            return
+        root_layout = self.layout()
+        table_index = root_layout.indexOf(self.table_frame)
+        if page_width < 1180:
+            root_layout.setStretch(table_index, 1)
+            table_height = max(220, self.window().height() - 620)
+            self.table.setMinimumHeight(0)
+            self.table.setMaximumHeight(table_height)
+            self.table_frame.setMaximumHeight(table_height + 2)
+            compact_widths = (44, 150, 130, 160, 100, 150)
+            if page_width < 920:
+                compact_widths = (40, 125, 110, 140, 90, 135)
+            header_view = self.table.horizontalHeader()
+            for column, column_width in enumerate(compact_widths):
+                header_view.setSectionResizeMode(column, QHeaderView.ResizeMode.Fixed)
+                self.table.setColumnWidth(column, column_width)
+        else:
+            root_layout.setStretch(table_index, 0)
+            self.table.setMinimumHeight(160)
+            self.table.setMaximumHeight(16777215)
+            self.table_frame.setMaximumHeight(16777215)
+        root_layout.invalidate()
 
     def _layout_reference_toolbar(self, width):
         for grid in (self.header_grid, self.filter_grid):
@@ -536,6 +561,7 @@ class BrandsPage(QWidget):
         if hasattr(self, 'footer_grid'):
             while self.footer_grid.count():
                 self.footer_grid.takeAt(0)
+            self.footer_grid.setAlignment(Qt.AlignmentFlag.AlignTop)
             for column in range(4):
                 self.footer_grid.setColumnStretch(column, 0)
             self.footer_grid.addWidget(self.count_label, 0, 0, 1, 3 if narrow else 1)
@@ -552,7 +578,8 @@ class BrandsPage(QWidget):
         super().resizeEvent(event)
         if hasattr(self, 'filter_grid'):
             self._layout_reference_toolbar(event.size().width())
-            page_width = event.size().width()
+            page_width = min(event.size().width(), self.width())
+            self._apply_table_viewport_mode(page_width)
             if page_width < 1180:
                 compact_widths = (48, 220, 170, 225, 140, 165)
                 if page_width < 920:
@@ -572,6 +599,7 @@ class BrandsPage(QWidget):
                     header_view.setSectionResizeMode(
                         column, QHeaderView.ResizeMode.Stretch
                     )
+
             self._fit_table_height()
 
     def _change_page_size(self):
@@ -860,7 +888,7 @@ class BrandsPage(QWidget):
         natural_height = self.table.horizontalHeader().height() + (
             self.table.rowCount() * self.table.verticalHeader().defaultSectionSize()
         ) + 2
-        available_height = max(160, self.height() - (442 if self.width() < 1180 else 315))
+        available_height = max(160, self.height() - (620 if self.width() < 1180 else 315))
         table_height = min(natural_height, available_height)
         self.table.setFixedHeight(table_height)
         self.table_frame.setFixedHeight(table_height + 2)

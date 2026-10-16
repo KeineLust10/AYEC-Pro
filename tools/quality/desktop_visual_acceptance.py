@@ -5,20 +5,29 @@ import json
 import os
 import sys
 import tempfile
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PyQt6.QtCore import Qt, QPoint, QRect, QEvent, QSettings, QTemporaryDir
+from PyQt6.QtCore import Qt, QPoint, QRect, QEvent, QSettings, QSignalBlocker, QTemporaryDir
 from PyQt6.QtGui import QFont, QFontMetrics
 from PyQt6.QtWidgets import (
+    QAbstractButton,
     QAbstractItemView,
     QApplication,
+    QCalendarWidget,
+    QComboBox,
+    QDateTimeEdit,
     QHeaderView,
+    QLineEdit,
+    QMenu,
+    QPlainTextEdit,
     QPushButton,
     QTableView,
     QTableWidget,
+    QTextEdit,
+    QTimeEdit,
     QWidget,
 )
 from PyQt6.QtTest import QTest
@@ -72,6 +81,340 @@ def clipped_button_warnings(widget: QWidget) -> list[str]:
             name = button.objectName() or button.text()
             warnings.append(name)
     return warnings
+
+
+def capture_button_state_crops(
+    widget: QWidget,
+    output_dir: Path,
+    theme_name: str,
+    page_name: str,
+) -> dict[str, object]:
+    app = QApplication.instance()
+    if app is None:
+        return {"buttons": 0, "captures": 0, "failures": ["QApplication unavailable"]}
+
+    state_dir = output_dir / "button_states"
+    state_dir.mkdir(parents=True, exist_ok=True)
+    theme_slug = theme_name.lower().replace(" ", "_")
+    failures = []
+    capture_count = 0
+    buttons = [button for button in widget.findChildren(QAbstractButton) if button.isVisible()]
+    for index, button in enumerate(buttons):
+        original_enabled = button.isEnabled()
+        original_down = button.isDown()
+        original_checked = button.isChecked() if button.isCheckable() else False
+        original_focus = button.hasFocus()
+        signal_blocker = QSignalBlocker(button) if button.isCheckable() else None
+        states = ["disabled"]
+        if original_enabled:
+            states = ["hover", "active", "focus", "disabled"]
+        if original_enabled and button.isCheckable():
+            states.append("selected")
+        try:
+            for state in states:
+                button.setEnabled(original_enabled if state != "disabled" else False)
+                button.setDown(original_down)
+                if button.isCheckable():
+                    button.setChecked(original_checked)
+                if state == "hover":
+                    QTest.mouseMove(
+                        button,
+                        QPoint(max(0, button.width() // 2), max(0, button.height() // 2)),
+                    )
+                elif state == "active":
+                    button.setDown(True)
+                elif state == "focus":
+                    button.setFocus(Qt.FocusReason.OtherFocusReason)
+                elif state == "disabled":
+                    button.setEnabled(False)
+                elif state == "selected":
+                    button.setChecked(True)
+                app.processEvents()
+                file_name = f"{theme_slug}_{page_name}_{index:04d}_{state}.png"
+                if button.grab().save(str(state_dir / file_name), "PNG"):
+                    capture_count += 1
+                else:
+                    failures.append(file_name)
+        except (RuntimeError, AttributeError) as exc:
+            failures.append(f"{theme_slug}_{page_name}_{index:04d}:{type(exc).__name__}")
+        finally:
+            button.setEnabled(original_enabled)
+            button.setDown(original_down)
+            if original_focus:
+                button.setFocus(Qt.FocusReason.OtherFocusReason)
+            else:
+                button.clearFocus()
+            if button.isCheckable():
+                button.setChecked(original_checked)
+            del signal_blocker
+    QTest.mouseMove(widget, QPoint(1, 1))
+    app.processEvents()
+    return {"buttons": len(buttons), "captures": capture_count, "failures": failures}
+
+
+def capture_form_control_states(
+    widget: QWidget,
+    output_dir: Path,
+    theme_name: str,
+    page_name: str,
+) -> dict[str, object]:
+    app = QApplication.instance()
+    if app is None:
+        return {"controls": 0, "captures": 0, "failures": ["QApplication unavailable"]}
+
+    state_dir = output_dir / "input_states"
+    state_dir.mkdir(parents=True, exist_ok=True)
+    theme_slug = theme_name.lower().replace(" ", "_")
+    controls = [
+        item
+        for kind in (QLineEdit, QTextEdit, QPlainTextEdit)
+        for item in widget.findChildren(kind)
+        if item.isVisible()
+    ]
+    failures = []
+    capture_count = 0
+    for index, control in enumerate(controls):
+        original_enabled = control.isEnabled()
+        original_focus = control.hasFocus()
+        states = ["disabled"]
+        if original_enabled:
+            states = ["focus", "disabled"]
+        try:
+            for state in states:
+                control.setEnabled(original_enabled if state != "disabled" else False)
+                if state == "focus":
+                    control.setFocus(Qt.FocusReason.OtherFocusReason)
+                else:
+                    control.clearFocus()
+                app.processEvents()
+                file_name = f"{theme_slug}_{page_name}_{index:04d}_{state}.png"
+                if control.grab().save(str(state_dir / file_name), "PNG"):
+                    capture_count += 1
+                else:
+                    failures.append(file_name)
+        except (RuntimeError, AttributeError) as exc:
+            failures.append(f"{theme_slug}_{page_name}_{index:04d}:{type(exc).__name__}")
+        finally:
+            control.setEnabled(original_enabled)
+            if original_focus:
+                control.setFocus(Qt.FocusReason.OtherFocusReason)
+            else:
+                control.clearFocus()
+    app.processEvents()
+    return {"controls": len(controls), "captures": capture_count, "failures": failures}
+
+
+def capture_menu_action_state_crops(
+    widget: QWidget,
+    output_dir: Path,
+    theme_name: str,
+    page_name: str,
+) -> dict[str, object]:
+    app = QApplication.instance()
+    if app is None:
+        return {"menus": 0, "actions": 0, "captures": 0, "failures": ["QApplication unavailable"]}
+
+    state_dir = output_dir / "menu_states"
+    state_dir.mkdir(parents=True, exist_ok=True)
+    theme_slug = theme_name.lower().replace(" ", "_")
+    menus = widget.findChildren(QMenu)
+    action_count = 0
+    capture_count = 0
+    failures = []
+    for menu_index, menu in enumerate(menus):
+        original_active = menu.activeAction()
+        menu.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+        menu.ensurePolished()
+        menu.adjustSize()
+        menu.show()
+        app.processEvents()
+        actions = [action for action in menu.actions() if not action.isSeparator()]
+        action_count += len(actions)
+        try:
+            for action_index, action in enumerate(actions):
+                original_enabled = action.isEnabled()
+                original_checked = action.isChecked() if action.isCheckable() else False
+                signal_blocker = QSignalBlocker(action)
+                states = ["disabled"]
+                if original_enabled:
+                    states.insert(0, "hover")
+                if original_enabled and action.isCheckable():
+                    states.append("selected")
+                try:
+                    for state in states:
+                        action.setEnabled(original_enabled if state != "disabled" else False)
+                        if action.isCheckable():
+                            action.setChecked(original_checked)
+                        menu.setActiveAction(action if state == "hover" else None)
+                        if state == "selected":
+                            action.setChecked(True)
+                        app.processEvents()
+                        file_name = (
+                            f"{theme_slug}_{page_name}_{menu_index:03d}_"
+                            f"{action_index:03d}_{state}.png"
+                        )
+                        if menu.grab().save(str(state_dir / file_name), "PNG"):
+                            capture_count += 1
+                        else:
+                            failures.append(file_name)
+                finally:
+                    action.setEnabled(original_enabled)
+                    if action.isCheckable():
+                        action.setChecked(original_checked)
+                    del signal_blocker
+        except (RuntimeError, AttributeError) as exc:
+            failures.append(f"{theme_slug}_{page_name}_{menu_index:03d}:{type(exc).__name__}")
+        finally:
+            menu.setActiveAction(original_active)
+            menu.hide()
+            app.processEvents()
+    return {
+        "menus": len(menus),
+        "actions": action_count,
+        "captures": capture_count,
+        "failures": failures,
+    }
+
+
+def capture_combo_calendar_popups(
+    widget: QWidget,
+    output_dir: Path,
+    theme_name: str,
+    page_name: str,
+) -> dict[str, object]:
+    app = QApplication.instance()
+    if app is None:
+        return {"combos": 0, "calendars": 0, "captures": 0, "skipped": 0, "failures": ["QApplication unavailable"]}
+
+    state_dir = output_dir / "popup_states"
+    state_dir.mkdir(parents=True, exist_ok=True)
+    theme_slug = theme_name.lower().replace(" ", "_")
+    combos = [item for item in widget.findChildren(QComboBox) if item.isVisible()]
+    date_edits = [
+        item
+        for item in widget.findChildren(QDateTimeEdit)
+        if item.isVisible() and not isinstance(item, QTimeEdit)
+    ]
+    capture_count = 0
+    failures = []
+    skipped_count = 0
+    skipped_details = []
+
+    def describe_skipped_combo(index: int, combo: QComboBox, reason: str) -> dict[str, object]:
+        line_edit = combo.lineEdit() if combo.isEditable() else None
+        return {
+            "index": index,
+            "class": type(combo).__name__,
+            "object_name": combo.objectName(),
+            "accessible_name": combo.accessibleName(),
+            "enabled": combo.isEnabled(),
+            "count": combo.count(),
+            "editable": combo.isEditable(),
+            "current_text": combo.currentText(),
+            "placeholder": line_edit.placeholderText() if line_edit is not None else "",
+            "reason": reason,
+            "signals": {
+                name: combo.receivers(getattr(combo, name))
+                for name in (
+                    "currentIndexChanged",
+                    "currentTextChanged",
+                    "activated",
+                    "textActivated",
+                    "editTextChanged",
+                )
+            },
+            "line_edit_signals": {
+                name: line_edit.receivers(getattr(line_edit, name))
+                for name in ("textChanged", "textEdited", "editingFinished", "returnPressed")
+            }
+            if line_edit is not None
+            else {},
+        }
+
+    for index, combo in enumerate(combos):
+        try:
+            if not combo.isEnabled():
+                skipped_count += 1
+                skipped_details.append(describe_skipped_combo(index, combo, "disabled"))
+                continue
+            view = combo.view()
+            popup = view.window()
+            popup.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+            combo.showPopup()
+            app.processEvents()
+            if not view.isVisible():
+                if combo.count() == 0:
+                    skipped_count += 1
+                    skipped_details.append(describe_skipped_combo(index, combo, "no_items"))
+                    continue
+                failures.append(
+                    f"{page_name}:combo:{index}:not_visible:"
+                    f"enabled={combo.isEnabled()}:count={combo.count()}"
+                )
+                continue
+            path = state_dir / f"{theme_slug}_{page_name}_combo_{index:04d}.png"
+            if popup.grab().save(str(path), "PNG"):
+                capture_count += 1
+            else:
+                failures.append(f"{page_name}:combo:{index}:capture_failed")
+        except (RuntimeError, AttributeError) as exc:
+            failures.append(f"{page_name}:combo:{index}:{type(exc).__name__}")
+        finally:
+            try:
+                combo.hidePopup()
+                app.processEvents()
+            except (RuntimeError, AttributeError):
+                pass
+
+    calendar_count = 0
+    for index, editor in enumerate(date_edits):
+        original_calendar_popup = editor.calendarPopup()
+        try:
+            if not original_calendar_popup:
+                editor.setCalendarPopup(True)
+            calendar = editor.calendarWidget()
+            if not isinstance(calendar, QCalendarWidget):
+                failures.append(f"{page_name}:calendar:{index}:unavailable")
+                continue
+            editor_rect = editor.rect()
+            QTest.mouseClick(
+                editor,
+                Qt.MouseButton.LeftButton,
+                pos=QPoint(max(0, editor_rect.width() - 8), max(0, editor_rect.height() // 2)),
+            )
+            app.processEvents()
+            popup = calendar.window()
+            popup.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+            if not popup.isVisible():
+                failures.append(f"{page_name}:calendar:{index}:not_visible")
+                continue
+            path = state_dir / f"{theme_slug}_{page_name}_calendar_{index:04d}.png"
+            if popup.grab().save(str(path), "PNG"):
+                capture_count += 1
+                calendar_count += 1
+            else:
+                failures.append(f"{page_name}:calendar:{index}:capture_failed")
+        except (RuntimeError, AttributeError) as exc:
+            failures.append(f"{page_name}:calendar:{index}:{type(exc).__name__}")
+        finally:
+            try:
+                calendar = editor.calendarWidget()
+                if calendar is not None:
+                    calendar.window().hide()
+                if not original_calendar_popup:
+                    editor.setCalendarPopup(False)
+                app.processEvents()
+            except (RuntimeError, AttributeError):
+                pass
+
+    return {
+        "combos": len(combos),
+        "calendars": calendar_count,
+        "captures": capture_count,
+        "skipped": skipped_count,
+        "skipped_details": skipped_details,
+        "failures": failures,
+    }
 
 
 def service_list_geometry_issues(page: QWidget) -> list[str]:
@@ -341,12 +684,13 @@ def seed_visual_fixture(db, *, currency_rates=False):
             db.conn.commit()
     except Exception:
         pass
+    audit_now = datetime.now()
     audit_rows = [
-        (1, "currency_transactions", "UPDATE", "Cari borc duzenleme ve tahsilat islemi", "2026-09-29 14:42:19"),
-        (2, "srv_repair_job", "UPDATE", "Servis durumu degistirildi", "2026-09-29 14:41:03"),
-        (3, "e_invoice", "BLOCK", "Yetkisiz e-fatura kesme denemesi", "2026-09-29 14:38:52"),
-        (4, "auth_service", "RESET", "Kullanici sifre sifirlama istegi", "2026-09-29 14:32:10"),
-        (5, "backup_cron", "SNAPSHOT", "Yedekleme snapshot baslatildi", "2026-09-29 14:15:00"),
+        (1, "currency_transactions", "UPDATE", '{"event_id":"evt-8f92b71-2026-audit","severity":"CRITICAL","summary":"Miktar: 1,700 -> 1,550","user_agent":"AYEC-APP/2.5.4 (Win11 x64)","hwid":"34de430f-e991-49fa","tx_hash":"0x7f4a9b2c019d...8c2","station":"Eren Depo #4 Lab","ip":"192.168.1.45","diff":{"old":{"total_amount":1700.00,"discount_ratio":0.00},"new":{"total_amount":1550.00,"discount_ratio":0.088}}}', (audit_now - timedelta(minutes=1)).strftime("%Y-%m-%d %H:%M:%S")),
+        (2, "srv_repair_job", "UPDATE", '{"severity":"INFO","summary":"Fi\u015f durumu de\u011fi\u015ftirildi","station":"Teknik Banko #2","ip":"192.168.1.28"}', (audit_now - timedelta(minutes=2)).strftime("%Y-%m-%d %H:%M:%S")),
+        (3, "e_invoice", "BLOCK", '{"severity":"SECURITY","summary":"Yetkisiz e-Fatura kesme denemesi","station":"WiFi-Misafir (Izole VLAN)","ip":"192.168.1.182"}', (audit_now - timedelta(minutes=3)).strftime("%Y-%m-%d %H:%M:%S")),
+        (4, "auth_service", "RESET", '{"severity":"WARN","summary":"Kullan\u0131c\u0131 \u015fifre s\u0131f\u0131rlama iste\u011fi","station":"Y\u00f6netim Ofisi Konsolu","ip":"192.168.1.10"}', (audit_now - timedelta(minutes=4)).strftime("%Y-%m-%d %H:%M:%S")),
+        (5, "backup_cron", "SNAPSHOT", '{"severity":"INFO","summary":"Yedekleme Snapshot Ba\u015flat\u0131ld\u0131","station":"Yerel Loopback (127.0.0.1)","ip":"127.0.0.1"}', (audit_now - timedelta(minutes=5)).strftime("%Y-%m-%d %H:%M:%S")),
     ]
     try:
         audit_count = db.cursor.execute("SELECT COUNT(*) FROM audit_logs").fetchone()[0]
@@ -737,11 +1081,23 @@ REFERENCE_RENDER_WAIT_MS = {
 }
 
 
-def run(output_root: Path) -> dict[str, object]:
+def run(
+    output_root: Path,
+    *,
+    appearance_mode: str = "modern",
+    theme_names: tuple[str, ...] | None = None,
+    capture_button_states: bool = False,
+    capture_menu_states: bool = False,
+    capture_popup_states: bool = False,
+    capture_input_states: bool = False,
+) -> dict[str, object]:
     from src.database import Database
+    from src.utils.appearance_mode import AppearanceModeManager
     from src.utils.reference_typography import apply_reference_font
     from src.utils.theme_manager import ThemeManager
 
+    resolved_appearance = AppearanceModeManager.normalize(appearance_mode)
+    selected_themes = tuple(theme_names or ("AYEC", "Koyu Mavi"))
     app = QApplication.instance() or QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
     font_families = apply_reference_font(app)
@@ -765,7 +1121,7 @@ def run(output_root: Path) -> dict[str, object]:
             name.strip() for name in os.environ.get("AYEC_VISUAL_PAGES", "").split(",")
             if name.strip()
         }
-        for theme_name in ("AYEC", "Koyu Mavi"):
+        for theme_name in selected_themes:
             for page_name, factory in page_factories(db).items():
                 if requested_pages and page_name not in requested_pages:
                     continue
@@ -782,6 +1138,13 @@ def run(output_root: Path) -> dict[str, object]:
                     animate=False,
                 )
                 ThemeManager.refresh_widget_tree(page)
+                if resolved_appearance == AppearanceModeManager.CLASSIC:
+                    AppearanceModeManager.apply(
+                        app=app,
+                        db=db,
+                        root=page,
+                        mode=resolved_appearance,
+                    )
                 page.show()
                 app.processEvents()
                 page.setMaximumSize(canvas_width, canvas_height)
@@ -797,7 +1160,36 @@ def run(output_root: Path) -> dict[str, object]:
                 selection_issues = visible_table_selection_issues(page)
                 button_warnings = clipped_button_warnings(page)
                 geometry_issues = service_list_geometry_issues(page) if page_name == "service_list" else []
-                passed = saved and has_content and not selection_issues and not geometry_issues
+                button_states = (
+                    capture_button_state_crops(page, output_dir, theme_name, page_name)
+                    if capture_button_states
+                    else {"buttons": 0, "captures": 0, "failures": []}
+                )
+                menu_states = (
+                    capture_menu_action_state_crops(page, output_dir, theme_name, page_name)
+                    if capture_menu_states
+                    else {"menus": 0, "actions": 0, "captures": 0, "failures": []}
+                )
+                popup_states = (
+                    capture_combo_calendar_popups(page, output_dir, theme_name, page_name)
+                    if capture_popup_states
+                    else {"combos": 0, "calendars": 0, "captures": 0, "skipped": 0, "skipped_details": [], "failures": []}
+                )
+                input_states = (
+                    capture_form_control_states(page, output_dir, theme_name, page_name)
+                    if capture_input_states
+                    else {"controls": 0, "captures": 0, "failures": []}
+                )
+                passed = (
+                    saved
+                    and has_content
+                    and not selection_issues
+                    and not geometry_issues
+                    and not button_states["failures"]
+                    and not menu_states["failures"]
+                    and not popup_states["failures"]
+                    and not input_states["failures"]
+                )
                 results.append(
                     {
                         "theme": theme_name,
@@ -808,6 +1200,10 @@ def run(output_root: Path) -> dict[str, object]:
                         "sampled_colors": sampled_colors,
                         "table_selection_issues": selection_issues,
                         "clipped_button_warnings": button_warnings,
+                        "button_states": button_states,
+                        "menu_states": menu_states,
+                        "popup_states": popup_states,
+                        "input_states": input_states,
                         "geometry_issues": geometry_issues,
                         "status": "passed" if passed else "failed",
                     }
@@ -832,6 +1228,8 @@ def run(output_root: Path) -> dict[str, object]:
     references = reference_inventory()
     report = {
         "status": "passed" if passed else "failed",
+        "appearance_mode": resolved_appearance,
+        "themes": selected_themes,
         "created_at": datetime.now().isoformat(timespec="seconds"),
         "resolution": {
             "default": [1280, 1024],

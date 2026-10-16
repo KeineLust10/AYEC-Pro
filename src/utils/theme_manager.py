@@ -243,7 +243,9 @@ class ThemeManager:
         for widget in app.allWidgets():
             cls._scale_widget_font_and_icon(widget)
         if refresh:
-            app.setStyleSheet(cls.get_stylesheet(cls._current_theme))
+            stylesheet = cls.get_stylesheet(cls._current_theme)
+            if app.styleSheet() != stylesheet:
+                app.setStyleSheet(stylesheet)
             cls.refresh_all_widgets(app)
 
     @classmethod
@@ -1285,22 +1287,23 @@ QFocusFrame {{
                 cls._styled_widgets = weakref.WeakSet(valid_styled)
                 styled_widgets = list(valid_styled)
                 top_levels = [w for w in app.topLevelWidgets() if isinstance(w, QWidget) and (w.isVisible() or w is app.activeWindow())]
+                widgets_by_window = {w: [] for w in top_levels}
+                for child in styled_widgets:
+                    if not isinstance(child, QWidget) or not getattr(child, "_theme_raw_stylesheet", None):
+                        continue
+                    try:
+                        owner = child.window()
+                        if owner in widgets_by_window and child is not owner and child.isVisibleTo(owner):
+                            widgets_by_window[owner].append(child)
+                    except (RuntimeError, AttributeError, SystemError):
+                        continue
                 for w in top_levels:
                     try:
                         w.setUpdatesEnabled(False)
                         widgets_to_refresh = []
                         if getattr(w, "_theme_raw_stylesheet", None):
                             widgets_to_refresh.append(w)
-                        widgets_to_refresh.extend(
-                            child for child in styled_widgets
-                            if (
-                                child is not w
-                                and isinstance(child, QWidget)
-                                and child.window() is w
-                                and child.isVisibleTo(w)
-                                and getattr(child, "_theme_raw_stylesheet", None)
-                            )
-                        )
+                        widgets_to_refresh.extend(widgets_by_window.get(w, ()))
 
                         for target in widgets_to_refresh:
                             try:
@@ -1331,15 +1334,40 @@ QFocusFrame {{
         theme_name,
         deferred_refresh=True,
         refresh_widgets=True,
+        window=None,
     ):
         cls._last_palette = cls.current_palette()
         cls._activate_runtime_cache(theme_name)
         cls._install_stylesheet_patch()
         with perf_span(f"theme.apply_raw.{cls._current_theme}"):
             target_palette = cls._build_palette(cls._current_theme)
-            if app.palette() != target_palette:
-                app.setPalette(target_palette)
-            app.setStyleSheet(cls.get_stylesheet(cls._current_theme))
+            stylesheet = cls.get_stylesheet(cls._current_theme)
+            palette_changed = app.palette() != target_palette
+            stylesheet_changed = app.styleSheet() != stylesheet
+            if palette_changed or stylesheet_changed:
+                updates = []
+                try:
+                    top_levels = list(app.topLevelWidgets())
+                    if window is not None and window not in top_levels:
+                        top_levels.insert(0, window)
+                    for top_level in top_levels:
+                        try:
+                            if top_level.updatesEnabled():
+                                top_level.setUpdatesEnabled(False)
+                                updates.append(top_level)
+                        except (RuntimeError, AttributeError):
+                            continue
+                    if palette_changed:
+                        app.setPalette(target_palette)
+                    if stylesheet_changed:
+                        app.setStyleSheet(stylesheet)
+                finally:
+                    for top_level in updates:
+                        try:
+                            top_level.setUpdatesEnabled(True)
+                            top_level.update()
+                        except (RuntimeError, AttributeError):
+                            continue
         if not refresh_widgets:
             return
         if deferred_refresh:
@@ -1394,6 +1422,7 @@ QFocusFrame {{
                     name,
                     deferred_refresh=False,
                     refresh_widgets=window is None,
+                    window=window,
                 )
                 window.repaint()
                 QApplication.processEvents()
@@ -1439,6 +1468,7 @@ QFocusFrame {{
             name,
             deferred_refresh=True,
             refresh_widgets=window is None,
+            window=window,
         )
 
     @classmethod

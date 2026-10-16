@@ -19,6 +19,43 @@ logger = logging.getLogger(__name__)
 class MainWindowNavMixin:
     """Navigation, Page Loading, and Menu Management."""
 
+    def _set_field_map_shell_mode(self, enabled):
+        enabled = bool(enabled)
+        nav_mode = getattr(self, "_active_nav_mode", "sol_menu")
+        previous_mode = bool(getattr(self, "_field_map_shell_active", False))
+        if enabled != previous_mode:
+            self._set_field_map_reference_theme(enabled)
+            self._field_map_shell_active = enabled
+        if hasattr(self, "app_header"):
+            self.app_header.setVisible(not enabled)
+        if hasattr(self, "app_sidebar"):
+            self.app_sidebar.setVisible(
+                enabled or nav_mode in ("sol_menu", "her_ikisi")
+            )
+        if hasattr(self, "app_top_nav"):
+            self.app_top_nav.setVisible(
+                not enabled and nav_mode in ("ust_bar", "her_ikisi")
+            )
+        if hasattr(self, "shell_status_bar"):
+            self.shell_status_bar.setVisible(not enabled)
+        if hasattr(self, "assistant_fab"):
+            self.assistant_fab.setVisible(
+                not enabled and bool(getattr(self, "_assistant_fab_enabled", True))
+            )
+
+    def _set_field_map_reference_theme(self, enabled):
+        from src.utils.theme_manager import ThemeManager
+        try:
+            sidebar = getattr(self, "app_sidebar", None)
+            if sidebar is not None:
+                ThemeManager.refresh_widget_tree(sidebar)
+            pages = getattr(self, "pages", {})
+            page = pages.get(int(PageIds.FIELD_MAP)) if pages else None
+            if page is not None:
+                ThemeManager.refresh_widget_tree(page)
+        except Exception:
+            logger.exception("Field map theme refresh failed")
+
     def _active_sector_id(self):
         try:
             manager = getattr(self, "sector_manager", None)
@@ -43,6 +80,13 @@ class MainWindowNavMixin:
     def on_menu_click(self, index):
         if index == 999: index = 50
         if index == 107: index = 105
+        diagnostics = getattr(self, "_menu_window_diagnostics", None)
+        if diagnostics is not None:
+            diagnostics.record_menu_click(
+                "Side menu",
+                self.get_page_name_by_index(index),
+                index,
+            )
         if index == 62 or (
             index == 60 and self._active_sector_id() != "otomotiv"
         ):
@@ -64,6 +108,22 @@ class MainWindowNavMixin:
         previous_index = getattr(self, "_current_page_index", None)
         active_sidebar = getattr(getattr(self, "app_sidebar", None), "side_menu", None)
         previous_sidebar_page = getattr(active_sidebar, "_last_active_page_id", None)
+        if active_sidebar is not None and int(index) == 130 and previous_index != 130:
+            self._settings_sidebar_auto_previous_icon_only = bool(
+                getattr(active_sidebar, "_icon_only", False)
+            )
+            self._settings_sidebar_user_override = False
+            active_sidebar.set_menu_label_mode("icons", persist=False)
+        elif active_sidebar is not None and previous_index == 130 and int(index) != 130:
+            if not getattr(self, "_settings_sidebar_user_override", False):
+                active_sidebar.set_menu_label_mode(
+                    "icons"
+                    if getattr(self, "_settings_sidebar_auto_previous_icon_only", False)
+                    else "labels",
+                    persist=False,
+                )
+            self.__dict__.pop("_settings_sidebar_auto_previous_icon_only", None)
+            self.__dict__.pop("_settings_sidebar_user_override", None)
         if (
             previous_index is not None
             and int(previous_index) != int(index)
@@ -73,6 +133,19 @@ class MainWindowNavMixin:
             history.append(int(previous_index))
             self._navigation_history = history[-30:]
         self._current_page_index = index
+        if hasattr(self, "app_header") and hasattr(
+            self.app_header, "set_customer_reference_mode"
+        ):
+            self.app_header.set_customer_reference_mode(
+                int(index) == int(PageIds.CUSTOMER_LIST)
+            )
+            if int(index) == int(PageIds.CUSTOMER_LIST):
+                self.app_header._sync_customer_reference_header(index)
+        if hasattr(self, "set_customer_reference_shell_mode"):
+            self.set_customer_reference_shell_mode(
+                int(index) == int(PageIds.CUSTOMER_LIST)
+            )
+        self._set_field_map_shell_mode(int(index) == int(PageIds.FIELD_MAP))
         if active_sidebar is not None:
             if previous_sidebar_page != int(index) and (
                 previous_sidebar_page in {146, 147} or int(index) in {146, 147}
@@ -82,7 +155,7 @@ class MainWindowNavMixin:
         if hasattr(self, "assistant_fab"):
             self.assistant_fab.setVisible(
                 bool(getattr(self, "_assistant_fab_enabled", True))
-                and int(index) not in {21, 146, 147}
+                and int(index) not in {21, 146, 147, int(PageIds.FIELD_MAP)}
             )
             self.reposition_fab()
         self._sync_back_button()
@@ -90,6 +163,7 @@ class MainWindowNavMixin:
             self.app_top_nav.sync_active(index)
             self.app_top_nav.setVisible(
                 int(index) != int(PageIds.NEW_SERVICE)
+                and int(index) != int(PageIds.FIELD_MAP)
                 and getattr(self, "_active_nav_mode", "sol_menu") in ("ust_bar", "her_ikisi")
             )
         requested_settings_tab = None
@@ -107,6 +181,16 @@ class MainWindowNavMixin:
         
         with perf_span(f"navigation.page.{index}"):
             page = self.get_page(index)
+            customer_page = (
+                page if int(index) == int(PageIds.CUSTOMER_LIST)
+                else getattr(self, "pages", {}).get(PageIds.CUSTOMER_LIST)
+            )
+            if customer_page is not None and hasattr(
+                customer_page, "set_reference_shell_mode"
+            ):
+                customer_page.set_reference_shell_mode(
+                    int(index) == int(PageIds.CUSTOMER_LIST)
+                )
             if page:
                 if (
                     requested_settings_tab is not None
@@ -301,8 +385,12 @@ class MainWindowNavMixin:
                 logger.warning(f"Navigation mode lookup failed: {e}")
                 nav_mode = "sol_menu"
         self._active_nav_mode = nav_mode
-        sidebar_visible = nav_mode in ("sol_menu", "her_ikisi")
-        topnav_visible  = nav_mode in ("ust_bar",  "her_ikisi")
+        field_map_mode = (
+            int(getattr(self, "_current_page_index", -1)) == int(PageIds.FIELD_MAP)
+        )
+        self._set_field_map_shell_mode(field_map_mode)
+        sidebar_visible = field_map_mode or nav_mode in ("sol_menu", "her_ikisi")
+        topnav_visible = not field_map_mode and nav_mode in ("ust_bar", "her_ikisi")
         if hasattr(self, "app_sidebar"):
             self.app_sidebar.setVisible(sidebar_visible)
             # Adjust sidebar widths based on visibility

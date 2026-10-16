@@ -135,7 +135,6 @@ class StockImportPreviewDialog(
             self.btn_save.setText(
                 action_text or "Se\u00e7ilenleri Sipari\u015fe Aktar"
             )
-        QTimer.singleShot(0, self.showMaximized)
 
     def _is_automotive(self):
         try:

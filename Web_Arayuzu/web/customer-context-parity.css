@@ -1,0 +1,34 @@
+.customer-context-separator {
+  border: 0;
+  border-top: 1px solid var(--border, #d7dce5);
+  margin: 4px 8px;
+}
+
+#customerListPrintArea {
+  display: none;
+}
+
+@media print {
+  body[data-customer-list-print="1"] > *:not(#customerListPrintArea) {
+    display: none !important;
+  }
+
+  body[data-customer-list-print="1"] #customerListPrintArea {
+    display: block !important;
+    color: #111;
+    font: 11pt Arial, sans-serif;
+    padding: 15mm;
+  }
+
+  #customerListPrintArea table {
+    border-collapse: collapse;
+    width: 100%;
+  }
+
+  #customerListPrintArea th,
+  #customerListPrintArea td {
+    border: 1px solid #666;
+    padding: 5px;
+    text-align: left;
+  }
+}

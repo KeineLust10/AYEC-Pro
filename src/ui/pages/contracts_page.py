@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
                              QTableWidget, QTableWidgetItem, QHeaderView, QLabel,
                              QDialog, QFormLayout, QLineEdit, QComboBox, 
                              QDateEdit, QFileDialog, QListWidget, QListWidgetItem, QGroupBox, QFrame,
-                             QTextEdit, QScrollArea, QAbstractItemView, QGridLayout, QButtonGroup, QProgressBar)
+                             QTextEdit, QScrollArea, QAbstractItemView, QGridLayout, QButtonGroup, QProgressBar, QSizePolicy)
 
 # ... (Previous imports kept if not replaced by above block, but since I am targeting imports line 1-5, I need to be careful.
 # Wait, I can target the method call instead of imports if I use fully qualified name
@@ -362,7 +362,19 @@ class ContractsPage(QWidget):
         header_font.setBold(True)
         header.setFont(header_font)
         header.setStyleSheet(theme_qss("color: @text; border: none; background: transparent;"))
-        title_vbox.addWidget(header)
+        title_row = QHBoxLayout()
+        title_row.setSpacing(8)
+        title_row.addWidget(header)
+        engine_badge = QLabel("SLA v3.4 Engine")
+        engine_badge.setFixedSize(engine_badge.fontMetrics().horizontalAdvance(engine_badge.text()) + 14, 22)
+        engine_badge.setStyleSheet(theme_qss(
+            "background: @selection_bg; color: @selection_text; border: none; "
+            "border-radius: 4px; padding: 3px 6px; font-family: JetBrains Mono; "
+            "font-size: 10px; font-weight: 700;"
+        ))
+        title_row.addWidget(engine_badge, 0, Qt.AlignmentFlag.AlignVCenter)
+        title_row.addStretch(1)
+        title_vbox.addLayout(title_row)
         
         sub = QLabel("S\u00f6zle\u015fme detaylar\u0131n\u0131 ve eklerini g\u00f6r\u00fcnt\u00fclemek i\u00e7in tablo sat\u0131r\u0131na \u00e7ift t\u0131klay\u0131n\u0131z.")
         sub.setWordWrap(True)
@@ -411,10 +423,10 @@ class ContractsPage(QWidget):
         metrics.setSpacing(8)
         self.contract_metric_values = []
         for column, (title, value, detail, color) in enumerate((
-            ("AKTIF SOZLESMELER", "0", "Yururlukte olan kurumsal SLA", "@finance_secondary"),
-            ("YAKLASAN YENILEMELER", "0", "30 gun icinde bitecekler", "@danger"),
-            ("SOZLESME HACMI", "0", "Kayitli sozlesme bedelleri", "@finance_primary"),
-            ("ORTALAMA SLA YANIT SURESI", "-", "SLA olcumu bekleniyor", "@finance_tertiary"),
+            ("AKT\u0130F S\u00d6ZLE\u015eMELER", "0", "Y\u00fcr\u00fcrl\u00fckte olan kurumsal SLA", "@finance_secondary"),
+            ("YAKLA\u015eAN YEN\u0130LEMELER", "0", "30 g\u00fcn i\u00e7inde bitecekler", "@danger"),
+            ("S\u00d6ZLE\u015eME HACM\u0130", "0", "Kay\u0131tl\u0131 s\u00f6zle\u015fme bedelleri", "@finance_primary"),
+            ("ORTALAMA SLA YANIT S\u00dcRES\u0130", "-", "SLA \u00f6l\u00e7\u00fcm\u00fc bekleniyor", "@finance_tertiary"),
         )):
             metric = QFrame()
             metric.setFixedHeight(112)
@@ -481,7 +493,7 @@ class ContractsPage(QWidget):
         filter_layout = QHBoxLayout()
         filter_layout.setSpacing(8)
         self.contract_search = QLineEdit()
-        self.contract_search.setPlaceholderText("Sozlesme, musteri veya baslik ara...")
+        self.contract_search.setPlaceholderText("S\u00f6zle\u015fme no, firma ad\u0131, yetkili veya vergi no ara...")
         self.contract_search.setClearButtonEnabled(True)
         self.contract_search.textChanged.connect(self._on_contract_filter_changed)
         self.contract_search_shortcut = QShortcut(QKeySequence("Ctrl+K"), self)
@@ -509,16 +521,15 @@ class ContractsPage(QWidget):
         self.table = QTableWidget()
         self.table.setColumnCount(10)
         self.table.setHorizontalHeaderLabels([
-            "ID", "M\u00fc\u015fteri", "Ba\u015fl\u0131k", "SLA / T\u00fcr",
-            "Ba\u015flang\u0131\u00e7", "Biti\u015f", "Durum", "Kalan S\u00fcre",
-            "S\u00f6zle\u015fme Bedeli", "\u0130\u015flemler",
+            "S\u00f6zle\u015fme No", "M\u00fc\u015fteri / Kurum", "SLA",
+            "Ge\u00e7erlilik", "Kalan S\u00fcre", "Y\u0131ll\u0131k Hacim",
+            "Cihaz / Park", "Periyodik", "Durum", "\u0130\u015flemler",
         ])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         header_view = self.table.horizontalHeader()
-        for column, width in ((0, 52), (3, 105), (4, 104), (5, 104), (6, 118), (7, 114), (8, 118), (9, 70)):
+        for column, width in ((0, 112), (2, 105), (3, 118), (4, 112), (5, 112), (6, 115), (7, 112), (8, 100), (9, 70)):
             header_view.setSectionResizeMode(column, QHeaderView.ResizeMode.Fixed)
             self.table.setColumnWidth(column, width)
-        header_view.moveSection(6, 8)
         self.table.verticalHeader().setVisible(False)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -555,7 +566,8 @@ class ContractsPage(QWidget):
         self.table.doubleClicked.connect(self.open_details)
         self.table.setMinimumHeight(96)
         self.table.setMaximumHeight(372)
-        layout.addWidget(self.table)
+        self.table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        layout.addWidget(self.table, 1)
         pager = QHBoxLayout()
         pager.setContentsMargins(4, 0, 4, 0)
         self.contract_result_label = QLabel()
@@ -651,7 +663,7 @@ class ContractsPage(QWidget):
         matching_rows = []
         for row in range(self.table.rowCount()):
             values = [self._contract_search_key(self.table.item(row, column).text()) for column in range(self.table.columnCount()) if self.table.item(row, column)]
-            type_value = self.table.item(row, 3).text() if self.table.item(row, 3) else ""
+            type_value = self.table.item(row, 2).text() if self.table.item(row, 2) else ""
             matches_query = not query or any(query in value for value in values)
             matches_type = selected_type == "Tum turler" or self._contract_search_key(selected_type) in self._contract_search_key(type_value)
             selected_sla = self.contract_sla_filter.currentData()
@@ -683,7 +695,7 @@ class ContractsPage(QWidget):
 
     def _update_contract_sla_options(self):
         previous = self.contract_sla_filter.currentData()
-        values = {self.table.item(row, 3).text() for row in range(self.table.rowCount()) if self.table.item(row, 3)}
+        values = {self.table.item(row, 2).text() for row in range(self.table.rowCount()) if self.table.item(row, 2)}
         self.contract_sla_filter.blockSignals(True)
         self.contract_sla_filter.clear()
         self.contract_sla_filter.addItem("SLA Seviyesi: T\u00fcm\u00fc", "")
@@ -707,19 +719,19 @@ class ContractsPage(QWidget):
         container.setStyleSheet(theme_qss("QWidget#ContractStatusCell{background:@" + background + ";border:none;padding:0;}"))
         box = QHBoxLayout(container)
         box.setContentsMargins(5, 0, 5, 0)
-        label = QLabel(self.table.item(row, 6).text())
+        label = QLabel(self.table.item(row, 8).text())
         label.setWordWrap(True)
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         label.setFixedHeight(36)
         label.setStyleSheet(theme_qss("QLabel{background:@finance_surface_alt;color:@" + color + ";border:none;border-radius:4px;padding:0;min-height:36px;max-height:36px;font-size:10px;font-weight:700;}"))
         box.addWidget(label)
-        self.table.setCellWidget(row, 6, container)
+        self.table.setCellWidget(row, 8, container)
 
     def _contract_categories(self, row):
-        status_item = self.table.item(row, 6)
+        status_item = self.table.item(row, 8)
         status = status_item.text().lower() if status_item else ""
-        date_item = self.table.item(row, 5)
-        end_date = QDate.fromString(date_item.text()[:10], "yyyy-MM-dd") if date_item else QDate()
+        date_item = self.table.item(row, 3)
+        end_date = QDate.fromString(str(date_item.data(Qt.ItemDataRole.UserRole) or ""), "yyyy-MM-dd") if date_item else QDate()
         days = QDate.currentDate().daysTo(end_date) if end_date.isValid() else None
         draft = "taslak" in status
         expired = days is not None and days < 0
@@ -757,7 +769,7 @@ class ContractsPage(QWidget):
         )
         if not path:
             return
-        columns = [0, 1, 2, 3, 4, 5, 7, 8, 6]
+        columns = list(range(9))
         try:
             with open(path, "w", encoding="utf-8-sig", newline="") as report:
                 writer = csv.writer(report, delimiter=";")
@@ -775,7 +787,7 @@ class ContractsPage(QWidget):
         renewals = []
         for row in range(self.table.rowCount()):
             if self._contract_categories(row)["Yenileme"]:
-                renewals.append("{} | {}".format(self.table.item(row, 1).text(), self.table.item(row, 5).text()))
+                renewals.append("{} | {}".format(self.table.item(row, 1).text().splitlines()[0], self.table.item(row, 3).text().splitlines()[-1]))
         renewal_label = self.contract_footer_details[1]
         renewal_label.setText(
             "Yenileme Bekleyen: {}\n{}".format(len(renewals), "\n".join(renewals[:2]))
@@ -814,7 +826,7 @@ class ContractsPage(QWidget):
         if row < 0: return
         
         try:
-            cid = int(self.table.item(row, 0).text())
+            cid = int(self.table.item(row, 0).data(Qt.ItemDataRole.UserRole))
             dlg = ContractDetailsDialog(self.db, cid, self)
             dlg.exec()
         except Exception as e:
@@ -832,8 +844,8 @@ class ContractsPage(QWidget):
             return
         
         try:
-            cid = int(self.table.item(row, 0).text())
-            title = self.table.item(row, 2).text()
+            cid = int(self.table.item(row, 0).data(Qt.ItemDataRole.UserRole))
+            title = str(self.table.item(row, 1).data(Qt.ItemDataRole.UserRole) or self.table.item(row, 1).text())
             
             from src.ui.widgets.modern_confirm_dialog import ModernConfirmDialog
             confirm = ModernConfirmDialog(
@@ -871,7 +883,7 @@ class ContractsPage(QWidget):
     def load_contracts(self):
         try:
             self.db.cursor.execute("""
-                SELECT c.id, cust.name, c.title, c.contract_type, c.start_date, c.end_date, c.status, c.price
+                SELECT c.id, cust.name, c.title, c.contract_type, c.start_date, c.end_date, c.status, c.price, c.description
                 FROM contracts c
                 LEFT JOIN customers cust
                     ON c.customer_id = cust.id
@@ -884,12 +896,37 @@ class ContractsPage(QWidget):
             for i, row in enumerate(rows):
                 self.table.insertRow(i)
                 self.table.setRowHeight(i, 76)
-                for j, val in enumerate(row[:7]):
-                    item = QTableWidgetItem(str(val) if val else "")
-                    if j in (0, 4, 5):
-                        item.setFont(self._reference_record_font())
-                        item.setToolTip(item.text())
-                    self.table.setItem(i, j, item)
+                contract_id = int(row[0])
+                start_text = str(row[4] or "")
+                end_text = str(row[5] or "")
+                year = (start_text[:4] if len(start_text) >= 4 else "0000")
+                code = "AGR-{}-{:03d}".format(year, contract_id)
+                code_item = QTableWidgetItem(code)
+                code_item.setData(Qt.ItemDataRole.UserRole, contract_id)
+                code_item.setFont(self._reference_record_font(bold=True))
+                code_item.setToolTip("ID: {}".format(contract_id))
+                self.table.setItem(i, 0, code_item)
+                customer_text = "{}\n{}".format(str(row[1] or "-"), str(row[2] or ""))
+                customer_item = QTableWidgetItem(customer_text.rstrip())
+                customer_item.setData(Qt.ItemDataRole.UserRole, str(row[2] or ""))
+                customer_item.setToolTip(customer_text)
+                self.table.setItem(i, 1, customer_item)
+                type_item = QTableWidgetItem(str(row[3] or "-"))
+                self.table.setItem(i, 2, type_item)
+                validity_item = QTableWidgetItem("{}\n{}".format(start_text, end_text).strip())
+                validity_item.setData(Qt.ItemDataRole.UserRole, end_text[:10])
+                validity_item.setFont(self._reference_record_font())
+                validity_item.setToolTip("{} - {}".format(start_text, end_text))
+                self.table.setItem(i, 3, validity_item)
+                status_item = QTableWidgetItem(str(row[6] or "-"))
+                self.table.setItem(i, 8, status_item)
+                description = str(row[8] or "") if len(row) > 8 else ""
+                note_item = QTableWidgetItem(description or "-")
+                note_item.setToolTip(description or "-")
+                self.table.setItem(i, 6, note_item)
+                maintenance_item = QTableWidgetItem("-")
+                maintenance_item.setToolTip("Bu s\u00f6zle\u015fmeye ba\u011fl\u0131 periyodik bak\u0131m kayd\u0131 yok.")
+                self.table.setItem(i, 7, maintenance_item)
                 end_date = QDate.fromString(str(row[5] or "")[:10], "yyyy-MM-dd")
                 remaining = QTableWidgetItem("-")
                 if end_date.isValid():
@@ -899,7 +936,7 @@ class ContractsPage(QWidget):
                         else "{} G\u00fcn Ge\u00e7ti".format(abs(days))
                     )
                     remaining.setForeground(QColor(tc("danger" if days <= 30 else "success")))
-                self.table.setItem(i, 7, remaining)
+                self.table.setItem(i, 4, remaining)
                 if end_date.isValid():
                     duration = QDate.fromString(str(row[4] or "")[:10], "yyyy-MM-dd").daysTo(end_date)
                     duration = max(1, duration)
@@ -922,12 +959,12 @@ class ContractsPage(QWidget):
                     progress.setStyleSheet(theme_qss(f"QProgressBar {{ background: @surface_alt; border: none; border-radius: 1px; }} QProgressBar::chunk {{ background: {color}; }}"))
                     indicator_layout.addWidget(days_label)
                     indicator_layout.addWidget(progress)
-                    self.table.setCellWidget(i, 7, indicator)
+                    self.table.setCellWidget(i, 4, indicator)
                 price = CurrencyHelper.format_amount(row[7], db=self.db) if len(row) > 7 else "-"
                 price_item = QTableWidgetItem(price)
                 price_item.setFont(self._reference_record_font(bold=True))
                 price_item.setToolTip(price)
-                self.table.setItem(i, 8, price_item)
+                self.table.setItem(i, 5, price_item)
                 open_button = QPushButton("A\u00e7")
                 open_button.setFixedHeight(28)
                 open_button.setCursor(Qt.CursorShape.PointingHandCursor)

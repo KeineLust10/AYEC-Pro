@@ -21,6 +21,14 @@ def test_einvoice_composer_preserves_line_math_actions_and_compact_layout(tmp_pa
 
         assert page.items_table.columnCount() == 11
         assert page.items_table.rowCount() == 1
+        if page.cmb_customer.count() == 0:
+            page.cmb_customer.addItem("Visual Test Customer", 1)
+        page.cmb_customer.setCurrentIndex(0)
+        app.processEvents()
+        assert not page.customer_registered_badge.isHidden()
+        page.cmb_customer.setCurrentIndex(-1)
+        app.processEvents()
+        assert page.customer_registered_badge.isHidden()
         assert page._invoice_responsive_filter.stacked
         assert page._invoice_aside.parentWidget() is page._invoice_primary
         assert page._invoice_aside.width() == page._invoice_primary.width() - 42
@@ -29,11 +37,34 @@ def test_einvoice_composer_preserves_line_math_actions_and_compact_layout(tmp_pa
         page.resize(1400, 800)
         app.processEvents()
         assert not page._invoice_responsive_filter.stacked
+        assert page._invoice_mobile_layouts["ribbon"].direction().name == "LeftToRight"
+        assert page.master_data_heading.y() == 2
+        assert not page.master_data_icon.pixmap().isNull()
         assert page._invoice_aside_scroll.widget() is page._invoice_aside
         assert page._invoice_aside_scroll.width() == 462
+        reconcile_states = []
+        page.chk_auto_reconcile.toggled.connect(reconcile_states.append)
+        page.chk_auto_reconcile.click()
+        page.chk_auto_reconcile.click()
+        assert reconcile_states == [False, True]
         page.resize(1080, 800)
         app.processEvents()
         assert page._invoice_responsive_filter.stacked
+
+        page.resize(390, 800)
+        app.processEvents()
+        app.processEvents()
+        assert page.width() == 390
+        assert page._invoice_primary.width() <= page.width()
+        assert page._invoice_aside.width() <= page._invoice_primary.width()
+        assert page.items_table.width() <= page._invoice_primary.width()
+        assert page._invoice_mobile_layouts["ribbon"].direction().name == "TopToBottom"
+
+        page.resize(1400, 800)
+        app.processEvents()
+        assert not page._invoice_responsive_filter.stacked
+        assert page._invoice_mobile_layouts["ribbon"].direction().name == "LeftToRight"
+        assert page._invoice_mobile_layouts["grids"][1][0].itemAtPosition(0, 4) is not None
 
         delegate = page.items_table.itemDelegate()
         assert delegate.INPUT_COLUMNS == frozenset((3, 4, 5, 6, 7))

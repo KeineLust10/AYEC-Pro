@@ -132,7 +132,7 @@ class StockProductDelegate(QStyledItemDelegate):
         )
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.TextAntialiasing, True)
-        content = option.rect.adjusted(12, 12, -10, -10)
+        content = option.rect.adjusted(6, 4, -6, -4)
         title_font = QFont(option.font)
         title_font.setBold(True)
         title_font.setPointSize(10)
@@ -157,15 +157,15 @@ class StockListTabMixin:
 
     def setup_list_tab(self):
         layout = QVBoxLayout(self.tab_list)
-        layout.setContentsMargins(0, 5, 0, 0)
-        layout.setSpacing(17)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
 
         self.cat_container = QWidget()
         self.cat_layout = QHBoxLayout(self.cat_container)
-        self.cat_layout.setContentsMargins(10, 4, 10, 4)
-        self.cat_layout.setSpacing(8)
+        self.cat_layout.setContentsMargins(8, 2, 8, 2)
+        self.cat_layout.setSpacing(6)
         scroll = QScrollArea()
-        scroll.setFixedHeight(54)
+        scroll.setFixedHeight(34)
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -174,9 +174,9 @@ class StockListTabMixin:
         layout.addWidget(scroll)
 
         filter_bar = QFrame()
-        filter_bar.setFixedHeight(68)
+        filter_bar.setFixedHeight(52)
         fb_layout = QHBoxLayout(filter_bar)
-        fb_layout.setContentsMargins(12, 8, 12, 8)
+        fb_layout.setContentsMargins(8, 5, 8, 5)
         fb_layout.setSpacing(8)
         filter_bar.setStyleSheet(
             theme_qss(
@@ -187,14 +187,28 @@ class StockListTabMixin:
         self.search_inp = QLineEdit()
         self.search_inp.setPlaceholderText("🔍 Ürün adı veya barkod ile ara...")
         self.search_inp.setMinimumWidth(220)
-        self.search_inp.setFixedHeight(40)
+        self.search_inp.setFixedHeight(32)
         self.search_inp.textChanged.connect(self.on_stock_search_changed)
-        fb_layout.addWidget(self.search_inp)
+        fb_layout.addWidget(self.search_inp, 1)
+
+        self.btn_barcode_ready = QPushButton("\u25a6 Barkod Haz\u0131r")
+        self.btn_barcode_ready.setToolTip("Barkod okuyucu arama alanina hazir")
+        self.btn_barcode_ready.setAccessibleName("Barkod Hazir")
+        self.btn_barcode_ready.setFixedHeight(30)
+        self.btn_barcode_ready.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_barcode_ready.setStyleSheet(theme_qss(
+            "QPushButton { background: @surface_alt; color: @finance_secondary; "
+            "border: 1px solid @border; border-radius: 4px; padding: 0 10px; "
+            "font-size: 10px; font-weight: 700; } "
+            "QPushButton:hover { border-color: @finance_secondary; }"
+        ))
+        self.btn_barcode_ready.clicked.connect(lambda: self.search_inp.setFocus())
+        fb_layout.addWidget(self.btn_barcode_ready)
 
         self.btn_critical = QPushButton("⚠️ Kritik Stoklar")
         self.btn_critical.setCheckable(True)
         self.btn_critical.setMinimumWidth(120)
-        self.btn_critical.setFixedHeight(40)
+        self.btn_critical.setFixedHeight(32)
         self.btn_critical.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_critical.setStyleSheet(
             theme_qss(DesignTokens.get_button_qss("warning", size="sm"))
@@ -206,7 +220,7 @@ class StockListTabMixin:
             btn = QPushButton(icon)
             btn.setToolTip(tooltip)
             btn.setAccessibleName(tooltip)
-            btn.setFixedSize(40, 40)
+            btn.setFixedSize(32, 32)
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.setStyleSheet(
                 theme_qss("""
@@ -253,7 +267,7 @@ class StockListTabMixin:
 
         # Yeni ürün ekleme butonu
         btn_add = QPushButton("➕ Yeni Ürün Ekle")
-        btn_add.setFixedSize(160, 40)
+        btn_add.setFixedSize(142, 32)
         btn_add.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_add.setStyleSheet(
             theme_qss(DesignTokens.get_button_qss("primary", size="sm"))
@@ -366,7 +380,7 @@ class StockListTabMixin:
         )
         self.table_stock.horizontalHeader().setStretchLastSection(True)
         self.table_stock.horizontalHeader().setMinimumSectionSize(40)
-        self.table_stock.horizontalHeader().setFixedHeight(72)
+        self.table_stock.horizontalHeader().setFixedHeight(42)
         reference_widths = [44, 100, 210, 100, 128, 58, 100, 100, 86, 90, 80, 100]
         for column in range(len(headers)):
             width = reference_widths[column] if len(headers) in (10, 12) else 120
@@ -374,7 +388,7 @@ class StockListTabMixin:
         if len(headers) in (10, 12):
             self.table_stock.horizontalHeader().set_fit_weights(reference_widths[:len(headers)])
         self.table_stock.verticalHeader().setDefaultSectionSize(
-            110 if len(headers) == 12 else 42
+            56 if len(headers) == 12 else 42
         )
         self.table_stock.horizontalHeader().sectionClicked.connect(
             self._on_stock_header_section_clicked
@@ -446,18 +460,25 @@ class StockListTabMixin:
             cursor = self.db.conn.cursor()
             cursor.execute(
                 """
-                SELECT DISTINCT category
+                SELECT category, COUNT(*)
                 FROM parts
                 WHERE COALESCE(is_deleted, 0) = 0
                   AND TRIM(COALESCE(category, '')) <> ''
+                GROUP BY category
                 ORDER BY category COLLATE NOCASE
                 """
             )
+            category_rows = cursor.fetchall() or []
             self._raw_categories = [
-                str(row[0]).strip() for row in (cursor.fetchall() or []) if row[0]
+                str(row[0]).strip() for row in category_rows if row[0]
             ]
+            raw_category_counts = {
+                self._normalize_category(row[0]): int(row[1] or 0)
+                for row in category_rows if row[0]
+            }
         except Exception:
             self._raw_categories = []
+            raw_category_counts = {}
 
         try:
             cursor = self.db.conn.cursor()
@@ -501,8 +522,15 @@ class StockListTabMixin:
             seen.add(key)
             if category == all_label:
                 button = QPushButton(f"{category} ({self._active_part_count})")
+                button.setMinimumWidth(110)
             else:
-                button = QPushButton(category)
+                matched = self._get_category_filters(category)
+                count = sum(
+                    raw_category_counts.get(self._normalize_category(raw), 0)
+                    for raw in matched
+                )
+                button = QPushButton(f"{category} ({count})")
+                button.setMinimumWidth(148)
             button.setProperty('stock_category_key', category)
             button.setCheckable(True)
             button.setChecked(category == self.selected_category)

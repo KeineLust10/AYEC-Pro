@@ -59,3 +59,80 @@ class AssistantMonitoringWorker(QThread):
                     pass
 
         self.result_ready.emit(result)
+
+
+class PaymentReminderWorker(QThread):
+    result_ready = pyqtSignal(dict)
+
+    def __init__(self, db_name, run_key, parent=None):
+        super().__init__(parent)
+        self.db_name = db_name or "ayecpro.db"
+        self.run_key = run_key
+
+    def run(self):
+        db = None
+        sent = 0
+        manual = 0
+        try:
+            from src.database import Database
+            from src.services.whatsapp_service import WhatsAppDeliveryError, WhatsAppService
+
+            db = Database(self.db_name, init_mode="connection_only")
+            if db.get_setting("whatsapp_payment_reminder_enabled", "0") != "1":
+                return
+            if db.get_internal_setting("whatsapp_payment_last_run", "") == self.run_key:
+                return
+            service = WhatsAppService(db)
+            template_name = str(db.get_setting("whatsapp_cloud_template", "") or "").strip()
+            template = db.get_setting(
+                "whatsapp_payment_template",
+                "Merhaba {musteri_adi}, {firma_adi} hesabinizda {borc_tutari} TRY borc bulunuyor.",
+            )
+            minimum = float(db.get_setting("whatsapp_payment_min_debt_try", "0") or 0)
+            company = str(db.get_setting("company_name", "AYEC Pro") or "AYEC Pro")
+            for customer in db.get_customers() or []:
+                phone = customer[2] if len(customer) > 2 else ""
+                if not phone:
+                    continue
+                balance = float(db.get_customer_balance(customer[0]) or 0)
+                debt = max(0.0, -balance)
+                if debt < minimum:
+                    continue
+                name = str(customer[1] or "Musteri")
+                values = {
+                    "musteri_adi": name,
+                    "firma_adi": company,
+                    "borc_tutari": f"{debt:,.2f}",
+                    "referans_no": str(customer[0]),
+                }
+                message = service.render_template(template, values)
+                ordered_values = [
+                    value
+                    for key, value in (
+                        ("musteri_adi", name),
+                        ("firma_adi", company),
+                        ("borc_tutari", f"{debt:,.2f}"),
+                        ("referans_no", str(customer[0])),
+                    )
+                    if "{" + key + "}" in template or "{{" + key + "}}" in template
+                ]
+                try:
+                    result = service.send(phone, message, template_name, ordered_values)
+                    sent += 1
+                    if result.get("manual_required"):
+                        manual += 1
+                except WhatsAppDeliveryError as error:
+                    logger.warning("Payment reminder skipped for customer %s: %s", customer[0], error)
+                except Exception as error:
+                    logger.warning("Payment reminder failed for customer %s: %s", customer[0], error)
+            db.set_internal_setting("whatsapp_payment_last_run", self.run_key)
+            self.result_ready.emit({"sent": sent, "manual": manual, "error": None})
+        except Exception as error:
+            logger.warning("Payment reminder worker failed: %s", error)
+            self.result_ready.emit({"sent": sent, "manual": manual, "error": str(error)})
+        finally:
+            if db is not None:
+                try:
+                    db.close()
+                except Exception:
+                    pass

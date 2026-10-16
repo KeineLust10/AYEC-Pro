@@ -1,17 +1,71 @@
 """Local-only conversational intent parsing for the desktop voice assistant."""
 
 import json
+import logging
+import os
 import re
+import shutil
+import subprocess
+import threading
+import time
 import unicodedata
+import urllib.error
 import urllib.request
 
 from PyQt6.QtCore import QThread, pyqtSignal
+
+logger = logging.getLogger(__name__)
 
 
 class LocalAssistantConversation(QThread):
     """Resolve one utterance against the currently visible application menus."""
 
     MODEL_NAME = "qwen3:4b"
+    RESPONSE_SCHEMA = {
+        "type": "object",
+        "required": ["intent", "reply"],
+        "properties": {
+            "intent": {
+                "type": "string",
+                "enum": [
+                    "navigate", "navigate_search", "new_service", "chat",
+                    "clarify", "click_control", "set_field", "set_fields",
+                    "select_option", "set_toggle",
+                ],
+            },
+            "reply": {"type": "string"},
+            "page_id": {"type": "integer"},
+            "continue_action": {"type": "boolean"},
+            "query": {"type": "string"},
+            "control_id": {"type": "string"},
+            "value": {
+                "anyOf": [
+                    {"type": "string"},
+                    {"type": "number"},
+                    {"type": "boolean"},
+                ],
+            },
+            "overwrite": {"type": "boolean"},
+            "fields": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "required": ["control_id", "value"],
+                    "properties": {
+                        "control_id": {"type": "string"},
+                        "value": {"type": "string"},
+                        "overwrite": {"type": "boolean"},
+                    },
+                },
+            },
+        },
+    }
+    _ollama_start_lock = threading.Lock()
+    _ollama_start_attempted = False
+    _ollama_server_process = None
+    _ollama_fallback_start_attempted = False
+    _ollama_fallback_process = None
+    _ollama_active_port = 11434
     resolved = pyqtSignal(dict)
 
     def __init__(self, utterance, menu_catalog, current_page, history=None, controls=None, parent=None, continuation=False):
@@ -70,12 +124,18 @@ class LocalAssistantConversation(QThread):
         known_request = self._resolve_known_service_request()
         if known_request is not None:
             return known_request
+        toggle_request = self._resolve_toggle_request()
+        if toggle_request is not None:
+            return toggle_request
         navigation_request = self._resolve_navigation_request()
         if navigation_request is not None:
             return navigation_request
         named_target = self._resolve_exact_named_target()
         if named_target and named_target.get("intent") != "unavailable":
             return named_target
+        delete_request = self._resolve_visible_delete_request()
+        if delete_request is not None:
+            return delete_request
 
         catalog = json.dumps(self.menu_catalog, ensure_ascii=True)
         current_page = json.dumps(self.current_page)
@@ -155,25 +215,26 @@ class LocalAssistantConversation(QThread):
             "set_field, select_option, set_toggle. "
             "User utterance: "
             + json.dumps(self.utterance, ensure_ascii=True)
+            + ". Return one JSON object with intent and reply; use the exact id of the matching visible control."
         )
         body = json.dumps(
             {
                 "model": self.MODEL_NAME,
                 "messages": [{"role": "user", "content": prompt}],
                 "stream": False,
-                "format": "json",
+                "format": self.RESPONSE_SCHEMA,
                 "think": False,
-                "options": {"temperature": 0.1, "num_predict": 180},
+                "options": {
+                    "temperature": 0.1,
+                    "num_predict": 180,
+                    "num_ctx": 2048,
+                    "num_batch": 128,
+                },
             }
         ).encode("utf-8")
-        request = urllib.request.Request(
-            "http://127.0.0.1:11434/api/chat",
-            data=body,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
         try:
-            with urllib.request.urlopen(request, timeout=30) as response:
+            response = self._open_ollama_request(body)
+            with response:
                 payload = json.loads(response.read(256_000).decode("utf-8"))
             content = payload.get("message", {}).get("content", "")
             match = re.search(r"\{.*\}", content, flags=re.DOTALL)
@@ -212,6 +273,8 @@ class LocalAssistantConversation(QThread):
                 result = {"intent": intent, "control_id": control_id, "reply": reply, "utterance": self.utterance}
                 if intent == "set_field":
                     source_values = self._extract_explicit_field_values()
+                    if len(source_values) > 1:
+                        return self._explicit_fields_result(source_values, reply)
                     value = source_values.get(control_id, str(parsed.get("value") or ""))
                     if not value.strip():
                         return {
@@ -272,7 +335,119 @@ class LocalAssistantConversation(QThread):
                 }
             return {"intent": intent, "reply": reply, "utterance": self.utterance}
         except Exception:
+            logger.warning(
+                "Local assistant request failed; using deterministic fallback",
+                exc_info=True,
+            )
             return self._resolve_offline_fallback()
+
+    @classmethod
+    def _open_ollama_request(cls, body):
+        port = int(cls._ollama_active_port)
+
+        def request_at(target_port):
+            request = urllib.request.Request(
+                "http://127.0.0.1:%d/api/chat" % target_port,
+                data=body,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            return urllib.request.urlopen(request, timeout=30)
+
+        try:
+            return request_at(port)
+        except urllib.error.HTTPError as error:
+            error_body = error.read(65_536).decode("utf-8", "replace")
+            error.close()
+            lowered = error_body.casefold()
+            allocation_failure = any(
+                marker in lowered
+                for marker in (
+                    "vulkan",
+                    "failed to allocate",
+                    "compute buffers",
+                    "llama-server process has terminated",
+                )
+            )
+            if port == 11435 or not allocation_failure:
+                raise
+            if not cls._ensure_ollama_server(port=11435):
+                raise
+            cls._ollama_active_port = 11435
+            return request_at(11435)
+        except urllib.error.URLError as error:
+            if not isinstance(error.reason, ConnectionRefusedError):
+                raise
+            if not cls._ensure_ollama_server(port=port):
+                raise
+            return request_at(port)
+
+    @classmethod
+    def _ensure_ollama_server(cls, port=11434):
+        """Start an installed local Ollama service on demand, without blocking the UI."""
+        with cls._ollama_start_lock:
+            is_fallback = int(port) == 11435
+            process = (
+                cls._ollama_fallback_process
+                if is_fallback
+                else cls._ollama_server_process
+            )
+            attempted = (
+                cls._ollama_fallback_start_attempted
+                if is_fallback
+                else cls._ollama_start_attempted
+            )
+            if not attempted or process is None or process.poll() is not None:
+                if is_fallback:
+                    cls._ollama_fallback_start_attempted = False
+                else:
+                    cls._ollama_start_attempted = False
+                executable = shutil.which("ollama")
+                if not executable and os.name == "nt":
+                    local_app_data = os.environ.get("LOCALAPPDATA", "")
+                    candidate = os.path.join(local_app_data, "Programs", "Ollama", "ollama.exe")
+                    if os.path.isfile(candidate):
+                        executable = candidate
+                if not executable:
+                    return False
+
+                options = {
+                    "stdin": subprocess.DEVNULL,
+                    "stdout": subprocess.DEVNULL,
+                    "stderr": subprocess.DEVNULL,
+                    "close_fds": True,
+                }
+                no_window = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+                if no_window:
+                    options["creationflags"] = no_window
+                server_env = os.environ.copy()
+                server_env["OLLAMA_HOST"] = "127.0.0.1:%d" % int(port)
+                server_env["OLLAMA_VULKAN"] = "0"
+                server_env["OLLAMA_NUM_PARALLEL"] = "1"
+                options["env"] = server_env
+                try:
+                    process = subprocess.Popen(
+                        [executable, "serve"], **options
+                    )
+                    if is_fallback:
+                        cls._ollama_fallback_process = process
+                        cls._ollama_fallback_start_attempted = True
+                    else:
+                        cls._ollama_server_process = process
+                        cls._ollama_start_attempted = True
+                except (OSError, ValueError):
+                    return False
+
+            deadline = time.monotonic() + 8.0
+            while time.monotonic() < deadline:
+                try:
+                    with urllib.request.urlopen(
+                        "http://127.0.0.1:%d/api/tags" % int(port), timeout=0.5
+                    ) as response:
+                        return response.status == 200
+                except (OSError, urllib.error.URLError):
+                    time.sleep(0.2)
+            return False
 
     def _resolve_exact_named_target(self):
         """Resolve only an exact visible page/control name before model use."""
@@ -577,8 +752,11 @@ class LocalAssistantConversation(QThread):
             label = str(control.get("label") or "").replace("*", "")
             for part in re.split(r"[/|\n]", label):
                 alias = self._normalize_text(part).strip()
-                if len(alias) > 2:
-                    aliases.setdefault(alias, set()).add(control_id)
+                candidates = [alias] if len(alias) > 2 else []
+                if "telefon" in alias or alias.endswith(" tel"):
+                    candidates.extend(("telefon numarasi", "telefonu"))
+                for candidate in candidates:
+                    aliases.setdefault(candidate, set()).add(control_id)
 
         occurrences = []
         spoken_suffixes = (
@@ -650,6 +828,186 @@ class LocalAssistantConversation(QThread):
             if value:
                 values[control_id] = value
         return values
+
+    def _explicit_fields_result(self, source_values, reply):
+        controls = {
+            str(item.get("id") or ""): item
+            for item in self.controls
+            if item.get("type") in {"text", "multiline"}
+            or (item.get("type") == "combo" and item.get("editable"))
+        }
+        fields = []
+        for control_id, value in source_values.items():
+            control = controls.get(control_id)
+            if control is None or not str(value).strip():
+                continue
+            fields.append({
+                "control_id": control_id,
+                "value": str(value)[:500],
+                "overwrite": False,
+                "operation": "select_option" if control.get("type") == "combo" else "set_field",
+            })
+        if len(fields) < 2:
+            return {
+                "intent": "clarify",
+                "reply": "Alanlardan birka\u00e7\u0131 i\u00e7in de\u011fer alamad\u0131m. Eksik de\u011feri tekrar s\u00f6yler misiniz?",
+                "utterance": self.utterance,
+            }
+        return {
+            "intent": "set_fields",
+            "fields": fields[:10],
+            "reply": reply or "Birden fazla alan i\u00e7in s\u00f6yledi\u011finiz de\u011ferleri dolduruyorum.",
+            "utterance": self.utterance,
+        }
+
+    def _resolve_toggle_request(self):
+        text = self._normalize_text(self.utterance)
+        words = re.findall(r"\w+", text)
+        enable_roots = {"ac", "etkinlestir", "aktiflestir", "baslat", "devreye"}
+        disable_roots = {"kapat", "pasiflestir", "durdur", "devre"}
+        suffixes = (
+            "ebilir", "abilir", "ebilirsiniz", "abilirsiniz", "in", "iniz",
+            "un", "unuz", "yin", "yiniz", "in", "iniz",
+        )
+
+        def root(word):
+            for suffix in suffixes:
+                if len(word) > len(suffix) + 2 and word.endswith(suffix):
+                    return word[:-len(suffix)]
+            return word
+
+        normalized_words = {root(word) for word in words}
+        enable = bool(normalized_words.intersection(enable_roots)) or (
+            "devreye" in normalized_words and "al" in normalized_words
+        )
+        disable = bool(normalized_words.intersection(disable_roots)) or (
+            "devre" in normalized_words and "disi" in normalized_words
+        )
+        if enable == disable:
+            return None
+
+        ignored = {
+            "ac", "kapat", "etkinlestir", "aktiflestir", "pasiflestir",
+            "baslat", "durdur", "devreye", "devre", "disi", "al", "mi",
+            "mu", "lutfen", "bana", "bir", "bu", "su", "asistan", "ayar",
+            "ayari", "anahtari", "secenegi", "secimini", "misin", "misiniz",
+        }
+
+        def stem(word):
+            for _ in range(2):
+                for suffix in (
+                    "larindaki", "lerindeki", "larinin", "lerinin", "larini",
+                    "lerini", "larindan", "lerinden", "larini", "lerini",
+                    "larini", "lerini", "lari", "leri", "lar", "ler", "nin",
+                    "nun", "ni", "nu", "na", "ne", "yi", "yu", "i", "u",
+                    "e", "a",
+                ):
+                    if len(word) > len(suffix) + 2 and word.endswith(suffix):
+                        word = word[:-len(suffix)]
+                        break
+            return word
+
+        utterance_terms = {
+            stem(word) for word in words
+            if len(word) > 2 and word not in ignored
+        }
+        scored = []
+        for control in self.controls:
+            if control.get("type") not in {"check", "toggle"}:
+                continue
+            label_terms = {
+                stem(word)
+                for word in re.findall(r"\w+", self._normalize_text(control.get("label")))
+                if len(word) > 2 and word not in ignored
+            }
+            overlap = utterance_terms.intersection(label_terms)
+            if overlap:
+                scored.append((len(overlap), control))
+        if not scored:
+            return None
+        best = max(score for score, _control in scored)
+        matches = [control for score, control in scored if score == best]
+        if len(matches) != 1:
+            return {
+                "intent": "clarify",
+                "reply": "Hangi anahtar\u0131 a\u00e7mam\u0131 veya kapatmam\u0131 istersiniz?",
+                "utterance": self.utterance,
+            }
+        control = matches[0]
+        value = enable
+        return {
+            "intent": "set_toggle",
+            "control_id": str(control.get("id") or ""),
+            "value": value,
+            "reply": "Ayar\u0131 a\u00e7\u0131yorum." if value else "Ayar\u0131 kapat\u0131yorum.",
+            "utterance": self.utterance,
+        }
+
+    def _resolve_visible_delete_request(self):
+        words = re.findall(r"\w+", self._normalize_text(self.utterance))
+        if {"nereden", "nasil", "hangi", "neden"}.intersection(words):
+            return None
+        delete_requested = any(
+            word in {"sil", "silin", "kaldir", "kaldirin", "cikar", "cikarin"}
+            or word.startswith(("silebil", "siler", "silmek", "kaldirabilir", "cikarabilir"))
+            for word in words
+        )
+        if not delete_requested:
+            return None
+
+        ignored = {
+            "sil", "silin", "silebil", "kaldir", "kaldirin", "cikar", "cikarin",
+            "lutfen", "bana", "bir", "bu", "su", "olan", "servis", "cihaz",
+            "veri",
+        }
+        suffixes = (
+            "larindaki", "lerindeki", "larinin", "lerinin", "larini", "lerini",
+            "larindan", "lerinden", "larina", "lerine", "larini", "lerini",
+            "lar", "ler", "nin", "nun", "nin", "nun", "dan", "den", "tan",
+            "ten", "nda", "nde", "daki", "deki", "ini", "unu", "ni", "nu",
+            "na", "ne", "yi", "yu", "i", "u", "e", "a",
+        )
+
+        def stem(word):
+            for _ in range(2):
+                for suffix in suffixes:
+                    if len(word) > len(suffix) + 2 and word.endswith(suffix):
+                        word = word[:-len(suffix)]
+                        break
+            return word
+
+        request_terms = {
+            stem(word) for word in words
+            if len(word) > 2 and word not in ignored
+        }
+        scored = []
+        for control in self.controls:
+            if control.get("type") not in {"button", "action"}:
+                continue
+            label_words = re.findall(r"\w+", self._normalize_text(control.get("label")))
+            label_terms = {
+                stem(word) for word in label_words
+                if len(word) > 2 and word not in ignored
+            }
+            overlap = request_terms.intersection(label_terms)
+            if overlap:
+                scored.append((len(overlap), control))
+        if not scored:
+            return None
+        best = max(score for score, _control in scored)
+        matches = [control for score, control in scored if score == best]
+        if len(matches) != 1:
+            return {
+                "intent": "clarify",
+                "reply": "Hangi kayd\u0131 silmemi istedi\u011finizi belirtir misiniz?",
+                "utterance": self.utterance,
+            }
+        return {
+            "intent": "click_control",
+            "control_id": str(matches[0].get("id") or ""),
+            "reply": "Silme i\u015flemini onay i\u00e7in haz\u0131rl\u0131yorum.",
+            "utterance": self.utterance,
+        }
 
     def _resolve_offline_fallback(self):
         """Keep exact menu and visible-control commands usable without local LLM."""

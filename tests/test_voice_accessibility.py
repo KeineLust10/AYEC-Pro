@@ -1,4 +1,8 @@
+import io
 import json
+import subprocess
+import sys
+import urllib.error
 from types import SimpleNamespace
 
 from PyQt6.QtWidgets import (
@@ -101,6 +105,12 @@ def test_technician_panel_trigger_does_not_capture_follow_up_selection():
         "select_service_device",
         "Burak Sahin",
     )
+    for punctuation in (".", "!", "?"):
+        utterance = open_phrase + punctuation
+        assert BulutAsistan._match_builtin_intent(None, utterance, utterance) == (
+            "panel_ac",
+            "",
+        )
 
 
 def test_voice_business_commands_are_routed_with_their_payloads():
@@ -148,8 +158,8 @@ def test_panel_open_keeps_short_voice_follow_up_active():
         tetik_sinyali=Signal(),
     )
 
-    BulutAsistan.komut_coz(fake, "teknisyen panelini ac")
-    BulutAsistan.komut_coz(fake, "Burak Sahin sec")
+    BulutAsistan.komut_coz(fake, "teknisyen panelini ac.")
+    BulutAsistan.komut_coz(fake, "Burak Sahin sec.")
 
     assert fake.tetik_sinyali.values == [
         ("panel_ac", ""),
@@ -216,6 +226,7 @@ def test_voice_record_selection_falls_back_to_current_menu_controls():
 def test_voice_followup_mode_outlives_short_wake_word_timeout():
     fake = SimpleNamespace(
         followup_mode=True,
+        followup_expires_at=0,
         last_wake_time=0,
         wake_timeout_seconds=10,
     )
@@ -223,6 +234,21 @@ def test_voice_followup_mode_outlives_short_wake_word_timeout():
     assert BulutAsistan._wake_is_recent(fake)
     fake.followup_mode = False
     assert not BulutAsistan._wake_is_recent(fake)
+
+
+def test_voice_followup_mode_expires_after_form_session():
+    import time
+
+    fake = SimpleNamespace(
+        followup_mode=True,
+        followup_expires_at=time.time() - 1,
+        last_wake_time=0,
+        wake_timeout_seconds=10,
+    )
+
+    assert not BulutAsistan._wake_is_recent(fake)
+    assert fake.followup_mode is False
+    assert fake.followup_expires_at == 0
 
 
 def test_assistant_help_lists_every_visible_control_and_menu_in_pages():
@@ -580,6 +606,9 @@ def test_live_listener_pipeline_forwards_offline_transcription_to_command_router
         device_index = 1
         SAMPLE_RATE = 16000
 
+        def __init__(self, device_index=None):
+            assert device_index == 26
+
         def __enter__(self):
             return self
 
@@ -596,7 +625,7 @@ def test_live_listener_pipeline_forwards_offline_transcription_to_command_router
     monkeypatch.setattr(offline_turkish_asr, "OfflineTurkishASR", OfflineASR)
     monkeypatch.setattr(asistan_motoru, "_tts_capture_snapshot", lambda: (1, False))
 
-    listener = BulutAsistan()
+    listener = BulutAsistan(input_device_index=26)
 
     def route(text):
         delivered.append(text)
@@ -606,6 +635,77 @@ def test_live_listener_pipeline_forwards_offline_transcription_to_command_router
     listener.run()
 
     assert delivered == ["finans ozet"]
+
+
+def test_saved_microphone_is_resolved_by_listener_not_ui_thread(monkeypatch):
+    from src.utils import asistan_motoru
+
+    resolved = []
+    monkeypatch.setattr(
+        asistan_motoru,
+        "resolve_microphone_device_index",
+        lambda device_key: resolved.append(device_key) or 17,
+    )
+    listener = BulutAsistan(input_device_key="Windows WASAPI::USB Microphone")
+
+    assert listener._resolve_input_device() == 17
+    assert listener.input_device_index == 17
+    assert resolved == ["Windows WASAPI::USB Microphone"]
+
+
+def test_listener_falls_back_to_windows_default_when_saved_microphone_is_missing(monkeypatch):
+    from src.utils import asistan_motoru, offline_turkish_asr
+
+    _app()
+    attempts = []
+    errors = []
+    audio = SimpleNamespace(
+        frame_data=b"\x00\x00" * 16000,
+        sample_rate=16000,
+        sample_width=2,
+    )
+
+    class Recognizer:
+        energy_threshold = 100
+
+        def adjust_for_ambient_noise(self, _source, duration):
+            assert duration == 1
+
+        def listen(self, _source, **_options):
+            return audio
+
+    class Microphone:
+        device_index = None
+        SAMPLE_RATE = 16000
+
+        def __init__(self, device_index=None):
+            self.device_index = device_index
+            attempts.append(device_index)
+
+        def __enter__(self):
+            if self.device_index == 7:
+                raise OSError("device disconnected")
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+    class OfflineASR:
+        def transcribe_with_confidence(self, _captured_audio):
+            return {"text": "finans ozet", "confidence": 0.9}
+
+    monkeypatch.setattr(asistan_motoru.sr, "Recognizer", Recognizer)
+    monkeypatch.setattr(asistan_motoru.sr, "Microphone", Microphone)
+    monkeypatch.setattr(offline_turkish_asr, "OfflineTurkishASR", OfflineASR)
+    monkeypatch.setattr(asistan_motoru, "_tts_capture_snapshot", lambda: (1, False))
+    listener = asistan_motoru.BulutAsistan(input_device_index=7)
+    listener.hata_sinyali.connect(errors.append)
+    listener.komut_coz = lambda _text: setattr(listener, "is_running", False)
+
+    listener.run()
+
+    assert attempts == [7, None]
+    assert errors and "Windows varsay\u0131lan" in errors[0]
 
 
 def test_voice_stop_and_repeat_are_available_without_clearing_pending_confirmations(monkeypatch):
@@ -860,7 +960,7 @@ def test_voice_selecting_customer_in_device_picker_advances_to_selected_device(m
         "entry_date": "2026-09-21",
     }])
 
-    selected, _message = dialog.select_by_voice("Burak Sahin")
+    selected, _message = dialog.select_by_voice("Burak Sahini")
 
     assert selected
     assert dialog.selected_device["tracking_no"] == "DEMO-SRV-0015"
@@ -903,7 +1003,7 @@ def test_voice_device_picker_asks_for_model_when_customer_has_multiple_active_de
     app.processEvents()
     dialog.load_data(rows)
 
-    selected, message = dialog.select_by_voice("Burak Sahin")
+    selected, message = dialog.select_by_voice("Burak Sahini")
 
     assert not selected
     assert "birden fazla" in message.lower()
@@ -996,6 +1096,65 @@ def test_voice_selecting_device_opens_next_technician_dialog(monkeypatch):
     assert dialog.selected_device == selected_device
     assert "teknisyen panelini" in reply
     dialog.close()
+
+
+def test_voice_only_customer_selection_opens_selected_service_panel(monkeypatch):
+    app = _app()
+    device = {
+        "tracking_no": "DEMO-SRV-0015",
+        "customer_name": "Burak \u015eahin",
+        "device_brand": "AYEC",
+        "device_model": "Test Cihaz 15",
+        "status": "Parca Bekliyor",
+        "entry_date": "2026-09-21",
+    }
+    opened = []
+
+    class Db:
+        def get_device_by_tracking_no(self, tracking_no):
+            return device if tracking_no == device["tracking_no"] else None
+
+    class TechnicianPanel:
+        def __init__(self, _db, selected_device, _parent, sector_manager=None):
+            opened.append(("panel", selected_device, sector_manager))
+
+        def exec(self):
+            opened.append(("exec",))
+
+    from PyQt6.QtCore import QTimer
+    from PyQt6.QtWidgets import QWidget
+
+    monkeypatch.setattr(
+        DeviceSelectionDialog,
+        "_get_active_devices",
+        lambda *_args: [device],
+    )
+    monkeypatch.setattr(
+        "src.ui.dialogs.technical_service_technician_panel.TechnicalServiceTechnicianPanel",
+        TechnicianPanel,
+    )
+    window = QWidget()
+    window.db = Db()
+    window.sector_manager = None
+    window.assistant = SimpleNamespace(
+        voice_assistant_thread=SimpleNamespace(followup_mode=False)
+    )
+    window._verify_technician_lock = lambda: True
+    window._is_automotive = lambda: False
+
+    def select_customer_by_voice():
+        dialog = app.activeModalWidget()
+        assert isinstance(dialog, DeviceSelectionDialog)
+        selected, _message = dialog.select_by_voice("Burak Sahin")
+        assert selected
+
+    QTimer.singleShot(100, select_customer_by_voice)
+    MainWindowFuncMixin.open_technician_panel(window)
+
+    assert opened == [("panel", device, None), ("exec",)]
+    assert window._dialog_open is False
+    assert window.assistant.voice_assistant_thread.followup_mode is False
+    window.close()
 
 
 def test_selected_service_tracking_opens_technician_panel_without_picker(monkeypatch):
@@ -1151,6 +1310,147 @@ def test_local_conversation_falls_back_to_offline_navigation_and_form_values(mon
     assert selection["value"] == "Haz\u0131r"
 
 
+def test_local_conversation_starts_ollama_after_connection_refusal(monkeypatch):
+    _app()
+    calls = []
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self, _limit):
+            return json.dumps({
+                "message": {
+                    "content": json.dumps({
+                        "intent": "chat",
+                        "reply": "Bugun servis isleri hazir.",
+                    }),
+                },
+            }).encode("utf-8")
+
+    def urlopen(_request, timeout):
+        calls.append(timeout)
+        if len(calls) == 1:
+            raise urllib.error.URLError(ConnectionRefusedError("Ollama is stopped"))
+        return Response()
+
+    monkeypatch.setattr(
+        "src.services.assistant_conversation.urllib.request.urlopen", urlopen
+    )
+    monkeypatch.setattr(
+        LocalAssistantConversation,
+        "_ensure_ollama_server",
+        lambda *_args, **_kwargs: True,
+    )
+    result = LocalAssistantConversation("Bugun isler nasil?", [], 1)._resolve()
+
+    assert calls == [30, 30]
+    assert result["intent"] == "chat"
+    assert result["reply"] == "Bugun servis isleri hazir."
+
+
+def test_local_conversation_retries_vulkan_allocation_failure_on_cpu_server(monkeypatch):
+    _app()
+    calls = []
+    fallback_ports = []
+    monkeypatch.setattr(LocalAssistantConversation, "_ollama_active_port", 11434)
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self, _limit):
+            return json.dumps({
+                "message": {
+                    "content": json.dumps({
+                        "intent": "chat",
+                        "reply": "Servis isleri yolunda.",
+                    }),
+                },
+            }).encode("utf-8")
+
+    def urlopen(request, timeout):
+        calls.append((request.full_url, timeout))
+        if len(calls) == 1:
+            raise urllib.error.HTTPError(
+                request.full_url,
+                500,
+                "Internal Server Error",
+                {},
+                io.BytesIO(b'{"error":"failed to allocate Vulkan compute buffers"}'),
+            )
+        return Response()
+
+    monkeypatch.setattr(
+        "src.services.assistant_conversation.urllib.request.urlopen", urlopen
+    )
+    monkeypatch.setattr(
+        LocalAssistantConversation,
+        "_ensure_ollama_server",
+        lambda port=11434: fallback_ports.append(port) or True,
+    )
+    worker = LocalAssistantConversation(
+        "Servis isleri nasil gidiyor?",
+        [(42, "Servis Listesi")],
+        42,
+    )
+
+    result = worker._resolve()
+
+    assert calls == [
+        ("http://127.0.0.1:11434/api/chat", 30),
+        ("http://127.0.0.1:11435/api/chat", 30),
+    ]
+    assert fallback_ports == [11435]
+    assert result["intent"] == "chat"
+    assert result["reply"] == "Servis isleri yolunda."
+
+
+def test_ollama_server_starts_hidden_when_installed(monkeypatch):
+    class Process:
+        def poll(self):
+            return None
+
+    class Response:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+    popen_calls = []
+    monkeypatch.setattr(LocalAssistantConversation, "_ollama_server_process", None)
+    monkeypatch.setattr(LocalAssistantConversation, "_ollama_start_attempted", False)
+    monkeypatch.setattr(
+        "src.services.assistant_conversation.shutil.which",
+        lambda _name: "ollama.exe",
+    )
+    monkeypatch.setattr(
+        "src.services.assistant_conversation.subprocess.Popen",
+        lambda args, **options: (popen_calls.append((args, options)) or Process()),
+    )
+    monkeypatch.setattr(
+        "src.services.assistant_conversation.urllib.request.urlopen",
+        lambda *_args, **_kwargs: Response(),
+    )
+
+    assert LocalAssistantConversation._ensure_ollama_server()
+    assert popen_calls[0][0] == ["ollama.exe", "serve"]
+    assert popen_calls[0][1]["stdin"] == subprocess.DEVNULL
+    assert popen_calls[0][1]["stdout"] == subprocess.DEVNULL
+    assert popen_calls[0][1]["stderr"] == subprocess.DEVNULL
+    assert popen_calls[0][1]["env"]["OLLAMA_VULKAN"] == "0"
+    assert popen_calls[0][1]["env"]["OLLAMA_HOST"] == "127.0.0.1:11434"
+
+
 def test_local_assistant_prioritizes_matching_controls_beyond_first_page_limit():
     controls = [
         {"id": "c%d" % index, "type": "text", "label": "Field %d" % index}
@@ -1236,6 +1536,86 @@ def test_technician_dialog_continuation_runs_while_menu_callback_is_modal(monkey
 
     assert starts == [("Teknisyen Panelini Ac, Burak Sahin'i Sec", True)]
     modal.close()
+
+
+def test_voice_panel_follow_up_selects_customer_then_opens_device_panel(monkeypatch):
+    panels = []
+    messages = []
+    device = {"tracking_no": "DEMO-SRV-0015", "customer_name": "Burak Sahin"}
+
+    class Picker:
+        def __init__(self, _db, _parent):
+            self.selected_device = None
+            self.accepted = False
+
+        def isVisible(self):
+            return True
+
+        def select_by_voice(self, target):
+            assert target == "Burak Sahini"
+            self.selected_device = device
+            self.accepted = True
+            return True, "Cihazi sectim ve teknisyen panelini aciyorum."
+
+        def exec(self):
+            assert window.assistant.voice_assistant_thread.followup_mode is True
+            AssistantManager.aksiyon_merkezi(manager, "select_service_device", "Burak Sahini")
+            return int(self.accepted)
+
+    class Panel:
+        def __init__(self, _db, selected_device, _parent, sector_manager=None):
+            self.device = selected_device
+
+        def exec(self):
+            panels.append(self.device)
+
+    module = type(sys)("src.ui.dialogs.technical_service_technician_panel")
+    module.TechnicalServiceTechnicianPanel = Panel
+    monkeypatch.setitem(
+        sys.modules,
+        "src.ui.dialogs.technical_service_technician_panel",
+        module,
+    )
+    monkeypatch.setattr("src.ui.dialogs.device_selection_dialog.DeviceSelectionDialog", Picker)
+
+    class Window:
+        db = object()
+        assistant = SimpleNamespace(voice_assistant_thread=SimpleNamespace(followup_mode=False))
+        sector_manager = None
+        _dialog_open = False
+
+        def show_notification(self, *args):
+            messages.append(args)
+
+        def _verify_technician_lock(self):
+            return True
+
+        def _is_automotive(self):
+            return False
+
+    window = Window()
+    window.open_technician_panel = MainWindowFuncMixin.open_technician_panel.__get__(
+        window, Window
+    )
+    manager = SimpleNamespace(
+        main_window=window,
+        _assistant_prefix=lambda: "",
+        _pending_voice_control=None,
+        _pending_form_intake=None,
+        _dictation_mode=False,
+        _speak_async=messages.append,
+    )
+
+    window.open_technician_panel()
+
+    assert panels == [device]
+    assert messages == [
+        ("Cihazi sectim ve teknisyen panelini aciyorum.", "info"),
+        "Cihazi sectim ve teknisyen panelini aciyorum.",
+    ]
+    assert window._active_device_selection_dialog is None
+    assert window._dialog_open is False
+    assert window.assistant.voice_assistant_thread.followup_mode is False
 
 
 def test_navigation_result_schedules_only_one_same_request_continuation(monkeypatch):
@@ -1371,6 +1751,128 @@ def test_local_conversation_preserves_spoken_field_values_and_digits(monkeypatch
         ("c2", "5551234"),
     ]
     assert all(not item["overwrite"] for item in result["fields"])
+
+
+def test_local_conversation_splits_spoken_phone_number_from_customer_name(monkeypatch):
+    _app()
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self, _limit):
+            return json.dumps({"message": {"content": json.dumps({
+                "intent": "set_field",
+                "control_id": "c1",
+                "value": "Elif Yilmaz, telefon numarasini 0532 111 22 33",
+                "reply": "Alanlari dolduruyorum.",
+            })}}).encode("utf-8")
+
+    monkeypatch.setattr(
+        "src.services.assistant_conversation.urllib.request.urlopen",
+        lambda *_args, **_kwargs: Response(),
+    )
+    worker = LocalAssistantConversation(
+        "Musteri adini Elif Yilmaz, telefon numarasini 0532 111 22 33.",
+        [],
+        40,
+        controls=[
+            {"id": "c1", "type": "text", "label": "Musteri Adi", "filled": False},
+            {"id": "c2", "type": "text", "label": "Iletisim Telefonu", "filled": False},
+        ],
+    )
+
+    result = worker._resolve()
+
+    assert result["intent"] == "set_fields"
+    assert [(item["control_id"], item["value"]) for item in result["fields"]] == [
+        ("c1", "Elif Yilmaz"),
+        ("c2", "0532 111 22 33"),
+    ]
+
+
+def test_spoken_check_control_commands_set_explicit_on_and_off_state():
+    controls = [
+        {
+            "id": "c1",
+            "type": "check",
+            "label": "Otomatik WhatsApp Kritik Raporlari",
+            "checked": False,
+        },
+    ]
+    enabled = LocalAssistantConversation(
+        "Otomatik WhatsApp raporlamasini ac",
+        [(60, "Ayarlar")],
+        60,
+        controls=controls,
+    )._resolve()
+    disabled = LocalAssistantConversation(
+        "Otomatik WhatsApp raporlamasini kapat",
+        [(60, "Ayarlar")],
+        60,
+        controls=controls,
+    )._resolve()
+
+    assert enabled["intent"] == "set_toggle" and enabled["value"] is True
+    assert disabled["intent"] == "set_toggle" and disabled["value"] is False
+    assert enabled["control_id"] == disabled["control_id"] == "c1"
+
+
+def test_spoken_check_control_clarifies_when_two_settings_match():
+    worker = LocalAssistantConversation(
+        "Yedeklemeyi ac",
+        [(60, "Ayarlar")],
+        60,
+        controls=[
+            {"id": "c1", "type": "check", "label": "Otomatik Yedekleme"},
+            {"id": "c2", "type": "check", "label": "Bulut Yedekleme"},
+        ],
+    )
+
+    result = worker._resolve()
+
+    assert result["intent"] == "clarify"
+
+
+def test_spoken_delete_request_targets_one_visible_delete_action():
+    result = LocalAssistantConversation(
+        "Secili musteri kaydini sil",
+        [(21, "Musteri Listesi")],
+        21,
+        controls=[{"id": "b1", "type": "button", "label": "Secili Kaydi Sil"}],
+    )._resolve()
+
+    assert result["intent"] == "click_control"
+    assert result["control_id"] == "b1"
+    assert "onay" in result["reply"]
+
+
+def test_spoken_delete_request_clarifies_when_multiple_actions_match():
+    result = LocalAssistantConversation(
+        "Kaydi sil",
+        [(21, "Musteri Listesi")],
+        21,
+        controls=[
+            {"id": "b1", "type": "button", "label": "Musteri Kaydini Sil"},
+            {"id": "b2", "type": "button", "label": "Cihaz Kaydini Sil"},
+        ],
+    )._resolve()
+
+    assert result["intent"] == "clarify"
+
+
+def test_spoken_delete_question_is_not_executed_as_a_command():
+    worker = LocalAssistantConversation(
+        "Musteri kaydini nereden silebilirim",
+        [(21, "Musteri Listesi")],
+        21,
+        controls=[{"id": "b1", "type": "button", "label": "Secili Kaydi Sil"}],
+    )
+
+    assert worker._resolve_visible_delete_request() is None
 
 
 def test_offline_fallback_fills_multiple_explicit_form_fields():
@@ -1723,22 +2225,72 @@ def test_form_opening_asks_consent_then_starts_voice_intake():
         ),
         _conversation_history=[],
         _pending_form_intake=None,
+        voice_assistant_thread=SimpleNamespace(followup_mode=False, followup_expires_at=0),
         _speak_async=messages.append,
         _log_soft_failure=lambda *_args: None,
     )
     manager._form_required_followup = lambda form_root: AssistantManager._form_required_followup(manager, form_root)
     manager._form_missing_required = lambda form_root: AssistantManager._form_missing_required(manager, form_root)
+    manager._set_form_voice_followup = lambda enabled: AssistantManager._set_form_voice_followup(manager, enabled)
 
     assert AssistantManager._offer_form_assistance(manager, 21)
     assert manager._pending_form_intake["status"] == "awaiting_consent"
     assert any("doldural" in message.casefold() for message in messages)
     assert AssistantManager._resolve_form_assistance_confirmation(manager, True)
     assert manager._pending_form_intake["status"] == "active"
+    assert manager.voice_assistant_thread.followup_mode is True
+    assert manager.voice_assistant_thread.followup_expires_at > 0
     assert any("m\u00fc\u015fteri ad\u0131" in message.casefold() for message in messages)
     assert any("Musteri Adi" in message for message in messages)
     customer.setText("Burak Sahin")
     assert "Telefon" in AssistantManager._form_required_followup(manager, dialog)
     dialog.close()
+
+
+def test_named_target_voice_turns_route_to_form_intake():
+    consent_calls = []
+    named_targets = []
+    form_root = object()
+    manager = SimpleNamespace(
+        main_window=SimpleNamespace(_current_page_index=40),
+        _pending_form_intake={"status": "awaiting_consent"},
+        _pending_voice_control=None,
+        _assistant_prefix=lambda: "",
+        _assistant_action_root=lambda _page_id: form_root,
+        _set_form_voice_followup=lambda _enabled: None,
+        _resolve_form_assistance_confirmation=lambda confirmed: consent_calls.append(confirmed),
+        _resolve_named_ui_target=lambda utterance: named_targets.append(utterance),
+    )
+
+    AssistantManager.aksiyon_merkezi(
+        manager, "assistant_named_target", "formu beraber dolduralim, musteri adini soyluyorum"
+    )
+
+    assert consent_calls == [True]
+    assert named_targets == []
+
+    conversations = []
+    manager._pending_form_intake = {
+        "status": "active", "page_id": 40, "root": form_root,
+        "expires_at": 10**12,
+    }
+    manager._start_local_conversation = lambda utterance: conversations.append(utterance)
+    AssistantManager.aksiyon_merkezi(
+        manager, "assistant_named_target", "musteri adini Burak Aslan olarak doldur"
+    )
+
+    assert conversations == ["musteri adini Burak Aslan olarak doldur"]
+    assert named_targets == []
+
+
+def test_form_assistance_phrases_are_detected_without_wake_word():
+    phrases = (
+        "formu beraber dolduralim",
+        "formu birlikte dolduralim",
+        "musteri adini soyluyorum",
+    )
+
+    assert all(AssistantManager._is_form_assistance_phrase(phrase) for phrase in phrases)
 
 
 def test_voice_form_reset_waits_for_confirmation_and_can_be_undone():
@@ -1777,3 +2329,199 @@ def test_voice_form_reset_waits_for_confirmation_and_can_be_undone():
     assert ok and name.text() == "Burak Sahin" and phone.text() == "5551234"
     assert status.currentText() == "Hazir"
     dialog.close()
+def test_frozen_tts_keeps_temp_audio_and_mic_gate_until_playback_finishes(monkeypatch, tmp_path):
+    import sys
+    import threading
+    from pathlib import Path
+    from src.utils import asistan_motoru as voice_engine
+
+    started = threading.Event()
+    queued = []
+    real_thread = threading.Thread
+    threads = []
+
+    class TrackingThread(real_thread):
+        def start(self):
+            threads.append(self)
+            super().start()
+
+    def synthesize(_text, output_path, voice=None):
+        Path(output_path).write_bytes(b"audio" * 100)
+
+    def queue_playback(path, generation):
+        queued.append((Path(path), generation))
+        started.set()
+        return voice_engine._TTS_PLAYBACK_DEFERRED
+
+    monkeypatch.setattr(voice_engine, "threading", SimpleNamespace(
+        Lock=threading.Lock,
+        RLock=threading.RLock,
+        Thread=TrackingThread,
+        current_thread=threading.current_thread,
+    ))
+    monkeypatch.setattr(voice_engine, "tempfile", SimpleNamespace(gettempdir=lambda: str(tmp_path)))
+    monkeypatch.setattr(voice_engine, "_play_mp3", queue_playback)
+    monkeypatch.setattr(voice_engine, "_qt_player_bridge", None)
+    monkeypatch.setattr(voice_engine, "_active_tts_process", None)
+    monkeypatch.setitem(sys.modules, "src.utils.local_turkish_tts", SimpleNamespace(synthesize_to_file=synthesize))
+    monkeypatch.setattr(voice_engine, "_tts_generation", voice_engine._tts_generation)
+    monkeypatch.setattr(voice_engine, "_tts_playback_active", False)
+    monkeypatch.setattr(voice_engine, "_tts_mic_cooldown_until", 0.0)
+    with voice_engine._tts_generation_lock:
+        voice_engine._tts_playback_active = False
+        voice_engine._tts_mic_cooldown_until = 0.0
+
+    voice_engine.sesli_cevap_ver_async("Teknisyen panelini ac")
+    assert started.wait(3)
+    threads[0].join(timeout=3)
+    assert not threads[0].is_alive()
+
+    audio_path, generation = queued[0]
+    assert audio_path.is_file()
+    assert voice_engine._tts_capture_snapshot()[1]
+
+    monkeypatch.setattr(voice_engine, "QMediaPlayer", None)
+    monkeypatch.setattr(voice_engine, "QAudioOutput", None)
+    bridge = voice_engine._QtTTSPlayerBridge()
+    bridge.player = None
+    bridge.current_path = str(audio_path)
+    bridge.current_generation = generation
+    bridge._finalize_current()
+
+    assert not audio_path.exists()
+    with voice_engine._tts_generation_lock:
+        assert not voice_engine._tts_playback_active
+        assert voice_engine._tts_mic_cooldown_until > voice_engine.time.monotonic()
+
+
+def test_frozen_tts_queues_audio_path_with_generation(monkeypatch, tmp_path):
+    import sys
+    from src.utils import asistan_motoru as voice_engine
+
+    audio_path = tmp_path / "voice.wav"
+    audio_path.write_bytes(b"audio")
+    queued = []
+
+    class Signal:
+        def emit(self, path, generation):
+            queued.append((path, generation))
+
+    bridge = SimpleNamespace(player=object(), play_requested=Signal())
+    monkeypatch.setattr(voice_engine, "sys", SimpleNamespace(frozen=True))
+    monkeypatch.setattr(voice_engine, "_get_qt_player_bridge", lambda: bridge)
+    with voice_engine._tts_generation_lock:
+        generation = voice_engine._tts_generation
+
+    result = voice_engine._play_mp3(str(audio_path), generation)
+
+    assert result is voice_engine._TTS_PLAYBACK_DEFERRED
+    assert queued == [(str(audio_path), generation)]
+    assert audio_path.is_file()
+def test_qt_tts_bridge_finishes_capture_gate_after_media_end_without_reentry(monkeypatch, tmp_path):
+    from src.utils import asistan_motoru as voice_engine
+
+    class Signal:
+        def __init__(self):
+            self.callbacks = []
+
+        def connect(self, callback):
+            self.callbacks.append(callback)
+
+        def emit(self, *args):
+            for callback in tuple(self.callbacks):
+                callback(*args)
+
+    class AudioOutput:
+        def __init__(self, _parent):
+            pass
+
+        def setVolume(self, _value):
+            pass
+
+    class MediaPlayer:
+        MediaStatus = SimpleNamespace(EndOfMedia=6, InvalidMedia=7, NoMedia=0)
+
+        def __init__(self, _parent):
+            self.mediaStatusChanged = Signal()
+            self.errorOccurred = Signal()
+            self._duration = 2500
+
+        def setAudioOutput(self, _audio):
+            pass
+
+        def duration(self):
+            return self._duration
+
+        def stop(self):
+            self.mediaStatusChanged.emit(self.MediaStatus.NoMedia)
+
+        def setSource(self, _url):
+            pass
+
+        def play(self):
+            pass
+
+    monkeypatch.setattr(voice_engine, "QMediaPlayer", MediaPlayer)
+    monkeypatch.setattr(voice_engine, "QAudioOutput", AudioOutput)
+    generation = 934
+    monkeypatch.setattr(voice_engine, "_tts_generation", generation)
+    monkeypatch.setattr(voice_engine, "_tts_playback_active", True)
+    monkeypatch.setattr(voice_engine, "_tts_mic_cooldown_until", 0.0)
+    audio_path = tmp_path / "bridge.wav"
+    audio_path.write_bytes(b"audio")
+    bridge = voice_engine._QtTTSPlayerBridge()
+
+    bridge.play_file(str(audio_path), generation)
+    assert audio_path.is_file()
+    assert voice_engine._tts_playback_active
+
+    bridge.player.mediaStatusChanged.emit(MediaPlayer.MediaStatus.EndOfMedia)
+
+    assert not audio_path.exists()
+    assert not voice_engine._tts_playback_active
+    assert voice_engine._tts_mic_cooldown_until > voice_engine.time.monotonic()
+def test_voice_listener_discards_capture_while_frozen_tts_is_playing(monkeypatch):
+    from src.utils import asistan_motoru as voice_engine, offline_turkish_asr
+
+    drained = []
+    transcribed = []
+
+    class Recognizer:
+        energy_threshold = 100
+
+        def adjust_for_ambient_noise(self, _source, duration):
+            assert duration == 1
+
+        def listen(self, *_args, **_kwargs):
+            raise AssertionError("Playback audio must not reach recognition")
+
+    class Microphone:
+        device_index = 4
+        SAMPLE_RATE = 16000
+        CHUNK = 512
+
+        def __init__(self, device_index=None):
+            assert device_index == 4
+            self.stream = SimpleNamespace(read=lambda size: drained.append(size))
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+    class OfflineASR:
+        def transcribe_with_confidence(self, _audio):
+            transcribed.append(True)
+            return {"text": "teknisyen panelini ac", "confidence": 1.0}
+
+    monkeypatch.setattr(voice_engine.sr, "Recognizer", Recognizer)
+    monkeypatch.setattr(voice_engine.sr, "Microphone", Microphone)
+    monkeypatch.setattr(offline_turkish_asr, "OfflineTurkishASR", OfflineASR)
+    monkeypatch.setattr(voice_engine, "_tts_capture_snapshot", lambda: (9, True))
+    listener = voice_engine.BulutAsistan(input_device_index=4)
+    listener._pause = lambda _seconds: setattr(listener, "is_running", False)
+    listener.run()
+
+    assert drained == [512]
+    assert transcribed == []

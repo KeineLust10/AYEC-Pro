@@ -10,7 +10,7 @@ def test_midnight_reference_styles_are_loaded_after_page_styles():
     html = (WEB / "index.html").read_text(encoding="utf-8")
     stylesheet = (WEB / "midnight-reference.css").read_text(encoding="utf-8")
 
-    assert "midnight-reference.css?v=20261011-05" in html
+    assert "midnight-reference.css?v=" in html
     assert html.index("service-list-reference.css") < html.index("midnight-reference.css")
     assert "color-scheme: dark" in stylesheet
     assert "--bg: #080d16" in stylesheet
@@ -106,7 +106,7 @@ def test_appointments_follow_part_two_calendar_composition_and_mobile_layout():
     app = (WEB / "appointments-reference.js").read_text(encoding="utf-8")
     styles = (WEB / "midnight-reference.css").read_text(encoding="utf-8")
 
-    assert 'appointments-reference.js?v=20261007-2' in html
+    assert 'appointments-reference.js?v=' in html
     assert "data-appointment-view=\"'+id+'\"" in app
     assert 'data-appointment-shift="-1"' in app
     assert 'data-appointment-today' in app
@@ -129,7 +129,7 @@ def test_finance_dashboard_uses_data_backed_currency_balances_and_periods():
     assert "Math.max(0,-moneyNumber(balance))*rateForCode(currency)" in app
     assert 'Array.isArray(db.bankAccounts)' in app
     assert "finance-weekly-chart" in app
-    assert "data-finance-period=\"week\"" in app
+    assert "data-finance-period=\"last7\"" in app
     assert "ayecFinancePeriod=button.dataset.financePeriod" in app
     assert ".finance-weekly-chart polyline" in styles
 

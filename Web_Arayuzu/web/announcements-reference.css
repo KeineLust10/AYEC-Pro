@@ -1,0 +1,151 @@
+.announcements-card .toolbar {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.announcements-card .search {
+  width: min(420px, 100%);
+}
+
+.announcements-table {
+  min-width: 850px !important;
+  table-layout: auto;
+}
+
+.announcements-card .table-wrap {
+  overflow-x: auto;
+}
+
+.announcements-table th,
+.announcements-table td {
+  padding: 10px 12px;
+  vertical-align: top;
+}
+
+.announcements-table tbody tr {
+  min-height: 60px;
+  cursor: pointer;
+}
+
+.announcements-date,
+.announcement-author {
+  text-align: center;
+  white-space: nowrap;
+}
+
+.announcement-title {
+  min-width: 220px;
+  font-weight: 700;
+}
+
+.announcement-content {
+  min-width: 320px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+}
+
+.announcement-priority {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 76px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.announcement-priority.high {
+  color: #b91c1c;
+  background: #fee2e2;
+}
+
+.announcement-priority.normal {
+  color: #1d4ed8;
+  background: #dbeafe;
+}
+
+.announcement-priority.low {
+  color: #047857;
+  background: #d1fae5;
+}
+
+#appDialog.announcements-edit-dialog {
+  width: min(550px, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
+  height: min(480px, calc(100dvh - 32px));
+  max-height: calc(100dvh - 32px);
+}
+
+#appDialog.announcements-edit-dialog > form {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+#appDialog.announcements-edit-dialog > form > header {
+  flex: 0 0 68px;
+  min-height: 68px;
+  padding: 10px 22px;
+}
+
+#appDialog.announcements-edit-dialog .dialog-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  padding: 14px 22px;
+  overflow: auto;
+}
+
+.announcement-editor {
+  display: grid;
+  gap: 8px;
+}
+
+.announcement-editor h3 {
+  margin: 0 0 2px;
+  font-size: 19px;
+}
+
+.announcement-editor .field {
+  display: grid;
+  gap: 7px;
+}
+
+.announcement-editor input,
+.announcement-editor select,
+.announcement-editor textarea {
+  border: 2px solid var(--line);
+  border-radius: 6px;
+  background: var(--input-bg);
+  color: var(--ink);
+  padding: 10px;
+}
+
+.announcement-editor input,
+.announcement-editor select {
+  min-height: 40px;
+}
+
+.announcement-editor textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.announcement-delete-action {
+  margin-right: auto;
+}
+
+@media (max-width: 540px) {
+  .announcements-card .toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+}

@@ -6,9 +6,10 @@ from PyQt6.QtWidgets import (
     QAbstractScrollArea,
     QComboBox,
     QDateEdit,
+    QDialog,
     QDoubleSpinBox,
     QFrame,
-    QGraphicsDropShadowEffect,
+    QGraphicsEffect,
     QGroupBox,
     QHeaderView,
     QLabel,
@@ -31,7 +32,9 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 from PyQt6.QtGui import QColor, QPalette
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QAbstractAnimation, QEvent, QObject, QTimer, Qt
+from ._theme_color_utils import contrast_ratio, contrast_text
+from weakref import ref
 
 
 class AppearanceModeManager:
@@ -51,6 +54,82 @@ class AppearanceModeManager:
     _PROP_CLASSIC_SKIP_TRANSFORM = "_ayec_classic_skip_transform"
     _PROP_MODE_BASE_STYLE = "_ayec_mode_base_stylesheet"
     _ORIGINAL_UI_EFFECTS = None
+    _CLASSIC_PAUSED_ANIMATIONS = []
+    _CLASSIC_TOKEN_CACHE = {}
+    _CLASSIC_ACTIVE = False
+    _PROP_CLASSIC_ANIMATION_GUARD = "_ayec_classic_animation_guard"
+    _PROP_CLASSIC_SHOW_PENDING_PAINT = "_ayec_classic_show_pending_paint"
+    _PROP_CLASSIC_ANIMATION_SCAN = "_ayec_classic_animation_scan"
+    _PROP_CLASSIC_THEME_HOOK_MODE = "_ayec_classic_theme_hook_mode"
+    _CLASSIC_WIDGET_FILTER = None
+    _CLASSIC_ANIMATION_GENERATION = 0
+
+    class _ClassicWidgetFilter(QObject):
+        """Apply Classic appearance before newly shown widgets paint."""
+
+        def eventFilter(self, watched, event):
+            if not isinstance(watched, QWidget):
+                return False
+            app = QApplication.instance()
+            if app is None or app.property("appearanceMode") != AppearanceModeManager.CLASSIC:
+                return False
+
+            event_type = event.type()
+            if event_type == QEvent.Type.ChildAdded:
+                try:
+                    child = event.child()
+                    if isinstance(child, QAbstractAnimation):
+                        parent_ref = ref(watched)
+                        QTimer.singleShot(
+                            0,
+                            lambda parent_ref=parent_ref: AppearanceModeManager._guard_classic_animations(
+                                parent_ref()
+                            )
+                            if parent_ref() is not None
+                            else None,
+                        )
+                except (RuntimeError, AttributeError):
+                    pass
+                return False
+            if event_type == QEvent.Type.Show:
+                AppearanceModeManager._apply_new_classic_widget(watched)
+                watched.setProperty(
+                    AppearanceModeManager._PROP_CLASSIC_SHOW_PENDING_PAINT,
+                    True,
+                )
+            elif (
+                event_type == QEvent.Type.Paint
+                and watched.property(
+                    AppearanceModeManager._PROP_CLASSIC_SHOW_PENDING_PAINT
+                )
+            ):
+                watched.setProperty(
+                    AppearanceModeManager._PROP_CLASSIC_SHOW_PENDING_PAINT,
+                    False,
+                )
+                AppearanceModeManager._apply_new_classic_widget(watched)
+            return False
+
+    @classmethod
+    def _install_classic_widget_filter(cls, app):
+        if cls._CLASSIC_WIDGET_FILTER is None:
+            cls._CLASSIC_WIDGET_FILTER = cls._ClassicWidgetFilter()
+        try:
+            app.installEventFilter(cls._CLASSIC_WIDGET_FILTER)
+        except (RuntimeError, AttributeError):
+            cls._CLASSIC_WIDGET_FILTER = None
+
+    @classmethod
+    def _apply_new_classic_widget(cls, widget):
+        try:
+            cls.apply_to_widget_tree(widget, cls.CLASSIC, manage_animations=False)
+            cls._refresh_appearance_theme_hooks(widget, cls.CLASSIC)
+            cls.apply_to_widget_tree(widget, cls.CLASSIC, manage_animations=False)
+            cls._apply_animation_mode(
+                QApplication.instance(), True, widget, include_app=False
+            )
+        except (RuntimeError, AttributeError):
+            return
 
     @classmethod
     def normalize(cls, value):
@@ -72,10 +151,12 @@ class AppearanceModeManager:
 
     @classmethod
     def classic_tokens(cls):
+        theme_manager = None
+        cache_key = None
         tokens = {
             "window": "#F4F7FB",
-            "surface": "#FFFFFF",
-            "surface_alt": "#E7EEF7",
+            "surface": "#F1F5F9",
+            "surface_alt": "#E2E8F0",
             "text": "#10233D",
             "text_muted": "#50657D",
             "border": "#B8C7D9",
@@ -90,17 +171,28 @@ class AppearanceModeManager:
         try:
             from src.utils.theme_manager import ThemeManager
 
+            theme_manager = ThemeManager
+            cache_key = (
+                ThemeManager.normalize_theme_name(ThemeManager._current_theme),
+                ThemeManager._theme_generation,
+                ThemeManager._custom_accent_color,
+                ThemeManager._custom_text_color,
+            )
+            cached = cls._CLASSIC_TOKEN_CACHE.get(cache_key)
+            if cached is not None:
+                return cached.copy()
             palette = ThemeManager.current_palette()
             for key, default in tuple(tokens.items()):
                 value = palette.get(key, default)
                 tokens[key] = value if isinstance(value, str) and value else default
         except Exception:
             pass
-        # Classic mode keeps a stable high-contrast tooltip/text foreground;
-        # do not let the modern light-theme token override it.
-        tokens["surface"] = "#FFFFFF"
-        tokens["surface_alt"] = "#E7EEF7"
-        tokens["text"] = "#111827"
+        if contrast_ratio(tokens["disabled_text"], tokens["disabled_bg"]) < 4.5:
+            tokens["disabled_text"] = contrast_text(tokens["disabled_bg"])
+        if theme_manager is not None:
+            if len(cls._CLASSIC_TOKEN_CACHE) >= 12:
+                cls._CLASSIC_TOKEN_CACHE.clear()
+            cls._CLASSIC_TOKEN_CACHE[cache_key] = tokens.copy()
         return tokens
 
     @classmethod
@@ -126,7 +218,7 @@ class AppearanceModeManager:
             color: {text};
         }}
         QLabel {{
-            background: transparent;
+            background-color: {surface};
             color: {text};
         }}
         QPushButton, QToolButton {{
@@ -148,6 +240,44 @@ class AppearanceModeManager:
         QTextEdit:focus, QPlainTextEdit:focus {{
             border-color: {accent};
             background-color: {surface_alt};
+        }}
+        QPushButton:pressed, QToolButton:pressed {{
+            background-color: {selection_bg};
+            color: {selection_text};
+        }}
+        QPushButton:disabled, QToolButton:disabled, QComboBox:disabled,
+        QLineEdit:disabled, QTextEdit:disabled, QPlainTextEdit:disabled,
+        QSpinBox:disabled, QDoubleSpinBox:disabled, QDateEdit:disabled,
+        QTimeEdit:disabled {{
+            background-color: {disabled_bg};
+            color: {disabled_text};
+            border-color: {border};
+        }}
+        QMenuBar, QMenu {{
+            background-color: {surface};
+            color: {text};
+            border: 1px solid {border};
+            border-radius: 0px;
+        }}
+        QMenu::item {{
+            background-color: {surface};
+            color: {text};
+            padding: 4px 20px;
+        }}
+        QMenu::item:selected {{
+            background-color: {selection_bg};
+            color: {selection_text};
+        }}
+        QMenu::item:disabled {{
+            color: {disabled_text};
+        }}
+        QComboBox QAbstractItemView, QCalendarWidget QAbstractItemView {{
+            background-color: {surface};
+            color: {text};
+            selection-background-color: {selection_bg};
+            selection-color: {selection_text};
+            border: 1px solid {border};
+            outline: none;
         }}
         QPushButton:checked, QListWidget::item:selected, QTreeWidget::item:selected,
         QTableWidget::item:selected, QTableView::item:selected {{
@@ -175,7 +305,7 @@ class AppearanceModeManager:
             color: {text};
             border: 1px solid {border};
             padding: 5px 10px;
-            border-radius: 2px;
+            border-radius: 0px;
         }}
         QTabBar::tab:selected {{
             background-color: {surface};
@@ -187,9 +317,9 @@ class AppearanceModeManager:
             border-radius: 0px;
         }}
         QToolTip {{
-            background-color: #FFFFFF;
-            color: #111827;
-            border: 1px solid #94A3B8;
+            background-color: {surface};
+            color: {text};
+            border: 1px solid {border};
             padding: 5px 8px;
         }}
         """.format(**c)
@@ -265,16 +395,20 @@ class AppearanceModeManager:
         )
 
     @classmethod
-    def apply_to_widget_tree(cls, root, mode):
+    def apply_to_widget_tree(cls, root, mode, include_children=True, manage_animations=True):
         if root is None:
             return
         classic = cls.normalize(mode) == cls.CLASSIC
+        app = QApplication.instance()
+        if app is not None and manage_animations:
+            cls._apply_animation_mode(app, classic, root)
         resolved_mode = cls.CLASSIC if classic else cls.MODERN
         widgets = [root]
-        try:
-            widgets.extend(root.findChildren(QWidget))
-        except Exception:
-            pass
+        if include_children:
+            try:
+                widgets.extend(root.findChildren(QWidget))
+            except Exception:
+                pass
 
         for widget in widgets:
             try:
@@ -286,14 +420,37 @@ class AppearanceModeManager:
                 cls._apply_widget_layout(widget, classic)
                 cls._apply_widget_text(widget, classic)
                 cls._apply_widget_visibility(widget, classic)
-                if mode_changed:
+                if mode_changed or classic:
                     cls._apply_widget_effect(widget, classic)
+                if mode_changed:
                     widget.setProperty(cls._PROP_LAST_MODE, resolved_mode)
                 if style_changed or mode_changed:
                     widget.style().unpolish(widget)
                     widget.style().polish(widget)
                     widget.update()
             except Exception:
+                continue
+
+    @classmethod
+    def _refresh_appearance_theme_hooks(cls, root, mode):
+        if root is None:
+            return
+        try:
+            widgets = [root]
+            widgets.extend(root.findChildren(QWidget))
+        except (RuntimeError, AttributeError):
+            widgets = [root]
+        for widget in widgets:
+            try:
+                if widget.property(cls._PROP_CLASSIC_THEME_HOOK_MODE) == mode:
+                    continue
+                widget.setProperty(cls._PROP_CLASSIC_THEME_HOOK_MODE, mode)
+                hook = getattr(widget, "apply_theme_styles", None)
+                if not callable(hook):
+                    hook = getattr(widget, "refresh_theme", None)
+                if callable(hook):
+                    hook()
+            except (RuntimeError, AttributeError, TypeError):
                 continue
 
     @classmethod
@@ -355,6 +512,8 @@ class AppearanceModeManager:
             selector = "QAbstractScrollArea"
         elif isinstance(widget, QMainWindow):
             selector = "QMainWindow"
+        elif isinstance(widget, QDialog):
+            selector = "QDialog"
         elif isinstance(widget, QWidget):
             selector = "QWidget"
         if not selector:
@@ -370,21 +529,8 @@ class AppearanceModeManager:
         selector = cls._selector_for_widget(widget)
         if not selector:
             return ""
-        ancestor = widget
-        while ancestor is not None:
-            if ancestor.objectName() == "SideMenu" or type(ancestor).__name__ == "SideMenu":
-                return ""
-            try:
-                ancestor = ancestor.parentWidget()
-            except Exception:
-                ancestor = None
         base_style = cls._strip_appearance_block(widget.styleSheet() or "")
         if not base_style.strip():
-            return ""
-        name = widget.objectName() or ""
-        if name.startswith("Kanban") or name == "ColumnContent":
-            return ""
-        if name == "KanbanCard":
             return ""
         c = cls.classic_tokens()
         surface = c["surface"]
@@ -397,7 +543,7 @@ class AppearanceModeManager:
         selection_text = c["selection_text"]
         if isinstance(widget, (QPushButton, QToolButton)):
             return f"""
-                {selector} {{ background: {surface}; color: {text}; border: 1px solid {border}; border-radius: 2px; padding: 4px 8px; min-height: 24px; }}
+                {selector} {{ background: {surface}; color: {text}; border: 1px solid {border}; border-radius: 0px; padding: 4px 8px; min-height: 24px; }}
                 {selector}:hover {{ background: {surface_alt}; color: {text}; border-color: {accent}; }}
                 {selector}:pressed, {selector}:checked {{ background: {selection_bg}; color: {selection_text}; }}
             """
@@ -412,7 +558,7 @@ class AppearanceModeManager:
                     background: {surface};
                     color: {text};
                     border: 1px solid {border};
-                    border-radius: 2px;
+                    border-radius: 0px;
                     padding: 3px 34px 3px 6px;
                     min-height: 24px;
                     selection-background-color: {selection_bg};
@@ -435,45 +581,25 @@ class AppearanceModeManager:
                 {spin_selector}::up-button:hover, {spin_selector}::down-button:hover {{
                     background: {selection_bg};
                 }}
-                {spin_selector}::up-arrow {{
-                    image: none;
-                    width: 0px;
-                    height: 0px;
-                    border-left: 4px solid transparent;
-                    border-right: 4px solid transparent;
-                    border-bottom: 6px solid {text};
-                }}
-                {spin_selector}::down-arrow {{
-                    image: none;
-                    width: 0px;
-                    height: 0px;
-                    border-left: 4px solid transparent;
-                    border-right: 4px solid transparent;
-                    border-top: 6px solid {text};
-                }}
                 {spin_selector}::up-button:disabled, {spin_selector}::down-button:disabled {{
                     background: {surface_alt};
                 }}
-                {spin_selector}::up-arrow:disabled {{
-                    border-bottom-color: {text_muted};
-                }}
-                {spin_selector}::down-arrow:disabled {{
-                    border-top-color: {text_muted};
-                }}
             """
         if isinstance(widget, (QLineEdit, QTextEdit, QPlainTextEdit, QComboBox, QSpinBox, QDoubleSpinBox, QDateEdit, QTimeEdit)):
-            return f"{selector} {{ background: {surface}; color: {text}; border: 1px solid {border}; border-radius: 2px; padding: 3px 6px; min-height: 24px; selection-background-color: {selection_bg}; selection-color: {selection_text}; }}"
+            return f"{selector} {{ background: {surface}; color: {text}; border: 1px solid {border}; border-radius: 0px; padding: 3px 6px; min-height: 24px; selection-background-color: {selection_bg}; selection-color: {selection_text}; }}"
         if isinstance(widget, QGroupBox):
-            return f"{selector} {{ background: {surface}; color: {text}; border: 1px solid {border}; border-radius: 2px; margin-top: 8px; padding: 10px; }}"
+            return f"{selector} {{ background: {surface}; color: {text}; border: 1px solid {border}; border-radius: 0px; margin-top: 8px; padding: 10px; }}"
         if isinstance(widget, QLabel):
             name = widget.objectName() or ""
+            if name == "AyecThemedToolTip":
+                return f"QLabel#AyecThemedToolTip {{ background: {surface}; color: {text}; border: 1px solid {border}; border-radius: 0px; }}"
             if name == "StatusTileIcon":
                 return f"QLabel#StatusTileIcon {{ color: {selection_text}; }}"
             if name == "StatusTilePct":
-                return f"QLabel#StatusTilePct {{ background: transparent; color: {text_muted}; border: none; }}"
-            return f"{selector} {{ background: transparent; color: {text}; border: none; }}"
+                return f"QLabel#StatusTilePct {{ background: {surface}; color: {text_muted}; border: none; }}"
+            return f"{selector} {{ background: {surface}; color: {text}; border: none; }}"
         if isinstance(widget, (QFrame, QStackedWidget)):
-            return f"{selector} {{ background: {surface}; color: {text}; border-radius: 2px; }}"
+            return f"{selector} {{ background: {surface}; color: {text}; border-radius: 0px; }}"
         if isinstance(widget, QTabWidget):
             return cls.classic_tab_qss()
         if isinstance(widget, (QTableWidget, QTableView)):
@@ -535,6 +661,12 @@ class AppearanceModeManager:
 
         extra = cls._widget_classic_qss(widget)
         if not extra:
+            if (
+                cls._STYLE_MARKER_START in current
+                and cls._STYLE_MARKER_END in current
+                and not base.strip()
+            ):
+                return False
             if base != current:
                 widget.setStyleSheet(base)
                 widget.setProperty(cls._PROP_LAST_STYLE, base)
@@ -549,7 +681,7 @@ class AppearanceModeManager:
             + "\n"
             + cls._STYLE_MARKER_END
         )
-        if current == next_style or widget.property(cls._PROP_LAST_STYLE) == next_style:
+        if current == next_style:
             return False
         widget.setStyleSheet(next_style)
         widget.setProperty(cls._PROP_LAST_STYLE, next_style)
@@ -584,7 +716,7 @@ class AppearanceModeManager:
     @classmethod
     def _apply_widget_effect(cls, widget, classic):
         effect = widget.graphicsEffect()
-        if not isinstance(effect, QGraphicsDropShadowEffect):
+        if not isinstance(effect, QGraphicsEffect):
             return
         if widget.property(cls._PROP_ORIG_EFFECT_ENABLED) is None:
             widget.setProperty(cls._PROP_ORIG_EFFECT_ENABLED, effect.isEnabled())
@@ -593,6 +725,105 @@ class AppearanceModeManager:
             return
         original_enabled = widget.property(cls._PROP_ORIG_EFFECT_ENABLED)
         effect.setEnabled(bool(original_enabled) if original_enabled is not None else True)
+
+    @classmethod
+    def _apply_animation_mode(cls, app, classic, root=None, include_app=True):
+        if classic and not cls._CLASSIC_ACTIVE:
+            cls._CLASSIC_ANIMATION_GENERATION += 1
+        cls._CLASSIC_ACTIVE = bool(classic)
+        if classic:
+            animations = {}
+            roots = [root] if root is not None else []
+            if include_app:
+                try:
+                    roots.extend(app.topLevelWidgets())
+                except (RuntimeError, AttributeError):
+                    pass
+                roots.append(app)
+            pending = list(roots)
+            visited = set()
+            while pending:
+                parent = pending.pop()
+                if not isinstance(parent, QObject) or id(parent) in visited:
+                    continue
+                visited.add(id(parent))
+                try:
+                    if parent.property(cls._PROP_CLASSIC_ANIMATION_SCAN) == cls._CLASSIC_ANIMATION_GENERATION:
+                        continue
+                    parent.setProperty(
+                        cls._PROP_CLASSIC_ANIMATION_SCAN,
+                        cls._CLASSIC_ANIMATION_GENERATION,
+                    )
+                except (RuntimeError, AttributeError):
+                    pass
+                try:
+                    children = parent.children()
+                except (RuntimeError, AttributeError):
+                    continue
+                for child in children:
+                    if isinstance(child, QAbstractAnimation):
+                        animations[id(child)] = child
+                    if isinstance(child, QObject):
+                        pending.append(child)
+            for animation in animations.values():
+                cls._guard_classic_animation(animation)
+            return
+
+        paused = cls._CLASSIC_PAUSED_ANIMATIONS
+        cls._CLASSIC_PAUSED_ANIMATIONS = []
+        for animation in paused:
+            try:
+                if animation.state() == QAbstractAnimation.State.Paused:
+                    animation.resume()
+            except (RuntimeError, AttributeError):
+                continue
+
+    @classmethod
+    def _guard_classic_animation(cls, animation):
+        try:
+            if not animation.property(cls._PROP_CLASSIC_ANIMATION_GUARD):
+                animation_ref = ref(animation)
+
+                def pause_when_classic_starts(new_state, _old_state, animation_ref=animation_ref):
+                    current = animation_ref()
+                    if (
+                        new_state == QAbstractAnimation.State.Running
+                        and cls._CLASSIC_ACTIVE
+                        and current is not None
+                    ):
+                        current.pause()
+                        if not any(item is current for item in cls._CLASSIC_PAUSED_ANIMATIONS):
+                            cls._CLASSIC_PAUSED_ANIMATIONS.append(current)
+
+                animation.stateChanged.connect(pause_when_classic_starts)
+                animation.setProperty(cls._PROP_CLASSIC_ANIMATION_GUARD, True)
+            if animation.state() == QAbstractAnimation.State.Running:
+                animation.pause()
+                if not any(item is animation for item in cls._CLASSIC_PAUSED_ANIMATIONS):
+                    cls._CLASSIC_PAUSED_ANIMATIONS.append(animation)
+        except (RuntimeError, AttributeError):
+            return
+
+    @classmethod
+    def _guard_classic_animations(cls, root):
+        if not isinstance(root, QObject):
+            return
+        pending = [root]
+        visited = set()
+        while pending:
+            parent = pending.pop()
+            if id(parent) in visited:
+                continue
+            visited.add(id(parent))
+            try:
+                children = parent.children()
+            except (RuntimeError, AttributeError):
+                continue
+            for child in children:
+                if isinstance(child, QAbstractAnimation):
+                    cls._guard_classic_animation(child)
+                if isinstance(child, QObject):
+                    pending.append(child)
 
     @classmethod
     def _clean_text(cls, text):
@@ -637,6 +868,8 @@ class AppearanceModeManager:
         if app is None:
             return cls.MODERN
         resolved = cls.normalize(mode if mode is not None else cls.current(db))
+        if resolved == cls.CLASSIC:
+            cls._install_classic_widget_filter(app)
         effect_names = (
             "UI_AnimateCombo",
             "UI_AnimateMenu",
@@ -659,9 +892,8 @@ class AppearanceModeManager:
         app.setProperty("skipThemeTransform", False)
         tooltip_palette = QPalette(app.palette())
         if resolved == cls.CLASSIC:
-            tokens = cls.classic_tokens()
-            tooltip_base = QColor(tokens["surface"])
-            tooltip_text = QColor(tokens["text"])
+            tooltip_base = QColor("#FFFFFF")
+            tooltip_text = QColor("#111827")
         else:
             tooltip_base = app.palette().color(QPalette.ColorRole.ToolTipBase)
             tooltip_text = app.palette().color(QPalette.ColorRole.ToolTipText)
@@ -686,5 +918,7 @@ class AppearanceModeManager:
             app.setStyleSheet(next_app_style)
 
         if root is not None:
+            cls.apply_to_widget_tree(root, resolved)
+            cls._refresh_appearance_theme_hooks(root, resolved)
             cls.apply_to_widget_tree(root, resolved)
         return resolved

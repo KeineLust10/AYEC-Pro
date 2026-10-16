@@ -147,3 +147,26 @@ def test_closed_services_page_cancels_delayed_initial_query():
 
     assert calls == []
     db.conn.close()
+
+
+def test_services_page_pauses_initial_query_until_visible_and_loads_once():
+    db = _Db()
+    calls = []
+    db.get_services_list = lambda: calls.append("query") or []
+    page = ServicesPage(db)
+
+    page.show()
+    page.hide()
+    QTest.qWait(150)
+    assert calls == []
+
+    page.show()
+    QTest.qWait(150)
+    assert calls == ["query"]
+
+    page.hide()
+    page.show()
+    QTest.qWait(150)
+    assert calls == ["query"]
+    page.close()
+    db.conn.close()

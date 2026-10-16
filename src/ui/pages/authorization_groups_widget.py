@@ -10,6 +10,13 @@ from PyQt6.QtGui import QFont, QColor, QAction
 from src.ui.dialogs.simple_confirm import SimpleConfirmDialog
 from src.ui.widgets.modern_dialog import ModernDialog
 from src.utils.message_helper import show_error, show_info, show_warning
+from src.utils.theme_colors import qc, theme_qss
+
+
+def _set_theme_qss(widget, style):
+    widget.setProperty("skipThemeTransform", False)
+    widget.setProperty("_theme_qss_source", style)
+    widget.setStyleSheet(theme_qss(style))
 
 class AuthorizationGroupsWidget(QWidget):
     """Yetki Grubu Oluşturma ve Yönetim Modülü"""
@@ -28,7 +35,7 @@ class AuthorizationGroupsWidget(QWidget):
         header = QHBoxLayout()
         title = QLabel("🔑 Yetki Grupları Yönetimi")
         title.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
-        title.setStyleSheet("color: #2c3e50;")
+        _set_theme_qss(title, "color: @text;")
         header.addWidget(title)
         
         header.addStretch()
@@ -114,7 +121,7 @@ class AuthorizationGroupsWidget(QWidget):
                 # Group Name
                 name_item = QTableWidgetItem(name)
                 name_item.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
-                name_item.setForeground(QColor("#2c3e50"))
+                name_item.setForeground(qc("text"))
                 self.table.setItem(row_num, 0, name_item)
                 
                 # Description
@@ -149,6 +156,12 @@ class AuthorizationGroupsWidget(QWidget):
         dialog = AddAuthGroupDialog(self.db, self)
         if dialog.exec():
             self.load_groups()
+
+    def apply_theme_styles(self):
+        for row in range(self.table.rowCount()):
+            item = self.table.item(row, 0)
+            if item is not None:
+                item.setForeground(qc("text"))
 
     def edit_group(self, group_id):
         """Yetki grubunu düzenle"""
@@ -187,28 +200,29 @@ class AddAuthGroupDialog(ModernDialog):
         self.setFixedSize(600, 700)
         self.setStyleSheet("""
             QDialog {
-                background-color: white;
+                background-color: @window;
             }
             QLabel {
-                color: #2c3e50;
+                color: @text;
                 font-weight: 600;
             }
             QLineEdit, QTextEdit {
-                border: 2px solid #dfe6e9;
+                border: 2px solid @border;
                 border-radius: 6px;
                 padding: 10px;
-                background-color: white;
-                color: #2c3e50;
+                background-color: @surface;
+                color: @text;
             }
             QLineEdit:focus {
-                border: 2px solid #3498db;
+                border: 2px solid @accent;
             }
             QCheckBox {
-                color: #2c3e50;
+                color: @text;
                 font-size: 10pt;
             }
         """)
         
+        _set_theme_qss(self, self.styleSheet())
         self.init_ui()
         
         if group_id:
@@ -252,6 +266,7 @@ class AddAuthGroupDialog(ModernDialog):
         
         # Permission checkboxes
         self.permissions = {}
+        self._permission_group_labels = []
         permission_groups = {
             "Genel": ["dashboard", "summary", "settings"],
             "Müşteri İşlemleri": ["customers_view", "customers_add", "customers_edit", "customers_delete"],
@@ -265,15 +280,16 @@ class AddAuthGroupDialog(ModernDialog):
         for group_name, perms in permission_groups.items():
             group_label = QLabel(f"📁 {group_name}")
             group_label.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
-            group_label.setStyleSheet("color: #3498db; margin-top: 10px;")
+            _set_theme_qss(group_label, "color: @accent; margin-top: 10px;")
+            self._permission_group_labels.append(group_label)
             perm_layout.addWidget(group_label)
             
             for perm in perms:
                 chk = QCheckBox(perm.replace("_", " ").title())
                 chk.setMinimumHeight(40)  # Minimum yükseklik
-                chk.setStyleSheet("""
+                _set_theme_qss(chk, """
                     QCheckBox {
-                        color: #2c3e50;
+                        color: @text;
                         font-size: 11pt;
                         padding: 8px;
                         spacing: 12px;
@@ -281,24 +297,24 @@ class AddAuthGroupDialog(ModernDialog):
                     QCheckBox::indicator {
                         width: 24px;
                         height: 24px;
-                        border: 2px solid #95a5a6;
+                        border: 2px solid @border;
                         border-radius: 4px;
-                        background-color: white;
+                        background-color: @surface;
                     }
                     QCheckBox::indicator:hover {
-                        border: 2px solid #3498db;
-                        background-color: #ecf0f1;
+                        border: 2px solid @accent;
+                        background-color: @surface_alt;
                     }
                     QCheckBox::indicator:checked {
-                        background-color: #27ae60;
-                        border: 2px solid #229954;
+                        background-color: @success;
+                        border: 2px solid @success;
                         image: url(none);
                     }
                     QCheckBox::indicator:checked:hover {
-                        background-color: #2ecc71;
+                        background-color: @success;
                     }
                     QCheckBox:hover {
-                        background-color: #f8f9fa;
+                        background-color: @surface_alt;
                         border-radius: 4px;
                     }
                 """)
@@ -309,42 +325,18 @@ class AddAuthGroupDialog(ModernDialog):
         layout.addWidget(scroll)
         
         # Buttons
-        btn_layout = QHBoxLayout()
-        btn_layout.addStretch()
-        
-        btn_cancel = QPushButton("İptal")
-        btn_cancel.setFixedSize(120, 45)
-        btn_cancel.setStyleSheet("""
-            QPushButton {
-                background-color: #95a5a6;
-                color: white;
-                border-radius: 6px;
-                font-weight: 600;
-            }
-            QPushButton:hover {
-                background-color: #7f8c8d;
-            }
-        """)
-        btn_cancel.clicked.connect(self.reject)
-        
-        btn_save = QPushButton("💾 Kaydet")
-        btn_save.setFixedSize(120, 45)
-        btn_save.setStyleSheet("""
-            QPushButton {
-                background-color: #27ae60;
-                color: white;
-                border-radius: 6px;
-                font-weight: 600;
-            }
-            QPushButton:hover {
-                background-color: #229954;
-            }
-        """)
-        btn_save.clicked.connect(self.save_group)
-        
-        btn_layout.addWidget(btn_cancel)
-        btn_layout.addWidget(btn_save)
-        layout.addLayout(btn_layout)
+        self.add_button("\u0130ptal", "secondary", self.reject)
+        self.add_button("\U0001f4be Kaydet", "success", self.save_group)
+
+    def apply_theme_styles(self):
+        source = self.property("_theme_qss_source")
+        if source:
+            self.setStyleSheet(theme_qss(source))
+        themed_widgets = [*self.findChildren(QWidget), *self.permissions.values(), *self._permission_group_labels]
+        for widget in dict.fromkeys(themed_widgets):
+            style = widget.property("_theme_qss_source")
+            if style:
+                widget.setStyleSheet(theme_qss(style))
 
     def load_group_data(self):
         """Mevcut grup verilerini yükle"""

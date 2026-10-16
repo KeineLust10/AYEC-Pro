@@ -5,7 +5,7 @@ import csv
 import webbrowser
 import logging
 from datetime import datetime
-from PyQt6.QtWidgets import QFileDialog, QApplication, QWidget, QVBoxLayout, QTextBrowser, QDialog
+from PyQt6.QtWidgets import QFileDialog, QApplication, QWidget, QVBoxLayout, QTextBrowser, QDialog, QInputDialog
 from PyQt6.QtCore import Qt, QTimer, QDate
 
 from src.utils.logger import logger
@@ -284,6 +284,78 @@ class CustomersFuncMixin:
                 customer_name=c["name"],
                 sector_manager=sector_manager,
             ).exec()
+
+    def open_customer_service_panel(self, customer):
+        """Open the technician dialog for one of this customer's active services."""
+        customer_id = customer.get("id")
+        customer_name = str(customer.get("name") or "").strip()
+        try:
+            cursor = self.db.conn.cursor()
+            cursor.execute(
+                """
+                SELECT tracking_no, device_type, brand, model, status
+                FROM devices
+                WHERE (customer_id = ? OR (customer_id IS NULL AND customer_name = ?))
+                  AND COALESCE(is_deleted, 0) = 0
+                  AND COALESCE(is_archived, 0) = 0
+                  AND COALESCE(status, '') NOT LIKE '%Teslim Edildi%'
+                  AND COALESCE(status, '') NOT LIKE '%Iptal%'
+                  AND COALESCE(status, '') NOT LIKE '%\u0130ptal%'
+                  AND COALESCE(status, '') NOT LIKE '%Tamamland%'
+                  AND COALESCE(tracking_no, '') <> ''
+                ORDER BY entry_date DESC, id DESC
+                """,
+                (customer_id, customer_name),
+            )
+            services = cursor.fetchall()
+            cursor.close()
+        except Exception as exc:
+            show_error(self, "A\u00e7\u0131k servis kay\u0131tlar\u0131 al\u0131namad\u0131: {}".format(exc))
+            return
+
+        if not services:
+            show_warning(self, "Bu m\u00fc\u015fteri i\u00e7in a\u00e7\u0131k servis cihaz\u0131 bulunamad\u0131.")
+            return
+
+        def field_value(row, index, key):
+            try:
+                return row[key] if hasattr(row, "keys") and key in row.keys() else row[index]
+            except (IndexError, KeyError, TypeError):
+                return ""
+
+        options = []
+        tracking_by_label = {}
+        for row in services:
+            tracking_no = str(field_value(row, 0, "tracking_no") or "").strip()
+            device_parts = [
+                str(field_value(row, index, key) or "").strip()
+                for index, key in ((1, "device_type"), (2, "brand"), (3, "model"))
+            ]
+            device_label = " ".join(part for part in device_parts if part) or "Cihaz"
+            status = str(field_value(row, 4, "status") or "").strip()
+            label = "{} | {} | {}".format(tracking_no, device_label, status)
+            options.append(label)
+            tracking_by_label[label] = tracking_no
+
+        selected_label = options[0]
+        if len(options) > 1:
+            selected_label, accepted = QInputDialog.getItem(
+                self,
+                "A\u00e7\u0131k Servis Cihaz\u0131",
+                "Teknisyen panelini a\u00e7mak i\u00e7in cihaz\u0131 se\u00e7in:",
+                options,
+                0,
+                False,
+            )
+            if not accepted:
+                return
+
+        tracking_no = tracking_by_label.get(selected_label)
+        opener = getattr(self.main_window, "open_technician_panel", None)
+        if tracking_no and callable(opener):
+            opener(tracking_no)
+            return
+        show_error(self, "Teknisyen paneli a\u00e7\u0131lamad\u0131.")
 
     def create_invoice(self, c):
         if ServiceInvoiceDialog(self.db, c["id"], self).exec():

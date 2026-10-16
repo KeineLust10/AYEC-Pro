@@ -17,6 +17,7 @@ from src.utils.theme_colors import theme_qss
 from src.utils.currency_helper import CurrencyHelper
 from src.utils import message_helper
 from src.ui.dialogs.base_modern_dialog import BaseModernDialog
+from src.ui.widgets.navigation_glyph import navigation_icon
 
 
 
@@ -28,6 +29,13 @@ class CompanySettingsDialog(BaseModernDialog):
         self.setFont(QFont("Segoe UI", 9))
         header_layout = self.header.layout()
         header_layout.removeWidget(self.lbl_title)
+        self.logo_label.setFixedSize(34, 34)
+        self.logo_label.clear()
+        self.logo_label.setText("AE")
+        self.logo_label.setStyleSheet(
+            "color: #38BDF8; background: #10243A; border: 1px solid #1E3A5F; "
+            "border-radius: 9px; font-size: 10px; font-weight: 800;"
+        )
         title_block = QWidget(self.header)
         title_block_layout = QVBoxLayout(title_block)
         title_block_layout.setContentsMargins(0, 0, 0, 0)
@@ -36,8 +44,9 @@ class CompanySettingsDialog(BaseModernDialog):
         title_row.setContentsMargins(0, 0, 0, 0)
         title_row.setSpacing(10)
         title_row.addWidget(self.lbl_title)
+        self.lbl_title.setFont(QFont("Inter", 11, QFont.Weight.Bold))
         system_badge = QLabel("SISTEM PARAMETRELERI")
-        system_badge.setStyleSheet("color: #38BDF8; background: #10243A; border: 1px solid #1E3A5F; border-radius: 4px; padding: 3px 7px; font-size: 8px; font-weight: 700;")
+        system_badge.setStyleSheet("color: #38BDF8; background: #10243A; border: 1px solid #1E3A5F; border-radius: 4px; padding: 3px 7px; font-size: 9px; font-weight: 700;")
         title_row.addWidget(system_badge)
         title_row.addStretch(1)
         title_block_layout.addLayout(title_row)
@@ -45,6 +54,14 @@ class CompanySettingsDialog(BaseModernDialog):
         subtitle.setStyleSheet("color: #94A3B8; font-size: 8px;")
         title_block_layout.addWidget(subtitle)
         header_layout.insertWidget(2, title_block, 1)
+        escape_button = QPushButton("ESC")
+        escape_button.setFixedSize(34, 24)
+        escape_button.setStyleSheet(
+            "QPushButton { color: #94A3B8; background: #172334; border: 1px solid #334155; "
+            "border-radius: 4px; font-size: 9px; } QPushButton:hover { color: #38BDF8; border-color: #38BDF8; }"
+        )
+        escape_button.clicked.connect(self.reject)
+        header_layout.insertWidget(header_layout.indexOf(self.btn_close), escape_button)
         self.db = db
         self.main_window = main_window
         self.set_wheel_scroll_enabled(True)
@@ -59,24 +76,26 @@ class CompanySettingsDialog(BaseModernDialog):
         content_widget = QWidget()
         content_layout = QVBoxLayout(content_widget)
         content_layout.setContentsMargins(0, 0, 0, 0)
-        content_layout.setSpacing(6)
+        content_layout.setSpacing(0)
         section_heading = QWidget()
         section_heading_layout = QHBoxLayout(section_heading)
-        section_heading_layout.setContentsMargins(0, 0, 0, 5)
+        section_heading_layout.setContentsMargins(0, 0, 0, 0)
         section_title = QLabel("TEMEL F\u0130RMA B\u0130LG\u0130LER\u0130 & SOSYAL MEDYA")
         section_title.setFont(QFont("Segoe UI", 8, QFont.Weight.Bold))
         section_note = QLabel("G\u00f6r\u00fcnt\u00fclenen Ekran: IMAGE_9")
         section_note.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        section_note.setStyleSheet(theme_qss("color: @text_muted; font-size: 8px;"))
+        section_note.setStyleSheet(theme_qss("color: @text_muted; font-size: 10px;"))
         section_heading_layout.addWidget(section_title)
         section_heading_layout.addStretch(1)
         section_heading_layout.addWidget(section_note)
         content_layout.addWidget(section_heading)
         form_widget = QWidget()
         form_layout = QGridLayout(form_widget)
-        form_layout.setContentsMargins(12, 4, 12, 8)
-        form_layout.setHorizontalSpacing(14)
+        form_layout.setContentsMargins(6, 4, 6, 8)
+        form_layout.setHorizontalSpacing(12)
         form_layout.setVerticalSpacing(4)
+        for row in (2, 4, 6, 8, 10):
+            form_layout.setRowMinimumHeight(row, 18)
 
         def add_field(label, row, col, widget):
             lbl = QLabel(label)
@@ -123,6 +142,25 @@ class CompanySettingsDialog(BaseModernDialog):
 
         self.inp_cargo_no = QLineEdit()
         add_field("Kargo Anlaşma No", 10, 1, self.inp_cargo_no)
+
+        for field, icon_name, color_token in (
+            (self.inp_name, "building", "accent"),
+            (self.inp_email, "message", "text_muted"),
+            (self.inp_facebook, "link", "info"),
+            (self.inp_instagram, "link", "warning"),
+            (self.inp_youtube, "message", "danger"),
+            (self.inp_website, "globe", "text_muted"),
+            (self.inp_gsm, "phone", "text_muted"),
+            (self.inp_fax, "document", "text_muted"),
+            (self.inp_site_title, "document", "text_muted"),
+            (self.inp_phone, "phone", "text_muted"),
+            (self.inp_cargo, "truck", "text_muted"),
+            (self.inp_cargo_no, "tag", "text_muted"),
+        ):
+            field.addAction(
+                navigation_icon(icon_name, 14, color_token),
+                QLineEdit.ActionPosition.LeadingPosition,
+            )
 
         self.cmb_theme = QComboBox()
         self.cmb_theme.addItems(ThemeManager.get_available_themes(self.db))
@@ -253,6 +291,12 @@ class CompanySettingsDialog(BaseModernDialog):
             ("Yaz\u0131c\u0131 & Belge D\u00fczeni", 18, 24),
             ("Adres, Vergi & S\u00f6zle\u015fmeler", 24, 40),
         )
+        tab_headers = (
+            ("", ""),
+            ("Sistem G\u00f6r\u00fcn\u00fcm\u00fc & Para Birimi Standartlar\u0131", "G\u00f6r\u00fcnt\u00fclenen Ekran: IMAGE_8"),
+            ("Donan\u0131m S\u00fcr\u00fcc\u00fcleri ve Ka\u011f\u0131t Parametreleri", "G\u00f6r\u00fcnt\u00fclenen Ekran: IMAGE_8 & IMAGE_7"),
+            ("Vergi Bilgileri, Adres ve Yasal \u015eartnameler", "G\u00f6r\u00fcnt\u00fclenen Ekran: IMAGE_6 & IMAGE_7"),
+        )
         tab_layouts = []
         for index, (tab_title, _start, _end) in enumerate(tab_titles):
             if index == 0:
@@ -270,6 +314,27 @@ class CompanySettingsDialog(BaseModernDialog):
                 tab_grid.setVerticalSpacing(4)
                 tab_grid.setColumnStretch(0, 1)
                 tab_grid.setColumnStretch(1, 1)
+                heading = QWidget()
+                heading.setStyleSheet(theme_qss(
+                    "background: transparent; border: none; border-bottom: 1px solid @border;"
+                ))
+                heading_layout = QHBoxLayout(heading)
+                heading_layout.setContentsMargins(0, 0, 0, 7)
+                heading_layout.setSpacing(8)
+                heading_title = QLabel(tab_headers[index][0].upper())
+                heading_title.setStyleSheet(theme_qss(
+                    "color: @text_muted; font-size: 10px; font-weight: 800; "
+                    "letter-spacing: 0.5px; border: none; background: transparent;"
+                ))
+                heading_note = QLabel(tab_headers[index][1])
+                heading_note.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                heading_note.setStyleSheet(theme_qss(
+                    "color: @text_muted; font-size: 9px; border: none; background: transparent;"
+                ))
+                heading_layout.addWidget(heading_title)
+                heading_layout.addStretch(1)
+                heading_layout.addWidget(heading_note)
+                tab_grid.addWidget(heading, 0, 0, 1, 2)
                 tab_scroll.setWidget(tab_content)
             tab_layouts.append(tab_grid)
             tabs.addTab(tab_scroll, tab_title)
@@ -293,8 +358,8 @@ class CompanySettingsDialog(BaseModernDialog):
                 (widget, row - row_offset, col, row_span, col_span)
             )
 
-        for tab_layout, items in zip(tab_layouts, items_by_tab):
-            field_row = 0
+        for tab_index, (tab_layout, items) in enumerate(zip(tab_layouts, items_by_tab)):
+            field_row = 1 if tab_index else 0
             field_col = 0
             index = 0
             while index < len(items):
@@ -304,7 +369,7 @@ class CompanySettingsDialog(BaseModernDialog):
                     index += 1
                     continue
                 control = items[index + 1][0]
-                is_long_field = isinstance(control, QTextEdit)
+                is_long_field = isinstance(control, QTextEdit) or control is self.inp_scroll_text
                 span = 2 if is_long_field else 1
                 tab_layout.addWidget(widget, field_row, field_col, 1, span)
                 tab_layout.addWidget(
@@ -330,8 +395,13 @@ class CompanySettingsDialog(BaseModernDialog):
         cancel_button = self.add_cancel_button("\u0130ptal")
         save_button = self.add_button("G\u00dcNCELLE", "success", lambda: self.save_data(close_dialog=True))
         self.footer_layout.insertStretch(0, 1)
+        self.footer_layout.setContentsMargins(30, 0, 20, 0)
         cancel_button.setFixedSize(96, 36)
         save_button.setFixedSize(132, 36)
+        save_button.setStyleSheet(
+            save_button.styleSheet() + "QPushButton { font-size: 10px; }"
+        )
+        save_button.setIcon(navigation_icon("verified", 14, "selection_text"))
         self.footer.setFixedHeight(56)
         self.card.setProperty("skipThemeTransform", True)
         self.card.setStyleSheet(self.card.styleSheet() + "QFrame#ModernDialogCard QLineEdit, QFrame#ModernDialogCard QComboBox { background: #FFFFFF; color: #243248; border: 1px solid #CBD5E1; border-radius: 5px; padding: 5px 7px; } QFrame#ModernDialogCard QLineEdit:focus, QFrame#ModernDialogCard QComboBox:focus { border-color: #2563EB; }")

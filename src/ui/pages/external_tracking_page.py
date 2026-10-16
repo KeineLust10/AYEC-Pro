@@ -461,6 +461,13 @@ class ExternalTrackingPage(QWidget):
         self.service_filter.currentIndexChanged.connect(self._filters_changed)
         self.month_filter.currentIndexChanged.connect(self._filters_changed)
         content_layout.addWidget(filter_bar)
+        self.refresh_button = QPushButton("\u21bb")
+        self.refresh_button.setAccessibleName("RefreshExternalTracking")
+        self.refresh_button.setToolTip("Kargo ve garanti kay\u0131tlar\u0131n\u0131 yenile")
+        self.refresh_button.setFixedSize(36, 36)
+        self.refresh_button.setStyleSheet(theme_qss(DesignTokens.get_button_qss("secondary", size="sm")))
+        self.refresh_button.clicked.connect(self.refresh_data)
+        filter_layout.addWidget(self.refresh_button)
 
         # Table Container
         table_frame = QFrame()
@@ -675,10 +682,22 @@ class ExternalTrackingPage(QWidget):
             received_count = sum(status in received_statuses for status in normalized_statuses)
             
             # Create stat cards
-            self.stats_layout.addWidget(self.create_stat_card("Toplam Kay\u0131t", str(total_count), "clipboard", "@finance_text"), 1)
-            self.stats_layout.addWidget(self.create_stat_card("D\u0131\u015f Serviste (Aktif)", str(active_count), "outbound", "@finance_tertiary"), 1)
-            self.stats_layout.addWidget(self.create_stat_card("Onay Bekleyen", str(pending_count), "clock", "@finance_primary"), 1)
-            self.stats_layout.addWidget(self.create_stat_card("Teslim Al\u0131nan", str(received_count), "check", "@finance_secondary"), 1)
+            self.stats_layout.addWidget(self.create_stat_card(
+                "Toplam Kay\u0131t", str(total_count), "clipboard", "@finance_text",
+                "Garanti Havuzu", "{} Kay\u0131t".format(total_count),
+            ), 1)
+            self.stats_layout.addWidget(self.create_stat_card(
+                "D\u0131\u015f Serviste (Aktif)", str(active_count), "outbound", "@finance_tertiary",
+                "Kargoda / Serviste", "{} A\u00e7\u0131k \u0130rsaliye".format(active_count),
+            ), 1)
+            self.stats_layout.addWidget(self.create_stat_card(
+                "Onay Bekleyen", str(pending_count), "clock", "@finance_primary",
+                "Fiyat / Onay", "{} Bekleyen Kay\u0131t".format(pending_count),
+            ), 1)
+            self.stats_layout.addWidget(self.create_stat_card(
+                "Teslim Al\u0131nan", str(received_count), "check", "@finance_secondary",
+                "Depo Kabul", "{} Teslim Al\u0131nd\u0131".format(received_count),
+            ), 1)
             
             # Update Table
             self.table.setRowCount(len(records))
@@ -827,11 +846,11 @@ class ExternalTrackingPage(QWidget):
             self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
             self.btn_multi.setToolTip("\u00c7oklu Se\u00e7im")
     
-    def create_stat_card(self, title, value, icon, color):
+    def create_stat_card(self, title, value, icon, color, detail, detail_value):
         """Create a compact token-driven operational metric."""
         card = QFrame()
         card.setObjectName("ExternalTrackingMetric")
-        card.setFixedHeight(120)
+        card.setFixedHeight(138)
         card.setStyleSheet(theme_qss("QFrame#ExternalTrackingMetric { background: @finance_surface; border: 1px solid @finance_outline; border-radius: 6px; } QLabel { border: none; background: transparent; }"))
         layout = QVBoxLayout(card)
         layout.setContentsMargins(12, 10, 12, 10)
@@ -845,9 +864,18 @@ class ExternalTrackingPage(QWidget):
         val_lbl = QLabel(value)
         val_lbl.setStyleSheet(theme_qss(f"font-size: 26px; font-weight: 800; color: {color}; border: none; background: transparent;"))
         layout.addWidget(val_lbl)
-        subtitle = QLabel({"clipboard": "Garanti Havuzu", "outbound": "Kargoda / Serviste", "clock": "Fiyat / Onay", "check": "Teslim / Hazir"}[icon])
-        subtitle.setStyleSheet(theme_qss("background: @finance_surface_alt; color: @finance_text_muted; border: none; padding: 4px 6px; font-size: 11px;"))
-        layout.addWidget(subtitle)
+        footer = QFrame()
+        footer.setStyleSheet(theme_qss("QFrame { background: @finance_surface_alt; border: none; border-radius: 5px; }"))
+        footer_layout = QHBoxLayout(footer)
+        footer_layout.setContentsMargins(7, 4, 7, 4)
+        detail_label = QLabel(detail)
+        detail_label.setStyleSheet(theme_qss("color: @finance_text_muted; font-family: JetBrains Mono; font-size: 10px; border: none;"))
+        detail_value_label = QLabel(detail_value)
+        detail_value_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        detail_value_label.setStyleSheet(theme_qss(f"color: {color}; font-family: JetBrains Mono; font-size: 10px; font-weight: 700; border: none;"))
+        footer_layout.addWidget(detail_label, 1)
+        footer_layout.addWidget(detail_value_label)
+        layout.addWidget(footer)
         return card
     
     def delete_record(self, record_id):

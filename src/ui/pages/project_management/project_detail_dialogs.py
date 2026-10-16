@@ -228,13 +228,9 @@ class AddSubDialog(BaseModernDialog):
         outer_layout = self.content_layout
         body = QWidget()
         content = QVBoxLayout(body)
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.Shape.NoFrame)
-        scroll.setWidget(body)
-        outer_layout.addWidget(scroll)
+        outer_layout.addWidget(body)
         content.setContentsMargins(24, 22, 24, 22)
-        content.setSpacing(30)
+        content.setSpacing(24)
 
         def _lbl(text):
             l = QLabel(text)

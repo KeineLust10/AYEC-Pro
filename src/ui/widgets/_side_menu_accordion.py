@@ -76,6 +76,9 @@ class AccordionItem(QWidget):
         self.toggle_btn.setStyleSheet("QPushButton { background: transparent; border: none; margin: 0px; padding: 0px; }")
         self.toggle_btn.clicked.connect(self._on_toggle_clicked)
         self._install_themed_tooltip(self.toggle_btn, title)
+        for content_widget in (self._icon_lbl, self._title_lbl, self.arrow_label):
+            content_widget.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+            content_widget.raise_()
 
         self.root_layout.addWidget(self._toggle_row)
 
@@ -118,6 +121,9 @@ class AccordionItem(QWidget):
         self.is_expanded = False
 
     def _on_toggle_clicked(self):
+        diagnostics = getattr(self.window(), "_menu_window_diagnostics", None)
+        if diagnostics is not None:
+            diagnostics.record_menu_click("Side menu group", self._title)
         self.toggle_menu()
         if self.main_page_id is not None:
             if self._title == "WhatsApp API Masas\u0131":
@@ -177,6 +183,9 @@ class AccordionItem(QWidget):
         btn._active_dot = active_dot
         btn._row = child_row
         self._install_themed_tooltip(btn, name)
+        for content_widget in (c_icon, c_txt, active_dot):
+            content_widget.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+            content_widget.raise_()
         self._child_rows.append((child_row, c_icon, c_txt, btn))
 
         target_layout.addWidget(child_row)
@@ -260,6 +269,10 @@ class AccordionItem(QWidget):
         return any_allowed
 
     def _toggle_nested(self, state, force_open=False):
+        if not force_open:
+            diagnostics = getattr(self.window(), "_menu_window_diagnostics", None)
+            if diagnostics is not None:
+                diagnostics.record_menu_click("Side submenu group", state["name"])
         expanded = bool(force_open or not state["expanded"])
         state["expanded"] = expanded
         state["container"].setVisible(expanded)
@@ -303,18 +316,20 @@ class AccordionItem(QWidget):
         self.arrow_label.setVisible(not self._icon_only)
         toggle_layout = self._toggle_row.layout()
         if self._icon_only:
-            toggle_layout.setContentsMargins(12, 0, 12, 0)
+            toggle_layout.setContentsMargins(4, 0, 4, 0)
             toggle_layout.setSpacing(0)
             self._icon_lbl.setFixedWidth(44)
+            self.sub_layout.setContentsMargins(2, 4, 2, 2)
         else:
             toggle_layout.setContentsMargins(12, 0, 12, 0)
             toggle_layout.setSpacing(10)
             self._icon_lbl.setFixedWidth(24)
+            self.sub_layout.setContentsMargins(50, 10, 8, 2)
         for child_row, icon_label, text_label, button in self._child_rows:
             text_label.setVisible(not self._icon_only)
             child_row.setToolTip(button.toolTip())
             if self._icon_only:
-                child_row.layout().setContentsMargins(8, 0, 8, 0)
+                child_row.layout().setContentsMargins(4, 0, 4, 0)
                 child_row.layout().setSpacing(0)
                 icon_label.setFixedWidth(44)
             else:

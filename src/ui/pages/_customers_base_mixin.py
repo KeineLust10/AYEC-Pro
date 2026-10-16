@@ -3,16 +3,15 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QBoxLayout, QGridLayout, QLayout, QLabel, QPushButton,
     QTableWidget, QHeaderView, QAbstractItemView, QLineEdit, QFrame, QTabWidget, QComboBox, QButtonGroup,
-    QMenu, QWidgetAction, QToolButton, QSizePolicy, QProgressBar, QGraphicsDropShadowEffect
+    QMenu, QWidgetAction, QToolButton, QSizePolicy, QProgressBar, QGraphicsDropShadowEffect, QStyledItemDelegate
 )
-from PyQt6.QtCore import Qt, QTimer, QPointF, QRectF
+from PyQt6.QtCore import Qt, QTimer, QPointF, QRectF, QEvent, QSize
 from PyQt6.QtGui import QFont, QPixmap, QPainter, QColor, QPen, QIcon, QShortcut, QKeySequence, QPalette, QRadialGradient, QPainterPath
 from datetime import datetime
 
 from src.utils.theme_colors import theme_qss, tc
 from src.utils.design_system import DesignTokens
 from src.utils.system_config import SystemConfig
-from src.utils.date_formatter import format_date
 from src.ui.widgets.empty_state import EmptyState
 from src.ui.widgets.navigation_glyph import navigation_icon
 
@@ -37,10 +36,45 @@ class _CustomerHeroFrame(QFrame):
         painter.end()
 
 
+class _CustomerRowHoverDelegate(QStyledItemDelegate):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.hovered_row = -1
+
+    def set_hovered_row(self, row):
+        if self.hovered_row == row:
+            return
+        self.hovered_row = row
+        if self.parent() is not None:
+            self.parent().viewport().update()
+
+    def paint(self, painter, option, index):
+        super().paint(painter, option, index)
+        if index.row() != self.hovered_row:
+            return
+        painter.save()
+        painter.fillRect(option.rect, QColor(59, 130, 246, 10))
+        if index.column() == 0:
+            painter.fillRect(
+                QRectF(option.rect.left(), option.rect.top(), 2, option.rect.height()),
+                QColor(59, 130, 246),
+            )
+        painter.restore()
+
+
+class _CustomerTableWidget(QTableWidget):
+    def viewportEvent(self, event):
+        if event.type() == QEvent.Type.Leave:
+            delegate = self.itemDelegate()
+            if isinstance(delegate, _CustomerRowHoverDelegate):
+                delegate.set_hovered_row(-1)
+        return super().viewportEvent(event)
+
+
 class CustomersBaseMixin:
     """Base UI and layout logic for CustomersPage."""
     def apply_theme_styles(self):
-        self.setStyleSheet("background: #0d121d; color: #dee2f2; font-family: 'Times New Roman', 'Segoe UI', Arial;")
+        self.setStyleSheet(theme_qss("background: @window; color: @text; font-family: 'Times New Roman', 'Segoe UI', Arial;"))
         if hasattr(self, "tabs"):
             self.tabs.setStyleSheet(
                 theme_qss("""
@@ -60,28 +94,30 @@ class CustomersBaseMixin:
             """)
             )
         if hasattr(self, "tab_main"):
-            self.tab_main.setStyleSheet("background: #0d121d;")
+            self.tab_main.setStyleSheet(theme_qss("background: @window;"))
         if hasattr(self, "table"):
             self.table.setStyleSheet(
                 theme_qss("""
-                QTableWidget { border-radius: 10px; border: 1px solid #3a494b; background: #0d121d; gridline-color: transparent; }
-                QHeaderView::section { background-color: #090c13; color: #b9cacb; padding: 8px 8px; font-size: 10px; font-weight: bold; border: none; }
-                QTableWidget#CustomerListTable::item { padding: 4px 8px; color: #dee2f2; border-bottom: 1px solid #252a36; background-color: #0d121d; }
-                QTableWidget#CustomerListTable::item:selected { background-color: #00dce6; color: #002022; font-weight: bold; border: none; outline: none; }
+                QTableWidget { border-radius: 10px; border: 1px solid @border; background: @window; gridline-color: transparent; }
+                QHeaderView::section { background-color: @surface_alt; color: @text; padding: 8px 8px; font-size: 10px; font-weight: bold; border: none; }
+                QTableWidget#CustomerListTable::item { padding: 4px 8px; color: @text; border-bottom: 1px solid @border; background-color: @window; }
+                QTableWidget#CustomerListTable::item:hover { background-color: @hover_bg; color: @text; }
+                QTableWidget#CustomerListTable::item:selected:hover { background-color: @hover_bg; color: @text; }
+                QTableWidget#CustomerListTable::item:selected { background-color: @selection_bg; color: @selection_text; font-weight: normal; border: none; outline: none; }
                 QTableWidget::item:focus { outline: none; }
-                QTableWidget::indicator:unchecked { width: 6px; height: 6px; background: #ffffff; border: 1px solid #b9b9b9; border-radius: 2px; }
-                QTableWidget::indicator:checked { width: 6px; height: 6px; background: #00f2fe; border: 1px solid #00f2fe; border-radius: 2px; }
+                QTableWidget::indicator:unchecked { width: 6px; height: 6px; background: @surface; border: 1px solid @border; border-radius: 2px; }
+                QTableWidget::indicator:checked { width: 6px; height: 6px; background: @accent; border: 1px solid @accent; border-radius: 2px; }
             """)
             )
         if hasattr(self, "inp_search"):
             self.inp_search.setStyleSheet(
-                "border: 1px solid #252a36; border-radius: 10px; padding-left: 0; background: #080b11; color: #dee2f2;"
+                theme_qss("border: 1px solid @border; border-radius: 10px; padding-left: 0; background: @surface; color: @text;")
             )
         for child in self.findChildren(QFrame):
             if child.objectName() == "CustomerFilterBar":
                 child.setStyleSheet(theme_qss("QFrame#CustomerFilterBar { background: transparent; border: none; border-bottom: 1px solid @border; border-radius: 0; }"))
             elif child.objectName() == "CustomerToolbarCard":
-                child.setStyleSheet("QFrame#CustomerToolbarCard { background: #0d121d; border: none; border-bottom: 1px solid #3a494b; border-radius: 0; }")
+                child.setStyleSheet(theme_qss("QFrame#CustomerToolbarCard { background: @window; border: none; border-bottom: 1px solid @border; border-radius: 0; }"))
 
     def setup_ui(self):
         """Arayüz hiyerarşisini kurar"""
@@ -130,19 +166,25 @@ class CustomersBaseMixin:
         self._setup_footer()
         self.setMinimumSize(0, 0)
 
+    def set_reference_shell_mode(self, enabled):
+        self._reference_shell_mode = bool(enabled)
+        self.main_layout.setContentsMargins(
+            0, 2, 0, 21 if self._reference_shell_mode else 6
+        )
+
     def _setup_reference_metrics(self):
         frame = QFrame()
         frame.setFixedHeight(158)
         frame.setStyleSheet(theme_qss("background: transparent; border: none;"))
         grid = QGridLayout(frame)
         grid.setContentsMargins(18, 4, 18, 0)
-        grid.setHorizontalSpacing(18)
+        grid.setHorizontalSpacing(12)
         grid.setVerticalSpacing(8)
         metrics = [
-            ("Piyasa Alaca\u011f\u0131 (Bor\u00e7lular)", "\u20ba0.00 TRY", "#ef4444", "4 Bor\u00e7lu M\u00fc\u015fteri Portf\u00f6y\u00fc", "USD: $0.00", "north_east", 38),
-            ("Cari Avans & \u00d6n \u00d6demeler", "\u20ba0.00 TRY", "#10b981", "Dengeli \u2022 A\u00e7\u0131k Avans Yok", "USD: $0.00", "wallet", 100),
-            ("At\u00f6lye & Servisteki Cihazlar", "0 Adet Aktif", "#00f2fe", "3 At\u00f6lye Montaj \u2022 1 Testte", "Kapasite %40", "tool", 40),
-            ("Kurumsal VIP Portf\u00f6y Oran\u0131", "%0", "#adc6ff", "Y\u0131ll\u0131k Bak\u0131m S\u00f6zle\u015fmeli", "+3.8% MoM", "verified", 28),
+            ("Piyasa Alaca\u011f\u0131 (Bor\u00e7lular)", "\u20ba0.00 TRY", "danger", "4 Bor\u00e7lu M\u00fc\u015fteri Portf\u00f6y\u00fc", "USD: $0.00", "north_east", 38),
+            ("Cari Avans & \u00d6n \u00d6demeler", "\u20ba0.00 TRY", "success", "Dengeli \u2022 A\u00e7\u0131k Avans Yok", "USD: $0.00", "wallet", 100),
+            ("At\u00f6lye & Servisteki Cihazlar", "0 Adet Aktif", tc("accent"), "3 At\u00f6lye Montaj \u2022 1 Testte", "Kapasite %40", "tool", 40),
+            ("Kurumsal VIP Portf\u00f6y Oran\u0131", "%0", tc("accent"), "Y\u0131ll\u0131k Bak\u0131m S\u00f6zle\u015fmeli", "+3.8% MoM", "verified", 28),
         ]
         self._customer_metric_values = []
         self._customer_metric_bars = []
@@ -153,11 +195,11 @@ class CustomersBaseMixin:
             card = QFrame(frame)
             card.setFixedHeight(141)
             card.setMinimumWidth(0)
-            card.setProperty("skipThemeTransform", True)
-            card.setStyleSheet(
-                "QFrame { background: #0d121d; border: 1px solid rgba(132, 148, 149, 0.16); border-radius: 12px; } "
-                "QFrame:hover { background: #151b28; }"
-            )
+            card.setProperty("skipThemeTransform", False)
+            card.setStyleSheet(theme_qss(
+                "QFrame { background: @surface; border: 1px solid @border; border-radius: 12px; } "
+                "QFrame:hover { background: @surface_alt; }"
+            ))
             box = QGridLayout(card)
             box.setContentsMargins(12, 12, 12, 12)
             box.setVerticalSpacing(7)
@@ -167,30 +209,31 @@ class CustomersBaseMixin:
             title_label.setMinimumWidth(0)
             title_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
             title_font_size = 10
-            title_label.setProperty("skipThemeTransform", True)
-            title_label.setStyleSheet(f"color: #94a3b8; font-family: 'Times New Roman', 'Segoe UI', Arial; font-size: {title_font_size}px; font-weight: 700; border: none; background: transparent;")
+            title_label.setProperty("skipThemeTransform", False)
+            title_label.setStyleSheet(theme_qss(f"color: @text_muted; font-family: 'Times New Roman', 'Segoe UI', Arial; font-size: {title_font_size}px; font-weight: 700; border: none; background: transparent;"))
             value_label = QLabel(value)
             value_label.setTextFormat(Qt.TextFormat.RichText)
             value_label.setFont(QFont("Times New Roman", 32, QFont.Weight.Bold))
             value_label.setMinimumWidth(0)
             value_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
-            value_label.setProperty("skipThemeTransform", True)
-            value_label.setStyleSheet(f"color: {'#00f2fe' if index == 2 else '#f8fafc'}; font-family: 'Times New Roman', 'Segoe UI', Arial; font-size: 32px; font-weight: 700; border: none; background: transparent;")
+            value_label.setProperty("skipThemeTransform", False)
+            value_label.setStyleSheet(theme_qss(f"color: {'@accent' if index == 2 else '@text'}; font-family: 'Times New Roman', 'Segoe UI', Arial; font-size: 32px; font-weight: 700; border: none; background: transparent;"))
             box.addWidget(title_label, 0, 0, alignment=Qt.AlignmentFlag.AlignVCenter)
             icon = QLabel()
             icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
             icon.setFixedSize(24, 24)
             icon.setPixmap(navigation_icon(icon_text, 14, accent).pixmap(14, 14))
-            icon.setProperty("skipThemeTransform", True)
-            icon.setStyleSheet(f"color: {accent}; background: #151b28; border: 1px solid rgba(132, 148, 149, 0.16); border-radius: 6px; font-size: 16px; font-weight: 800;")
+            icon.setProperty("skipThemeTransform", False)
+            icon_color = "@accent" if index >= 2 else "@" + accent
+            icon.setStyleSheet(theme_qss(f"color: {icon_color}; background: @surface_alt; border: 1px solid @border; border-radius: 6px; font-size: 16px; font-weight: 800;"))
             box.addWidget(icon, 0, 1, alignment=Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             if index == 3:
                 sla_badge = QLabel("SLA Anla\u015fmal\u0131")
-                sla_badge.setProperty("skipThemeTransform", True)
-                sla_badge.setStyleSheet(
-                    "color: #adc6ff; background: #151b28; border: none; border-radius: 3px; "
+                sla_badge.setProperty("skipThemeTransform", False)
+                sla_badge.setStyleSheet(theme_qss(
+                    "color: @accent; background: @surface_alt; border: none; border-radius: 3px; "
                     "padding: 2px 6px; font-size: 9px; font-weight: 700;"
-                )
+                ))
                 box.addWidget(value_label, 1, 0, alignment=Qt.AlignmentFlag.AlignVCenter)
                 box.addWidget(sla_badge, 1, 1, alignment=Qt.AlignmentFlag.AlignVCenter)
             else:
@@ -203,14 +246,14 @@ class CustomersBaseMixin:
             caption_label = QLabel(caption)
             caption_label.setMinimumWidth(0)
             caption_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
-            caption_label.setProperty("skipThemeTransform", True)
-            caption_label.setStyleSheet("color: #94a3b8; font-family: 'Times New Roman', 'Segoe UI', Arial; font-size: 11px; border: none; background: transparent;")
+            caption_label.setProperty("skipThemeTransform", False)
+            caption_label.setStyleSheet(theme_qss("color: @text_muted; font-family: 'Times New Roman', 'Segoe UI', Arial; font-size: 11px; border: none; background: transparent;"))
             secondary_label = QLabel(secondary)
             secondary_label.setMinimumWidth(0)
             secondary_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            secondary_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
-            secondary_label.setProperty("skipThemeTransform", True)
-            secondary_label.setStyleSheet("color: #94a3b8; font-family: 'Times New Roman', 'Segoe UI', Arial; font-size: 11px; font-weight: 600; border: none; background: transparent;")
+            secondary_label.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
+            secondary_label.setProperty("skipThemeTransform", False)
+            secondary_label.setStyleSheet(theme_qss("color: @text_muted; font-family: 'Times New Roman', 'Segoe UI', Arial; font-size: 11px; font-weight: 600; border: none; background: transparent;"))
             footer_layout.addWidget(caption_label, 1)
             footer_layout.addWidget(secondary_label)
             box.addWidget(footer_row, 2, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignVCenter)
@@ -219,10 +262,15 @@ class CustomersBaseMixin:
             progress.setValue(bar_value)
             progress.setTextVisible(False)
             progress.setFixedHeight(4)
-            progress.setProperty("skipThemeTransform", True)
+            progress.setProperty("skipThemeTransform", False)
+            progress_color = ("@" + accent) if index < 2 else "@accent"
+            if index == 0:
+                progress_color = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 @warning, stop:1 @danger)"
+            elif index == 2:
+                progress_color = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 @accent, stop:1 @accent)"
             progress.setStyleSheet(
-                "QProgressBar { background: #1b1f2b; border: none; border-radius: 2px; } "
-                "QProgressBar::chunk { background: " + accent + "; border-radius: 2px; }"
+                "QProgressBar { background: @surface_alt; border: none; border-radius: 2px; } "
+                "QProgressBar::chunk { background: " + progress_color + "; border-radius: 2px; }"
             )
             box.addWidget(progress, 3, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignBottom)
             grid.addWidget(card, 0, index)
@@ -239,9 +287,9 @@ class CustomersBaseMixin:
         hero = _CustomerHeroFrame()
         hero.setObjectName("CustomersHero")
         hero.setFixedHeight(112)
-        hero.setProperty("skipThemeTransform", True)
+        hero.setProperty("skipThemeTransform", False)
         hero.setStyleSheet(
-            "QFrame#CustomersHero { background: #0d121d; border: 1px solid rgba(255,255,255,0.04); border-radius: 12px; }"
+            theme_qss("QFrame#CustomersHero { background: @surface; border: 1px solid @border; border-radius: 12px; }")
         )
         hero_layout = QVBoxLayout(hero)
         hero_layout.setContentsMargins(16, 18, 11, 8)
@@ -265,7 +313,7 @@ class CustomersBaseMixin:
         icon_painter = QPainter(icon_pixmap)
         icon_painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         icon_painter.setPen(Qt.PenStyle.NoPen)
-        icon_painter.setBrush(QColor("#00f2fe"))
+        icon_painter.setBrush(QColor(tc("accent")))
         icon_painter.drawEllipse(22, 14, 4, 4)
         icon_painter.drawEllipse(17, 17, 3, 3)
         icon_painter.drawEllipse(28, 17, 3, 3)
@@ -319,7 +367,7 @@ class CustomersBaseMixin:
         title_row.addWidget(self.header_badge)
         self.header_live_badge = QLabel("\u25cf  Canl\u0131 Telemetri")
         self.header_live_badge.setFixedSize(94, 22)
-        self.header_live_badge.setStyleSheet("color: #00f2fe; background: rgba(0,242,254,0.08); border: 1px solid rgba(0,242,254,0.20); border-radius: 8px; padding: 2px 6px; font-size: 9px; font-weight: 700;")
+        self.header_live_badge.setStyleSheet(theme_qss("color: @accent; background: @surface_alt; border: 1px solid @border; border-radius: 8px; padding: 2px 6px; font-size: 9px; font-weight: 700;"))
         title_row.addWidget(self.header_live_badge)
         title_row.addStretch(1)
         self.header_compact_badge = QLabel("Cari & Finans Entegre")
@@ -328,7 +376,7 @@ class CustomersBaseMixin:
         self.header_compact_badge.setStyleSheet(theme_qss("QLabel { background: @surface_alt; color: @text; border: 1px solid @border; border-radius: 9px; font-size: 8px; font-weight: 600; padding: 0 5px; }"))
         self.header_compact_live_badge = QLabel("\u25cf Canl\u0131 Telemetri")
         self.header_compact_live_badge.setFixedSize(94, 18)
-        self.header_compact_live_badge.setStyleSheet("color: #00f2fe; background: rgba(0,242,254,0.08); border: 1px solid rgba(0,242,254,0.20); border-radius: 8px; padding: 1px 5px; font-size: 8px; font-weight: 700;")
+        self.header_compact_live_badge.setStyleSheet(theme_qss("color: @accent; background: @surface_alt; border: 1px solid @border; border-radius: 8px; padding: 1px 5px; font-size: 8px; font-weight: 700;"))
         self.header_subtitle = QLabel(
             "M\u00fc\u015fteri portf\u00f6y\u00fcn\u00fc, cari hesap mutabakatlar\u0131n\u0131, at\u00f6lye teknik servis i\u015f emirlerini ve anl\u0131k tahsilat aksiyonlar\u0131n\u0131 tek merkezden y\u00f6netin."
         )
@@ -383,37 +431,44 @@ class CustomersBaseMixin:
             action.setFixedSize(width, 34)
             action.setIcon(navigation_icon(icon_name, 16, icon_color))
             action.setCursor(Qt.CursorShape.PointingHandCursor)
-            action.setProperty("skipThemeTransform", True)
+            action.setProperty("skipThemeTransform", False)
             action.setStyleSheet(
-                "QPushButton { background: #151b28; color: #dee2f2; border: 1px solid rgba(255,255,255,0.08); "
+                "QPushButton { background: @surface_alt; color: @text; border: 1px solid @border; "
                 "border-radius: 8px; padding: 0 8px; font-family: 'Times New Roman', 'Segoe UI', Arial; font-size: 11px; font-weight: 700; } "
-                "QPushButton:hover { background: #252a36; color: #f8fafc; border-color: #00dce6; }"
+                "QPushButton:hover { background: @hover_bg; color: @text; border-color: @accent; }"
             )
             action.clicked.connect(callback)
             action_row.addWidget(action)
             self.customer_header_action_buttons.append(action)
             self.customer_header_action_widths.append(width)
             self.customer_header_action_styles.append(action.styleSheet())
-        help_action = QPushButton("?")
-        help_action.setFixedSize(24, 34)
+        help_action = QPushButton()
+        help_action.setFixedSize(30, 34)
+        help_action.setIcon(navigation_icon("help", 18, "text_muted"))
+        help_action.setIconSize(QSize(18, 18))
         help_action.setToolTip("Nas\u0131l Kullan\u0131l\u0131r?")
         help_action.setAccessibleName("Nas\u0131l Kullan\u0131l\u0131r?")
-        help_action.setProperty("skipThemeTransform", True)
+        help_action.setProperty("skipThemeTransform", False)
         help_action.setStyleSheet(
-            "QPushButton { background: #151b28; color: #dee2f2; border: 1px solid rgba(255,255,255,0.08); "
-            "border-radius: 6px; padding: 0 10px; font-family: 'Times New Roman', 'Segoe UI', Arial; font-weight: 700; } "
-            "QPushButton:hover { background: #252a36; }"
+            "QPushButton { background: @surface_alt; color: @text; border: 1px solid @border; "
+            "border-radius: 6px; padding: 0; font-family: 'Times New Roman', 'Segoe UI', Arial; font-weight: 700; } "
+            "QPushButton:hover { background: @hover_bg; }"
         )
         help_action.clicked.connect(lambda: self.notify("Customer search, filters, and actions are available on this screen."))
         action_row.addWidget(help_action)
         self.customer_header_action_buttons.append(help_action)
-        self.customer_header_action_widths.append(24)
+        self.customer_header_action_widths.append(30)
         self.customer_header_action_styles.append(help_action.styleSheet())
         add_customer = QPushButton("+ YEN\u0130 M\u00dc\u015eTER\u0130 EKLE")
         add_customer.setFixedSize(194, 32)
         add_customer.setIcon(navigation_icon("people", 16, "obsidian_base"))
         add_customer.setCursor(Qt.CursorShape.PointingHandCursor)
-        add_customer.setStyleSheet("QPushButton { background: qlineargradient(x1:0,y1:0,x2:1,y2:0,stop:0 #00dce6,stop:1 #3b82f6); color: #080b11; border: 1px solid #00dce6; border-radius: 10px; padding: 0 10px; font-size: 11px; font-weight: 800; } QPushButton:hover { border-color: #3b82f6; }")
+        add_customer.setStyleSheet(theme_qss("QPushButton { background: @accent; color: @selection_text; border: 1px solid @accent; border-radius: 10px; padding: 0 10px; font-size: 11px; font-weight: 800; } QPushButton:hover { border-color: @accent; }"))
+        add_customer_shadow = QGraphicsDropShadowEffect(add_customer)
+        add_customer_shadow.setBlurRadius(20)
+        add_customer_shadow.setColor(QColor(0, 242, 254, 100))
+        add_customer_shadow.setOffset(0, 0)
+        add_customer.setGraphicsEffect(add_customer_shadow)
         add_customer.clicked.connect(self.add_customer)
         self.btn_add_customer = add_customer
         action_row.addWidget(add_customer)
@@ -431,6 +486,11 @@ class CustomersBaseMixin:
         compact_add.setIcon(navigation_icon("people", 16, "obsidian_base"))
         compact_add.setCursor(Qt.CursorShape.PointingHandCursor)
         compact_add.setStyleSheet(add_customer.styleSheet())
+        compact_add_shadow = QGraphicsDropShadowEffect(compact_add)
+        compact_add_shadow.setBlurRadius(20)
+        compact_add_shadow.setColor(QColor(0, 242, 254, 100))
+        compact_add_shadow.setOffset(0, 0)
+        compact_add.setGraphicsEffect(compact_add_shadow)
         compact_add.clicked.connect(self.add_customer)
         compact_more = QToolButton()
         compact_more.setFixedSize(28, 32)
@@ -486,7 +546,7 @@ class CustomersBaseMixin:
             return
         compact = self.width() < 1180
         hero = self.findChild(QFrame, "CustomersHero")
-        panel.setFixedWidth(604 if not compact else 560)
+        panel.setFixedWidth(604 if not compact else 232)
         action_bar.setVisible(not compact)
         compact_row.setVisible(compact)
         self.header_badge.setVisible(not compact)
@@ -511,7 +571,7 @@ class CustomersBaseMixin:
             title = title_label.text()
             font_size = (8 if "VIP" in title else 9) if compact else 11
             title_label.setStyleSheet(
-                f"color: #94a3b8; font-family: 'Times New Roman', 'Segoe UI', Arial; font-size: {font_size}px; "
+            f"color: @text_muted; font-family: 'Times New Roman', 'Segoe UI', Arial; font-size: {font_size}px; "
                 "font-weight: 700; border: none; background: transparent;"
             )
         for button, wide_width, base_style in zip(
@@ -519,7 +579,7 @@ class CustomersBaseMixin:
             self.customer_header_action_widths,
             self.customer_header_action_styles,
         ):
-            narrow_width = {106: 90, 138: 124, 112: 98, 24: 24, 194: 180}.get(wide_width, wide_width)
+            narrow_width = {106: 90, 138: 124, 112: 98, 30: 30, 194: 180}.get(wide_width, wide_width)
             button.setFixedWidth(narrow_width if compact else wide_width)
             button.setStyleSheet(
                 base_style.replace("font-size: 11px;", "font-size: 9px;")
@@ -546,11 +606,11 @@ class CustomersBaseMixin:
         self.customer_filter_group.setExclusive(True)
         self.customer_filter_buttons = {}
         filter_specs = (
-            ("T\u00dcM M\u00dc\u015eTER\u0130LER", tc("accent"), None, 214),
-            ("BOR\u00c7LULAR", tc("warning"), "DEBTORS", 218),
-            ("TAHS\u0130LAT BEKLEYENLER", tc("success"), "OPEN_RECEIVABLES", 274),
-            ("VIP M\u00dc\u015eTER\u0130LER", tc("accent"), "VIP", 224),
-            ("A\u00c7IK SERV\u0130SLER", tc("success"), "OPEN_SERVICES", 266),
+            ("T\u00dcM M\u00dc\u015eTER\u0130LER", "accent", None, 214),
+            ("BOR\u00c7LULAR", "warning", "DEBTORS", 218),
+            ("TAHS\u0130LAT BEKLEYENLER", "success", "OPEN_RECEIVABLES", 274),
+            ("VIP M\u00dc\u015eTER\u0130LER", "accent", "VIP", 224),
+            ("A\u00c7IK SERV\u0130SLER", "success", "OPEN_SERVICES", 266),
         )
         for index, (label, color, filter_key, width) in enumerate(filter_specs):
             button = self._create_banner_btn(label, color)
@@ -569,18 +629,15 @@ class CustomersBaseMixin:
         filter_bar.hide()
         self.customer_quick_filter_bar = filter_bar
 
-    def _create_banner_btn(self, text, color):
+    def _create_banner_btn(self, text, color_key):
         btn = QPushButton(text)
         btn.setFixedHeight(46)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
         btn.setFont(QFont("Times New Roman", 11, QFont.Weight.Bold))
-        tint = QColor(color)
-        tint_fill = "rgba({}, {}, {}, 0.12)".format(tint.red(), tint.green(), tint.blue())
-        tint_border = "rgba({}, {}, {}, 0.42)".format(tint.red(), tint.green(), tint.blue())
         btn.setStyleSheet(theme_qss(f"""
-            QPushButton {{ background: {tint_fill}; color: {color}; border-radius: 8px; border: 1px solid {tint_border}; padding: 0 8px; text-align: left; font-size: 11px; font-weight: 700; }}
+            QPushButton {{ background: @surface_alt; color: @{color_key}; border-radius: 8px; border: 1px solid @border; padding: 0 8px; text-align: left; font-size: 11px; font-weight: 700; }}
             QPushButton:checked {{ background: @accent; color: @selection_text; border-color: @accent; }}
-            QPushButton:hover {{ background: @surface_high; border-color: {color}; }}
+            QPushButton:hover {{ background: @hover_bg; border-color: @{color_key}; }}
         """))
         return btn
 
@@ -588,10 +645,10 @@ class CustomersBaseMixin:
         toolbar_card = QFrame()
         self.customer_toolbar_card = toolbar_card
         toolbar_card.setObjectName("CustomerToolbarCard")
-        toolbar_card.setProperty("skipThemeTransform", True)
+        toolbar_card.setProperty("skipThemeTransform", False)
         toolbar_card.setFixedHeight(78)
         toolbar_card.setStyleSheet(
-            "QFrame#CustomerToolbarCard { background: #0d121d; border: none; border-bottom: 1px solid #3a494b; border-radius: 0; }"
+            theme_qss("QFrame#CustomerToolbarCard { background: @surface; border: none; border-bottom: 1px solid @border; border-radius: 0; }")
         )
         rows = QBoxLayout(QBoxLayout.Direction.LeftToRight, toolbar_card)
         rows.setContentsMargins(27, 5, 18, 5)
@@ -604,9 +661,9 @@ class CustomersBaseMixin:
         self.inp_search.setMinimumWidth(220)
         self.inp_search.setFixedHeight(32)
         self.inp_search.setFont(QFont("Times New Roman", 9))
-        self.inp_search.setProperty("skipThemeTransform", True)
+        self.inp_search.setProperty("skipThemeTransform", False)
         self.inp_search.setStyleSheet(
-            "border: 1px solid #252a36; border-radius: 10px; padding-left: 0; background: #080b11; color: #dee2f2;"
+            theme_qss("border: 1px solid @border; border-radius: 10px; padding-left: 0; background: @surface; color: @text;")
         )
         self.inp_search.setTextMargins(0, 0, 82, 0)
         self.inp_search.addAction(
@@ -620,9 +677,9 @@ class CustomersBaseMixin:
         self.search_shortcut_button.setToolTip("Arama alan\u0131na git: Ctrl+K")
         self.search_shortcut_button.setAccessibleName("Arama k\u0131sayolu Ctrl+K")
         self.search_shortcut_button.setStyleSheet(
-            "QToolButton { background: #252a36; color: #94a3b8; border: 1px solid #3a494b; "
+            "QToolButton { background: @surface_alt; color: @text_muted; border: 1px solid @border; "
             "border-radius: 4px; padding: 0; font-family: 'JetBrains Mono'; font-size: 7px; } "
-            "QToolButton:hover { color: #dee2f2; border-color: #00dce6; }"
+            "QToolButton:hover { color: @text; border-color: @accent; }"
         )
         self.search_shortcut_button.clicked.connect(self._focus_customer_search)
         self.search_shortcut = QShortcut(QKeySequence("Ctrl+K"), self)
@@ -641,8 +698,8 @@ class CustomersBaseMixin:
         self.customer_type_filter.setFixedWidth(145 if compact_toolbar else 170)
         self.customer_type_filter.setFixedHeight(32)
         self.customer_type_filter.setFont(QFont("Times New Roman", 7))
-        filter_style = "QComboBox { background: #080b11; color: #dee2f2; border: 1px solid #252a36; border-radius: 8px; padding: 0 9px; } QComboBox::drop-down { border: none; width: 22px; } QComboBox QAbstractItemView { background: #0d121d; color: #dee2f2; selection-background-color: #00dce6; selection-color: #002022; }"
-        self.customer_type_filter.setProperty("skipThemeTransform", True)
+        filter_style = theme_qss("QComboBox { background: @surface; color: @text; border: 1px solid @border; border-radius: 8px; padding: 0 9px; } QComboBox::drop-down { border: none; width: 22px; } QComboBox QAbstractItemView { background: @window; color: @text; selection-background-color: @selection_bg; selection-color: @selection_text; }")
+        self.customer_type_filter.setProperty("skipThemeTransform", False)
         self.customer_type_filter.setStyleSheet(filter_style)
         self.customer_type_filter.currentTextChanged.connect(self._apply_customer_toolbar_filters)
 
@@ -651,7 +708,7 @@ class CustomersBaseMixin:
         self.customer_location_filter.setFixedWidth(185 if compact_toolbar else 264)
         self.customer_location_filter.setFixedHeight(32)
         self.customer_location_filter.setFont(QFont("Times New Roman", 8))
-        self.customer_location_filter.setProperty("skipThemeTransform", True)
+        self.customer_location_filter.setProperty("skipThemeTransform", False)
         self.customer_location_filter.setStyleSheet(filter_style)
         self.customer_location_filter.currentIndexChanged.connect(self._apply_customer_toolbar_filters)
 
@@ -662,7 +719,7 @@ class CustomersBaseMixin:
         self.customer_balance_filter.addItem("S\u0131f\u0131r Bakiyeli Dengeli Cari", "zero")
         self.customer_balance_filter.setFixedWidth(160 if compact_toolbar else 195)
         self.customer_balance_filter.setFixedHeight(32)
-        self.customer_balance_filter.setProperty("skipThemeTransform", True)
+        self.customer_balance_filter.setProperty("skipThemeTransform", False)
         self.customer_balance_filter.setStyleSheet(filter_style)
         self.customer_balance_filter.setFont(QFont("Times New Roman", 7))
         self.customer_balance_filter.currentTextChanged.connect(self._apply_customer_toolbar_filters)
@@ -712,7 +769,7 @@ class CustomersBaseMixin:
         quick_filter_icon = QPixmap(18, 18)
         quick_filter_icon.fill(Qt.GlobalColor.transparent)
         quick_filter_painter = QPainter(quick_filter_icon)
-        quick_filter_painter.setPen(QPen(QColor("#00dce6"), 1.8, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        quick_filter_painter.setPen(QPen(QColor(tc("accent")), 1.8, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
         for line_y, line_end in ((4, 15), (9, 12), (14, 15)):
             quick_filter_painter.drawLine(3, line_y, line_end, line_y)
         quick_filter_painter.end()
@@ -896,9 +953,11 @@ class CustomersBaseMixin:
             )
 
     def _setup_table(self):
-        self.table = QTableWidget()
+        self.table = _CustomerTableWidget()
         self.table.setObjectName("CustomerListTable")
-        self.table.setProperty("skipThemeTransform", True)
+        self.customer_row_hover_delegate = _CustomerRowHoverDelegate(self.table)
+        self.table.setItemDelegate(self.customer_row_hover_delegate)
+        self.table.setProperty("skipThemeTransform", False)
         self.table.setMinimumHeight(0)
         self.table.setColumnCount(9)
         self.table.setHorizontalHeaderLabels(
@@ -934,23 +993,25 @@ class CustomersBaseMixin:
         self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.table.setStyleSheet(
             theme_qss("""
-            QTableWidget { border-radius: 10px; border: 1px solid #3a494b; background: #0d121d; gridline-color: transparent; }
-            QHeaderView::section { background-color: #090c13; color: #b9cacb; padding: 8px 8px; font-size: 10px; font-weight: bold; border: none; }
-            QTableWidget#CustomerListTable::item { padding: 4px 8px; color: #dee2f2; border-bottom: 1px solid #252a36; background-color: #0d121d; }
-            QTableWidget#CustomerListTable::item:selected { background-color: #00dce6; color: #002022; font-weight: bold; border: none; outline: none; }
+            QTableWidget { border-radius: 10px; border: 1px solid @border; background: @window; gridline-color: transparent; }
+            QHeaderView::section { background-color: @surface_alt; color: @text; padding: 8px 8px; font-size: 10px; font-weight: bold; border: none; }
+            QTableWidget#CustomerListTable::item { padding: 4px 8px; color: @text; border-bottom: 1px solid @border; background-color: @window; }
+            QTableWidget#CustomerListTable::item:hover { background-color: @hover_bg; color: @text; }
+            QTableWidget#CustomerListTable::item:selected:hover { background-color: @hover_bg; color: @text; }
+            QTableWidget#CustomerListTable::item:selected { background-color: @selection_bg; color: @selection_text; font-weight: normal; border: none; outline: none; }
             QTableWidget::item:focus { outline: none; }
-            QTableWidget::indicator:unchecked { width: 6px; height: 6px; background: #ffffff; border: 1px solid #b9b9b9; border-radius: 2px; }
-            QTableWidget::indicator:checked { width: 6px; height: 6px; background: #00f2fe; border: 1px solid #00f2fe; border-radius: 2px; }
+            QTableWidget::indicator:unchecked { width: 6px; height: 6px; background: @surface; border: 1px solid @border; border-radius: 2px; }
+            QTableWidget::indicator:checked { width: 6px; height: 6px; background: @accent; border: 1px solid @accent; border-radius: 2px; }
         """)
         )
         table_palette = self.table.palette()
-        table_palette.setColor(QPalette.ColorRole.Base, QColor("#0d121d"))
-        table_palette.setColor(QPalette.ColorRole.AlternateBase, QColor("#0d121d"))
+        table_palette.setColor(QPalette.ColorRole.Base, QColor(tc("window")))
+        table_palette.setColor(QPalette.ColorRole.AlternateBase, QColor(tc("window")))
         self.table.setPalette(table_palette)
         self.table.viewport().setPalette(table_palette)
         self.table.viewport().setAutoFillBackground(True)
-        self.table.viewport().setProperty("skipThemeTransform", True)
-        self.table.viewport().setStyleSheet("background-color: #0d121d;")
+        self.table.viewport().setProperty("skipThemeTransform", False)
+        self.table.viewport().setStyleSheet(theme_qss("background-color: @window;"))
         self.customer_table_container = QWidget(self.tab_main)
         table_container_layout = QVBoxLayout(self.customer_table_container)
         table_container_layout.setContentsMargins(18, 17, 18, 0)
@@ -987,9 +1048,9 @@ class CustomersBaseMixin:
         self.footer = QFrame()
         self.footer.setObjectName("CustomerFooterCard")
         self.footer.setFixedHeight(40)
-        self.footer.setProperty("skipThemeTransform", True)
+        self.footer.setProperty("skipThemeTransform", False)
         self.footer.setStyleSheet(
-            "QFrame#CustomerFooterCard { background: #080c12; border: 1px solid #3a494b; border-radius: 8px; }"
+            theme_qss("QFrame#CustomerFooterCard { background: @surface_alt; border: 1px solid @border; border-radius: 8px; }")
         )
         f_layout = QHBoxLayout(self.footer)
         f_layout.setContentsMargins(12, 3, 12, 3)
@@ -997,10 +1058,15 @@ class CustomersBaseMixin:
         self.lbl_total = QLabel("📊 Toplam Kayıt: 0")
         self.lbl_total.setStyleSheet(theme_qss("color: @text; border: none; background: transparent;"))
         self.lbl_time = QLabel(
-            f"🕒 Son Güncelleme: {format_date(datetime.now(), self.db, include_time=True)}"
+            "Son G\u00fcncelleme: {}".format(datetime.now().strftime("%d.%m.%Y %H:%M:%S"))
         )
         self.lbl_time.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.lbl_time.setStyleSheet(theme_qss("color: @text_muted; border: none; background: transparent;"))
+        self.lbl_sync = QLabel("\u25cf AYEC Cloud Sync: Canl\u0131 (1.8ms)")
+        self.lbl_sync.setStyleSheet(
+            "color: @success; border: none; background: transparent; "
+            "font: 10px 'JetBrains Mono', 'Segoe UI', Arial;"
+        )
 
         left_box = QWidget()
         left_layout = QHBoxLayout(left_box)
@@ -1026,6 +1092,8 @@ class CustomersBaseMixin:
         right_layout = QHBoxLayout(right_box)
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.addStretch()
+        right_layout.addWidget(self.lbl_sync)
+        right_layout.addWidget(QLabel("|"))
         right_layout.addWidget(self.lbl_time)
 
         self.btn_prev = QPushButton("◀")
@@ -1052,8 +1120,8 @@ class CustomersBaseMixin:
             page_button.setCheckable(True)
             page_button.setFixedSize(28, 24)
             page_button.setStyleSheet(
-                "QPushButton { background: #151b28; color: #dee2f2; border: 1px solid #252a36; border-radius: 6px; font-family: 'Times New Roman', 'Segoe UI', Arial; font-size: 12px; font-weight: 600; } "
-                "QPushButton:checked { background: #00dce6; color: #080b11; border-color: #00dce6; font-weight: 800; }"
+                theme_qss("QPushButton { background: @surface_alt; color: @text; border: 1px solid @border; border-radius: 6px; font-family: 'Times New Roman', 'Segoe UI', Arial; font-size: 12px; font-weight: 600; } "
+                "QPushButton:checked { background: @accent; color: @selection_text; border-color: @accent; font-weight: 800; }")
             )
             page_button.clicked.connect(
                 lambda _checked=False, index=page_index: self._go_to_customer_page(index)

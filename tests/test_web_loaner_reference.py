@@ -22,11 +22,27 @@ def test_loaner_workspace_matches_reference_and_supports_mobile_layout():
     assert "loaner-ref-category-layout" in styles
     assert '@media print{body[data-page="loaners"]' in styles
     assert 'data-loaner-row-action="return"' in app
+    assert 'if (page !== "loaners" || !ayecContextMenuEnabled("loaners")) return;' in app
+    assert 'loaners:"rc_loaner"' in app
     assert 'class="loaner-ref-actions"' in app
     assert ".loaner-ref-actions{display:flex" in styles
     assert 'data-loaner-page="1"' in app
     assert "@media(max-width:600px){.loaner-ref-metrics" in styles
     assert "@media(max-width:420px){.loaner-ref-metrics" in styles
+
+
+def test_loaner_context_menu_supports_touch_long_press_and_movement_cancel():
+    app = (WEB / "app.js").read_text(encoding="utf-8")
+    start = app.index('document.addEventListener("pointerdown", event => {', app.index('document.addEventListener("contextmenu", event => {'))
+    end = app.index('document.addEventListener("dblclick", event => {', start)
+    block = app[start:end]
+
+    assert 'event.pointerType === "mouse"' in block
+    assert 'ayecContextMenuEnabled("loaners")' in block
+    assert '}, 550);' in block
+    assert 'Math.hypot(event.clientX - ayecLoanerContextPressOrigin.x, event.clientY - ayecLoanerContextPressOrigin.y) <= 10' in block
+    assert 'document.addEventListener("pointerup", cancelAyecLoanerContextPress);' in block
+    assert 'document.addEventListener("pointercancel", cancelAyecLoanerContextPress);' in block
 
 
 def test_loaner_desktop_metrics_and_full_width_workspace_match_desktop_density():
@@ -70,3 +86,92 @@ def test_loaner_actions_and_category_filters_are_wired():
     assert 'data-loaner-type="Switch"' in app
     assert 'data-loaner-select-all' in app
     assert 'loanerMetricOverdueDetail' in app
+
+
+def test_loaner_context_menu_and_atomic_return_match_desktop_workflow():
+    app = (WEB / "app.js").read_text(encoding="utf-8")
+    backend = (ROOT / "Web_Arayuzu" / "Main.py").read_text(encoding="utf-8")
+    desktop = (ROOT / "src" / "ui" / "pages" / "loaner_devices_page.py").read_text(encoding="utf-8")
+    assert 'data-loaner-kind="depot"' in app
+    assert 'data-loaner-kind="transaction"' in app
+    assert '"delete-device"' in app
+    assert '[\"active\", \"overdue\"]' in app and '\"return\"' in app
+    assert 'data-loaner-context="gallery"' not in app
+    inventory_start = desktop.index("def open_inventory_context_menu(self, position):")
+    active_start = desktop.index("def open_active_context_menu(self, position):", inventory_start)
+    active_end = desktop.index("def _handle_inventory_double_click", active_start)
+    inventory_menu = desktop[inventory_start:active_start]
+    active_menu = desktop[active_start:active_end]
+    assert 'menu.addAction("\u2795 Yeni Cihaz Ekle", self.add_new_device)' in inventory_menu
+    assert 'menu.addAction("\U0001f504 Yenile", self.refresh_data)' in inventory_menu
+    assert 'menu.addAction("\U0001f4e4 Cihaz\u0131 Zimmetle"' in inventory_menu
+    assert 'menu.addAction("\U0001f5d1\ufe0f Cihaz\u0131 Sil"' in inventory_menu
+    assert inventory_menu.count("menu.addSeparator()") == 1
+    assert '"\U0001f4e5 Cihaz\u0131 \u0130ade Al"' in active_menu
+    assert active_menu.count("menu.addSeparator()") == 1
+    web_menu = app[app.index('const actions = kind === "depot"'):app.index('menu.style.left = Math.max(8', app.index('const actions = kind === "depot"'))]
+    assert r'"\u2795 Yeni Cihaz Ekle"' in web_menu
+    assert r'"\ud83d\udd04 Yenile"' in web_menu
+    assert r'"\ud83d\udce4 Cihaz\u0131 Zimmetle"' in web_menu
+    assert r'"\ud83d\uddd1\ufe0f Cihaz\u0131 Sil"' in web_menu
+    assert 'action === "separator" ? \'<hr class="context-menu-separator">\'' in web_menu
+    assert r'"\ud83d\udce5 Cihaz\u0131 \u0130ade Al"' in web_menu
+    assert '"/api/desktop/loaners/return"' in app
+    route = backend[backend.index('if path == "/api/desktop/loaners/return":'):]
+    route = route[:route.index('if path == "/api/desktop/personnel/daily-wages/delete":')]
+    assert 'UPDATE loaner_transactions SET date_returned=?, condition_in=?, penalty_applied=?, status=? WHERE id=?' in route
+    assert 'UPDATE loaner_devices SET status=? WHERE id=?' in route
+    assert 'conn.rollback()' in route
+
+
+def test_loaner_assignment_dialog_preserves_desktop_fields_and_submit_workflow():
+    app = (WEB / "app.js").read_text(encoding="utf-8")
+    desktop = (ROOT / "src" / "ui" / "pages" / "loaner_devices_page.py").read_text(encoding="utf-8")
+    desktop_start = desktop.index("def assign_device(self, dev_id):")
+    desktop_end = desktop.index("def _save_assignment", desktop_start)
+    desktop_form = desktop[desktop_start:desktop_end]
+    assert 'ModernDialog("M\u00fc\u015fteriye Tesis Et (Zimmetle)"' in desktop_form
+    for field in ("f_name", "f_phone", "f_track", "f_cond", "f_date"):
+        assert field in desktop_form
+    assert "QDateTime.currentDateTime().addDays(3)" in desktop_form
+    assert 'form.addRow("Beklenen \u0130ade Tarihi:", f_date)' in desktop_form
+    web_start = app.index("function ayecLoanerAssignDialog(row)")
+    web_end = app.index("function ayecLoanerReturnDialog(row)", web_start)
+    web_form = app[web_start:web_end]
+    for field in ("customer_name", "customer_phone", "tracking_no", "condition_out", "expected_return"):
+        assert 'name="' + field + '"' in web_form
+    assert 'type="datetime-local"' in web_form
+    assert 'Date.now() + 3 * 86400000' in web_form
+    assert '"/api/desktop/loaners/assign"' in web_form
+    assert 'if (action === "assign") {\n    ayecLoanerAssignDialog(row);' in app
+    assert 'if (action.dataset.loanerRowAction === "assign") { ayecLoanerAssignDialog(row); return; }' in app
+
+
+def test_loaner_device_forms_and_new_loan_selector_match_desktop_fields():
+    app = (WEB / "app.js").read_text(encoding="utf-8")
+    desktop = (ROOT / "src" / "ui" / "pages" / "loaner_devices_page.py").read_text(encoding="utf-8")
+    add_start = desktop.index("def add_new_device(self):")
+    add_end = desktop.index("def _save_device", add_start)
+    desktop_add = desktop[add_start:add_end]
+    edit_start = desktop.index("def edit_device(self, dev_id):")
+    edit_end = desktop.index("def _update_device", edit_start)
+    desktop_edit = desktop[edit_start:edit_end]
+    for field_label in ("Cihaz Tipi:", "Marka & Model:", "Seri / MAC No:", "Raf No:", "Demirba\u015f Notu:"):
+        assert field_label in desktop_add and field_label in desktop_edit
+    assert 'QLineEdit("50.0")' in desktop_add
+    assert "notes_w.setMinimumHeight(100)" in desktop_add
+    assert "self._save_device" in desktop_add
+    assert "self._update_device" in desktop_edit
+    device_start = app.index("function ayecLoanerDeviceDialog(row = {})")
+    device_end = app.index("function ayecLoanerAssignDialog(row)", device_start)
+    web_device = app[device_start:device_end]
+    for field in ("device_type", "brand_model", "serial_mac", "shelf_no", "daily_penalty_fee", "notes"):
+        assert 'name="' + field + '"' in web_device
+    assert '"Ak\\u0131ll\\u0131 Telefon", "Diz\\u00fcst\\u00fc Bilgisayar", "Tablet", "Router/Modem", "Yedek Par\\u00e7a", "Di\\u011fer"' in web_device
+    assert 'daily_penalty_fee ?? "50.0"' in web_device
+    assert 'payload._action = "update"' in web_device
+    assert '"/api/desktop/table/loaner_devices"' in web_device
+    assert 'data-generic-add' in app and 'ayecLoanerStartNewLoan();' in app
+    assert 'loaner_transactions?limit=1000' in app
+    assert 'item.status || ""' in app and 'item.status || "Depoda"' in app
+    assert '"Teslim Bilgileri"' in app

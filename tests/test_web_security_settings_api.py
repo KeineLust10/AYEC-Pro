@@ -66,7 +66,8 @@ def test_security_settings_api_hashes_passwords_and_keeps_tenant_user_scope(monk
             data=json.dumps({
                 "app_lock_active": True,
                 "app_password": "Valid-Password-4321",
-                "tech_lock_active": False,
+                "tech_lock_active": True,
+                "tech_password": "Valid-Tech-Password-4321",
                 "auto_login": True,
                 "security_question": "City of birth",
                 "security_answer": "Example City",
@@ -88,9 +89,53 @@ def test_security_settings_api_hashes_passwords_and_keeps_tenant_user_scope(monk
             state = json.load(response)
         assert state["app_lock_active"] is True
         assert state["app_password_configured"] is True
+        assert state["tech_lock_active"] is True
+        assert state["tech_password_configured"] is True
         assert state["auto_login"] is True
         assert state["security_question"] == "City of birth"
         assert "app_password" not in state
+
+        wrong_lock_password = urllib.request.Request(
+            root + "/api/desktop/security-settings/verify-app-lock",
+            data=json.dumps({"password": "Wrong-Password-4321"}).encode(),
+            headers={"Content-Type": "application/json", "Origin": root},
+            method="POST",
+        )
+        try:
+            urllib.request.urlopen(wrong_lock_password)
+            assert False, "wrong app-lock password should be rejected"
+        except urllib.error.HTTPError as error:
+            assert error.code == 401
+
+        valid_lock_password = urllib.request.Request(
+            root + "/api/desktop/security-settings/verify-app-lock",
+            data=json.dumps({"password": "Valid-Password-4321"}).encode(),
+            headers={"Content-Type": "application/json", "Origin": root},
+            method="POST",
+        )
+        with urllib.request.urlopen(valid_lock_password) as response:
+            assert json.load(response) == {"ok": True, "required": True}
+
+        wrong_tech_password = urllib.request.Request(
+            root + "/api/desktop/security-settings/verify-tech-lock",
+            data=json.dumps({"password": "Wrong-Tech-Password-4321"}).encode(),
+            headers={"Content-Type": "application/json", "Origin": root},
+            method="POST",
+        )
+        try:
+            urllib.request.urlopen(wrong_tech_password)
+            assert False, "wrong technician-lock password should be rejected"
+        except urllib.error.HTTPError as error:
+            assert error.code == 401
+
+        valid_tech_password = urllib.request.Request(
+            root + "/api/desktop/security-settings/verify-tech-lock",
+            data=json.dumps({"password": "Valid-Tech-Password-4321"}).encode(),
+            headers={"Content-Type": "application/json", "Origin": root},
+            method="POST",
+        )
+        with urllib.request.urlopen(valid_tech_password) as response:
+            assert json.load(response) == {"ok": True, "required": True}
     finally:
         server.shutdown()
         server.server_close()

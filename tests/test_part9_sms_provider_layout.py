@@ -6,7 +6,7 @@ from pathlib import Path
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QRawFont
 from PyQt6.QtWidgets import QApplication
 from src.ui.pages.settings_widgets.sms_settings import SMSSettingsWidget
 from src.utils.reference_typography import apply_reference_font
@@ -62,6 +62,9 @@ class Part9SmsProviderLayoutTests(unittest.TestCase):
     def test_provider_fields_cycle_cards_metrics_and_full_width_capture(self):
         self.assertEqual(self.widget.inp_title.maxLength(), 11)
         self.assertEqual(len(self.widget._loop_template_widgets), 5)
+        self.assertIn("Arial", self.widget.loop_title.font().families())
+        self.assertEqual(self.widget.loop_title.text(), "SMS G\u00d6NDER\u0130M D\u00d6NG\u00dc AYARLARI")
+        self.assertTrue(QRawFont.fromFont(self.widget.loop_title.font()).supportsCharacter(0xD6))
         self.assertEqual(self.widget.metric_values[0].text(), "4")
         self.assertTrue(self.widget.btn_test_sms.isEnabled())
         font = QFont()
@@ -73,6 +76,10 @@ class Part9SmsProviderLayoutTests(unittest.TestCase):
         output = Path(__file__).resolve().parents[1] / "output" / "part9-captures" / "sms-provider-desktop.png"
         output.parent.mkdir(parents=True, exist_ok=True)
         self.assertTrue(self.widget.grab().save(str(output), "PNG"))
+        self.widget.resize(1076, 590)
+        APP.processEvents()
+        reference_crop = output.with_name("sms-provider-content-reference.png")
+        self.assertTrue(self.widget.grab().save(str(reference_crop), "PNG"))
 
     def test_credentials_and_loop_settings_are_saved(self):
         self.widget.inp_user.setText("new-api-user")

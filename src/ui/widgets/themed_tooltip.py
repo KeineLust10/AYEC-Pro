@@ -39,13 +39,22 @@ class ThemedToolTipFilter(QObject):
 
     def _apply_style(self):
         if AppearanceModeManager.is_classic(self.db):
-            background = "#FFFFFF"
-            foreground = "#111827"
-            border = "#94A3B8"
-        else:
-            background = tc("surface") or "#0F172A"
-            foreground = tc("text") or "#F8FAFC"
-            border = tc("border") or "#334155"
+            tokens = AppearanceModeManager.classic_tokens()
+            self.label.setStyleSheet(
+                "QLabel#AyecThemedToolTip {"
+                f"background-color: {tokens['surface']};"
+                f"color: {tokens['text']};"
+                f"border: 1px solid {tokens['border']};"
+                "border-radius: 0px;"
+                "padding: 5px 8px;"
+                "font-size: 11px;"
+                "font-weight: 600;"
+                "}"
+            )
+            return
+        background = tc("surface") or "#0F172A"
+        foreground = tc("text") or "#F8FAFC"
+        border = tc("border") or "#334155"
         self.label.setStyleSheet(
             "QLabel#AyecThemedToolTip {"
             f"background-color: {background};"

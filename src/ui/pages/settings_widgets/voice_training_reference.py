@@ -82,7 +82,7 @@ class VoiceTrainingWidget(BaseVoiceTrainingWidget):
     def setup_ui(self):
         theme_qss("")
         self.setStyleSheet(
-            "VoiceTrainingWidget{background:@window;color:@text;font-family:'Segoe UI','Arial';}"
+            "VoiceTrainingWidget{background:@window;color:@text;font-family:'Inter','Segoe UI','Arial';}"
             "VoiceTrainingWidget QLabel{border:0;background:transparent;color:@text;}"
             "QLineEdit{background:@surface;color:@text;border:1px solid @border;border-radius:6px;padding:7px;}"
         )
@@ -95,10 +95,10 @@ class VoiceTrainingWidget(BaseVoiceTrainingWidget):
         brand_mark.setAlignment(Qt.AlignmentFlag.AlignCenter)
         brand_mark.setFixedSize(36, 36)
         brand_mark.setStyleSheet("color:@accent_foreground;background:@accent;border-radius:9px;font-size:21px;font-weight:800;")
-        brand = QLabel("<b>AYEC Pro | Sesli Senaryo &amp; AI Komut Merkezi</b>")
-        brand.setTextFormat(Qt.TextFormat.RichText)
-        brand.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
-        brand.setStyleSheet("QLabel{color:@text;font-size:16px;font-weight:700;}")
+        brand = QLabel("AYEC Pro | Sesli Senaryo & AI Komut Merkezi")
+        brand.setTextFormat(Qt.TextFormat.PlainText)
+        brand.setFont(QFont("Inter", 16, QFont.Weight.Bold))
+        brand.setStyleSheet("QLabel{color:@text;font-family:'Inter','Segoe UI','Arial';font-size:16px;font-weight:700;}")
         version = QLabel("v3.2 BETA\nAk\u0131ll\u0131 Sesli Asistan, Tetikleyici Senaryolar ve Zamanlanm\u0131\u015f Bildirim Y\u00f6netimi")
         version.setStyleSheet("font-size:10px;color:@text_muted;")
         header.addWidget(brand_mark)
@@ -118,7 +118,7 @@ class VoiceTrainingWidget(BaseVoiceTrainingWidget):
         stats = QHBoxLayout()
         stats.setSpacing(10)
         for title, value, note, color in (
-            ("HAZIR KOMUT \u015eABLONLARI", "10 G\u00f6m\u00fcl\u00fc Senaryo", "\u00d6ntan\u0131ml\u0131 kurumsal aksiyon havuzu haz\u0131r", "@accent"),
+            ("HAZIR KOMUT \u015eABLONLARI", "10 G\u00f6m\u00fcl\u00fc Senaryo", "\u00d6ntan\u0131ml\u0131 kurumsal aksiyon havuzu haz\u0131r", "#22d3ee"),
             ("TET\u0130KLEME MANTI\u011eI", "Uyanma Ad\u0131 + En Uzun E\u015fle\u015fme", "Ba\u011flant\u0131/MLP a\u011f\u0131rl\u0131kl\u0131 tespit", "@success"),
             ("D\u00dcZENLEME DAVRANI\u015eI", "An\u0131nda Kaydet, \u0130sterse Sil", "Canl\u0131 veri senkronizasyonu devrede", "@info"),
         ):
@@ -159,7 +159,7 @@ class VoiceTrainingWidget(BaseVoiceTrainingWidget):
             command_title.setStyleSheet("font-size:16px;font-weight:800;color:@text;")
         command_header_layout.addWidget(command_heading, 1)
         command_count = QLabel("6 Komut Haz\u0131r")
-        command_count.setStyleSheet("color:@accent;background:@accent_soft;border:1px solid @accent;border-radius:4px;padding:4px 7px;font-family:Consolas,'Segoe UI','Arial';font-size:9px;font-weight:700;")
+        command_count.setStyleSheet("color:#22d3ee;background:#09252d;border:1px solid #0e7490;border-radius:4px;padding:4px 7px;font-family:'Inter','Segoe UI','Arial';font-size:9px;font-weight:700;")
         command_header_layout.addWidget(command_count, 0, Qt.AlignmentFlag.AlignVCenter)
         command_header.setObjectName("voiceCommandHeader")
         command_header.setStyleSheet("QWidget#voiceCommandHeader{border-bottom:1px solid @border;}")
@@ -203,7 +203,7 @@ class VoiceTrainingWidget(BaseVoiceTrainingWidget):
         command.addWidget(self.list_recommended_commands, 1)
         command_actions = QHBoxLayout()
         self.btn_new_voice_command = self._button("\uff0b  Yeni Sesli Komut Ekle", primary=True)
-        self.btn_new_voice_command.setStyleSheet("QPushButton{background:@accent_soft;color:@accent;border:1px solid @accent;border-radius:7px;padding:6px 10px;font-size:11px;font-weight:700;}QPushButton:hover{background:@hover_bg;border-color:@accent;}")
+        self.btn_new_voice_command.setStyleSheet("QPushButton{background:#09252d;color:#22d3ee;border:1px solid #0e7490;border-radius:7px;padding:6px 10px;font-size:11px;font-weight:700;}QPushButton:hover{background:#0b3540;border-color:#22d3ee;}")
         self.btn_export_scenarios = self._button("\u21e7  \u015eablonlar\u0131 D\u0131\u015fa Aktar")
         self.btn_export_scenarios.setFixedWidth(122)
         command_divider = QFrame()
@@ -267,7 +267,7 @@ class VoiceTrainingWidget(BaseVoiceTrainingWidget):
         self.lbl_mic_status.setStyleSheet("background:@surface_alt;border:1px solid @border;border-radius:7px;padding:10px;color:@text_muted;font-size:10px;")
         spectrum = QLabel("\u2582 \u2585 \u2583 \u2587 \u2584 \u2586 \u2582 \u2585\nCANLI SPEKTRUM ANALIZI")
         spectrum.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        spectrum.setStyleSheet("color:@accent;background:@surface_alt;border:1px solid @border;border-radius:7px;padding:10px;font-family:'Segoe UI','Arial';font-size:12px;font-weight:700;")
+        spectrum.setStyleSheet("color:@accent;background:@surface_alt;border:1px solid @border;border-radius:7px;padding:10px;font-family:'Inter','Segoe UI','Arial';font-size:12px;font-weight:700;")
         live_body.addWidget(self.lbl_mic_status, 1)
         live_body.addWidget(spectrum, 1)
         live_layout.addLayout(live_body)
@@ -291,6 +291,7 @@ class VoiceTrainingWidget(BaseVoiceTrainingWidget):
         self.chk_stock_enabled = AnimatedToggle(active_color=tc("accent"))
         self.chk_service_enabled = AnimatedToggle(active_color=tc("accent"))
         for toggle in (self.chk_loan_enabled, self.chk_check_enabled, self.chk_stock_enabled, self.chk_service_enabled):
+            toggle.setFixedSize(28, 16)
             toggle.setChecked(True)
         for number, (label, detail_text, time, toggle) in enumerate((("Kredi Taksit", "G\u00fcnl\u00fck Hat\u0131rlatma", self.time_loan, self.chk_loan_enabled), ("\u00c7ek / Senet", "Vade Takibi", self.time_check, self.chk_check_enabled), ("Kritik Stok", "Depo E\u015fik Kontrol\u00fc", self.time_stock, self.chk_stock_enabled), ("Servis Teslim Uyar\u0131s\u0131", "Geciken \u0130\u015f Emirleri", self.time_service, self.chk_service_enabled)), 1):
             row = QHBoxLayout()
@@ -431,10 +432,10 @@ class VoiceTrainingWidget(BaseVoiceTrainingWidget):
             text_layout = QVBoxLayout()
             text_layout.setContentsMargins(0, 0, 0, 0)
             text_layout.setSpacing(2)
-            title = QLabel(f"\u223f {command}")
+            title = QLabel(command)
             title.setMinimumWidth(0)
             title.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
-            title.setStyleSheet("color:@accent;font-size:11px;font-weight:800;font-family:Consolas,'Segoe UI','Arial';")
+            title.setStyleSheet("color:#22d3ee;font-size:11px;font-weight:800;font-family:'Inter','Segoe UI','Arial';")
             detail = QLabel(subtitle)
             detail.setMinimumWidth(0)
             detail.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
@@ -444,9 +445,9 @@ class VoiceTrainingWidget(BaseVoiceTrainingWidget):
             text_layout.addWidget(detail)
             row_layout.addLayout(text_layout, 1)
             trigger_label = QLabel(f'Tetikleyici: "{trigger}"')
-            trigger_label.setMinimumWidth(128)
-            trigger_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            trigger_label.setStyleSheet("color:@text_muted;background:@surface_alt;border:1px solid @border;border-radius:4px;padding:4px;font-family:Consolas,'Segoe UI','Arial';font-size:9px;")
+            trigger_label.setFixedWidth(100)
+            trigger_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            trigger_label.setStyleSheet("color:#94a3b8;background:transparent;border:none;padding:0;font-family:'Inter','Segoe UI','Arial';font-size:9px;")
             row_layout.addWidget(trigger_label)
             copy_button = QToolButton()
             copy_button.setText("\u29c9")

@@ -1,0 +1,45 @@
+.audit-reference{display:flex;flex-direction:column;gap:10px;color:var(--ink)}
+#appDialog.audit-report-dialog{width:min(1100px,calc(100vw - 32px));max-width:none}
+#appDialog.audit-report-dialog .dialog-body{max-height:min(680px,calc(100vh - 150px));overflow:auto}
+.audit-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.audit-metrics article{min-height:78px;padding:9px 11px;background:var(--surface-2);border:1px solid var(--line);border-top:2px solid var(--brand);border-radius:7px;display:flex;flex-direction:column;gap:4px}
+.audit-metrics article:nth-child(2){border-top-color:var(--danger)}
+.audit-metrics article:nth-child(3){border-top-color:#8b5cf6}
+.audit-metrics small{font-size:10px;font-weight:800;color:var(--muted);letter-spacing:.035em}
+.audit-metrics strong{font-size:21px;line-height:1.1;color:var(--brand-2)}
+.audit-metrics article:nth-child(2) strong{color:var(--danger)}
+.audit-metrics article:nth-child(3) strong{color:#a78bfa}
+.audit-metrics span,.audit-status{font-size:10px;color:var(--muted)}
+.audit-status{display:flex;flex-wrap:wrap;gap:6px}
+.audit-status span{padding:5px 8px;background:var(--surface-2);border:1px solid var(--line);border-radius:5px}
+.audit-toolbar{display:grid;grid-template-columns:minmax(220px,1fr) minmax(150px,.65fr) 150px auto;gap:8px;align-items:center}
+.audit-toolbar .control{min-width:0}
+.audit-severity{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.audit-severity button{height:28px;padding:4px 10px;border:1px solid var(--line);border-radius:5px;background:var(--surface-2);color:var(--muted);font-size:11px;font-weight:700;cursor:pointer}
+.audit-severity button:hover{border-color:var(--brand-2);color:var(--ink)}
+.audit-severity button.active{background:color-mix(in srgb,var(--brand) 24%,var(--surface));color:var(--ink);border-color:var(--brand-2)}
+.audit-raw-toggle{margin-left:auto;display:flex;align-items:center;gap:6px;color:var(--muted);font-size:12px}
+.audit-content{display:grid;grid-template-columns:minmax(0,2fr) minmax(250px,1fr);gap:12px;align-items:stretch}
+.audit-table-wrap,.audit-inspector{min-width:0;min-height:250px;max-height:440px;overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:6px}
+.audit-table{width:100%;border-collapse:collapse;font-size:11px}
+.audit-table th{position:sticky;top:0;background:var(--surface-2);color:var(--muted);font-size:10px;font-weight:800;text-align:left;z-index:1}
+.audit-table th,.audit-table td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+.audit-table tbody tr{cursor:pointer}
+.audit-table tbody tr:hover{background:color-mix(in srgb,var(--brand) 9%,var(--surface))}
+.audit-table tbody tr.selected{background:color-mix(in srgb,var(--brand) 19%,var(--surface));color:var(--ink)}
+.audit-raw-hidden{display:none}
+.audit-inspector{padding:12px;font-size:12px}
+.audit-inspector>strong{font-size:14px}
+.audit-inspector dl{display:grid;grid-template-columns:70px minmax(0,1fr);gap:7px;margin:12px 0}
+.audit-inspector dt{color:var(--muted)}
+.audit-inspector dd{margin:0;overflow-wrap:anywhere}
+.audit-inspector pre{max-height:155px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;padding:9px;background:var(--surface-2);border-radius:5px;font:11px/1.45 var(--font-mono)}
+.audit-inspector-actions{display:flex;flex-wrap:wrap;gap:6px}
+.audit-inspector-actions .danger{background:var(--danger);color:#fff;border:1px solid var(--danger)}
+.audit-inspector dd{white-space:pre-line}
+.audit-print-report{display:none}
+.audit-pagination{display:flex;align-items:center;justify-content:flex-end;gap:8px;color:var(--muted);font-size:12px}
+.audit-pagination span{margin-right:auto}
+.audit-pagination button{min-width:82px}
+@media(max-width:900px){.audit-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.audit-toolbar{grid-template-columns:1fr 1fr}.audit-content{grid-template-columns:1fr}.audit-inspector{min-height:180px}}
+@media(max-width:540px){.audit-toolbar{grid-template-columns:1fr}.audit-metrics article{min-height:72px}.audit-table-wrap{max-height:360px}.audit-table{min-width:640px}}

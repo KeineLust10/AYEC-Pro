@@ -170,7 +170,7 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
         for index, width in enumerate(widths):
             self.table.setColumnWidth(index, width)
         for row in range(self.table.rowCount()):
-            self.table.setRowHeight(row, max(75 if self.main_window is not None else 74,
+            self.table.setRowHeight(row, max(70 if self.main_window is not None else 74,
                                               self.table.rowHeight(row)))
         self._fit_reference_table_height()
 
@@ -1538,7 +1538,7 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
         primary_label.setStyleSheet(
             theme_qss(
                 "background: transparent; border: none; color: @text; "
-                f"font-size: {11 if self.main_window is not None else 12}px; font-weight: {'800' if bold else '600'};"
+                f"font-size: {10 if self.main_window is not None else 12}px; font-weight: {'800' if bold else '600'};"
             )
         )
         primary_label.setWordWrap(True)
@@ -1551,7 +1551,7 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
             secondary_label.setStyleSheet(
                 theme_qss(
                     "background: transparent; border: none; color: @text_muted; "
-                    "font-size: 11px; font-weight: 500;"
+                    f"font-size: {10 if self.main_window is not None else 11}px; font-weight: 500;"
                 )
             )
             secondary_label.setWordWrap(True)

@@ -31,6 +31,26 @@ def test_check_note_table_shows_a_resizable_empty_state(tmp_path):
         app.processEvents()
         assert sum(page.table.columnWidth(i) for i in range(page.table.columnCount())) >= page.table.viewport().width() - 2
 
+        page.resize(390, 900)
+        app.processEvents()
+        app.processEvents()
+        assert page.width() == 390
+        assert page._content_widget.width() <= page.width()
+        assert page._compact_layout
+        assert page.reference_tabs_frame.width() <= page.width()
+        assert page.table.width() <= page.width()
+        assert page._content_scroll.verticalScrollBar().maximum() > 0
+        assert page._metric_values["received"].wordWrap()
+        metric_widths = [card.width() for card in page._metric_cards.values()]
+        assert max(metric_widths) - min(metric_widths) <= 2
+        assert not page.table.showGrid()
+
+        page.resize(1600, 850)
+        app.processEvents()
+        assert not page._compact_layout
+        assert not page._metric_values["received"].wordWrap()
+        assert page._content_scroll.horizontalScrollBar().maximum() == 0
+
         page.table.setRowCount(1)
         page._update_empty_state()
         assert page.empty_state.isHidden()

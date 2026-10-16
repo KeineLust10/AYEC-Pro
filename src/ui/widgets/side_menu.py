@@ -35,8 +35,8 @@ class SideMenu(QWidget):
     navigation_layout_about_to_change = pyqtSignal()
     navigation_layout_changed = pyqtSignal()
     EXPANDED_WIDTH = 320
-    COLLAPSED_WIDTH = 76
-    ICON_ONLY_WIDTH = 76
+    COLLAPSED_WIDTH = 64
+    ICON_ONLY_WIDTH = 64
 
     def __init__(self, parent=None, callback=None, db=None, sector_manager=None, current_user=None):
         # Handle parameter order confusion
@@ -493,6 +493,12 @@ class SideMenu(QWidget):
         """)
 
     def set_pinned(self, pinned: bool, persist: bool = True, animate: bool = False):
+        main_window = self.window()
+        if (
+            getattr(main_window, "_current_page_index", None) == 130
+            and hasattr(main_window, "_settings_sidebar_auto_previous_icon_only")
+        ):
+            main_window._settings_sidebar_user_override = True
         self._is_pinned = bool(pinned)
         self.auto_collapse_enabled = not self._is_pinned and not self._icon_only
         if hasattr(self, "pin_button") and self.pin_button.isChecked() != self._is_pinned:
@@ -510,7 +516,12 @@ class SideMenu(QWidget):
                     self.db.set_setting("side_menu_pinned", "1" if self._is_pinned else "0")
             except Exception:
                 pass
-        if self._icon_only:
+        if (
+            getattr(main_window, "_current_page_index", None) == 130
+            and hasattr(main_window, "_settings_sidebar_auto_previous_icon_only")
+        ):
+            self.set_menu_label_mode("labels" if self._is_pinned else "icons", persist=False)
+        elif self._icon_only:
             self._apply_icon_only_visual_state()
         else:
             self.set_collapsed(False if self._is_pinned else True, animate=animate)
@@ -1600,7 +1611,7 @@ class SideMenu(QWidget):
     def update_voice_assistant_visibility(self):
         """Update Voice Assistant button visibility based on settings"""
         if hasattr(self, 'voice_assistant_btn') and self.db:
-            is_active = self.db.get_setting("voice_assistant_active", "0") == "1"
+            is_active = self.db.get_setting("voice_assistant_active", "1") == "1"
             self.voice_assistant_btn.setVisible(is_active)
 
     def switch_user(self):

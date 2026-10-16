@@ -30,4 +30,11 @@ if ($LASTEXITCODE -ne 0) {
     throw "Could not install the local EMA Turkish TTS runtime."
 }
 
-Write-Output "Local EMA Turkish TTS runtime is ready. Model weights download on first speech."
+$env:HF_HUB_DISABLE_PROGRESS_BARS = "1"
+$env:HF_HUB_DISABLE_TELEMETRY = "1"
+& $runtimePython -c "from ema_lightning import EMA; EMA(device='cpu')" *> $null
+if ($LASTEXITCODE -ne 0) {
+    throw "Could not download and verify the local Turkish TTS model weights."
+}
+
+Write-Output "Local EMA Turkish TTS runtime and model are ready for offline use."

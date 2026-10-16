@@ -78,18 +78,23 @@ class CustomersUIMixin:
         customer_type = str(data.get("type") or "").casefold()
         contract_type = str(data.get("contract_type") or "").upper()
         is_vip = "VIP" in contract_type or customer_type == "vip"
+        is_corporate_vip = is_vip and customer_type in {"kurumsal", "vip"}
         service_count = int(data.get("open_service_count", 0) or 0)
+        delivery_ready_count = int(data.get("open_delivery_ready_count", 0) or 0)
         balance = float(data.get("balance_try", 0) or 0)
-        if is_vip:
-            add_action("Cari Kart", 76, lambda _checked=False, c=data: self.open_customer_360(c), "primary", "chevron_right")
-            add_more_button()
-        elif balance < 0:
+        if balance < 0:
             add_action("Hat\u0131rlat", 72, lambda _checked=False, c=data: self.send_debt_reminder(c), "warning", "send")
             add_more_button()
-        elif service_count > 0:
-            add_action("Servis A\u00e7", 72, lambda _checked=False, c=data: self.create_service(c), "neutral", "tool")
+        elif is_corporate_vip:
+            add_action("Cari Kart", 76, lambda _checked=False, c=data: self.open_customer_360(c), "primary", "chevron_right")
+            add_more_button()
+        elif service_count > delivery_ready_count:
+            add_action("Servis A\u00e7", 72, lambda _checked=False, c=data: self.open_customer_service_panel(c), "neutral", "tool")
             if str(data.get("phone") or "").strip():
                 add_action("", 22, lambda _checked=False, c=data: self.send_whatsapp(c), "neutral", "message")
+            add_more_button()
+        elif is_vip:
+            add_action("Cari Kart", 76, lambda _checked=False, c=data: self.open_customer_360(c), "primary", "chevron_right")
             add_more_button()
         else:
             menu_button = add_action("\u0130\u015flem Yap  \u2304", 92, lambda _checked=False, r=row: self.show_row_menu(r))
@@ -155,7 +160,9 @@ class CustomersUIMixin:
 
     def _on_table_cell_entered(self, row, _column):
         if row >= 0:
-            self.table.selectRow(row)
+            delegate = getattr(self, "customer_row_hover_delegate", None)
+            if delegate is not None:
+                delegate.set_hovered_row(row)
 
     def _on_customer_checkbox_changed(self, item):
         if item.column() != 0:

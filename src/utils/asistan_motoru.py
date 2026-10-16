@@ -44,8 +44,158 @@ _tts_lock = threading.Lock()
 _tts_generation_lock = threading.Lock()
 _tts_generation = 0
 _tts_playback_active = False
+_TTS_PLAYBACK_DEFERRED = object()
+
+
+def _windows_default_communications_microphone_name():
+    """Read Windows' default capture endpoint for the communications role."""
+    if os.name != "nt":
+        return ""
+    initialized = False
+    try:
+        from ctypes import POINTER, Union, Structure, c_byte, c_ulong, c_ushort, c_wchar_p
+        import comtypes
+        from comtypes import COMMETHOD, GUID, HRESULT, IUnknown
+        from comtypes.client import CreateObject
+
+        class _PropertyKey(Structure):
+            _fields_ = [("format_id", GUID), ("property_id", c_ulong)]
+
+        class _PropVariantValue(Union):
+            _fields_ = [("wide_string", c_wchar_p), ("raw", c_byte * 16)]
+
+        class _PropVariant(Structure):
+            _fields_ = [
+                ("variant_type", c_ushort),
+                ("reserved_1", c_ushort),
+                ("reserved_2", c_ushort),
+                ("reserved_3", c_ushort),
+                ("value", _PropVariantValue),
+            ]
+
+        class _PropertyStore(IUnknown):
+            _iid_ = GUID("{886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99}")
+            _methods_ = [
+                COMMETHOD([], HRESULT, "GetCount", (["out"], POINTER(c_ulong), "count")),
+                COMMETHOD(
+                    [],
+                    HRESULT,
+                    "GetAt",
+                    (["in"], c_ulong, "index"),
+                    (["out"], POINTER(_PropertyKey), "key"),
+                ),
+                COMMETHOD(
+                    [],
+                    HRESULT,
+                    "GetValue",
+                    (["in"], POINTER(_PropertyKey), "key"),
+                    (["out"], POINTER(_PropVariant), "value"),
+                ),
+                COMMETHOD([], HRESULT, "SetValue"),
+                COMMETHOD([], HRESULT, "Commit"),
+            ]
+
+        class _AudioDevice(IUnknown):
+            _iid_ = GUID("{D666063F-1587-4E43-81F1-B948E807363F}")
+            _methods_ = [
+                COMMETHOD([], HRESULT, "Activate"),
+                COMMETHOD(
+                    [],
+                    HRESULT,
+                    "OpenPropertyStore",
+                    (["in"], c_ulong, "storage_mode"),
+                    (["out"], POINTER(POINTER(_PropertyStore)), "store"),
+                ),
+                COMMETHOD([], HRESULT, "GetId", (["out"], POINTER(c_wchar_p), "device_id")),
+                COMMETHOD([], HRESULT, "GetState", (["out"], POINTER(c_ulong), "state")),
+            ]
+
+        class _AudioDeviceEnumerator(IUnknown):
+            _iid_ = GUID("{A95664D2-9614-4F35-A746-DE8DB63617E6}")
+            _methods_ = [
+                COMMETHOD([], HRESULT, "EnumAudioEndpoints"),
+                COMMETHOD(
+                    [],
+                    HRESULT,
+                    "GetDefaultAudioEndpoint",
+                    (["in"], c_ulong, "data_flow"),
+                    (["in"], c_ulong, "role"),
+                    (["out"], POINTER(POINTER(_AudioDevice)), "device"),
+                ),
+            ]
+
+        comtypes.CoInitialize()
+        initialized = True
+        enumerator = CreateObject(
+            GUID("{BCDE0395-E52F-467C-8E3D-C4579291692E}"),
+            interface=_AudioDeviceEnumerator,
+        )
+        device = enumerator.GetDefaultAudioEndpoint(1, 2)
+        store = device.OpenPropertyStore(0)
+        key = _PropertyKey(GUID("{A45C254E-DF1C-4EFD-8020-67D146A850E0}"), 14)
+        value = store.GetValue(ctypes.byref(key))
+        try:
+            return str(value.value.wide_string or "").strip()
+        finally:
+            ctypes.windll.ole32.PropVariantClear(ctypes.byref(value))
+    except Exception as error:
+        logger.warning("Could not read the Windows communications microphone: %s", error)
+        return ""
+    finally:
+        if initialized:
+            comtypes.CoUninitialize()
+
+
+def resolve_microphone_device_index(device_key):
+    """Resolve Windows' default communications mic or a saved device identity."""
+    value = str(device_key or "default").strip()
+    if value == "default":
+        target_host = ""
+        target_name = _windows_default_communications_microphone_name()
+        if not target_name:
+            return None
+    else:
+        try:
+            return int(value)
+        except ValueError:
+            pass
+        if "::" not in value:
+            return None
+        target_host, target_name = value.split("::", 1)
+    try:
+        import pyaudio
+
+        audio = pyaudio.PyAudio()
+        matches = []
+        try:
+            for index in range(audio.get_device_count()):
+                info = audio.get_device_info_by_index(index)
+                if int(info.get("maxInputChannels", 0)) < 1:
+                    continue
+                host = audio.get_host_api_info_by_index(info["hostApi"]).get("name", "")
+                name = str(info.get("name") or "").strip()
+                if name.casefold() == target_name.casefold():
+                    if target_host and host != target_host:
+                        continue
+                    matches.append((index, host))
+        finally:
+            audio.terminate()
+        if matches:
+            return matches[0][0]
+    except Exception as error:
+        logger.warning("Could not resolve saved microphone %r: %s", value, error)
+    return None
 _tts_mic_cooldown_until = 0.0
 _active_tts_process = None
+
+
+def _finish_deferred_tts_playback(generation):
+    global _tts_playback_active, _tts_mic_cooldown_until
+    with _tts_generation_lock:
+        if generation != _tts_generation:
+            return
+        _tts_playback_active = False
+        _tts_mic_cooldown_until = time.monotonic() + 0.65
 
 
 def _tts_generation_is_current(generation):
@@ -145,6 +295,10 @@ def _normalize_tr_text(text):
     return re.sub(r"\s+", " ", text.translate(replacements)).strip()
 
 
+def _strip_command_punctuation(text):
+    return re.sub(r"[.,!?;:]+$", "", str(text or "").strip()).strip()
+
+
 def _wake_word_variants(name):
     base = _normalize_tr_text(name)
     if not base:
@@ -241,7 +395,7 @@ def _extract_intent_target(text, phrases):
 
 
 class _QtTTSPlayerBridge(QObject):
-    play_requested = pyqtSignal(str)
+    play_requested = pyqtSignal(str, object)
     stop_requested = pyqtSignal()
 
     def __init__(self):
@@ -249,6 +403,7 @@ class _QtTTSPlayerBridge(QObject):
         self.audio = None
         self.player = None
         self.current_path = None
+        self.current_generation = None
 
         if QMediaPlayer is not None and QAudioOutput is not None:
             self.audio = QAudioOutput(self)
@@ -261,33 +416,43 @@ class _QtTTSPlayerBridge(QObject):
         self.play_requested.connect(self.play_file)
         self.stop_requested.connect(self._finalize_current)
 
-    @pyqtSlot(str)
-    def play_file(self, filepath):
+    @pyqtSlot(str, object)
+    def play_file(self, filepath, generation):
         if not self.player or not os.path.exists(filepath):
             _cleanup(filepath)
+            _finish_deferred_tts_playback(generation)
             return
 
         try:
-            if self.current_path and self.current_path != filepath:
-                _cleanup(self.current_path)
-            self.current_path = filepath
+            if self.current_path:
+                self._finalize_current()
             self.player.stop()
+            self.current_path = filepath
+            self.current_generation = generation
             self.player.setSource(QUrl.fromLocalFile(filepath))
             self.player.play()
             logger.info("[TTS] Qt in-process player started")
         except Exception as e:
             logger.error("[TTS] Qt in-process player exception: %s", e)
-            _cleanup(filepath)
+            self._finalize_current()
 
     def _finalize_current(self):
+        path = self.current_path
+        generation = self.current_generation
+        self.current_path = None
+        self.current_generation = None
+        if path is None and generation is None:
+            return
         try:
             if self.player:
                 self.player.stop()
+                self.player.setSource(QUrl())
         except Exception:
             pass
-        if self.current_path:
-            _cleanup(self.current_path)
-            self.current_path = None
+        if path:
+            _cleanup(path)
+        if generation is not None:
+            _finish_deferred_tts_playback(generation)
 
     def _on_media_status(self, status):
         if QMediaPlayer is None:
@@ -397,8 +562,8 @@ def _play_mp3(filepath, generation=None):
             logger.info("[TTS] Frozen mod: Qt in-process bridge deneniyor...")
             bridge = _get_qt_player_bridge()
             if bridge and bridge.player:
-                bridge.play_requested.emit(filepath)
-                return True
+                bridge.play_requested.emit(filepath, generation)
+                return _TTS_PLAYBACK_DEFERRED
         except Exception as e:
             logger.error("[TTS] Frozen mod Qt bridge hatası: %s", e)
         _cleanup(filepath)
@@ -477,9 +642,9 @@ def _play_mp3(filepath, generation=None):
     bridge = _get_qt_player_bridge()
     if bridge is not None:
         try:
-            bridge.play_requested.emit(filepath)
+            bridge.play_requested.emit(filepath, generation)
             logger.info("[TTS] Qt in-process bridge fallback started")
-            return True
+            return _TTS_PLAYBACK_DEFERRED
         except Exception as e:
             logger.error("[TTS] Qt in-process bridge emit failed: %s", e)
 
@@ -497,8 +662,11 @@ class BulutAsistan(QThread):
     hata_sinyali = pyqtSignal(str)
     hazir_sinyali = pyqtSignal()
 
-    def __init__(self):
+    def __init__(self, input_device_index=None, input_device_key=None):
         super().__init__()
+        self.input_device_index = input_device_index
+        self.input_device_key = input_device_key
+        self._input_device_fallback_attempted = False
         self.ayarlar_yolu = os.path.join(PathHelper.get_app_data_dir(), "asistan_ayarlari.json")
         self.varsayilan_ayarlar_olustur()
         self.is_running = True
@@ -506,7 +674,23 @@ class BulutAsistan(QThread):
         self.last_wake_time = 0.0
         self.wake_timeout_seconds = 10.0
         self.followup_mode = False
+        self.followup_expires_at = 0.0
         self._ready_notified = False
+
+    def _resolve_input_device(self):
+        if self.input_device_key is None:
+            return self.input_device_index
+        try:
+            self.input_device_index = resolve_microphone_device_index(
+                self.input_device_key
+            )
+        except Exception as exc:
+            self.input_device_index = None
+            logger.warning(
+                "Saved microphone could not be resolved; using system default: %s",
+                exc,
+            )
+        return self.input_device_index
 
     def varsayilan_ayarlar_olustur(self):
         if os.path.exists(self.ayarlar_yolu):
@@ -569,12 +753,19 @@ class BulutAsistan(QThread):
         return False
 
     def _wake_is_recent(self):
-        return bool(getattr(self, "followup_mode", False)) or (
-            time.time() - self.last_wake_time
-        ) <= self.wake_timeout_seconds
+        now = time.time()
+        if getattr(self, "followup_mode", False):
+            expires_at = float(getattr(self, "followup_expires_at", 0.0) or 0.0)
+            if expires_at <= 0.0 or now < expires_at:
+                return True
+            self.followup_mode = False
+            self.followup_expires_at = 0.0
+        return (now - self.last_wake_time) <= self.wake_timeout_seconds
 
     def _match_builtin_intent(self, normalized_text, text_without_wake):
-        text = _normalize_tr_text(text_without_wake or normalized_text or "")
+        text = _strip_command_punctuation(
+            _normalize_tr_text(text_without_wake or normalized_text or "")
+        )
         if not text:
             return None
 
@@ -738,7 +929,7 @@ class BulutAsistan(QThread):
     @staticmethod
     def _is_technician_panel_open_request(text):
         """Match only a standalone request to open the technician panel."""
-        normalized = _normalize_tr_text(text)
+        normalized = _strip_command_punctuation(_normalize_tr_text(text))
         words = normalized.split()
         while words and words[0] in {"hey", "merhaba", "selam", "asistan", "lutfen"}:
             words.pop(0)
@@ -841,6 +1032,7 @@ class BulutAsistan(QThread):
             QThread.msleep(100)
 
     def run(self):
+        self._resolve_input_device()
         recognizer = sr.Recognizer()
         _configure_microphone_recognizer(recognizer)
         mic_error_notified = False
@@ -868,7 +1060,7 @@ class BulutAsistan(QThread):
         quiet_timeouts = 0
         while self.is_running:
             try:
-                with sr.Microphone() as source:
+                with sr.Microphone(device_index=self.input_device_index) as source:
                     mic_error_notified = False
                     try:
                         recognizer.adjust_for_ambient_noise(source, duration=1)
@@ -943,6 +1135,18 @@ class BulutAsistan(QThread):
                     mic_error_notified = True
                 return
             except OSError as e:
+                if self.input_device_index is not None and not self._input_device_fallback_attempted:
+                    logger.warning(
+                        "Selected microphone %s could not be opened; falling back to the Windows default: %s",
+                        self.input_device_index,
+                        e,
+                    )
+                    self.input_device_index = None
+                    self._input_device_fallback_attempted = True
+                    self.hata_sinyali.emit(
+                        "Se\u00e7ili mikrofon a\u00e7\u0131lamad\u0131. Windows varsay\u0131lan mikrofonuna ge\u00e7iliyor."
+                    )
+                    continue
                 msg = f"Mikrofon bulunamadi veya erisim izni yok: {e}"
                 logger.error(msg)
                 if not mic_error_notified:
@@ -1145,7 +1349,8 @@ def sesli_cevap_ver_async(metin, engine_type="auto", voice=None, rate=None, pitc
         logger.warning("[TTS] Unknown engine '%s'; using local EMA Turkish TTS", engine_choice)
 
     def _run_tts():
-        global _tts_mic_cooldown_until
+        global _tts_mic_cooldown_until, _tts_playback_active
+        playback_transferred = False
         with _tts_lock:
             if not _tts_generation_is_current(generation):
                 return
@@ -1170,6 +1375,10 @@ def sesli_cevap_ver_async(metin, engine_type="auto", voice=None, rate=None, pitc
                         if accepts_generation
                         else _play_mp3(temp_path)
                     )
+                    if played is _TTS_PLAYBACK_DEFERRED:
+                        playback_transferred = True
+                        logger.info("[TTS] Playback ownership transferred to Qt audio bridge")
+                        return
                     if played:
                         logger.info("[TTS] Local EMA Turkish speech completed")
                         return
@@ -1177,10 +1386,11 @@ def sesli_cevap_ver_async(metin, engine_type="auto", voice=None, rate=None, pitc
             except Exception as exc:
                 logger.exception("[TTS] EMA Turkish speech failed; no system voice fallback is enabled: %s", exc)
             finally:
-                _cleanup(temp_path)
-                with _tts_generation_lock:
-                    if generation == _tts_generation:
-                        _tts_playback_active = False
-                        _tts_mic_cooldown_until = time.monotonic() + 0.65
+                if not playback_transferred:
+                    _cleanup(temp_path)
+                    with _tts_generation_lock:
+                        if generation == _tts_generation:
+                            _tts_playback_active = False
+                            _tts_mic_cooldown_until = time.monotonic() + 0.65
 
     threading.Thread(target=_run_tts, daemon=True).start()

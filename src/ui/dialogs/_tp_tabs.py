@@ -256,7 +256,6 @@ class _TpTabs:
                     quick_container = QWidget()
                     quick_layout.setParent(None)
                     quick_container.setLayout(quick_layout)
-                    quick_container.setVisible(True)
                     if quick_layout.count() and isinstance(quick_layout.itemAt(0).widget(), QLabel):
                         quick_layout.itemAt(0).widget().hide()
                     if group_name == "fault_group":
@@ -276,7 +275,7 @@ class _TpTabs:
             if isinstance(control, QLabel):
                 control.setStyleSheet(theme_qss("font-size:10px;font-weight:700;color:@finance_text;background:transparent;border:none;"))
             elif isinstance(control, QPushButton):
-                control.setFixedSize(112, 26)
+                control.setFixedSize(156, 30)
                 control.setStyleSheet(theme_qss("QPushButton{background:@finance_surface_alt;color:@accent;border:1px solid @finance_outline;border-radius:4px;padding:0 6px;min-height:22px;font-size:10px;}"))
         self.wizard_page2.txt_fault.setFixedHeight(56)
         self.wizard_page2.txt_public_notes.setFixedHeight(64)

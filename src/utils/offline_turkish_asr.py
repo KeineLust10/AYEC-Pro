@@ -18,8 +18,18 @@ class OfflineTurkishASR:
     def __init__(self):
         from faster_whisper import WhisperModel
 
-        self.model_path = Path(PathHelper.get_app_data_dir()) / "Speech" / "whisper-small"
-        required_files = ("model.bin", "config.json", "tokenizer.json")
+        required_files = ("model.bin", "config.json", "tokenizer.json", "vocabulary.txt")
+        app_data_model = Path(PathHelper.get_app_data_dir()) / "Speech" / "whisper-small"
+        bundled_model = Path(PathHelper.get_resource_path("Speech", "whisper-small"))
+        self.model_path = next(
+            (
+                candidate
+                for candidate in (app_data_model, bundled_model)
+                if candidate.is_dir()
+                and all((candidate / filename).is_file() for filename in required_files)
+            ),
+            app_data_model,
+        )
         if not self.model_path.is_dir() or any(
             not (self.model_path / filename).is_file() for filename in required_files
         ):

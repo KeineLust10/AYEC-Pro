@@ -7,12 +7,19 @@ from PyQt6.QtGui import QFont, QColor, QPainter
 from PyQt6.QtWidgets import QTableWidgetItem, QWidget, QFrame, QHBoxLayout, QVBoxLayout, QLabel, QPushButton
 
 from src.utils.logger import logger
-from src.utils.date_formatter import format_date
 from src.utils.currency_helper import CurrencyHelper
 from src.utils.theme_colors import tc, qc, theme_qss
 from src.utils.performance_monitor import perf_span
 from src.ui.pages.customers_page_parts import CustomerWorker
 from src.ui.widgets.navigation_glyph import navigation_icon
+
+
+def _format_reference_customer_phone(value):
+    text = str(value or "\u2014")
+    digits = "".join(character for character in text if character.isdigit())
+    if len(digits) == 11 and digits.startswith("0"):
+        return "{} {} {} {}".format(digits[:4], digits[4:7], digits[7:9], digits[9:])
+    return text
 
 
 class _CustomerStatusPill(QFrame):
@@ -145,7 +152,7 @@ class CustomersDataMixin:
             assembly_count = 0
             test_count = 0
             try:
-                device_count = int(self.db.cursor.execute("SELECT COUNT(*) FROM devices WHERE status NOT LIKE '%Teslim%' AND status NOT LIKE '%Iptal%'").fetchone()[0] or 0)
+                device_count = int(self.db.cursor.execute("SELECT COUNT(*) FROM devices WHERE status NOT LIKE '%Teslim Edildi%' AND LOWER(status) NOT LIKE '%teslimata haz%' AND status NOT LIKE '%Iptal%'").fetchone()[0] or 0)
                 assembly_count = int(self.db.cursor.execute("SELECT COUNT(*) FROM devices WHERE LOWER(status) LIKE '%montaj%'").fetchone()[0] or 0)
                 test_count = int(self.db.cursor.execute("SELECT COUNT(*) FROM devices WHERE LOWER(status) LIKE '%test%'").fetchone()[0] or 0)
             except Exception:
@@ -229,7 +236,7 @@ class CustomersDataMixin:
         self.total_count = max(self.total_count, self.table.rowCount())
         self.lbl_total.setText(f"Toplam Kayıt: {self.total_count}")
         self.lbl_time.setText(
-            f"Son Güncelleme: {format_date(datetime.now(), self.db, include_time=True)}"
+            "Son G\u00fcncelleme: {}".format(datetime.now().strftime("%d.%m.%Y %H:%M:%S"))
         )
         has_rows = self.table.rowCount() > 0
         self.table.setVisible(has_rows)
@@ -260,18 +267,61 @@ class CustomersDataMixin:
     def _add_row(self, row_idx, data):
         try:
             self.table.insertRow(row_idx)
+            compact_table = self.table.viewport().width() < 1100
 
             customer_id = data["id"]
             check_item = QTableWidgetItem("")
             check_item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsSelectable)
             check_item.setCheckState(Qt.CheckState.Unchecked)
             self.table.setItem(row_idx, 0, check_item)
-            item_id = QTableWidgetItem("#{:03d}".format(int(customer_id)))
-            item_id.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            customer_id_text = "#{:03d}".format(int(customer_id))
+            item_id = _CustomerSortItem(int(customer_id))
             item_id.setFont(QFont("JetBrains Mono", 9, QFont.Weight.Bold))
             item_id.setForeground(qc("accent"))
             item_id.setData(Qt.ItemDataRole.UserRole, data)
             self.table.setItem(row_idx, 1, item_id)
+            customer_type = str(data.get("type") or "").casefold()
+            contract_type = str(data.get("contract_type") or "").upper()
+            customer_balance = float(data.get("balance_try", 0.0) or 0.0)
+            id_is_problematic = str(data.get("is_problematic", 0) or 0).strip().lower() not in {
+                "", "0", "false", "no"
+            }
+            if customer_balance < 0 or id_is_problematic:
+                id_badge_color = "#ef4444"
+            elif "bayi" in customer_type:
+                id_badge_color = "#00f2fe"
+            elif "VIP" in contract_type and customer_type == "kurumsal":
+                id_badge_color = "#f59e0b"
+            elif "VIP" in contract_type:
+                id_badge_color = "#00f2fe"
+            elif int(customer_id) == 2:
+                id_badge_color = "#adc6ff"
+            else:
+                id_badge_color = "#94a3b8"
+            id_badge = QLabel(customer_id_text)
+            id_badge.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+            id_badge.setStyleSheet(
+                "QLabel { color: %s; background: rgba(%d, %d, %d, 26); "
+                "border: none; border-radius: 4px; padding: 2px 8px; "
+                "font: 700 9px 'JetBrains Mono', 'Segoe UI', Arial; }"
+                % (
+                    id_badge_color,
+                    QColor(id_badge_color).red(),
+                    QColor(id_badge_color).green(),
+                    QColor(id_badge_color).blue(),
+                )
+            )
+            id_cell = QWidget()
+            id_cell.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+            id_cell.setStyleSheet("background: transparent; border: none;")
+            id_cell_layout = QHBoxLayout(id_cell)
+            id_cell_layout.setContentsMargins(4, 0, 0, 0)
+            id_cell_layout.addWidget(
+                id_badge,
+                alignment=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+            )
+            self.table.setCellWidget(row_idx, 1, id_cell)
+            item_id.setForeground(QColor(0, 0, 0, 0))
 
             name_display = str(data["name"])
             keys = data.keys() if hasattr(data, "keys") else []
@@ -368,14 +418,22 @@ class CustomersDataMixin:
             self.table.setItem(row_idx, 3, comp_item)
             contract_type = str(data.get("contract_type") or "").upper()
             is_vip = "VIP" in contract_type or cust_type.casefold() == "vip"
-            segment_text = "VIP KURUMSAL" if is_vip else "Kurumsal Bayi" if "bayi" in cust_type.casefold() else cust_type or "Bireysel"
+            is_vip_segment = is_vip and cust_type.casefold() in {"kurumsal", "vip"}
+            segment_text = "VIP KURUMSAL" if is_vip_segment else "Kurumsal Bayi" if "bayi" in cust_type.casefold() else cust_type or "Bireysel"
             type_badge = QLabel(segment_text)
             type_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
             type_badge.setStyleSheet(theme_qss("QLabel { background: @surface_alt; color: @text; border: 1px solid @border; border-radius: 8px; padding: 4px 8px; font-size: 10px; font-weight: 700; }"))
-            if is_vip:
+            if is_vip_segment:
                 type_badge.setStyleSheet(theme_qss("QLabel { background: @surface_alt; color: @warning; border: 1px solid @warning; border-radius: 8px; padding: 4px 8px; font-size: 10px; font-weight: 700; }"))
             elif cust_type.casefold() in {"kurumsal", "vip"} or "bayi" in cust_type.casefold():
                 type_badge.setStyleSheet(theme_qss("QLabel { background: @accent; color: @selection_text; border: 1px solid @accent; border-radius: 8px; padding: 4px 8px; font-size: 10px; font-weight: 700; }"))
+            if compact_table:
+                type_badge.setStyleSheet(
+                    type_badge.styleSheet()
+                    .replace("padding: 4px 8px", "padding: 2px 4px")
+                    .replace("font-size: 10px", "font-size: 8px")
+                    .replace("border-radius: 8px", "border-radius: 6px")
+                )
             type_container = QWidget()
             type_container.setStyleSheet(theme_qss("background: transparent; border: none;"))
             type_layout = QHBoxLayout(type_container)
@@ -384,7 +442,7 @@ class CustomersDataMixin:
             type_layout.addWidget(type_badge)
             self.table.setCellWidget(row_idx, 3, type_container)
 
-            phone = str(data["phone"] or "\u2014")
+            phone = _format_reference_customer_phone(data["phone"])
             email = str(data["email"] or "\u2014")
             contact_item = _CustomerSortItem(phone)
             contact_item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
@@ -415,6 +473,7 @@ class CustomersDataMixin:
                 balances = {"TRY": 0.0}
 
             service_count = int(data.get("open_service_count", 0) or 0)
+            pending_offer_count = int(data.get("pending_offer_count", 0) or 0)
             service_item = QTableWidgetItem(str(service_count))
             service_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             if service_count:
@@ -425,17 +484,38 @@ class CustomersDataMixin:
             service_layout = QHBoxLayout(service_container)
             service_layout.setContentsMargins(0, 0, 0, 0)
             service_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            if service_count:
+            if pending_offer_count:
+                offer_label = QLabel("{} Teklif Yan\u0131t\u0131 Bekliyor".format(pending_offer_count))
+                offer_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                offer_label.setWordWrap(True)
+                offer_label.setStyleSheet(
+                    "QLabel { background: rgba(245,158,11,0.12); color: #f59e0b; "
+                    "border: none; border-radius: 7px; padding: 4px 7px; "
+                    "font-family: 'Times New Roman', 'Segoe UI', Arial; font-size: 10px; font-weight: 700; }"
+                )
+                service_layout.addWidget(offer_label)
+            elif service_count:
                 open_test_count = int(data.get("open_test_count", 0) or 0)
                 open_repair_count = int(data.get("open_repair_count", 0) or 0)
+                maintenance_count = int(data.get("open_maintenance_count", 0) or 0)
+                delivery_ready_count = int(data.get("open_delivery_ready_count", 0) or 0)
                 service_details = []
                 if open_test_count:
                     service_details.append("{} Test".format(open_test_count))
                 if open_repair_count:
                     service_details.append("{} Onar\u0131m".format(open_repair_count))
+                if maintenance_count and maintenance_count < service_count:
+                    service_details.append("{} Y\u0131ll\u0131k Bak\u0131m".format(maintenance_count))
+                if delivery_ready_count and delivery_ready_count < service_count:
+                    service_details.append("{} Teslimata Haz\u0131r".format(delivery_ready_count))
                 details_text = " ({})".format(" / ".join(service_details)) if service_details else ""
-                service_text = "{} Cihaz Serviste{}".format(service_count, details_text)
-                if service_details:
+                if delivery_ready_count == service_count:
+                    service_text = "{} Cihaz Teslimata Haz\u0131r".format(service_count)
+                elif maintenance_count == service_count:
+                    service_text = "{} Cihaz Y\u0131ll\u0131k Bak\u0131mda".format(service_count)
+                else:
+                    service_text = "{} Cihaz Serviste{}".format(service_count, details_text)
+                if service_details and not (maintenance_count == service_count or delivery_ready_count == service_count):
                     service_text = "{} Cihaz Serviste\n({})".format(
                         service_count, " / ".join(service_details)
                     )
@@ -485,14 +565,15 @@ class CustomersDataMixin:
             bal_item = _CustomerSortItem(balance_numeric)
             bal_item._visible_currency_count = getattr(balance_detail_item, "_visible_currency_count", 1)
             self.table.setItem(row_idx, 6, bal_item)
-            balance_cell = self._create_customer_balance_widget(balances)
+            balance_cell = self._create_customer_balance_widget(
+                balances, overdue_days=data.get("overdue_days", 0)
+            )
             self.table.setCellWidget(row_idx, 6, balance_cell)
 
             active_value = data.get("is_active", 1)
             is_active = str(active_value).strip().lower() not in {"0", "false", "no"}
             is_problematic = str(data.get("is_problematic", 0) or 0).strip().lower() not in {"0", "false", "no", ""}
-            is_vip = "VIP" in str(data.get("contract_type") or "").upper() or cust_type.casefold() == "vip"
-            status_text = "Pasif" if not is_active else "\u0130ncelemede" if is_problematic else "Aktif VIP" if is_vip else "Aktif"
+            status_text = "Pasif" if not is_active else "\u0130ncelemede" if is_problematic else "Aktif VIP" if is_vip_segment else "Aktif"
             status_item = _CustomerSortItem(status_text)
             status_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             status_item.setForeground(qc("warning" if status_text == "\u0130ncelemede" else "accent" if status_text == "Aktif VIP" else "success" if status_text == "Aktif" else "text_muted"))
@@ -503,7 +584,13 @@ class CustomersDataMixin:
             status_layout.setContentsMargins(0, 0, 0, 0)
             status_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
             status_color = "#f59e0b" if status_text == "\u0130ncelemede" else "#94a3b8" if status_text == "Pasif" else "#10b981"
-            status_background = QColor(245, 158, 11, 38) if status_text == "\u0130ncelemede" else QColor(16, 185, 129, 26)
+            status_background = (
+                QColor(245, 158, 11, 38)
+                if status_text == "\u0130ncelemede"
+                else QColor(148, 163, 184, 26)
+                if status_text == "Pasif"
+                else QColor(16, 185, 129, 26)
+            )
             status_badge = _CustomerStatusPill(status_background)
             status_badge.setObjectName("CustomerStatusBadge")
             status_badge.setProperty("skipThemeTransform", True)
@@ -527,14 +614,17 @@ class CustomersDataMixin:
             )
 
             visible_currency_count = getattr(bal_item, "_visible_currency_count", 1)
-            base_height = 58 if visible_currency_count <= 2 else 72
+            if compact_table:
+                base_height = 48 if visible_currency_count <= 2 else 56
+            else:
+                base_height = 60 if visible_currency_count <= 2 else 72
             if len(str(data["name"])) > 20:
-                base_height = max(base_height, 78)
+                base_height = max(base_height, 72 if compact_table else 78)
             self.table.setRowHeight(row_idx, base_height)
         except Exception as e:
             logger.error(f"ADD_ROW ERROR at index {row_idx}: {e}")
 
-    def _create_customer_balance_widget(self, balances):
+    def _create_customer_balance_widget(self, balances, overdue_days=0):
         default_currency = CurrencyHelper.get_code(self.db)
         primary_code = default_currency
         amount = float(balances.get(primary_code, 0.0) or 0.0)
@@ -574,9 +664,21 @@ class CustomersDataMixin:
                 "color: #94a3b8; font-family: 'Times New Roman', 'Segoe UI', Arial; font-size: 14px; font-weight: 600; border: none; background: transparent;"
             )
             layout.addWidget(amount_label)
-        usd_amount = float(balances.get("USD", 0.0) or 0.0)
-        if abs(usd_amount) > 0.0001:
-            usd_label = QLabel("USD: ${:,.2f}".format(abs(usd_amount)))
+        secondary_code = next(
+            (
+                code for code in ("USD", "EUR", "TRY")
+                if code != primary_code and abs(float(balances.get(code, 0.0) or 0.0)) > 0.0001
+            ),
+            None,
+        )
+        if secondary_code:
+            secondary_amount = float(balances.get(secondary_code, 0.0) or 0.0)
+            secondary_text = "{}: {}{:,.2f}".format(
+                secondary_code,
+                CurrencyHelper.get_symbol(self.db, secondary_code),
+                abs(secondary_amount),
+            )
+            usd_label = QLabel(secondary_text)
             usd_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             usd_label.setStyleSheet("color: #94a3b8; font-family: 'JetBrains Mono'; font-size: 9px; border: none; background: transparent;")
             layout.addWidget(usd_label)
@@ -585,6 +687,18 @@ class CustomersDataMixin:
             balance_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             balance_label.setStyleSheet("color: rgba(148,163,184,0.6); font-family: 'JetBrains Mono'; font-size: 9px; border: none; background: transparent;")
             layout.addWidget(balance_label)
+        if amount < 0 and int(overdue_days or 0) > 0:
+            overdue_label = QLabel(
+                "Vadesi {} G\u00fcn Ge\u00e7ti".format(int(overdue_days))
+            )
+            overdue_label.setAlignment(
+                Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+            )
+            overdue_label.setStyleSheet(
+                "color: #ef4444; font-family: 'JetBrains Mono', 'Segoe UI', Arial; "
+                "font-size: 9px; border: none; background: transparent;"
+            )
+            layout.addWidget(overdue_label)
         return cell
 
     def _create_balance_item_multi(self, balances):

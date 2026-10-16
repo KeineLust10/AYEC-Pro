@@ -13,12 +13,17 @@ def test_finance_rows_open_reference_detail_dialog_with_footer_actions():
     assert 'finance-detail-dialog' in app
     assert 'data-finance-detail-action="print"' in app
     assert 'data-finance-detail-action="edit"' in app
+    assert 'const receiptAction=item.source==="accounting"&&item.receipt_available?' in app
+    assert '/api/desktop/accounting/${encodeURIComponent(button.dataset.id)}/receipt/download' in app
     assert 'Stok / Hizmet Kalemleri' in app
     assert '\\u0130\\u015flem A\\u00e7\\u0131klamas\\u0131 &amp; Notlar' in app
-    assert '$("#dialogFooter").innerHTML=`<button type="button" class="secondary" data-finance-detail-action="print"' in app
+    assert '$("#dialogFooter").innerHTML=`${receiptAction}<button type="button" class="secondary" data-finance-detail-action="print"' in app
     assert 'Cari Bor\\u00e7 Kapatma Referans\\u0131' in app
     assert 'Birim Fiyat' in app and 'Tahsilat / \\u0130\\u015flem Notu' in app
-    cleanup = re.search(r'dialog\.classList\.remove\(([^)]*)\)', app)
+    open_dialog_start = app.index("function openDialog")
+    customer_form_start = app.index("function customerForm", open_dialog_start)
+    open_dialog = app[open_dialog_start:customer_form_start]
+    cleanup = re.search(r'dialog\.classList\.remove\(([^)]*)\)', open_dialog)
     assert cleanup
     assert {'"finance-detail-dialog"', '"customer-editor-dialog"', '"service-accept-dialog"'} <= set(
         re.findall(r'"[^"]+"', cleanup.group(1))

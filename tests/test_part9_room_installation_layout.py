@@ -98,7 +98,7 @@ class Part9RoomInstallationLayoutTests(unittest.TestCase):
         self.dialog.show()
         APP.processEvents()
         self.dialog.setMaximumSize(1200, 720)
-        self.dialog.resize(1200, 720)
+        self.dialog.resize(1280, 720)
         APP.processEvents()
         self.dialog.txt_general_note.setPlainText("Updated installation note")
         with patch("src.ui.pages.project_management.project_detail_components.show_success"):

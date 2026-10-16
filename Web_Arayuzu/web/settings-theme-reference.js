@@ -92,6 +92,7 @@
   }
 
   function companyContent() {
+    applyDocumentPrintPreferences();
     const company = settingsDefinitions.company;
     const numbering = settingsDefinitions.numbering;
     const location = settingsDefinitions.location;
@@ -121,9 +122,32 @@
   }
 
   function companyLocationPanel(fields) {
-    const lat = esc(desktopSettings.map_default_lat || "40.1044116");
-    const lng = esc(desktopSettings.map_default_lng || "27.6563981");
-    return `<div class="company-reference-location"><div class="company-reference-fields">${fields}<button type="button" class="secondary" data-company-map-pick>Haritadan Konum Se\u00e7</button><button type="button" class="primary" data-company-map-save>Konumu Kaydet</button></div><div class="company-reference-map" role="img" aria-label="Harita koordinat \u00f6nizlemesi"><span class="company-reference-map-status">GPS Kalibre Edildi</span><div class="company-reference-map-marker"><i></i><b data-company-coordinates>${lat}, ${lng}</b></div><small>OpenStreetMap Dark Tiles</small></div></div>`;
+    const username = String(currentAuthUser?.username || "").trim();
+    const userLatitude = username ? desktopSettings[`map_default_lat_user_${username}`] : "";
+    const userLongitude = username ? desktopSettings[`map_default_lng_user_${username}`] : "";
+    const lat = esc(desktopSettings.installation_lat || userLatitude || desktopSettings.map_default_lat || "40.1044116");
+    const lng = esc(desktopSettings.installation_lng || userLongitude || desktopSettings.map_default_lng || "27.6563981");
+    const locationFields = fields
+      .replace(/(data-setting-key="map_default_lat"[^>]*value=")[^"]*(")/, (_match, prefix, suffix) => `${prefix}${lat}${suffix}`)
+      .replace(/(data-setting-key="map_default_lng"[^>]*value=")[^"]*(")/, (_match, prefix, suffix) => `${prefix}${lng}${suffix}`);
+    const address = desktopSettings.installation_address || (username ? desktopSettings[`map_default_address_user_${username}`] : "") || desktopSettings.company_address || "";
+    return `<div class="company-reference-location"><div class="company-reference-fields">${locationFields}<button type="button" class="secondary" data-company-map-pick>Haritadan Konum Se\u00e7</button><button type="button" class="secondary" data-company-map-current>Mevcut Konumumu Kullan</button><button type="button" class="primary" data-company-map-save>Konumu Kaydet</button><input type="hidden" data-company-location-address value="${esc(address)}"></div><div class="company-reference-map" role="group" aria-label="Konum se\u00e7ici"><iframe title="Firma konum haritas\u0131" data-company-location-map hidden></iframe><span class="company-reference-map-status" data-company-map-status>Konum bilgisi</span><div class="company-reference-map-marker"><i></i><b data-company-coordinates>${lat}, ${lng}</b></div><small>Haritaya t\u0131klayarak konum se\u00e7in</small></div></div>`;
+  }
+
+  function applyDocumentPrintPreferences() {
+    const size = ["A4", "A3", "A5"].includes(desktopSettings.print_document_page_size)
+      ? desktopSettings.print_document_page_size
+      : "A4";
+    const orientation = ["portrait", "landscape"].includes(desktopSettings.print_document_orientation)
+      ? desktopSettings.print_document_orientation
+      : "portrait";
+    let style = document.getElementById("ayec-document-print-preferences");
+    if (!style) {
+      style = document.createElement("style");
+      style.id = "ayec-document-print-preferences";
+      document.head.appendChild(style);
+    }
+    style.textContent = `@page { size: ${size} ${orientation}; }`;
   }
 
   function companyNumbersPanel(definition) {
@@ -282,50 +306,145 @@
       if (input) input.value = "";
     });
     const coordinateLabel = host.querySelector("[data-company-coordinates]");
+    const mapStatus = host.querySelector("[data-company-map-status]");
+    const mapFrame = host.querySelector("[data-company-location-map]");
+    const mapPanel = mapFrame?.closest(".company-reference-map");
+    let locationMapStarted = false;
+    const locationUsername = String(currentAuthUser?.username || "").trim();
     const updateCoordinates = () => {
       if (!coordinateLabel) return;
       const latitude = host.querySelector('[data-setting-key="map_default_lat"]')?.value || "";
       const longitude = host.querySelector('[data-setting-key="map_default_lng"]')?.value || "";
       coordinateLabel.textContent = `${latitude}, ${longitude}`;
     };
+    const setLocationCoordinates = (latitude, longitude) => {
+      if (!String(latitude ?? "").trim() || !String(longitude ?? "").trim()) {
+        throw new Error("Ge\u00e7erli bir enlem ve boylam se\u00e7in.");
+      }
+      const lat = Number(latitude);
+      const lng = Number(longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+        throw new Error("Ge\u00e7erli bir enlem ve boylam se\u00e7in.");
+      }
+      const latitudeInput = host.querySelector('[data-setting-key="map_default_lat"]');
+      const longitudeInput = host.querySelector('[data-setting-key="map_default_lng"]');
+      if (latitudeInput) latitudeInput.value = lat.toFixed(6);
+      if (longitudeInput) longitudeInput.value = lng.toFixed(6);
+      updateCoordinates();
+      if (mapStatus) mapStatus.textContent = `Konum se\u00e7ildi: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+      return { latitude: lat, longitude: lng };
+    };
+    const saveUserAddress = async (suffix, value) => {
+      if (!locationUsername || !value) return;
+      const key = `map_default_${suffix}_user_${locationUsername}`;
+      await desktopWrite("settings", { key, value });
+      desktopSettings[key] = value;
+    };
+    const openCompanyLocationMap = () => {
+      if (!mapFrame || !mapPanel) return;
+      mapFrame.hidden = false;
+      mapPanel.classList.add("is-map-open");
+      if (locationMapStarted) {
+        mapFrame.contentWindow?.ayecTomTomMap?.refresh();
+        return;
+      }
+      locationMapStarted = true;
+      mapFrame.addEventListener("load", () => {
+        const mapWindow = mapFrame.contentWindow;
+        if (!mapWindow || !mapWindow.location.pathname.startsWith("/field-vector-map-dist/")) return;
+        mapWindow.addEventListener("ayec-map-ready", () => {
+          const map = mapWindow.ayecTomTomMap;
+          if (!map?.onClick) {
+            if (mapStatus) mapStatus.textContent = "Harita konum se\u00e7imi kullan\u0131lam\u0131yor.";
+            return;
+          }
+          map.onClick(async (latitude, longitude) => {
+            try {
+              const point = setLocationCoordinates(latitude, longitude);
+              map.select(point.latitude, point.longitude);
+              const data = await apiFetch("/api/desktop/field-service/reverse-geocode", { method: "POST", body: JSON.stringify({ lat: point.latitude, lon: point.longitude }) });
+              const address = String(data.display_name || "").trim();
+              const addressInput = host.querySelector("[data-company-location-address]");
+              if (addressInput && address) addressInput.value = address;
+              await saveUserAddress("address", address);
+              await saveUserAddress("city", data.city);
+              await saveUserAddress("district", data.district);
+              if (mapStatus) mapStatus.textContent = address || "Konum se\u00e7ildi.";
+            } catch (error) {
+              if (mapStatus) mapStatus.textContent = error.message || "Konum adresi al\u0131namad\u0131.";
+            }
+          });
+        }, { once: true });
+        mapWindow.addEventListener("ayec-map-error", event => {
+          if (mapStatus) mapStatus.textContent = event.detail || "Harita y\u00fcklenemedi.";
+        }, { once: true });
+        const latitude = Number(host.querySelector('[data-setting-key="map_default_lat"]')?.value) || 40.1044116;
+        const longitude = Number(host.querySelector('[data-setting-key="map_default_lng"]')?.value) || 27.6563981;
+        if (typeof mapWindow.initAyecTomTomMap !== "function" || !mapWindow.initAyecTomTomMap("ayec-server-proxy", latitude, longitude)) {
+          if (mapStatus) mapStatus.textContent = "Harita ba\u015flat\u0131lamad\u0131.";
+        }
+      });
+      mapFrame.src = "/field-vector-map-dist/index.html?v=20261016-company-location-1";
+    };
     host.querySelectorAll('[data-setting-key="map_default_lat"],[data-setting-key="map_default_lng"]').forEach(input => input.addEventListener("input", updateCoordinates));
     host.querySelector("[data-company-map-save]")?.addEventListener("click", async event => {
       event.stopPropagation();
-      const fields = [...host.querySelectorAll('[data-setting-key="map_default_lat"],[data-setting-key="map_default_lng"]')];
-      for (const input of fields) await desktopWrite("settings", { key: input.dataset.settingKey, value: input.value });
+      try {
+      const latitude = host.querySelector('[data-setting-key="map_default_lat"]')?.value || "";
+      const longitude = host.querySelector('[data-setting-key="map_default_lng"]')?.value || "";
+      const point = setLocationCoordinates(latitude, longitude);
+      const address = host.querySelector("[data-company-location-address]")?.value || desktopSettings.company_address || "";
+      for (const [key, value] of [["map_default_lat", String(point.latitude)], ["map_default_lng", String(point.longitude)], ["installation_lat", String(point.latitude)], ["installation_lng", String(point.longitude)], ["installation_address", address], ["company_address", address]]) {
+        await desktopWrite("settings", { key, value });
+        desktopSettings[key] = value;
+      }
+      await saveUserAddress("lat", String(point.latitude));
+      await saveUserAddress("lng", String(point.longitude));
       toast("Konum ayarlar\u0131 kaydedildi", "success");
+      } catch (error) {
+        if (mapStatus) mapStatus.textContent = error.message || "Konum ayarlar\u0131 kaydedilemedi.";
+      }
     });
     host.querySelector("[data-company-map-pick]")?.addEventListener("click", event => {
       event.stopPropagation();
+      openCompanyLocationMap();
+    });
+    host.querySelector("[data-company-map-current]")?.addEventListener("click", event => {
+      event.stopPropagation();
       if (!navigator.geolocation) {
-        toast("Bu taray\u0131c\u0131 konum servisini desteklemiyor", "error");
+        if (mapStatus) mapStatus.textContent = "Bu taray\u0131c\u0131 konum servisini desteklemiyor.";
         return;
       }
       navigator.geolocation.getCurrentPosition(position => {
-        const latitude = host.querySelector('[data-setting-key="map_default_lat"]');
-        const longitude = host.querySelector('[data-setting-key="map_default_lng"]');
-        if (latitude) latitude.value = position.coords.latitude.toFixed(6);
-        if (longitude) longitude.value = position.coords.longitude.toFixed(6);
-        updateCoordinates();
-        toast("Cihaz konumu al\u0131nd\u0131; kaydetmek i\u00e7in Konumu Kaydet\u2019e bas\u0131n", "success");
-      }, error => toast(error.message || "Cihaz konumu al\u0131namad\u0131", "error"), { enableHighAccuracy: true, timeout: 10000 });
-    });
-    host.querySelector("[data-company-bank-refresh]")?.addEventListener("click", () => loadCompanyBankMappings(host));
+        try {
+          const point = setLocationCoordinates(position.coords.latitude, position.coords.longitude);
+          mapFrame?.contentWindow?.ayecTomTomMap?.select(point.latitude, point.longitude);
+          if (mapStatus) mapStatus.textContent = "Cihaz konumu al\u0131nd\u0131; kaydetmek i\u00e7in Konumu Kaydet\u2019e bas\u0131n.";
+        } catch (error) {
+          if (mapStatus) mapStatus.textContent = error.message;
+        }
+      }, error => {
+        if (mapStatus) mapStatus.textContent = error.message || "Konum al\u0131namad\u0131.";
+      }, { enableHighAccuracy: true, timeout: 10000 });
+    });    host.querySelector("[data-company-bank-refresh]")?.addEventListener("click", () => loadCompanyBankMappings(host));
     host.querySelector("[data-company-bank-save]")?.addEventListener("click", () => saveCompanyBankMappings(host));
     host.querySelector("[data-company-open-editor]")?.addEventListener("click", event => {
       event.stopPropagation();
       const definitions = new Map(settingsDefinitions.company.fields.map(item => [item[0], item]));
       const tabs = [
-        { id: "general", label: "Genel & \u0130leti\u015fim", title: "TEMEL FIRMA BILGILERI & SOSYAL MEDYA", keys: ["company_name", "company_email", "social_facebook", "social_instagram", "social_youtube", "company_website", "company_gsm", "company_fax", "site_title", "company_phone", "cargo_company", "cargo_deal_no"] },
+        { id: "general", label: "Genel & \u0130leti\u015fim", title: "TEMEL FIRMA BILGILERI & SOSYAL MEDYA", keys: ["company_name", "company_email", "social_facebook", "social_instagram", "social_youtube", "company_website", "company_gsm", "company_fax", "site_title", "company_phone", "cargo_company", "cargo_deal_no", "admin_whatsapp"] },
         { id: "system", label: "Sistem, Tema & Para Birimi", title: "SISTEM, TEMA VE PARA BIRIMI", keys: ["stock_prefix", "currency_precision", "online_payment_active", "marquee_text"] },
-        { id: "document", label: "Yaz\u0131c\u0131 & Belge D\u00fczeni", title: "YAZICI VE BELGE DUZENI", keys: ["document_printer", "receipt_printer", "label_printer", "document_page_size", "document_orientation", "label_size"] },
-        { id: "legal", label: "Adres, Vergi & Sozle\u015fmeler", title: "ADRES, VERGI VE SOZLESMELER", keys: ["company_address", "authorized_person", "tax_office", "tax_number", "service_contract", "offer_contract"] }
+        { id: "document", label: "Yaz\u0131c\u0131 & Belge D\u00fczeni", title: "YAZICI VE BELGE DUZENI", keys: ["print_document_page_size", "print_document_orientation", "print_label_width_mm", "print_label_height_mm"] },
+        { id: "legal", label: "Adres, Vergi & Sozle\u015fmeler", title: "ADRES, VERGI VE SOZLESMELER", keys: ["company_address", "company_authorized_person", "tax_office", "tax_number", "service_contract", "offer_contract"] }
       ];
       const extra = {
-        document_printer: ["Belge Yaz\u0131c\u0131s\u0131", "text", ""], receipt_printer: ["Fi\u015f Yaz\u0131c\u0131s\u0131", "text", ""],
-        label_printer: ["Barkod / Etiket Yaz\u0131c\u0131s\u0131", "text", ""], document_page_size: ["Belge Sayfa Boyutu", "select", "A4"],
-        document_orientation: ["Belge Y\u00f6n\u00fc", "select", "portrait"], label_size: ["Etiket Boyutu (mm, GxY)", "text", "70x45"],
-        authorized_person: ["Yetkili Ki\u015fi", "text", ""], tax_office: ["Vergi Dairesi", "text", ""],
+        admin_whatsapp: ["Yonetici WhatsApp Numarasi", "tel", ""],
+        print_document_page_size: ["Belge Sayfa Boyutu", "select", "A4"],
+        print_document_orientation: ["Belge Yonu", "select", "portrait"],
+        print_label_width_mm: ["Etiket Genisligi (mm)", "number", "70"],
+        print_label_height_mm: ["Etiket Yuksekligi (mm)", "number", "45"],
+        company_authorized_person: ["Yetkili Kisi", "text", ""],
+        tax_office: ["Vergi Dairesi", "text", ""],
         tax_number: ["Vergi Numaras\u0131", "text", ""]
       };
       const fieldHtml = key => {
@@ -333,7 +452,9 @@
         const [name, label, type, fallback] = item || [key, ...(extra[key] || [key, "text", ""])];
         const displayLabels = { company_name: "Firma Ad\u0131n\u0131z", company_email: "Firma E-posta Adresiniz", social_facebook: "Facebook Adresiniz", social_instagram: "Instagram Adresiniz", social_youtube: "Youtube Adresiniz", company_website: "Web Site Adresiniz", company_gsm: "Firma GSM Numaran\u0131z", company_fax: "Firma Fax", site_title: "Web Site Title", company_phone: "Firma Sabit Telefonunuz" };
         const shownLabel = displayLabels[name] || label;
-        const value = desktopSettings[name] ?? fallback ?? "";
+        const value = name === "company_authorized_person"
+          ? desktopSettings.company_authorized_person ?? desktopSettings.authorized_person ?? fallback ?? ""
+          : desktopSettings[name] ?? fallback ?? "";
         if (type === "checkbox") return `<label class="field company-editor-check"><span>${shownLabel}</span><input type="hidden" name="${name}" value="0"><input type="checkbox" name="${name}" value="1" ${settingBool(value) ? "checked" : ""}></label>`;
         if (name === "cargo_company") {
           const options = ["Yurti\u00e7i Kargo", "Aras Kargo", "MNG Kargo", "S\u00fcrat Kargo", "PTT Kargo"];
@@ -341,7 +462,7 @@
           return `<label class="field"><span>${shownLabel}</span><select name="${name}">${options.map(option => `<option value="${esc(option)}" ${value === option ? "selected" : ""}>${esc(option)}</option>`).join("")}</select></label>`;
         }
         if (type === "select") {
-          const options = name === "document_page_size" ? ["A4", "A3", "A5"] : ["portrait", "landscape"];
+          const options = name === "print_document_page_size" ? ["A4", "A3", "A5"] : ["portrait", "landscape"];
           return `<label class="field"><span>${shownLabel}</span><select name="${name}">${options.map(option => `<option value="${option}" ${value === option ? "selected" : ""}>${option}</option>`).join("")}</select></label>`;
         }
         const control = type === "textarea" ? `<textarea name="${name}" rows="${name.includes("contract") ? 3 : 2}">${esc(value)}</textarea>` : `<input name="${name}" type="${type}" value="${esc(value)}">`;
@@ -352,7 +473,23 @@
         for (const [key, value] of values.entries()) {
           await desktopWrite("settings", { key, value });
           desktopSettings[key] = value;
+          const aliases = {
+            admin_whatsapp: "whatsapp_admin_phone",
+            company_authorized_person: "authorized_person",
+            print_document_page_size: "document_page_size",
+            print_document_orientation: "document_orientation"
+          };
+          if (aliases[key]) {
+            await desktopWrite("settings", { key: aliases[key], value });
+            desktopSettings[aliases[key]] = value;
+          }
         }
+        const labelWidth = values.get("print_label_width_mm") || desktopSettings.print_label_width_mm || "70";
+        const labelHeight = values.get("print_label_height_mm") || desktopSettings.print_label_height_mm || "45";
+        const labelSize = `${labelWidth}x${labelHeight}`;
+        await desktopWrite("settings", { key: "label_size", value: labelSize });
+        desktopSettings.label_size = labelSize;
+        applyDocumentPrintPreferences();
         render();
         toast("Firma bilgileri kaydedildi", "success");
       }, "G\u00dcNCELLE");
@@ -650,8 +787,8 @@
       key: field.dataset.settingKey,
       value: field.type === "checkbox" ? (field.checked ? "1" : "0") : field.value,
     }));
-    try {
-      if (sector && sector !== currentSector && !confirm("\u00c7al\u0131\u015fma alan\u0131 se\u00e7ilen sekt\u00f6re ge\u00e7irilsin mi?")) return;
+    const saveIdentitySettings = async () => {
+      try {
       await Promise.all(values.map(item => apiFetch(`/api/desktop/table/${item.scope}`, {
         method: "POST",
         body: JSON.stringify({ key: item.key, value: item.value }),
@@ -664,9 +801,19 @@
         renderNav();
       }
       toast("\u2705 De\u011fi\u015fiklikler kaydedildi", "success");
-    } catch (error) {
-      toast(error.message || "Settings could not be saved", "error");
+        return true;
+      } catch (error) {
+        toast(error.message || "Settings could not be saved", "error");
+        return false;
+      }
+    };
+    if (sector && sector !== currentSector) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      openDialog("Sekt\u00f6r De\u011fi\u015fikli\u011fini Uygula", "SEKT\u00d6REL K\u0130ML\u0130K", `<p>\u00c7al\u0131\u015fma alan\u0131 se\u00e7ilen sekt\u00f6re ge\u00e7irilsin mi?</p>`, saveIdentitySettings, "Kaydet ve Uygula");
+      return;
     }
+    await saveIdentitySettings();
   }, true);
   document.addEventListener("click", event => {
     if (page !== "settings" || settingsSection !== "security" || !event.target.closest('[data-action="save-settings"]')) return;

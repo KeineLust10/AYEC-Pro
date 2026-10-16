@@ -2,11 +2,13 @@ from types import SimpleNamespace
 import os
 import csv
 import sqlite3
+import time
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt6.QtWidgets import QApplication, QTableWidgetItem, QPushButton, QFileDialog, QLabel
 from PyQt6.QtCore import QDate
+from PyQt6.QtTest import QTest
 
 from src.ui.pages.service_status_page import ServiceStatusPage
 from src.utils.design_system import DesignTokens
@@ -75,12 +77,52 @@ def test_critical_filter_combines_with_selected_category():
     assert page.table.hidden == {0: True, 1: False}
 
 
+def test_status_refresh_timer_and_initial_load_pause_while_hidden(monkeypatch):
+    app = QApplication.instance() or QApplication([])
+    load_calls = []
+    monkeypatch.setattr(ServiceStatusPage, "load_data", lambda self: load_calls.append(self))
+    page = ServiceStatusPage(SimpleNamespace(get_setting=lambda key, default=None: default))
+
+    page.show()
+    app.processEvents()
+    page.hide()
+    app.processEvents()
+    QTest.qWait(180)
+
+    assert load_calls == []
+    assert not page.refresh_timer.isActive()
+    assert not page._initial_load_timer.isActive()
+
+    page.show()
+    app.processEvents()
+    QTest.qWait(180)
+    assert load_calls == [page]
+    assert page.refresh_timer.isActive()
+
+    page.hide()
+    app.processEvents()
+    assert not page.refresh_timer.isActive()
+
+    page._last_load_at = time.monotonic() - 31
+    page.show()
+    page.hide()
+    app.processEvents()
+    QTest.qWait(20)
+    assert load_calls == [page]
+
+    page.show()
+    app.processEvents()
+    QTest.qWait(20)
+    assert load_calls == [page, page]
+    page.close()
+
+
 def test_native_status_pagination_sort_search_and_export_keep_service_identity(monkeypatch, tmp_path):
     app = QApplication.instance() or QApplication([])
     monkeypatch.setattr(ServiceStatusPage, "load_data", lambda self: None)
     page = ServiceStatusPage(SimpleNamespace(get_setting=lambda key, default=None: default))
-    assert page.table.columnWidth(0) >= 120
-    assert page.table.columnWidth(4) >= 100
+    assert page.table.columnWidth(0) == 100
+    assert page.table.columnWidth(4) == 72
     page.table.setRowCount(15)
     opened = []
     for row in range(15):
@@ -252,8 +294,9 @@ def test_status_assistant_uses_real_sources_and_preserves_navigation(monkeypatch
     assert "Actual cable" in page.status_stock_notice.text()
     assert "Deleted" not in page.status_stock_notice.text()
     assert page.status_personnel_layout.count() == 1
-    assert "Actual technician" in page.status_personnel_layout.itemAt(0).widget().text()
-    assert "Gorevde" in page.status_personnel_layout.itemAt(0).widget().text()
+    first_person = page.status_personnel_layout.itemAt(0).widget()
+    assert any("Actual technician" in label.text() for label in first_person.findChildren(QLabel))
+    assert any("Gorevde" in label.text() for label in first_person.findChildren(QLabel))
     for button in (page.status_appointment_button, page.status_stock_button, page.status_personnel_button):
         button.click()
     assert routes == [30, 50, 10]

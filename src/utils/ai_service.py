@@ -5,6 +5,8 @@ import sys
 import io
 import json
 import re
+from contextlib import nullcontext
+from threading import BoundedSemaphore
 try:
     from google import genai
     HAS_GEMINI_LIB = True
@@ -25,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 DEFAULT_GEMINI_MODEL = "gemini-3.6-flash"
+GEMINI_REQUEST_GATE = BoundedSemaphore(2)
 RECOMMENDED_GEMINI_MODELS = (
     "gemini-3.6-flash",
     "gemini-3.5-flash-lite",
@@ -120,23 +123,89 @@ class AIService:
 
         try:
             if hasattr(self.client, 'models'):
-                response = self.client.models.generate_content(
-                    model=self.model_id,
-                    contents=prompt
-                )
+                request = {"model": self.model_id, "contents": self._prepare_prompt(prompt)}
+                config = self._generation_config()
+                if config is not None:
+                    request["config"] = config
+                with self._request_context():
+                    response = self.client.models.generate_content(**request)
                 return response.text
             else:
                 return "Model yuklenemedi veya SDK surumu uyumsuz."
         except Exception as e:
             error_str = str(e)
             # Kota asimi (429) durumunda bir kez anahtar degistir - sonsuz donguden kacinmak icin max 1 retry
-            if "429" in error_str and len(self.api_keys) > 1 and _retry_count < 1:
+            try:
+                rotation_enabled = (
+                    not self.db
+                    or self.db.get_setting("gemini_zero_downtime_rotation", "1") == "1"
+                )
+            except Exception:
+                rotation_enabled = True
+            if rotation_enabled and "429" in error_str and len(self.api_keys) > 1 and _retry_count < 1:
                 logger.warning("429 Kota hatasi - Anahtar degistiriliyor...")
                 self.current_key_index = (self.current_key_index + 1) % len(self.api_keys)
                 if self._setup_client():
                     return self.generate_response(prompt, _retry_count=_retry_count + 1)
 
             return f"Jarvis: Su an yanit veremiyorum. (Hata: {error_str[:50]}...)"
+
+    def _prepare_prompt(self, prompt):
+        prepared = str(prompt)
+        if self.db:
+            try:
+                compression_enabled = self.db.get_setting("gemini_smart_token_compression", "1") == "1"
+            except Exception:
+                compression_enabled = False
+            if compression_enabled:
+                prepared = re.sub(r"\n(?:[ \t]*\n){2,}", "\n\n", prepared)
+        return self._mask_sensitive_prompt(prepared)
+
+    def _request_context(self):
+        if not self.db:
+            return nullcontext()
+        try:
+            enabled = self.db.get_setting("gemini_auto_load_shedding", "0") == "1"
+        except Exception:
+            enabled = False
+        return GEMINI_REQUEST_GATE if enabled else nullcontext()
+
+    def _mask_sensitive_prompt(self, prompt):
+        if not self.db:
+            return prompt
+        try:
+            enabled = self.db.get_setting("gemini_sensitive_data_masking", "1") == "1"
+        except Exception:
+            enabled = True
+        if not enabled:
+            return prompt
+        masked = str(prompt)
+        patterns = (
+            r"\bTR\d{2}(?:[\s-]?\d{4}){5}[\s-]?\d{2}\b",
+            r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b",
+            r"(?<!\d)(?:\+?90|0)?\s?5\d{2}(?:[\s().-]?\d{3})(?:[\s.-]?\d{2}){2}(?!\d)",
+            r"\b[1-9]\d{10}\b",
+        )
+        for pattern in patterns:
+            masked = re.sub(pattern, "[MASKED]", masked, flags=re.IGNORECASE)
+        return masked
+
+    def _generation_config(self):
+        if not self.db:
+            return None
+        try:
+            max_tokens = int(self.db.get_setting("gemini_max_output_tokens", "8192") or 8192)
+        except (TypeError, ValueError):
+            max_tokens = 8192
+        try:
+            saved_temperature = self.db.get_setting("gemini_temperature", "0.2")
+            temperature = float(0.2 if saved_temperature in (None, "") else saved_temperature)
+        except (TypeError, ValueError):
+            temperature = 0.2
+        return {
+            "max_output_tokens": max(512, min(max_tokens, 8192)),
+            "temperature": max(0.0, min(temperature, 2.0)),
+        }
 
     def get_urgent_report(self):
         """Kritik durumlari (stok vb) kontrol eder ve raporlar."""

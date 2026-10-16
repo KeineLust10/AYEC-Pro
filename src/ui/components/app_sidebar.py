@@ -52,6 +52,18 @@ class AppSidebar(QWidget):
 
     def toggle_menu(self):
         """Menüyü daraltır veya genişletir."""
+        main_window = self.window()
+        if (
+            getattr(main_window, "_current_page_index", None) == 130
+            and hasattr(main_window, "_settings_sidebar_auto_previous_icon_only")
+        ):
+            main_window._settings_sidebar_user_override = True
+            if self.side_menu._icon_only:
+                self.side_menu.set_pinned(True, persist=False, animate=False)
+                self.side_menu.set_menu_label_mode("labels", persist=False)
+            else:
+                self.side_menu.set_menu_label_mode("icons", persist=False)
+            return
         self._is_collapsed = not self._is_collapsed
         width = self.width()
         expanded_width = self.side_menu.expanded_width_for_window()

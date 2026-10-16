@@ -1,4 +1,4 @@
-from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+from PyQt6.QtWidgets import (QVBoxLayout, QHBoxLayout, QBoxLayout, QLayout, QLabel, QPushButton,
                              QFormLayout, QTableWidget, QHeaderView, QFrame,
                              QAbstractItemView, QTableWidgetItem, QTextBrowser,
                              QApplication, QWidget, QSizePolicy)
@@ -44,13 +44,14 @@ class TransactionDetailsDialog(BaseModernDialog):
         if resolved_tracking:
             self.entry["tracking_no"] = resolved_tracking
             self.entry["ref_no"] = self.entry.get("ref_no") or resolved_tracking
-        self.setMinimumSize(1000, 720)
+        self.setMinimumSize(340, 480)
         self.footer.setFixedHeight(94)
         self.content_layout.setContentsMargins(31, 30, 32, 25)
         self.content_layout.setSpacing(12)
         self._build_reference_header()
 
         body = QHBoxLayout()
+        self.body_layout = body
         body.setSpacing(22)
 
         left_column = QVBoxLayout()
@@ -93,19 +94,49 @@ class TransactionDetailsDialog(BaseModernDialog):
             currency_code=currency,
         ))
         self.amount_value.setObjectName("TransactionAmountValue")
+        self.amount_value.setStyleSheet(theme_qss(
+            "color: @text; background: transparent; border: none; padding: 0; "
+            "font: 700 36px 'JetBrains Mono';"
+        ))
         amount_layout.addWidget(self.amount_value)
-        amount_layout.addSpacing(20)
+        amount_layout.addSpacing(14)
+        amount_divider = QFrame()
+        amount_divider.setFixedHeight(1)
+        amount_divider.setStyleSheet(theme_qss("background: @border; border: none;"))
+        amount_layout.addWidget(amount_divider)
+        amount_layout.addSpacing(8)
         rate_row = QHBoxLayout()
         rate_row.setSpacing(6)
-        self.rate_value = QLabel(f"D\u00f6viz Kuru\n{rate:.4f}")
+        self.rate_title = QLabel("D\u00f6viz Kuru")
+        self.rate_title.setStyleSheet(theme_qss(
+            "color: @text_muted; background: transparent; border: none; font-size: 12px;"
+        ))
+        self.rate_value = QLabel(f"{rate:.4f} \u20ba")
         self.rate_value.setObjectName("TransactionAmountRate")
-        self.try_value = QLabel(
-            "TL Kar\u015f\u0131l\u0131\u011f\u0131\n"
-            + CurrencyHelper.format_amount(amount_try, db=self.db, currency_code="TRY")
-        )
+        self.rate_value.setStyleSheet(theme_qss(
+            "color: @text; background: transparent; border: none; font: 12px 'JetBrains Mono';"
+        ))
+        self.try_title = QLabel("TL Kar\u015f\u0131l\u0131\u011f\u0131")
+        self.try_title.setStyleSheet(theme_qss(
+            "color: @text_muted; background: transparent; border: none; font-size: 12px;"
+        ))
+        self.try_value = QLabel(CurrencyHelper.format_amount(
+            amount_try, db=self.db, currency_code="TRY"
+        ))
         self.try_value.setObjectName("TransactionAmountTry")
-        rate_row.addWidget(self.rate_value, 1)
-        rate_row.addWidget(self.try_value, 1)
+        self.try_value.setStyleSheet(theme_qss(
+            "color: @success; background: transparent; border: none; font: 700 12px 'JetBrains Mono';"
+        ))
+        rate_group = QVBoxLayout()
+        rate_group.setSpacing(2)
+        rate_group.addWidget(self.rate_title)
+        rate_group.addWidget(self.rate_value)
+        try_group = QVBoxLayout()
+        try_group.setSpacing(2)
+        try_group.addWidget(self.try_title)
+        try_group.addWidget(self.try_value)
+        rate_row.addLayout(rate_group, 1)
+        rate_row.addLayout(try_group, 1)
         amount_layout.addLayout(rate_row)
         left_column.addWidget(amount_card)
 
@@ -211,8 +242,12 @@ class TransactionDetailsDialog(BaseModernDialog):
                 "font-size: 14px; font-weight: 600;"
             ))
             add_stacked_row("Cari / M\u00fc\u015fteri", customer_value, 8, 23)
-        if self.entry.get("description"):
-            reference_box = QLabel(str(self.entry.get("description")))
+        reference_text = (
+            self.entry.get("debt_close_reference")
+            or self.entry.get("description")
+        )
+        if reference_text:
+            reference_box = QLabel(str(reference_text))
             reference_box.setWordWrap(True)
             reference_box.setMinimumHeight(104)
             reference_box.setStyleSheet(theme_qss(
@@ -229,6 +264,7 @@ class TransactionDetailsDialog(BaseModernDialog):
         left_panel = QWidget()
         left_panel.setLayout(left_column)
         left_panel.setMinimumWidth(428)
+        self.left_panel = left_panel
         body.addWidget(left_panel, 33)
 
         right_card = QFrame()
@@ -255,6 +291,7 @@ class TransactionDetailsDialog(BaseModernDialog):
         right_layout.addSpacing(15)
 
         self.items_table = QTableWidget()
+        self.items_table.setMinimumWidth(0)
         self.items_table.setColumnCount(5)
         self.items_table.setHorizontalHeaderLabels([
             "#",
@@ -324,17 +361,25 @@ class TransactionDetailsDialog(BaseModernDialog):
         items_footer.setContentsMargins(16, 10, 16, 38)
         items_footer.setSpacing(14)
         self.stock_status = QLabel("\u2713 T\u00fcm kalemler stoktan d\u00fc\u015ft\u00fc ve faturaya i\u015flendi.")
-        self.stock_status.setStyleSheet(theme_qss("color: @text_muted;"))
+        self.stock_status.setStyleSheet(theme_qss(
+            "color: @text_muted; background: transparent; border: none;"
+        ))
         items_footer.addWidget(self.stock_status, 1)
         self.vat_total = QLabel("KDV\n0.00")
         self.grand_total = QLabel("Genel Toplam\n0.00")
         self.vat_total.setStyleSheet(theme_qss(
-            "color: @text_muted; font: 10px 'JetBrains Mono'; padding-right: 10px;"
+            "color: @text_muted; background: transparent; border: none; "
+            "font: 10px 'JetBrains Mono'; padding-right: 10px;"
         ))
         self.grand_total.setStyleSheet(theme_qss(
-            "color: @success; font-weight: 800; font: 13px 'JetBrains Mono';"
+            "color: @success; background: transparent; border: none; "
+            "font-weight: 800; font: 13px 'JetBrains Mono';"
         ))
         items_footer.addWidget(self.vat_total)
+        footer_divider = QFrame()
+        footer_divider.setFixedSize(1, 42)
+        footer_divider.setStyleSheet(theme_qss("background: @border; border: none;"))
+        items_footer.addWidget(footer_divider)
         items_footer.addWidget(self.grand_total)
         right_layout.addLayout(items_footer)
 
@@ -367,6 +412,7 @@ class TransactionDetailsDialog(BaseModernDialog):
         desc_layout.addWidget(self.txt_desc, 1)
         right_layout.addWidget(self.desc_group, 1)
         body.addWidget(right_card, 67)
+        self.right_card = right_card
         self.content_layout.addLayout(body, 1)
 
         self.btn_service = self.add_button(
@@ -378,6 +424,7 @@ class TransactionDetailsDialog(BaseModernDialog):
         )
         self.btn_open_360.setVisible(bool(self.entry.get("customer_id")))
         self.footer_layout.addStretch(1)
+        footer_spacer = self.footer_layout.itemAt(self.footer_layout.count() - 1).spacerItem()
         self.btn_print = self.add_button(
             "Makbuz Yazd\u0131r", "secondary", self.print_receipt
         )
@@ -389,7 +436,75 @@ class TransactionDetailsDialog(BaseModernDialog):
         )
         self.btn_close_action.setShortcut("Esc")
         self.set_footer_visible(True, 94)
+        self._footer_spacer = footer_spacer
         self.populate_items_table()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        mobile = event.size().width() < 760
+        self.setMinimumSize(320, 420)
+        if hasattr(self, "card"):
+            self.card.setMinimumSize(300 if mobile else 420, 240)
+        if hasattr(self, "header"):
+            self.header.setFixedHeight(82 if mobile else 100)
+        if hasattr(self, "content_layout"):
+            self.content_layout.setSizeConstraint(
+                QLayout.SizeConstraint.SetNoConstraint if mobile
+                else QLayout.SizeConstraint.SetDefaultConstraint
+            )
+            self.content_layout.setContentsMargins(
+                12, 12, 12, 12
+            ) if mobile else self.content_layout.setContentsMargins(31, 30, 32, 25)
+            self.content_layout.setSpacing(8 if mobile else 12)
+        if hasattr(self, "content_container") and mobile:
+            available_width = max(320, event.size().width() - 10)
+            self.content_container.setMinimumWidth(available_width)
+            self.content_container.setMaximumWidth(available_width)
+        elif hasattr(self, "content_container"):
+            self.content_container.setMinimumWidth(0)
+            self.content_container.setMaximumWidth(16777215)
+        if hasattr(self, "body_layout"):
+            self.body_layout.setDirection(
+                QBoxLayout.Direction.TopToBottom if mobile else QBoxLayout.Direction.LeftToRight
+            )
+            self.body_layout.setSpacing(12 if mobile else 22)
+            self.left_panel.setMinimumWidth(0 if mobile else 428)
+            self.left_panel.setSizePolicy(
+                QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred
+            )
+            self.right_card.setMinimumWidth(0)
+            self.right_card.setSizePolicy(
+                QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred
+            )
+            self.items_table.setHorizontalScrollBarPolicy(
+                Qt.ScrollBarPolicy.ScrollBarAsNeeded if mobile
+                else Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+            )
+        if hasattr(self, "scroll_area"):
+            self.scroll_area.setMinimumWidth(0)
+            self.scroll_area.setHorizontalScrollBarPolicy(
+                Qt.ScrollBarPolicy.ScrollBarAlwaysOff if mobile
+                else Qt.ScrollBarPolicy.ScrollBarAsNeeded
+            )
+        if hasattr(self, "footer_layout"):
+            self.footer_layout.setDirection(
+                QBoxLayout.Direction.TopToBottom if mobile else QBoxLayout.Direction.LeftToRight
+            )
+            self._footer_spacer.changeSize(
+                0, 0,
+                QSizePolicy.Policy.Fixed if mobile else QSizePolicy.Policy.Expanding,
+                QSizePolicy.Policy.Fixed if mobile else QSizePolicy.Policy.Minimum,
+            )
+            self.footer_layout.invalidate()
+            self.footer.setFixedHeight(260 if mobile else 94)
+            for button in (
+                self.btn_service, self.btn_open_360, self.btn_print,
+                self.btn_edit, self.btn_close_action,
+            ):
+                button.setMinimumWidth(0)
+                button.setSizePolicy(
+                    QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred
+                )
 
     def _build_reference_header(self):
         from PyQt6.QtWidgets import QVBoxLayout
@@ -717,6 +832,7 @@ class TransactionDetailsDialog(BaseModernDialog):
 
     def populate_items_table(self):
         desc = str(self.entry.get("description") or "")
+        transaction_note = str(self.entry.get("transaction_note") or desc)
         service_rows = self._load_device_service_rows()
         parsed = service_rows or self._parse_service_rows(self.entry.get("selected_services"))
         if not parsed:
@@ -735,8 +851,8 @@ class TransactionDetailsDialog(BaseModernDialog):
             description_blocks.append(
                 "Yap\u0131lan \u0130\u015flemler:\n" + format_numbered_work_lines(work_lines)
             )
-        if desc.strip():
-            description_blocks.append("Tahsilat / \u0130\u015flem Notu:\n" + desc.strip())
+        if transaction_note.strip():
+            description_blocks.append("Tahsilat / \u0130\u015flem Notu:\n" + transaction_note.strip())
         description_text = "\n\n".join(description_blocks)
         if description_text:
             from html import escape
@@ -748,11 +864,11 @@ class TransactionDetailsDialog(BaseModernDialog):
                     "<p><b>YAPILAN \u0130\u015eLEMLER:</b></p>"
                     f"<p style='line-height:1.65;'>{work_html}</p>"
                 )
-            if desc.strip():
+            if transaction_note.strip():
                 sections.append(
                     "<hr>"
                     "<p><b>TAHS\u0130LAT / \u0130\u015eLEM NOTU:</b></p>"
-                    f"<p style='line-height:1.65;'>{escape(desc.strip())}</p>"
+                    f"<p style='line-height:1.65;'>{escape(transaction_note.strip())}</p>"
                 )
             operator = str(
                 self.entry.get("operator_name")

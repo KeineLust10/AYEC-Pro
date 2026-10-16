@@ -526,7 +526,7 @@ class ServiceBoardPage(QWidget):
 
         # 2. The Kanban Board
         self.board = KanbanBoard()
-        self.board.setStyleSheet("#KanbanBoard { background: #F3F4F6; border: none; }" if self._is_classic_appearance() else theme_qss("QScrollArea#KanbanBoard { background: @finance_canvas; border: none; }"))
+        self.board.setStyleSheet(theme_qss("QScrollArea#KanbanBoard { background: @finance_canvas; border: none; }"))
         self.board.card_clicked.connect(self.open_device_detail)
         self.board.action_triggered.connect(self.on_board_action)
         layout.addWidget(self.board)
@@ -1500,5 +1500,5 @@ class ServiceBoardPage(QWidget):
         if effect is not None:
             effect.setEnabled(not self._is_classic_appearance())
         if hasattr(self, "board") and self.board:
-            self.board.setStyleSheet("#KanbanBoard { background: #F3F4F6; border: none; }" if self._is_classic_appearance() else theme_qss("background: @window; border: none;"))
+            self.board.setStyleSheet(theme_qss("QScrollArea#KanbanBoard { background: @finance_canvas; border: none; }" if self._is_classic_appearance() else "background: @window; border: none;"))
             self.board.apply_theme_styles()

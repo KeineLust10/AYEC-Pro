@@ -350,7 +350,7 @@ class GeminiSettingsWidget(QWidget):
         layout.addWidget(info)
         
         self.cmb_model = QComboBox()
-        self.cmb_model.setFixedHeight(44)
+        self.cmb_model.setFixedHeight(32)
         self.cmb_model.setEditable(True)
         self.cmb_model.setPlaceholderText(DEFAULT_GEMINI_MODEL)
         self.cmb_model.setStyleSheet(theme_qss(self.get_input_style()))
@@ -373,13 +373,13 @@ class GeminiSettingsWidget(QWidget):
         action_row.setSpacing(8)
         
         self.btn_manual_connect = QPushButton("Bağlan")
-        self.btn_manual_connect.setFixedHeight(40)
+        self.btn_manual_connect.setFixedHeight(32)
         self.btn_manual_connect.setToolTip("Girilen Model Adresine Manuel Bağlan ve Test Et")
         self.btn_manual_connect.setStyleSheet(theme_qss(DesignTokens.get_button_qss("outline", size="md")))
         self.btn_manual_connect.clicked.connect(self.test_manual_connection)
         
         self.btn_list_models = QPushButton("Modelleri Listele")
-        self.btn_list_models.setFixedHeight(40)
+        self.btn_list_models.setFixedHeight(32)
         self.btn_list_models.setToolTip("Google sunucularindan guncel modelleri ara")
         self.btn_list_models.setStyleSheet(theme_qss(DesignTokens.get_button_qss("secondary", size="md")))
         self.btn_list_models.clicked.connect(self.list_available_models)

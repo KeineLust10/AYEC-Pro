@@ -11,7 +11,7 @@ from src.utils.path_helper import PathHelper
 
 def main():
     model_dir = Path(PathHelper.get_app_data_dir()) / "Speech" / "whisper-small"
-    required_files = ("model.bin", "config.json", "tokenizer.json")
+    required_files = ("model.bin", "config.json", "tokenizer.json", "vocabulary.txt")
     if model_dir.is_dir() and all((model_dir / name).is_file() for name in required_files):
         print("Offline Turkish speech model is ready.")
         return

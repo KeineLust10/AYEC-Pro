@@ -216,15 +216,16 @@ class ModernComboBox(QComboBox):
         painter.drawLine(x - 3, y - 1, x, y + 2)
         painter.drawLine(x, y + 2, x + 3, y - 1)
 
-    def __init__(self, parent=None, items=None, editable=False):
+    def __init__(self, parent=None, items=None, editable=False, min_height=42):
         super().__init__(parent)
         self._popup_pending = False
         self._last_popup_time = 0
         self.setEditable(editable)
-        self.setMinimumHeight(42)
+        self._minimum_height = max(30, int(min_height))
+        self.setMinimumHeight(self._minimum_height)
         if items:
             self.addItems(items)
-        self.setStyleSheet(theme_qss(DesignTokens.get_combobox_qss()))
+        self.setStyleSheet(theme_qss(DesignTokens.get_combobox_qss(min_height=self._minimum_height - 6)))
 
         if editable:
             self.lineEdit().setStyleSheet(theme_qss("""
@@ -238,7 +239,7 @@ class ModernComboBox(QComboBox):
                     selection-color: @selection_text;
                 }
             """))
-            self.lineEdit().setMinimumHeight(40)
+            self.lineEdit().setMinimumHeight(40 if self._minimum_height >= 42 else self._minimum_height - 6)
             self.lineEdit().setAlignment(Qt.AlignmentFlag.AlignVCenter)
             self.set_completion_items(items or [])
             self.lineEdit().installEventFilter(self)

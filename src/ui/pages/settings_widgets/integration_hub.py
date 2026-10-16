@@ -54,27 +54,26 @@ class IntegrationHubWidget(QWidget):
         return theme_qss(
             """
             QTabWidget::pane {
-                border: 1px solid @border;
-                background: @surface;
-                border-radius: 12px;
-                top: -1px;
+                border: 0;
+                background: @window;
+                border-radius: 0;
+                top: 0;
             }
             QTabBar::tab {
-                background: @surface_alt;
+                background: transparent;
                 color: @text_muted;
-                padding: 12px 18px;
+                padding: 4px 8px;
                 margin-right: 4px;
-                border-top-left-radius: 10px;
-                border-top-right-radius: 10px;
+                border-radius: 4px;
                 font-weight: 600;
                 font-size: 12px;
-                min-width: 96px;
+                min-width: 0;
                 max-width: 180px;
             }
             QTabBar::tab:selected {
-                background: @surface;
+                background: @surface_alt;
                 color: @accent;
-                border-bottom: 3px solid @accent;
+                border-bottom: 2px solid @accent;
                 font-weight: 700;
             }
             QTabBar::tab:hover {
@@ -195,6 +194,8 @@ class IntegrationHubWidget(QWidget):
         targets = [root, *root.findChildren(QWidget)]
         for target in targets:
             try:
+                if target.property("skipThemeTransform") is True:
+                    continue
                 target.setProperty("skipThemeTransform", False)
                 current = getattr(target, "_theme_raw_stylesheet", None)
                 if current is None:
@@ -213,6 +214,13 @@ class IntegrationHubWidget(QWidget):
                 target._integration_theme_applied = adapted
             except (RuntimeError, AttributeError):
                 continue
+        for target in targets:
+            apply_reference_typography = getattr(target, "apply_reference_typography", None)
+            if callable(apply_reference_typography):
+                try:
+                    apply_reference_typography()
+                except RuntimeError:
+                    continue
 
     def _on_tab_changed(self, index):
         if self._loading_tab:
@@ -254,9 +262,23 @@ class IntegrationHubWidget(QWidget):
 
     def _wrap_gemini_page(self, page):
         from src.ui.pages.settings_widgets.gemini_reference_canvas import GeminiReferenceCanvas
-        return GeminiReferenceCanvas(page)
+        canvas = GeminiReferenceCanvas(page)
+        scroll = QScrollArea(self)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setWidget(canvas)
+        return scroll
 
     def _create_page(self, key, accent, title):
+        def bare(inner: QWidget):
+            wrapper = QWidget()
+            layout = QVBoxLayout(wrapper)
+            layout.setContentsMargins(0, 0, 0, 0)
+            layout.setSpacing(0)
+            layout.addWidget(inner)
+            return wrapper
+
         def wrap(inner: QWidget):
             wrapper = QWidget()
             wrapper.setStyleSheet("background: #FFFFFF; color: #111827;" if self._is_classic_appearance() else "")
@@ -309,7 +331,12 @@ class IntegrationHubWidget(QWidget):
             return self._wrap_gemini_page(GeminiSettingsWidget(self.db, self.main_window))
         if key == "autonomous_agents":
             from src.ui.pages.settings_widgets.autonomous_agents_widget import AutonomousAgentsWidget
-            return AutonomousAgentsWidget(self.db, self.main_window)
+            scroll = QScrollArea(self)
+            scroll.setWidgetResizable(True)
+            scroll.setFrameShape(QFrame.Shape.NoFrame)
+            scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            scroll.setWidget(AutonomousAgentsWidget(self.db, self.main_window))
+            return scroll
         if key == "voice_assistant":
             return VoiceAssistantSettingsWidget(self.db, self.main_window)
         if key == "voice_training":
@@ -324,7 +351,7 @@ class IntegrationHubWidget(QWidget):
             scroll.setWidget(SMSSettingsWidgetMod(self.db, self.main_window, use_internal_scroll=False))
             return scroll
         if key == "sms_templates":
-            return wrap(SMSTemplatesWidgetMod(self.db, self.main_window))
+            return bare(SMSTemplatesWidgetMod(self.db, self.main_window))
         if key == "smtp":
             scroll = QScrollArea()
             scroll.setWidgetResizable(True)
@@ -333,7 +360,7 @@ class IntegrationHubWidget(QWidget):
             scroll.setWidget(SMTPSettingsWidgetMod(self.db, self.main_window))
             return scroll
         if key == "telegram":
-            return wrap(TelegramSettingsWidget(self.db, self.main_window))
+            return bare(TelegramSettingsWidget(self.db, self.main_window))
         if key == "whatsapp":
             return wrap(WhatsAppSettingsWidget(self.db, self.main_window))
 

@@ -301,12 +301,29 @@ class DeviceSelectionDialog(PremiumDialog):
         }))
         return " ".join(text.split())
 
+    @classmethod
+    def _voice_target_variants(cls, value):
+        normalized = cls._normalize_voice_target(value)
+        variants = [normalized]
+        words = normalized.split()
+        if not words:
+            return variants
+        suffixes = ("yi", "yu", "ni", "nu", "i", "u")
+        last_word = words[-1]
+        for suffix in suffixes:
+            if last_word.endswith(suffix) and len(last_word) - len(suffix) >= 3:
+                stem = last_word[:-len(suffix)]
+                variant = " ".join((*words[:-1], stem))
+                if variant not in variants:
+                    variants.append(variant)
+        return variants
+
     def select_by_voice(self, target):
-        query = self._normalize_voice_target(target)
-        if not query:
+        query_variants = self._voice_target_variants(target)
+        if not query_variants[0]:
             return False, "Hangi musteriyi veya cihazi secmemi istersiniz?"
 
-        matches = []
+        row_values = []
         for row in range(self.table.rowCount()):
             values = [
                 self.table.item(row, column).text()
@@ -314,9 +331,18 @@ class DeviceSelectionDialog(PremiumDialog):
                 else ""
                 for column in range(self.table.columnCount())
             ]
-            normalized_values = [self._normalize_voice_target(value) for value in values]
-            if any(query in value for value in normalized_values):
-                matches.append(row)
+            row_values.append(
+                (row, [self._normalize_voice_target(value) for value in values])
+            )
+
+        matches = []
+        for query in query_variants:
+            matches = [
+                row for row, values in row_values
+                if any(query in value for value in values)
+            ]
+            if matches:
+                break
 
         if not matches:
             self.inp_search.setText(str(target))

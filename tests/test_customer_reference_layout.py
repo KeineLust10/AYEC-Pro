@@ -3,13 +3,26 @@ import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QApplication, QFrame, QDialog
+from PyQt6.QtWidgets import QApplication, QFrame, QDialog, QWidget, QPushButton, QLabel
 from PyQt6.QtNetwork import QNetworkReply
 from unittest.mock import patch
+import sqlite3
 
 from src.database import Database
 from src.ui.dialogs.add_customer_dialog import AddCustomerDialog, CustomerReferenceInput, CustomerReferenceGlyph
 from src.services.tomtom_geocoder import TomTomGeocoder
+from src.ui.pages._customers_ui_mixin import CustomersUIMixin
+from src.ui.pages._customers_func_mixin import CustomersFuncMixin
+from src.ui.pages._customers_base_mixin import (
+    CustomersBaseMixin,
+    _CustomerRowHoverDelegate,
+    _CustomerTableWidget,
+)
+from src.ui.pages._customers_data_mixin import (
+    CustomersDataMixin,
+    _CustomerSortItem,
+    _format_reference_customer_phone,
+)
 
 
 class CustomerFields:
@@ -19,6 +32,168 @@ class CustomerFields:
             {"name": "brand", "title": "Brand", "type": "text"},
             {"name": "model", "title": "Model", "type": "text"},
         ]
+
+
+class CustomerActionProbe(CustomersUIMixin, QWidget):
+    def __init__(self):
+        super().__init__()
+        self.service_customer = None
+
+    def create_service(self, customer):
+        self.service_customer = customer
+
+    def open_customer_service_panel(self, customer):
+        self.service_customer = customer
+
+    def send_whatsapp(self, _customer):
+        pass
+
+    def send_debt_reminder(self, _customer):
+        pass
+
+    def open_customer_360(self, _customer):
+        pass
+
+    def show_row_menu(self, _row):
+        pass
+
+
+def test_customer_phone_display_matches_reference_grouping():
+    assert _format_reference_customer_phone("05550000001") == "0555 000 00 01"
+    assert _format_reference_customer_phone("0232 400 00 12") == "0232 400 00 12"
+    assert _format_reference_customer_phone("12345") == "12345"
+
+
+def test_customer_balance_shows_reference_overdue_caption():
+    app = QApplication.instance() or QApplication([])
+
+    class CurrencyProbe:
+        def get_setting(self, _key, default=None):
+            return default or "TRY"
+
+    currency_probe = CurrencyProbe()
+    currency_probe.db = currency_probe
+    widget = CustomersDataMixin._create_customer_balance_widget(
+        currency_probe, {"TRY": -1450.0}, overdue_days=12
+    )
+    labels = [label.text() for label in widget.findChildren(QLabel)]
+    assert "-\u20ba1,450.00" in labels
+    assert "BOR\u00c7" in labels
+    assert "Vadesi 12 G\u00fcn Ge\u00e7ti" in labels
+    widget.close()
+    app.processEvents()
+
+
+def test_customer_row_hover_does_not_change_the_selected_customer():
+    app = QApplication.instance() or QApplication([])
+    page = CustomerActionProbe()
+    page.table = _CustomerTableWidget()
+    page.table.setRowCount(2)
+    page.table.setColumnCount(1)
+    page.customer_row_hover_delegate = _CustomerRowHoverDelegate(page.table)
+    page.table.setItemDelegate(page.customer_row_hover_delegate)
+    page.table.selectRow(1)
+    try:
+        page._on_table_cell_entered(0, 0)
+        assert page.customer_row_hover_delegate.hovered_row == 0
+        assert [index.row() for index in page.table.selectionModel().selectedRows()] == [1]
+    finally:
+        page.table.close()
+        page.close()
+        app.processEvents()
+
+
+def test_customer_id_badges_keep_numeric_sort_and_record_binding():
+    app = QApplication.instance() or QApplication([])
+    table = _CustomerTableWidget()
+    table.setColumnCount(2)
+    table.setRowCount(2)
+    for row, customer_id in enumerate((58, 2)):
+        item = _CustomerSortItem(customer_id)
+        item.setData(Qt.ItemDataRole.UserRole, {"id": customer_id})
+        table.setItem(row, 1, item)
+        table.setCellWidget(row, 1, QLabel("#{:03d}".format(customer_id)))
+    table.setSortingEnabled(True)
+    table.sortItems(1, Qt.SortOrder.AscendingOrder)
+    sorted_ids = [
+        table.item(row, 1).data(Qt.ItemDataRole.UserRole)["id"]
+        for row in range(table.rowCount())
+    ]
+    assert sorted_ids == [2, 58]
+    table.close()
+    app.processEvents()
+
+
+def test_vip_customer_with_open_service_keeps_reference_service_action_priority():
+    app = QApplication.instance() or QApplication([])
+    page = CustomerActionProbe()
+    customer = {
+        "type": "Bireysel",
+        "contract_type": "VIP",
+        "balance_try": 8100.0,
+        "open_service_count": 2,
+        "phone": "0555 000 0001",
+    }
+    try:
+        action_widget = page._create_action_widget(0, customer)
+        actions = action_widget.findChildren(QPushButton)
+        assert actions[0].text() == "Servis A\u00e7"
+        actions[0].click()
+        assert page.service_customer is customer
+        action_widget.deleteLater()
+        ready_widget = page._create_action_widget(
+            1,
+            {
+                "type": "Kurumsal Bayi",
+                "balance_try": 0,
+                "open_service_count": 1,
+                "open_delivery_ready_count": 1,
+            },
+        )
+        ready_actions = ready_widget.findChildren(QPushButton)
+        assert len(ready_actions) == 1
+        assert ready_actions[0].text().startswith("\u0130\u015flem Yap")
+        ready_widget.deleteLater()
+    finally:
+        page.close()
+        app.processEvents()
+
+
+class CustomerServicePanelProbe(CustomersFuncMixin, QWidget):
+    def __init__(self, rows):
+        super().__init__()
+        self.db = type("DatabaseProbe", (), {})()
+        self.db.conn = sqlite3.connect(":memory:")
+        self.db.conn.row_factory = sqlite3.Row
+        self.db.conn.execute(
+            "CREATE TABLE devices (tracking_no TEXT, device_type TEXT, brand TEXT, model TEXT, "
+            "status TEXT, customer_id INTEGER, customer_name TEXT, is_deleted INTEGER, "
+            "is_archived INTEGER, entry_date TEXT, id INTEGER)"
+        )
+        self.db.conn.executemany(
+            "INSERT INTO devices VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", rows
+        )
+        self.main_window = type("MainWindowProbe", (), {})()
+        self.main_window.opened_tracking_no = None
+        self.main_window.open_technician_panel = self._capture_panel
+
+    def _capture_panel(self, tracking_no):
+        self.main_window.opened_tracking_no = tracking_no
+
+
+def test_customer_service_action_opens_technician_panel_for_active_device():
+    app = QApplication.instance() or QApplication([])
+    page = CustomerServicePanelProbe([
+        ("SRV-10", "Laptop", "Dell", "XPS", "Onar\u0131m", 7, "Customer", 0, 0, "2026-10-10", 10),
+        ("SRV-09", "Phone", "Apple", "15", "Teslim Edildi", 7, "Customer", 0, 0, "2026-10-09", 9),
+    ])
+    try:
+        page.open_customer_service_panel({"id": 7, "name": "Customer"})
+        assert page.main_window.opened_tracking_no == "SRV-10"
+    finally:
+        page.db.conn.close()
+        page.close()
+        app.processEvents()
 
 
 def test_customer_density_keeps_validators_footer_type_flags_and_sector_fields(tmp_path):
@@ -194,3 +369,52 @@ def test_tomtom_geocoder_accepts_qt_no_error_enum_and_parses_reverse_address():
     assert received[0][0] == "reverse:test"
     assert received[0][1]["address"]["freeformAddress"] == "Gonen, Balikesir"
     assert received[0][2] == ""
+
+
+def test_customer_theme_styles_follow_active_light_and_dark_palette():
+    from PyQt6.QtWidgets import QLineEdit, QTableWidget, QVBoxLayout
+    from src.utils.theme_manager import ThemeManager
+
+    app = QApplication.instance() or QApplication([])
+
+    class ThemeProbe(CustomersBaseMixin, QWidget):
+        def __init__(self):
+            super().__init__()
+            self.layout = QVBoxLayout(self)
+            self.table = QTableWidget(self)
+            self.inp_search = QLineEdit(self)
+            self._setup_reference_metrics()
+            self._setup_banners()
+            self.layout.addWidget(self.customer_quick_filter_bar)
+
+    previous_theme = ThemeManager._current_theme
+    page = ThemeProbe()
+    try:
+        page.show()
+        for theme_name in ("AYEC", "Koyu Mavi"):
+            ThemeManager.apply_theme(app, theme_name, animate=False)
+            page.apply_theme_styles()
+            app.processEvents()
+            page.customer_quick_filter_bar.show()
+            app.processEvents()
+            window_color = ThemeManager.get_palette_color(theme_name, "window")
+            text_color = ThemeManager.get_palette_color(theme_name, "text")
+            muted_color = ThemeManager.get_palette_color(theme_name, "text_muted")
+            warning_color = ThemeManager.get_palette_color(theme_name, "warning")
+            accent_color = ThemeManager.get_palette_color(theme_name, "accent")
+            assert window_color.lower() in page.styleSheet().lower()
+            assert text_color.lower() in page.styleSheet().lower()
+            assert window_color.lower() in page.table.styleSheet().lower()
+            assert text_color.lower() in page.table.styleSheet().lower()
+            assert text_color.lower() in page._customer_metric_values[0].styleSheet().lower()
+            assert muted_color.lower() in page._customer_metric_title_labels[0].styleSheet().lower()
+            warning_button = page.customer_filter_buttons["DEBTORS"]
+            assert warning_color.lower() in warning_button.styleSheet().lower()
+            assert accent_color.lower() in page._customer_metric_bars[3].styleSheet().lower()
+            assert "@window" not in page.styleSheet()
+            assert "@text" not in page.table.styleSheet()
+            page.customer_quick_filter_bar.hide()
+    finally:
+        ThemeManager.apply_theme(app, previous_theme, animate=False)
+        page.deleteLater()
+        app.processEvents()

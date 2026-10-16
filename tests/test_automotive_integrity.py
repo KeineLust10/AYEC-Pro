@@ -1,5 +1,7 @@
 import os
+import json
 import re
+import sqlite3
 import sys
 from pathlib import Path
 
@@ -645,9 +647,23 @@ def test_web_stock_save_preserves_automotive_metadata(tmp_path, monkeypatch):
             "equivalent_code": "EQ-456",
             "compatible_models": "Ford Focus 2020-2025",
             "shelf_number": "A-12",
+            "unit": "Metre",
         }
     )
     assert created["part"]["oem_code"] == "OEM-123"
+    assert created["part"]["unit"] == "Metre"
+    with sqlite3.connect(database_path) as conn:
+        movement = conn.execute(
+            "SELECT description FROM stock_movements WHERE part_id=? ORDER BY id DESC LIMIT 1",
+            (created["id"],),
+        ).fetchone()
+        finance = conn.execute(
+            "SELECT description,selected_services FROM accounting WHERE product_service_id=? AND product_service_type='stock' ORDER BY id DESC LIMIT 1",
+            (created["id"],),
+        ).fetchone()
+    assert movement and movement[0].endswith("4 Metre")
+    assert finance and "4 Metre x Oil Filter" in finance[0]
+    assert '"unit": "Metre"' in finance[1]
 
     updated = web_main.save_stock_card(
         {
@@ -664,6 +680,7 @@ def test_web_stock_save_preserves_automotive_metadata(tmp_path, monkeypatch):
     assert updated["part"]["equivalent_code"] == "EQ-456"
     assert updated["part"]["compatible_models"] == "Ford Focus 2020-2025"
     assert updated["part"]["shelf_number"] == "A-12"
+    assert updated["part"]["unit"] == "Metre"
     web_main.clear_tenant_context()
 
 
@@ -733,6 +750,36 @@ def test_web_technician_update_saves_automotive_form(tmp_path, monkeypatch):
     assert '"road_test": true' in form[2]
     assert int(form[3]) == 1
     assert int(vehicle[0]) == 45025
+    db.close()
+
+    web_main.clear_tenant_context()
+    list_checklist = [
+        {
+            "section": "servis_kabul",
+            "label": "Ruhsat Teslimi",
+            "status": "Degismeli",
+            "note": "Web editor update",
+        }
+    ]
+    list_result = web_main.update_technician_job(
+        {
+            "device_id": device_id,
+            "tracking_no": "AUTO-WEB-TECH-1",
+            "status": "Testing",
+            "automotive_form": {
+                "vehicle_id": vehicle_id,
+                "vehicle_plate": "10AUTO10",
+                "checklist": list_checklist,
+            },
+        }
+    )
+    assert list_result["automotive_form_id"]
+    db = Database(str(database_path))
+    stored_checklist = db.cursor.execute(
+        "SELECT checklist_json FROM automotive_service_forms WHERE device_id=?",
+        (device_id,),
+    ).fetchone()[0]
+    assert json.loads(stored_checklist) == list_checklist
     db.close()
     web_main.clear_tenant_context()
 
@@ -904,6 +951,20 @@ def test_web_automotive_service_links_preserve_vehicle_fields(tmp_path):
             "fuel_type": "Diesel",
             "vehicle_odometer": 48275,
             "customer_phone": "05550000000",
+            "checklist": [
+                {
+                    "section": "servis_kabul",
+                    "label": "Ruhsat Teslimi",
+                    "status": "Degismeli",
+                    "note": "Fixture checklist note",
+                }
+            ],
+            "damage_marks": {
+                "items": [
+                    {"side": "On", "zone": "Kaput", "status": "Cizik", "note": "Fixture mark"}
+                ],
+                "general_note": "Fixture damage note",
+            },
         },
     )
     db.conn.commit()
@@ -914,7 +975,7 @@ def test_web_automotive_service_links_preserve_vehicle_fields(tmp_path):
         (linked["vehicle_id"],),
     ).fetchone()
     form = db.cursor.execute(
-        "SELECT customer_id,vehicle_plate,vehicle_vin,entry_odometer "
+        "SELECT customer_id,vehicle_plate,vehicle_vin,entry_odometer,checklist_json,damage_marks_json "
         "FROM automotive_service_forms WHERE id=?",
         (linked["form_id"],),
     ).fetchone()
@@ -936,7 +997,21 @@ def test_web_automotive_service_links_preserve_vehicle_fields(tmp_path):
         "Diesel",
         48275,
     )
-    assert tuple(form) == (customer_id, "10 QA 001", "VIN-LINK-1", 48275)
+    assert tuple(form[:4]) == (customer_id, "10 QA 001", "VIN-LINK-1", 48275)
+    assert json.loads(form[4]) == [
+        {
+            "section": "servis_kabul",
+            "label": "Ruhsat Teslimi",
+            "status": "Degismeli",
+            "note": "Fixture checklist note",
+        }
+    ]
+    assert json.loads(form[5]) == {
+        "items": [
+            {"side": "On", "zone": "Kaput", "status": "Cizik", "note": "Fixture mark"}
+        ],
+        "general_note": "Fixture damage note",
+    }
     assert tuple(card) == ("05550000000", "Courier", "2022", "Diesel", 48275)
     assert maintenance_card_id == linked["card_id"]
     db.close()
@@ -956,6 +1031,17 @@ def test_web_automotive_forms_wait_for_persistence_before_refresh():
     assert 'await apiFetch("/api/desktop/table/appointments"' in parity_text
     assert "serviceDialog=function" in parity_text
     assert 'await apiFetch("/api/desktop/table/devices"' in parity_text
+    assert "data-automotive-damage-open" in parity_text
+    assert "damage_marks:automotive?intakeDamageMarks:undefined" in parity_text
+    assert "data-automotive-checklist-open" in parity_text
+    assert "checklist:automotive?intakeChecklistData.items:undefined" in parity_text
+    assert "data-technician-damage-open" in parity_text
+    assert "damage_marks:damageMarks" in parity_text
+    assert "data-technician-checklist-open" in parity_text
+    assert "checklist=checklistData.items" in parity_text
+    assert "data-technician-vehicle-history" in parity_text
+    assert 'maintenanceHistoryDialog(card,historyHost)' in parity_text
+    assert "data-auto-check" not in parity_text
     assert "financeDialog=function" in parity_text
     assert 'await apiFetch("/api/desktop/table/accounting"' in parity_text
     assert "contextAction=function" in parity_text

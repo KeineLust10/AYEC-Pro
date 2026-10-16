@@ -5,6 +5,7 @@ from pathlib import Path
 from datetime import datetime
 
 from PyQt6.QtCore import QEvent, QObject, QPropertyAnimation, QEasingCurve, QTimer, Qt
+from PyQt6 import sip
 from PyQt6.QtGui import QColor, QPalette, QAction
 from PyQt6.QtWidgets import (
     QApplication,
@@ -32,8 +33,12 @@ from src.utils.logger import logger
 
 class _StyleChangeFilter(QObject):
     def eventFilter(self, obj, event):
-        from src.utils.theme_manager import ThemeManager
         event_type = event.type()
+        if event_type not in (QEvent.Type.Show, QEvent.Type.Polish):
+            return False
+        if sip.isdeleted(obj):
+            return False
+        from src.utils.theme_manager import ThemeManager
         if (
             event_type in (QEvent.Type.Show, QEvent.Type.Polish)
             and isinstance(obj, (QTableView, QTreeView))

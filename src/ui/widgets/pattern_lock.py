@@ -2,6 +2,7 @@
 from PyQt6.QtWidgets import QWidget, QApplication
 from PyQt6.QtGui import QPainter, QPen, QBrush, QColor
 from PyQt6.QtCore import Qt, QPoint
+from src.utils.theme_colors import tc
 
 
 def _is_classic_appearance():
@@ -43,8 +44,12 @@ class PatternLockWidget(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         classic = _is_classic_appearance()
-        bg_color = QColor("#FFFFFF" if classic else "#0F172A")
-        border_color = QColor("#B8C0CC" if classic else "#0F172A")
+        if classic:
+            bg_color = QColor(tc("surface", default="#F1F5F9"))
+            border_color = QColor(tc("border", default="#B8C7D9"))
+        else:
+            bg_color = QColor("#0F172A")
+            border_color = QColor("#0F172A")
         painter.setBrush(QBrush(bg_color))
         painter.setPen(QPen(border_color, 1) if classic else Qt.PenStyle.NoPen)
         radius = 8 if classic else 16

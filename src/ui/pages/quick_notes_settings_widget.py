@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QBoxLayout, QLayout, QLabel,
                              QTableWidget, QTableWidgetItem, QPushButton, 
                              QHeaderView, QComboBox, QLineEdit, QFormLayout, QMessageBox, QFrame, QMenu,
-                             QGraphicsDropShadowEffect, QAbstractItemView, QStyle)
+                             QGraphicsDropShadowEffect, QAbstractItemView, QStyle, QSizePolicy)
 from PyQt6.QtCore import Qt, QSize, QTimer
 from PyQt6.QtGui import QFont, QColor
 from src.utils.message_helper import show_success, show_error, show_question
@@ -38,16 +38,23 @@ class QuickNotesSettingsWidget(QWidget):
 
     def setup_ui(self):
         layout = QVBoxLayout(self)
+        layout.setSizeConstraint(QLayout.SizeConstraint.SetNoConstraint)
+        self.setMinimumSize(0, 0)
+        self.page_layout = layout
         layout.setContentsMargins(30, 33, 30, 24)
         layout.setSpacing(20)
         layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
         header = QHBoxLayout()
+        self.header_layout = header
         title_box = QVBoxLayout()
         title_box.setSpacing(13)
         title_row = QHBoxLayout()
+        self.title_row_layout = title_row
         title_row.setSpacing(16)
+        title_row.setAlignment(Qt.AlignmentFlag.AlignLeft)
         lbl_title = QLabel("H\u0131zl\u0131 Notlar & Makrolar")
+        lbl_title.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
         lbl_title.setStyleSheet(theme_qss(
             "color: @text; font-size: 28px; font-weight: 800; border: none;"
         ))
@@ -61,12 +68,12 @@ class QuickNotesSettingsWidget(QWidget):
         self.lbl_count.setFixedWidth(130)
         title_row.addWidget(lbl_title)
         title_row.addWidget(self.lbl_count)
-        title_row.addStretch(1)
         title_box.addLayout(title_row)
         lbl_desc = QLabel(
             "Teknisyen paneli ve servis operasyon s\u00fcre\u00e7leri i\u00e7in "
             "haz\u0131r metin \u015fablonlar\u0131n\u0131 y\u00f6netin."
         )
+        lbl_desc.setWordWrap(True)
         lbl_desc.setStyleSheet(theme_qss("color: @text_muted; font-size: 14px; border: none;"))
         title_box.addWidget(lbl_desc)
         header.addLayout(title_box, 1)
@@ -91,17 +98,21 @@ class QuickNotesSettingsWidget(QWidget):
         ))
         self.btn_refresh.clicked.connect(self.load_notes)
         self.btn_add.clicked.connect(self.open_add_dialog)
-        header.addWidget(self.btn_refresh)
-        header.addWidget(self.btn_add)
+        self.header_actions = QHBoxLayout()
+        self.header_actions.addWidget(self.btn_refresh)
+        self.header_actions.addWidget(self.btn_add)
+        header.addLayout(self.header_actions)
         layout.addLayout(header)
         layout.addSpacing(7)
 
         filter_frame = QFrame()
+        self.filter_frame = filter_frame
         filter_frame.setFixedHeight(63)
         filter_frame.setStyleSheet(theme_qss(
             "QFrame { background: transparent; border: none; }"
         ))
         filter_layout = QHBoxLayout(filter_frame)
+        filter_layout.setSizeConstraint(QLayout.SizeConstraint.SetNoConstraint)
         self.filter_layout = filter_layout
         filter_layout.setContentsMargins(0, 25, 0, 0)
         filter_layout.setSpacing(10)
@@ -137,13 +148,26 @@ class QuickNotesSettingsWidget(QWidget):
         tag_label.setStyleSheet(theme_qss("color: @text_muted; font-weight: 600; border: none;"))
         tag_label.setFixedWidth(98)
         self.quick_tag_buttons = []
-        filter_layout.addWidget(filter_label)
-        filter_layout.addWidget(self.combo_filter)
-        filter_layout.addSpacing(10)
-        filter_layout.addWidget(search_label)
-        filter_layout.addWidget(self.inp_search, 1)
-        filter_layout.addSpacing(10)
-        filter_layout.addWidget(tag_label)
+        self.category_filter_group = QWidget(filter_frame)
+        category_group_layout = QHBoxLayout(self.category_filter_group)
+        category_group_layout.setSizeConstraint(QLayout.SizeConstraint.SetNoConstraint)
+        category_group_layout.setContentsMargins(0, 0, 0, 0)
+        category_group_layout.setSpacing(8)
+        category_group_layout.addWidget(filter_label)
+        category_group_layout.addWidget(self.combo_filter, 1)
+        self.search_filter_group = QWidget(filter_frame)
+        search_group_layout = QHBoxLayout(self.search_filter_group)
+        search_group_layout.setSizeConstraint(QLayout.SizeConstraint.SetNoConstraint)
+        search_group_layout.setContentsMargins(0, 0, 0, 0)
+        search_group_layout.setSpacing(8)
+        search_group_layout.addWidget(search_label)
+        search_group_layout.addWidget(self.inp_search, 1)
+        self.quick_tags_group = QWidget(filter_frame)
+        quick_tags_layout = QHBoxLayout(self.quick_tags_group)
+        quick_tags_layout.setSizeConstraint(QLayout.SizeConstraint.SetNoConstraint)
+        quick_tags_layout.setContentsMargins(0, 0, 0, 0)
+        quick_tags_layout.setSpacing(6)
+        quick_tags_layout.addWidget(tag_label)
         for tag in ("Ar\u0131za", "Test", "Aksesuar"):
             button = QPushButton("#" + tag)
             button.setFixedWidth({"Ar\u0131za": 64, "Test": 58, "Aksesuar": 92}[tag])
@@ -159,7 +183,10 @@ class QuickNotesSettingsWidget(QWidget):
                 lambda checked, value=tag: self._apply_quick_tag(value if checked else "")
             )
             self.quick_tag_buttons.append(button)
-            filter_layout.addWidget(button)
+            quick_tags_layout.addWidget(button)
+        filter_layout.addWidget(self.category_filter_group)
+        filter_layout.addWidget(self.search_filter_group, 1)
+        filter_layout.addWidget(self.quick_tags_group)
         layout.addWidget(filter_frame)
         layout.addSpacing(27)
 
@@ -173,6 +200,7 @@ class QuickNotesSettingsWidget(QWidget):
         table_layout.setSpacing(0)
         table_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.table = QTableWidget()
+        self.table.setMinimumWidth(0)
         self.table.setColumnCount(6)
         self.table.setHorizontalHeaderLabels([
             "ID", "KATEGOR\u0130", "NOT \u0130\u00c7ER\u0130\u011e\u0130", "SIRA", "DURUM", "\u0130\u015eLEMLER"
@@ -230,6 +258,32 @@ class QuickNotesSettingsWidget(QWidget):
             self._apply_table_columns()
             return
         compact = self.width() < 1000
+        mobile = self.width() < 700
+        self.page_layout.setContentsMargins(12, 14, 12, 14) if mobile else self.page_layout.setContentsMargins(30, 33, 30, 24)
+        self.page_layout.setSpacing(12 if mobile else 20)
+        self.header_layout.setDirection(
+            QBoxLayout.Direction.TopToBottom if mobile
+            else QBoxLayout.Direction.LeftToRight
+        )
+        self.header_layout.setStretch(0, 0 if mobile else 1)
+        self.header_layout.setStretch(1, 0)
+        self.title_row_layout.setDirection(
+            QBoxLayout.Direction.TopToBottom if mobile
+            else QBoxLayout.Direction.LeftToRight
+        )
+        self.header_actions.setDirection(
+            QBoxLayout.Direction.LeftToRight
+        )
+        self.header_actions.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self.filter_layout.setDirection(
+            QBoxLayout.Direction.TopToBottom if mobile
+            else QBoxLayout.Direction.LeftToRight
+        )
+        self.filter_frame.setFixedHeight(142 if mobile else 63)
+        self.filter_layout.setContentsMargins(0, 8 if mobile else 25, 0, 0)
+        self.filter_layout.setSpacing(6 if mobile else 10)
+        self.inp_search.setMinimumWidth(0)
+        self.combo_filter.setMinimumWidth(154 if compact else 310)
         self.filter_layout.setSpacing(6 if compact else 10)
         self.combo_filter.setMinimumWidth(154 if compact else 310)
         self.tag_label.setFixedWidth(80 if compact else 98)

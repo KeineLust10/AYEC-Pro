@@ -6,6 +6,7 @@ import smtplib
 from datetime import datetime
 from email.message import EmailMessage
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLayout, QLineEdit, QPushButton,
     QFrame, QLabel, QComboBox, QCheckBox, QButtonGroup, QTextEdit, QSizePolicy,
@@ -23,11 +24,12 @@ class SMTPSettingsWidget(QWidget):
         super().__init__()
         self.setObjectName("part9_smtp_settings")
         self.setStyleSheet(
-            "QWidget#part9_smtp_settings { background: #0e1321; color: #dee2f6; } "
+            "QWidget#part9_smtp_settings { background: #0b1020; color: #dee2f6; font-family: 'Inter', 'Segoe UI', sans-serif; } "
             "QWidget#part9_smtp_settings QLabel { color: #c2c6d6; background: transparent; border: 0; }"
         )
         self.db = db
         self.main_window = main_window
+        self.setFont(QFont("Inter", 9))
         self._defaults = {
             "smtp_server": "srvm07.trwww.com", "smtp_port": "465",
             "smtp_email": "info@ayecpro.com",
@@ -38,7 +40,7 @@ class SMTPSettingsWidget(QWidget):
         root = QVBoxLayout(self)
         root.setSizeConstraint(QLayout.SizeConstraint.SetNoConstraint)
         root.setContentsMargins(8, 8, 8, 8)
-        root.setSpacing(8)
+        root.setSpacing(7)
         metrics = QHBoxLayout()
         metrics.setSpacing(8)
         self.smtp_metric_test = None
@@ -51,27 +53,33 @@ class SMTPSettingsWidget(QWidget):
         ):
             metric = QFrame()
             metric.setObjectName("smtpMetricCard")
-            metric.setFixedHeight(48)
+            metric.setFixedHeight(32)
             metric.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-            metric.setStyleSheet("QFrame#smtpMetricCard{background:#161b2a;border:1px solid #252a39;border-radius:4px}")
+            metric.setStyleSheet("QFrame#smtpMetricCard{background:#171d2d;border:1px solid #202d45;border-radius:4px}")
             metric_layout = QVBoxLayout(metric)
-            metric_layout.setContentsMargins(8, 2, 8, 2)
+            metric_layout.setContentsMargins(8, 3, 8, 3)
             metric_layout.setSpacing(1)
             metric_title = QLabel(label)
-            metric_title.setStyleSheet("color:#8c909f;font:700 8px Consolas,'Segoe UI',Arial,sans-serif")
+            metric_title.setStyleSheet("color:#8c98ad;font:700 8px 'JetBrains Mono',Consolas,monospace")
             metric_value = QLabel(value)
-            metric_value.setStyleSheet("color:#dee2f6;font:700 15px Consolas,'Segoe UI',Arial,sans-serif")
+            metric_value.setStyleSheet("color:#dee2f6;font:700 13px 'JetBrains Mono',Consolas,monospace")
             metric_detail = QLabel(detail)
-            metric_detail.setStyleSheet("color:#4cd7f6;font:600 8px Consolas,'Segoe UI',Arial,sans-serif")
+            metric_detail.setStyleSheet("color:#4cd7f6;font:600 8px 'JetBrains Mono',Consolas,monospace")
+            metric_value_row = QHBoxLayout()
+            metric_value_row.setContentsMargins(0, 0, 0, 0)
+            metric_value_row.setSpacing(6)
+            metric_value_row.addWidget(metric_value)
+            metric_value_row.addWidget(metric_detail)
+            metric_value_row.addStretch(1)
             metric_layout.addWidget(metric_title)
-            metric_layout.addWidget(metric_value)
-            metric_layout.addWidget(metric_detail)
+            metric_layout.addLayout(metric_value_row)
             metrics.addWidget(metric, 1)
             if label == "SON TEST":
                 self.smtp_metric_test = metric_value
                 self.smtp_metric_test_detail = metric_detail
         metrics_host = QWidget()
-        metrics_host.setFixedHeight(48)
+        metrics_host.setFixedHeight(32)
+        metrics.setContentsMargins(0, 0, 0, 0)
         metrics_host.setLayout(metrics)
         root.addWidget(metrics_host)
         columns = QHBoxLayout()
@@ -85,27 +93,27 @@ class SMTPSettingsWidget(QWidget):
         self.smtp_form_card = left
         left.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         left_layout = QVBoxLayout(left)
-        left_layout.setContentsMargins(10, 10, 10, 10)
-        left_layout.setSpacing(12)
+        left_layout.setContentsMargins(10, 8, 10, 8)
+        left_layout.setSpacing(10)
         title_row = QHBoxLayout()
         title = QLabel("E-Posta (SMTP) Sunucu Yap\u0131land\u0131rmas\u0131")
         title.setMaximumHeight(32)
         title.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        title.setStyleSheet("font-size:16px;font-weight:800;color:#dee2f6;background:transparent;border-left:3px solid #4edea3;padding-left:8px")
+        title.setStyleSheet("font-size:15px;font-weight:800;color:#dee2f6;background:transparent;border-left:3px solid #4f8ff9;padding-left:8px")
         security = self._get("smtp_security", "ssl")
         status = self._security_status(security)
         self.lbl_connection_state = QLabel(status)
-        self.lbl_connection_state.setStyleSheet("color:#4edea3;font-size:9px;font-weight:700")
+        self.lbl_connection_state.setStyleSheet("color:#4edea3;font:700 8px 'JetBrains Mono',Consolas,monospace")
         title_row.addWidget(title)
         title_row.addStretch(1)
         title_row.addWidget(self.lbl_connection_state)
         left_layout.addLayout(title_row)
-        left_layout.addSpacing(17)
+        left_layout.addSpacing(12)
         notice = QLabel("Otomatik bildirim motoru aktif. Servis fisleri, cari ekstreler ve PDF dokumanlari bu sunucu uzerinden iletilir.")
         notice.setWordWrap(True)
         notice.setMinimumHeight(62)
         notice.setMaximumHeight(62)
-        notice.setStyleSheet("background:#1a1f2e;border:1px solid #252a39;border-radius:4px;padding:10px;color:#c2c6d6")
+        notice.setStyleSheet("background:#171d2d;border:1px solid #202d45;border-radius:4px;padding:10px;color:#c2cce0;font:9px 'Inter','Segoe UI',sans-serif")
         left_layout.addWidget(notice)
 
         grid = QGridLayout()
@@ -130,7 +138,7 @@ class SMTPSettingsWidget(QWidget):
             button.setCheckable(True)
             button.setProperty("security_value", value)
             button.setMinimumHeight(32)
-            button.setStyleSheet("QPushButton{background:#1a1f2e;color:#c2c6d6;border:1px solid #303444;border-radius:4px;padding:5px;font-size:9px} QPushButton:checked{background:#1c293d;color:#dee2f6;border:1px solid #4d8eff;font-weight:700}")
+            button.setStyleSheet("QPushButton{background:#171d2d;color:#aebbd0;border:1px solid #202d45;border-radius:4px;padding:5px;font:8px 'Inter','Segoe UI',sans-serif} QPushButton:checked{background:#1c2940;color:#dee2f6;border:1px solid #4f8ff9;font-weight:700}")
             button.clicked.connect(lambda checked=False, key=value: self._set_security(key))
             self.security_group.addButton(button)
             security_layout.addWidget(button, 1)
@@ -164,7 +172,7 @@ class SMTPSettingsWidget(QWidget):
             cell_layout.setContentsMargins(0, 0, 0, 0)
             cell_layout.setSpacing(4)
             caption = QLabel(label)
-            caption.setStyleSheet("font-size:9px;font-weight:700;color:#c2c6d6")
+            caption.setStyleSheet("font:700 8px 'JetBrains Mono',Consolas,monospace;color:#aebbd0;border:0;background:transparent")
             cell_layout.addWidget(caption)
             if widget is self.inp_smtp_password:
                 row_layout = QHBoxLayout()
@@ -190,8 +198,9 @@ class SMTPSettingsWidget(QWidget):
         help_text = QLabel("Uygulama parolaniz guvenli ayar deposunda saklanir. Port 465 icin SSL, 587 icin STARTTLS kullanin.")
         help_text.setWordWrap(True)
         help_text.setMaximumHeight(34)
-        help_text.setStyleSheet("color:#8c909f;font-size:10px")
+        help_text.setStyleSheet("color:#8c98ad;font-size:9px")
         left_layout.addWidget(help_text)
+        left_layout.addStretch(1)
 
         actions = QHBoxLayout()
         self.btn_reset = QPushButton("Varsayilan Degerlere Don")
@@ -208,17 +217,20 @@ class SMTPSettingsWidget(QWidget):
         actions.addWidget(self.btn_cancel)
         actions.addWidget(self.btn_save)
         left_layout.addLayout(actions)
-        left_layout.addStretch(1)
         grid.setColumnStretch(0, 2)
         grid.setColumnStretch(1, 1)
-        left_column_layout.addWidget(left, 1)
+        left.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        left.setMinimumHeight(506)
+        left_column_layout.addWidget(left)
 
         right = QWidget()
         right.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         right_layout = QVBoxLayout(right)
         right_layout.setContentsMargins(0, 0, 0, 0)
-        right_layout.setSpacing(6)
+        right_layout.setSpacing(12)
         test_card = self._card()
+        test_card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        test_card.setMinimumHeight(346)
         self.smtp_test_card = test_card
         test_layout = QVBoxLayout(test_card)
         test_layout.setContentsMargins(10, 9, 10, 9)
@@ -241,19 +253,27 @@ class SMTPSettingsWidget(QWidget):
         test_layout.addWidget(self.btn_test)
         self.lbl_test_status = QLabel("SON TEST DURUMU: Henuz test edilmedi")
         self.lbl_test_status.setWordWrap(True)
-        self.lbl_test_status.setStyleSheet("background:#1a1f2e;color:#c2c6d6;padding:10px;border-radius:4px")
+        self.lbl_test_status.setStyleSheet("background:#171d2d;color:#c2cce0;padding:9px;border:1px solid #202d45;border-radius:4px;font-size:9px")
         test_layout.addWidget(self.lbl_test_status)
         self.lbl_protocol = QLabel("Soket yaniti: --\nSSL/TLS protokolu: --\nIletilen rapor: --")
-        self.lbl_protocol.setStyleSheet("color:#8c909f;font-size:10px")
-        test_layout.addWidget(self.lbl_protocol)
+        self.lbl_protocol.setStyleSheet("color:#8c98ad;font:8px 'JetBrains Mono',Consolas,monospace")
+        protocol_card = QFrame()
+        protocol_card.setStyleSheet("QFrame{background:#171d2d;border:1px solid #202d45;border-radius:4px}")
+        protocol_layout = QHBoxLayout(protocol_card)
+        protocol_layout.setContentsMargins(8, 6, 8, 6)
+        protocol_layout.addWidget(self.lbl_protocol)
+        test_layout.addWidget(protocol_card)
         for line in ("DNS MX / SPF durumu test edilmedi", "DKIM imzasi test edilmedi", "DMARC raporu test edilmedi"):
             label = QLabel("-  " + line)
-            label.setStyleSheet("color:#8c909f;font-size:10px")
+            label.setMinimumHeight(18)
+            label.setStyleSheet("color:#8c98ad;font-size:9px;padding-left:4px")
             test_layout.addWidget(label)
         test_layout.addStretch(1)
-        right_layout.addWidget(test_card, 1)
+        right_layout.addWidget(test_card)
 
         preset_card = self._card()
+        preset_card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        preset_card.setMinimumHeight(117)
         preset_layout = QVBoxLayout(preset_card)
         preset_layout.setContentsMargins(10, 8, 10, 8)
         preset_layout.setSpacing(5)
@@ -275,6 +295,8 @@ class SMTPSettingsWidget(QWidget):
         right_layout.addWidget(preset_card)
 
         automation_card = self._card()
+        automation_card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        automation_card.setMinimumHeight(122)
         automation_layout = QVBoxLayout(automation_card)
         automation_layout.setContentsMargins(10, 8, 10, 8)
         automation_layout.setSpacing(3)
@@ -288,11 +310,13 @@ class SMTPSettingsWidget(QWidget):
             row.addWidget(badge)
             automation_layout.addLayout(row)
         right_layout.addWidget(automation_card)
+        right_layout.addStretch(1)
         columns.addWidget(left_column, 2)
         columns.addWidget(right, 1)
         root.addLayout(columns, 1)
 
         log_card = self._card()
+        log_card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         log_card.setObjectName("p9SmtpLogCard")
         self.log_card = log_card
         log_layout = QVBoxLayout(log_card)
@@ -309,9 +333,10 @@ class SMTPSettingsWidget(QWidget):
         self.txt_log.setReadOnly(True)
         self.txt_log.setFixedHeight(64)
         self.txt_log.setPlainText("SMTP test gecmisi bos. Baglanti testi calistirildiginda sonuc burada gorunur.")
-        self.txt_log.setStyleSheet("background:#161b2a;color:#c2c6d6;border:0;font-family:Consolas,monospace;font-size:10px")
+        self.txt_log.setStyleSheet("background:#0b1120;color:#4cd7f6;border:0;font:8px 'JetBrains Mono',Consolas,monospace")
         log_layout.addWidget(self.txt_log)
         left_column_layout.addWidget(log_card)
+        left_column_layout.addStretch(1)
         self._original = self._snapshot()
 
     def _get(self, key, default=""):
@@ -327,28 +352,28 @@ class SMTPSettingsWidget(QWidget):
     def _style_input(self, widget):
         widget.setMinimumHeight(32)
         if isinstance(widget, QComboBox):
-            widget.setStyleSheet("QComboBox{background:#1a1f2e;color:#dee2f6;border:1px solid #303444;border-radius:4px;padding:6px} QComboBox QAbstractItemView{background:#1a1f2e;color:#dee2f6;selection-background-color:#005ac2}")
+            widget.setStyleSheet("QComboBox{background:#0b1120;color:#dee2f6;border:1px solid #202d45;border-radius:4px;padding:6px;font:9px 'Inter','Segoe UI',sans-serif} QComboBox QAbstractItemView{background:#111827;color:#dee2f6;selection-background-color:#2563eb}")
         else:
-            widget.setStyleSheet("QLineEdit{background:#1a1f2e;color:#dee2f6;border:1px solid #303444;border-radius:4px;padding:6px} QLineEdit:focus{border:1px solid #4d8eff}")
+            widget.setStyleSheet("QLineEdit{background:#0b1120;color:#dee2f6;border:1px solid #202d45;border-radius:4px;padding:6px;font:9px 'Inter','Segoe UI',sans-serif} QLineEdit:focus{border:1px solid #4f8ff9}")
 
     def _style_check(self, widget):
-        widget.setStyleSheet("color:#c2c6d6;font-size:10px;padding:4px")
+        widget.setStyleSheet("color:#c2cce0;font:9px 'Inter','Segoe UI',sans-serif;padding:4px")
 
     def _card(self):
         frame = QFrame()
         frame.setObjectName("p9SmtpCard")
-        frame.setStyleSheet("QFrame#p9SmtpCard{background:#090e1c;border:1px solid #1a1f2e;border-radius:7px}")
+        frame.setStyleSheet("QFrame#p9SmtpCard{background:#111827;border:1px solid #202d45;border-radius:4px}")
         return frame
 
     def _style_secondary(self, button):
         button.setMinimumHeight(30)
-        button.setStyleSheet("QPushButton{background:#1a1f2e;color:#c2c6d6;border:1px solid #303444;border-radius:4px;padding:7px 10px} QPushButton:hover{background:#252a39;color:#dee2f6}")
+        button.setStyleSheet("QPushButton{background:#171d2d;color:#c2cce0;border:1px solid #202d45;border-radius:4px;padding:7px 10px;font:8px 'Inter','Segoe UI',sans-serif} QPushButton:hover{background:#1c2940;color:#dee2f6}")
 
     def _style_primary(self, button, success=False, secondary=False):
-        color = "#03b5d3" if secondary else ("#00a572" if success else "#4d8eff")
-        text = "#003640" if secondary else ("#002113" if success else "#00285d")
+        color = "#00b8d9" if secondary else ("#4edea3" if success else "#4f8ff9")
+        text = "#06121f" if secondary else ("#07111f" if success else "#07111f")
         button.setMinimumHeight(34)
-        button.setStyleSheet(f"QPushButton{{background:{color};color:{text};border:0;border-radius:4px;padding:8px 12px;font-weight:700}} QPushButton:hover{{background:#6ffbbe}}" if success else f"QPushButton{{background:{color};color:{text};border:0;border-radius:4px;padding:8px 12px;font-weight:700}}")
+        button.setStyleSheet(f"QPushButton{{background:{color};color:{text};border:0;border-radius:4px;padding:8px 12px;font:700 9px 'Inter','Segoe UI',sans-serif}} QPushButton:hover{{background:#6ffbbe}}" if success else f"QPushButton{{background:{color};color:{text};border:0;border-radius:4px;padding:8px 12px;font:700 9px 'Inter','Segoe UI',sans-serif}}")
 
     def _snapshot(self):
         return {

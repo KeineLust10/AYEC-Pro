@@ -23,6 +23,9 @@ class MenuHost(QWidget):
     def on_page_changed_internal(self, _page_id):
         pass
 
+    def set_menu_label_mode(self, _mode, persist=True):
+        self._label_mode_persisted = bool(persist)
+
 
 class SettingsPage:
     def __init__(self):
@@ -34,7 +37,10 @@ class SettingsPage:
 
 class FakeWindow(MainWindowNavMixin):
     def __init__(self, side_menu):
-        self.app_sidebar = type("Sidebar", (), {"side_menu": side_menu})()
+        self.app_sidebar = type(
+            "Sidebar", (), {"setVisible": lambda _self, _visible: None}
+        )()
+        self.app_sidebar.side_menu = side_menu
         self.page = SettingsPage()
         self._current_page_index = 106
 
@@ -65,6 +71,10 @@ def test_whatsapp_sidebar_route_opens_whatsapp_settings_tab():
     )
 
     item._on_toggle_clicked()
+    if item.anim is not None:
+        item.anim.setCurrentTime(item.anim.duration())
+        item.anim.stop()
+    APP.processEvents()
 
     assert window._current_page_index == 130
     assert window.page.selected_tabs == [20]

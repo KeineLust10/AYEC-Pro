@@ -4,6 +4,8 @@ import csv
 
 from PyQt6.QtWidgets import (
     QWidget,
+    QBoxLayout,
+    QLayout,
     QVBoxLayout,
     QHBoxLayout,
     QTableWidget,
@@ -22,6 +24,7 @@ from PyQt6.QtWidgets import (
     QFrame,
     QSizePolicy,
     QFileDialog,
+    QScrollArea,
 )
 from PyQt6.QtCore import Qt, QDate, QSize, QEvent
 from PyQt6.QtGui import QFont
@@ -65,7 +68,23 @@ class CheckNotePage(QWidget):
         return formatted
 
     def init_ui(self):
-        layout = QVBoxLayout(self)
+        self.setMinimumWidth(0)
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        host_layout = QVBoxLayout(self)
+        host_layout.setContentsMargins(0, 0, 0, 0)
+        host_layout.setSpacing(0)
+        self._content_scroll = QScrollArea(self)
+        self._content_scroll.setWidgetResizable(True)
+        self._content_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self._content_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        content = QWidget()
+        content.setMinimumWidth(0)
+        content.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        self._content_widget = content
+        host_layout.addWidget(self._content_scroll)
+        self._content_scroll.setWidget(content)
+        layout = QVBoxLayout(content)
+        layout.setSizeConstraint(QLayout.SizeConstraint.SetNoConstraint)
         layout.setContentsMargins(5, 30, 26, 14)
         layout.setSpacing(18)
         self.selected_currency = self._display_currency()
@@ -81,6 +100,7 @@ class CheckNotePage(QWidget):
         title_header.setSpacing(12)
         title = QLabel("\u00c7ek & Senet Portf\u00f6y Y\u00f6netimi")
         self.page_title = title
+        title.setWordWrap(True)
         title.setFont(QFont(DesignTokens.FONT_NAME, 17, QFont.Weight.Bold))
         title.setStyleSheet(theme_qss("color: @text; background: transparent;"))
         title_header.addWidget(title)
@@ -95,6 +115,7 @@ class CheckNotePage(QWidget):
         title_column.addLayout(title_header)
         subtitle = QLabel("Al\u0131nan ve verilen vadeli k\u0131ymetli evraklar\u0131n takas, ciro, tahsilat ve reeskont operasyonlar\u0131")
         self.page_subtitle = subtitle
+        subtitle.setWordWrap(True)
         subtitle.setStyleSheet(theme_qss("color: @text_muted; background: transparent; font-size: 10px;"))
         title_column.addWidget(subtitle)
         header_layout.addLayout(title_column, 1)
@@ -127,6 +148,11 @@ class CheckNotePage(QWidget):
         layout.addSpacing(11)
         self._metric_values = {}
         self._metric_details = {}
+        self._metric_cards = {}
+        self._metric_caption_layouts = {}
+        self._metric_detail_layouts = {}
+        self._metric_detail_frames = {}
+        self._metric_badges = {}
         metrics = QGridLayout()
         metrics.setHorizontalSpacing(18)
         metrics.setVerticalSpacing(10)
@@ -139,11 +165,15 @@ class CheckNotePage(QWidget):
             card = QFrame()
             card.setObjectName("PortfolioCard")
             card.setFixedHeight(194)
+            card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             card_layout = QVBoxLayout(card)
             card_layout.setContentsMargins(20, 20, 20, 19)
             card_layout.setSpacing(0)
             caption_row = QHBoxLayout()
             caption = QLabel(label)
+            caption.setWordWrap(True)
+            caption.setMinimumWidth(0)
+            caption.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
             caption.setStyleSheet(theme_qss("color: @text_muted; border: none; font-size: 11px;"))
             caption_row.addWidget(caption, 1)
             glyph = {"portfolio": "\u25a3", "due": "\u25a6", "received": "\u2195", "discounted": "$"}[key]
@@ -158,13 +188,17 @@ class CheckNotePage(QWidget):
             if key == "received":
                 value = QLabel()
                 value.setTextFormat(Qt.TextFormat.RichText)
+                value.setWordWrap(True)
                 value.setFixedHeight(34)
                 value.setStyleSheet(theme_qss("color: @text; font: 20px Inter; border: none;"))
             else:
                 value = ReferenceMetricValueLabel("0", primary_token=color, primary_size=28)
                 value.setFixedHeight(34)
+            value.setMinimumWidth(0)
+            value.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
             value.setToolTip(label)
             card_layout.addLayout(caption_row)
+            self._metric_caption_layouts[key] = caption_row
             card_layout.addStretch(1)
             card_layout.addWidget(value)
             card_layout.addSpacing(6)
@@ -178,6 +212,8 @@ class CheckNotePage(QWidget):
             detail.setObjectName("metric_detail_" + key)
             detail.setMinimumHeight(16)
             detail.setWordWrap(True)
+            detail.setMinimumWidth(0)
+            detail.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
             detail.setAlignment(
                 Qt.AlignmentFlag.AlignLeft
                 | (Qt.AlignmentFlag.AlignTop if key == "portfolio" else Qt.AlignmentFlag.AlignVCenter)
@@ -189,6 +225,9 @@ class CheckNotePage(QWidget):
             self._metric_details[key] = detail
             badge = QLabel("")
             badge.setObjectName("metric_badge_" + key)
+            badge.setWordWrap(True)
+            badge.setMinimumWidth(0)
+            badge.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
             badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
             badge.setStyleSheet(theme_qss(
                 "QLabel { border: 1px solid @border; border-radius: 6px; padding: 3px 6px; "
@@ -217,9 +256,13 @@ class CheckNotePage(QWidget):
                 detail_frame.setFixedHeight(32)
                 badge.setFixedHeight(30)
             detail_row.addWidget(badge, 0, Qt.AlignmentFlag.AlignVCenter)
+            self._metric_detail_layouts[key] = detail_row
+            self._metric_detail_frames[key] = detail_frame
+            self._metric_badges[key] = badge
             card_layout.addWidget(detail_frame)
             metrics.addWidget(card, 0, column)
             self._metric_values[key] = value
+            self._metric_cards[key] = card
         layout.addLayout(metrics)
         layout.addSpacing(2)
 
@@ -232,6 +275,7 @@ class CheckNotePage(QWidget):
         filter_layout.setSpacing(17)
         top_filter_row = QHBoxLayout()
         top_filter_row.setSpacing(12)
+        self.reference_top_filter_row = top_filter_row
         reference_tabs_frame = QFrame()
         self.reference_tabs_frame = reference_tabs_frame
         reference_tabs_frame.setObjectName("ReferenceFilterTabs")
@@ -298,6 +342,7 @@ class CheckNotePage(QWidget):
 
         control_row = QHBoxLayout()
         control_row.setSpacing(13)
+        self.reference_control_row = control_row
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Ke\u015fideci, bor\u00e7lu, banka veya evrak no ara...")
         self.search_input.setClearButtonEnabled(True)
@@ -326,10 +371,10 @@ class CheckNotePage(QWidget):
         range_start = QDate.currentDate().addDays(1 - QDate.currentDate().day())
         range_end = range_start.addMonths(12)
         self.date_start.setDate(range_start)
-        self.date_start.setFixedSize(112, 34)
+        self.date_start.setFixedSize(103, 34)
         self.date_start.setStyleSheet(theme_qss(
-            "QDateEdit { background: @finance_surface_alt; color: @text; border: 1px solid @border; font-family: 'JetBrains Mono'; font-size: 11px; "
-            "border-radius: 6px; padding: 7px 8px; } QDateEdit::drop-down { width: 24px; background: transparent; border: none; } "
+            "QDateEdit { background: transparent; color: @text; border: none; font-family: 'JetBrains Mono'; font-size: 10px; "
+            "border-radius: 0; padding: 7px 5px; } QDateEdit::drop-down { width: 16px; background: transparent; border: none; } "
             "QDateEdit::down-arrow { image: none; width: 0; height: 0; border: none; }"
         ))
         self.date_start.dateChanged.connect(self.load_data)
@@ -337,10 +382,10 @@ class CheckNotePage(QWidget):
         self.date_end.setDisplayFormat("yyyy-MM-dd")
         self.date_end.setDateRange(QDate(1900, 1, 1), QDate(2099, 12, 31))
         self.date_end.setDate(range_end)
-        self.date_end.setFixedSize(104, 34)
+        self.date_end.setFixedSize(103, 34)
         self.date_end.setStyleSheet(theme_qss(
-            "QDateEdit { background: @finance_surface_alt; color: @text; border: 1px solid @border; font-family: 'JetBrains Mono'; font-size: 11px; "
-            "border-radius: 6px; padding: 7px 8px; } QDateEdit::drop-down { width: 24px; background: transparent; border: none; } "
+            "QDateEdit { background: transparent; color: @text; border: none; font-family: 'JetBrains Mono'; font-size: 10px; "
+            "border-radius: 0; padding: 7px 5px; } QDateEdit::drop-down { width: 16px; background: transparent; border: none; } "
             "QDateEdit::down-arrow { image: none; width: 0; height: 0; border: none; }"
         ))
         self.date_end.dateChanged.connect(self.load_data)
@@ -360,7 +405,7 @@ class CheckNotePage(QWidget):
         range_separator.setText("-")
         range_separator.setAutoRaise(True)
         range_separator.setEnabled(False)
-        range_separator.setFixedWidth(4)
+        range_separator.setFixedWidth(10)
         range_separator.setStyleSheet(theme_qss("QToolButton { background: transparent; border: none; padding: 0; }"))
         date_range_layout.addWidget(range_separator)
         date_range_layout.addWidget(self.date_end)
@@ -384,7 +429,7 @@ class CheckNotePage(QWidget):
         ])
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-        for column, width in enumerate((58, 60, 105, 100, 150, 115, 105, 135, 90, 126, 190)):
+        for column, width in enumerate((55, 60, 108, 102, 153, 115, 120, 130, 86, 130, 191)):
             self.table.setColumnWidth(column, width)
         header.setStretchLastSection(False)
         for column in range(11):
@@ -392,6 +437,8 @@ class CheckNotePage(QWidget):
         header.setFixedHeight(72)
         header.setDefaultAlignment(Qt.AlignmentFlag.AlignCenter)
         self.table.setMinimumWidth(0)
+        self.table.setShowGrid(False)
+        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.table.verticalHeader().setVisible(False)
         self.table.setAlternatingRowColors(False)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -417,7 +464,80 @@ class CheckNotePage(QWidget):
         ))
         self.table.viewport().installEventFilter(self)
         self._update_empty_state()
+        self._responsive_layouts = {
+            "root": layout,
+            "header": header_layout,
+            "title_header": title_header,
+            "metrics": metrics,
+            "filter": filter_layout,
+            "top_filter": top_filter_row,
+            "tabs": reference_tabs_layout,
+            "controls": control_row,
+            "tabs_frame": reference_tabs_frame,
+        }
+        self._compact_layout = None
+        self._apply_responsive_layout(self.width() < 700)
         self.load_data()
+
+    def _apply_responsive_layout(self, compact):
+        if getattr(self, "_compact_layout", None) == compact:
+            return
+        layouts = getattr(self, "_responsive_layouts", None)
+        if not layouts:
+            return
+        self._compact_layout = compact
+        direction = (
+            QBoxLayout.Direction.TopToBottom if compact
+            else QBoxLayout.Direction.LeftToRight
+        )
+        layouts["header"].setDirection(direction)
+        layouts["title_header"].setDirection(direction)
+        layouts["top_filter"].setDirection(direction)
+        layouts["tabs"].setDirection(direction)
+        layouts["controls"].setDirection(direction)
+        self.page_title.setWordWrap(compact)
+        self._metric_values["received"].setWordWrap(compact)
+        layouts["root"].setContentsMargins(
+            *( (8, 14, 8, 10) if compact else (5, 30, 26, 14) )
+        )
+        layouts["root"].setSpacing(12 if compact else 18)
+        layouts["metrics"].setHorizontalSpacing(10 if compact else 18)
+        layouts["metrics"].setColumnStretch(0, 1)
+        layouts["metrics"].setColumnStretch(1, 1)
+        layouts["metrics"].setColumnStretch(2, 0 if compact else 1)
+        layouts["metrics"].setColumnStretch(3, 0 if compact else 1)
+        layouts["filter"].setContentsMargins(
+            *( (10, 10, 10, 10) if compact else (17, 14, 20, 12) )
+        )
+        layouts["filter"].setSpacing(10 if compact else 17)
+        layouts["tabs_frame"].setFixedHeight(184 if compact else 46)
+        for index, (key, card) in enumerate(self._metric_cards.items()):
+            layouts["metrics"].removeWidget(card)
+            row, column = (index // 2, index % 2) if compact else (0, index)
+            layouts["metrics"].addWidget(card, row, column)
+            self._metric_caption_layouts[key].setDirection(direction)
+            self._metric_detail_layouts[key].setDirection(direction)
+            card.layout().setContentsMargins(
+                *( (12, 10, 12, 10) if compact else (20, 20, 20, 19) )
+            )
+            if compact:
+                frame_height = {"portfolio": 58, "due": 54, "received": 54, "discounted": 52}[key]
+                self._metric_detail_frames[key].setFixedHeight(frame_height)
+                badge = self._metric_badges[key]
+                badge.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+                badge.setFixedSize(90, 28) if key == "portfolio" else badge.setFixedHeight(28)
+                if key == "portfolio":
+                    badge.setText("Portf\u00f6y Aktif")
+            else:
+                frame_height = {"portfolio": 58, "due": 34, "received": 34, "discounted": 32}[key]
+                self._metric_detail_frames[key].setFixedHeight(frame_height)
+                badge = self._metric_badges[key]
+                badge.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
+                if key == "portfolio":
+                    badge.setFixedSize(90, 56)
+                    badge.setText("Portf\u00f6y\nAktif")
+                else:
+                    badge.setFixedHeight(32 if key in ("due", "received") else 30)
 
     def eventFilter(self, watched, event):
         if watched is self.table.viewport() and event.type() == QEvent.Type.Resize:
@@ -433,8 +553,8 @@ class CheckNotePage(QWidget):
             available = self.table.width()
         if available <= 0:
             return
-        weights = (35, 45, 75, 65, 130, 85, 90, 100, 75, 85, 215)
-        minimums = (44, 48, 76, 70, 135, 110, 110, 120, 92, 100, 170)
+        weights = (44, 48, 86, 82, 122, 92, 96, 104, 69, 104, 153)
+        minimums = (40, 48, 80, 85, 120, 100, 110, 110, 80, 120, 170)
         widths = [max(minimum, available * weight // 1000) for minimum, weight in zip(minimums, weights)]
         if sum(widths) < available:
             widths[-1] += available - sum(widths)
@@ -451,20 +571,21 @@ class CheckNotePage(QWidget):
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        compact = self.width() < 1280
+        compact = self.width() < 1450
         if not hasattr(self, "search_input"):
             return
         if compact:
             header = self.table.horizontalHeader()
             header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-            self.reference_tabs_frame.setFixedWidth(765)
-            self.currency_frame.setFixedWidth(230)
-            compact_tab_widths = {"all": 138, "checks": 145, "notes": 145, "own": 147, "endorsed": 180}
+            self.reference_tabs_frame.setFixedWidth(720)
+            self.currency_frame.setFixedWidth(180)
+            self.reference_top_filter_row.setSpacing(8)
+            compact_tab_widths = {"all": 130, "checks": 134, "notes": 134, "own": 136, "endorsed": 182}
             for key, button in self.reference_filter_buttons.items():
                 button.setFixedWidth(compact_tab_widths[key])
                 button.setStyleSheet(theme_qss(
                     "QPushButton { background: @finance_surface_alt; color: @text_muted; border: 1px solid @border; "
-                    "border-radius: 7px; padding: 6px 7px; font-size: 12px; } "
+                    "border-radius: 7px; padding: 4px 4px; font-size: 11px; } "
                     "QPushButton:checked { background: @accent; color: @selection_text; border-color: @accent; font-weight: 700; }"
                 ))
                 if key == "endorsed":
@@ -475,12 +596,20 @@ class CheckNotePage(QWidget):
                     ))
             self.search_input.setFixedSize(140, 42)
             self.filter_status.setFixedSize(190, 42)
-            self.bank_filter.setFixedSize(200, 42)
-            self.date_range.setFixedWidth(270)
-            self.btn_clear_filters.setFixedSize(145, 42)
-            self.date_start.setFixedWidth(116)
-            self.date_end.setFixedWidth(116)
-            self._metric_values["received"].setStyleSheet(theme_qss("color: @text; font: 17px Inter; border: none;"))
+            self.bank_filter.setFixedSize(190, 42)
+            self.date_range.setFixedWidth(220)
+            self.btn_clear_filters.setFixedSize(130, 42)
+            self.date_start.setFixedWidth(92)
+            self.date_end.setFixedWidth(92)
+            for button in self.currency_buttons.values():
+                button.setStyleSheet(theme_qss(
+                    "QPushButton { background: @surface; color: @text_muted; border: 1px solid @border; "
+                    "border-radius: 6px; padding: 3px 2px; font-size: 10px; } "
+                    "QPushButton:checked { background: @surface_alt; color: @finance_breadcrumb_active; "
+                    "border-color: @finance_breadcrumb_active; font-weight: 700; }"
+                ))
+            self.reference_control_row.setSpacing(8)
+            self._metric_values["received"].setStyleSheet(theme_qss("color: @text; font: 14px Inter; border: none;"))
             self.page_title.setStyleSheet(theme_qss(
                 "color: @text; background: transparent; font-size: 16px; font-weight: 700;"
             ))
@@ -495,6 +624,7 @@ class CheckNotePage(QWidget):
             header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
             self.reference_tabs_frame.setFixedWidth(836)
             self.currency_frame.setFixedWidth(288)
+            self.reference_top_filter_row.setSpacing(12)
             desktop_tab_widths = {"all": 157, "checks": 158, "notes": 153, "own": 157, "endorsed": 201}
             for key, button in self.reference_filter_buttons.items():
                 button.setFixedWidth(desktop_tab_widths[key])
@@ -514,8 +644,9 @@ class CheckNotePage(QWidget):
             self.bank_filter.setFixedSize(232, 42)
             self.date_range.setFixedSize(232, 42)
             self.btn_clear_filters.setFixedSize(232, 42)
-            self.date_start.setFixedSize(112, 34)
-            self.date_end.setFixedSize(104, 34)
+            self.date_start.setFixedSize(103, 34)
+            self.date_end.setFixedSize(103, 34)
+            self.reference_control_row.setSpacing(13)
             self._metric_values["received"].setStyleSheet(theme_qss("color: @text; font: 20px Inter; border: none;"))
             self.page_title.setStyleSheet(theme_qss(
                 "color: @text; background: transparent; font-size: 18px; font-weight: 700;"
@@ -526,6 +657,47 @@ class CheckNotePage(QWidget):
             self.btn_export.setFixedSize(128, 44)
             self.btn_add.setFixedSize(234, 44)
             self.btn_bulk_clearance.setFont(QFont(DesignTokens.FONT_NAME, 11, QFont.Weight.DemiBold))
+        mobile = self.width() < 700
+        if mobile:
+            self.reference_tabs_frame.setMinimumWidth(0)
+            self.reference_tabs_frame.setMaximumWidth(16777215)
+            self.reference_tabs_frame.setSizePolicy(
+                QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+            )
+            for button in self.reference_filter_buttons.values():
+                button.setMinimumWidth(0)
+                button.setMaximumWidth(16777215)
+                button.setSizePolicy(
+                    QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+                )
+        else:
+            self.reference_tabs_frame.setFixedWidth(720 if compact else 836)
+        for row in range(self.table.rowCount()):
+            customer_cell = self.table.cellWidget(row, 4)
+            if customer_cell is None:
+                continue
+            customer_name = customer_cell.findChild(QLabel, "CheckPortfolioCustomerName")
+            customer_meta = customer_cell.findChild(QLabel, "CheckPortfolioCustomerMeta")
+            if customer_name is not None:
+                customer_name.setStyleSheet(theme_qss(
+                    "color: @text; font-size: 11px; font-weight: 700;"
+                    if compact else "color: @text; font-size: 14px; font-weight: 700;"
+                ))
+            if customer_meta is not None:
+                customer_meta.setStyleSheet(theme_qss(
+                    "color: @text_muted; font-size: 9px;" if compact else "color: @text_muted; font-size: 11px;"
+                ))
+        self._apply_responsive_layout(mobile)
+        self._responsive_layouts["root"].invalidate()
+        self._responsive_layouts["root"].activate()
+        if mobile:
+            content_height = max(
+                event.size().height(),
+                self._responsive_layouts["root"].sizeHint().height(),
+            )
+            self._content_widget.setMinimumHeight(content_height)
+        else:
+            self._content_widget.setMinimumHeight(0)
         self._fit_table_columns()
 
     def _normalize_status_filter(self, current: str):
@@ -876,10 +1048,12 @@ class CheckNotePage(QWidget):
             customer_text.setAlignment(Qt.AlignmentFlag.AlignTop)
             customer_display = issuer.replace(" (", "\n(")
             customer_name = QLabel(customer_display)
+            customer_name.setObjectName("CheckPortfolioCustomerName")
             customer_name.setWordWrap(True)
             customer_name.setMinimumHeight(85 if len(customer_display) >= 30 else (68 if len(customer_display) >= 20 else 42))
             customer_name.setStyleSheet(theme_qss("color: @text; font-size: 14px; font-weight: 700;"))
             customer_meta = QLabel(recipient)
+            customer_meta.setObjectName("CheckPortfolioCustomerMeta")
             customer_meta.setWordWrap(True)
             customer_meta.setStyleSheet(theme_qss("color: @text_muted; font-size: 11px;"))
             customer_text.addWidget(customer_name)

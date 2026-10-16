@@ -43,3 +43,21 @@ def test_collection_payment_labels_and_currency_summary_are_readable():
     assert ".collection-debt-list>header strong{font-size:14px}" in styles
     assert ".collection-debt-item strong,.collection-debt-item>b{font-size:14px}" in styles
     assert ".collection-count{font-size:12px}" in styles
+
+
+def test_collection_dialog_matches_desktop_tax_installment_date_and_receipt_controls():
+    app = (WEB / "app.js").read_text(encoding="utf-8")
+    styles = (WEB / "collection-payment-parity.css").read_text(encoding="utf-8")
+    index = (WEB / "index.html").read_text(encoding="utf-8")
+
+    assert 'name="vat_rate"' in app
+    assert 'name="is_installment"' in app
+    assert 'name="down_payment"' in app
+    assert 'name="installment_count"' in app
+    assert 'name="print_receipt" checked' in app
+    assert 'paymentDate.disabled=false' in app
+    assert 'date:values.date' in app
+    assert "printCustomerPaymentReceipt" in app
+    assert "collection-installment-fields" in styles
+    assert "collection-tax-card" in styles
+    assert 'collection-payment-parity.css' in index

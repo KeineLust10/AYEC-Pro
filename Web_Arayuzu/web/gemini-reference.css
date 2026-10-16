@@ -1,0 +1,246 @@
+.gemini-ref {
+  display: grid;
+  gap: var(--space-3);
+  color: var(--ink);
+}
+
+.gemini-ref .card {
+  min-width: 0;
+  padding: var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+
+.gemini-ref h3 {
+  margin: 0;
+  font-size: 13px;
+}
+
+.gemini-ref header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.gemini-ref header p {
+  margin: var(--space-1) 0 0;
+}
+
+.gemini-ref-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.gemini-ref-metrics article {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-3);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.gemini-ref-metrics small,
+.gemini-ref-field > span,
+.gemini-ref-range > span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.gemini-ref-metrics strong {
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+
+.gemini-ref-metrics article > span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.gemini-ref-main {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+  gap: var(--space-2);
+  align-items: stretch;
+}
+
+.gemini-ref-pool,
+.gemini-ref-model {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.gemini-ref-field,
+.gemini-ref-range {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.gemini-ref-field input {
+  width: 100%;
+  min-width: 0;
+  height: var(--field-height);
+  padding: 0 var(--space-3);
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.gemini-ref-table {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr;
+  gap: var(--space-2);
+  overflow-x: auto;
+  padding: var(--space-2) 0;
+  border-block: 1px solid var(--line);
+  font-size: 11px;
+}
+
+.gemini-ref-table > span {
+  color: var(--muted);
+}
+
+.gemini-ref-table > * {
+  min-width: 100px;
+  overflow-wrap: anywhere;
+}
+
+.gemini-ref-range > span {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.gemini-ref-range output {
+  color: var(--ink);
+  font: 12px var(--font-mono);
+}
+
+.gemini-ref-range input {
+  width: 100%;
+  accent-color: var(--brand);
+}
+
+.gemini-ref-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.gemini-ref-toggle input {
+  flex: 0 0 auto;
+  margin-top: 3px;
+  accent-color: var(--success);
+}
+
+.gemini-ref-toggle span {
+  display: grid;
+  gap: 2px;
+}
+
+.gemini-ref-toggle small,
+.gemini-ref-empty {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.gemini-ref-model > button {
+  width: 100%;
+  min-height: 36px;
+}
+
+.gemini-ref-usage header {
+  align-items: center;
+}
+
+.gemini-ref-empty {
+  display: grid;
+  min-height: 88px;
+  margin-top: var(--space-3);
+  place-items: center;
+  border-top: 1px solid var(--line);
+  text-align: center;
+}
+
+.gemini-ref-features {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.gemini-ref-feature {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-2);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.gemini-ref-feature span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.gemini-ref-feature strong {
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+
+.gemini-ref-feature small {
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.gemini-ref-feature input {
+  flex: 0 0 auto;
+  accent-color: var(--brand);
+}
+
+@media (max-width: 1050px) {
+  .gemini-ref-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .gemini-ref-main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .gemini-ref-features {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 560px) {
+  .gemini-ref-metrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .gemini-ref header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .gemini-ref header > button {
+    width: 100%;
+  }
+
+  .gemini-ref-table {
+    grid-template-columns: repeat(3, minmax(100px, 1fr));
+  }
+}

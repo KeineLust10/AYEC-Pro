@@ -35,21 +35,25 @@ def main() -> int:
         temporary_path = Path(temporary)
         database = temporary_path / "auth-test.db"
         backup_database(source, database)
-        with sqlite3.connect(database) as connection:
-            if connection.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 0:
-                connection.execute(
-                    "INSERT INTO users (username,password,email,role,full_name,active,interface_edit_access) "
-                    "VALUES (?,?,?,?,?,?,?)",
-                    (
-                        "admin",
-                        hashlib.sha256(b"admin123").hexdigest(),
-                        "admin@ayecpro.local",
-                        "Admin",
-                        "Admin",
-                        1,
-                        1,
-                    ),
-                )
+        tenant_dir = temporary_path / "tenants"
+        tenant_dir.mkdir()
+        tenant_database = tenant_dir / "Auth Test.db"
+        backup_database(source, tenant_database)
+        with sqlite3.connect(tenant_database) as connection:
+            connection.execute("DELETE FROM users")
+            connection.execute(
+                "INSERT INTO users (username,password,email,role,full_name,active,interface_edit_access) "
+                "VALUES (?,?,?,?,?,?,?)",
+                (
+                    "admin",
+                    hashlib.sha256(b"admin123").hexdigest(),
+                    "ayecpro@gmail.com",
+                    "Admin",
+                    "Admin",
+                    1,
+                    1,
+                ),
+            )
             if connection.execute("SELECT COUNT(*) FROM customers").fetchone()[0] == 0:
                 connection.execute(
                     "INSERT INTO customers (name,phone,type,is_deleted) VALUES (?,?,?,0)",
@@ -62,12 +66,18 @@ def main() -> int:
                     ("Wipe Test Part", "Wipe Test Part", 1, 10, 5, "TRY", "WIPE-001"),
                 )
                 connection.commit()
+        with sqlite3.connect(database) as connection:
+            connection.execute(
+                "INSERT INTO tenants (id,company_name,db_filename,created_at,active) VALUES (?,?,?,?,1)",
+                ("auth-test-tenant", "Auth Test", tenant_database.name, "2026-01-01T00:00:00"),
+            )
+            connection.commit()
 
         port = free_port()
         base = f"http://127.0.0.1:{port}"
         environment = dict(os.environ)
         environment["AYEC_BACKUP_DIR"] = str(temporary_path / "backups")
-        environment["AYEC_TENANT_DIR"] = str(temporary_path / "Kullanıcılar")
+        environment["AYEC_TENANT_DIR"] = str(tenant_dir)
         process = subprocess.Popen(
             [sys.executable, "Main.py", "--host", "127.0.0.1", "--port", str(port), "--db", str(database)],
             cwd=ROOT,
@@ -138,7 +148,7 @@ def main() -> int:
             if checks[16][2].get("deleted_rows", 0) <= 0:
                 raise AssertionError("Wipe All hiçbir satır silmedi.")
 
-            tenant_files = sorted((temporary_path / "Kullanıcılar").glob("*.db"))
+            tenant_files = sorted(tenant_dir.glob("*.db"))
             if not tenant_files:
                 raise AssertionError("Firma veritabanı oluşturulmadı.")
             with sqlite3.connect(tenant_files[0]) as connection:

@@ -31,6 +31,26 @@ def test_integration_hub_adapts_legacy_dark_styles_to_theme_tokens():
     root.close()
 
 
+def test_integration_hub_preserves_explicit_reference_action_styles(tmp_path):
+    app = QApplication.instance() or QApplication([])
+    db = Database(str(tmp_path / "telegram_reference_styles.db"))
+    widget = TelegramSettingsWidget(db)
+    try:
+        IntegrationHubWidget._apply_adaptive_integration_styles(widget)
+        for button in (
+            widget.token_eye,
+            widget.btn_copy_token,
+            widget.btn_reset_webhook,
+            widget.btn_drop_pending,
+        ):
+            assert button.property("skipThemeTransform") is True
+            assert "background:#1f2937" in button.styleSheet()
+            assert "color:#dbeafe" in button.styleSheet()
+    finally:
+        widget.close()
+        db.close()
+
+
 def test_sms_settings_fit_scroll_view_without_clipping_controls(tmp_path):
     app = QApplication.instance() or QApplication([])
     db = Database(str(tmp_path / "sms_scroll.db"))
@@ -50,19 +70,18 @@ def test_sms_settings_fit_scroll_view_without_clipping_controls(tmp_path):
         db.close()
 
 
-def test_telegram_integration_card_expands_to_available_height(tmp_path):
+def test_telegram_integration_page_expands_to_available_height(tmp_path):
     app = QApplication.instance() or QApplication([])
     db = Database(str(tmp_path / "telegram_full_height.db"))
     hub = IntegrationHubWidget(db)
     wrapper = hub._create_page("telegram", "#00cde8", "Telegram Bot")
     try:
+        page = wrapper.layout().itemAt(0).widget()
+        assert isinstance(page, TelegramSettingsWidget)
         wrapper.resize(1280, 900)
         wrapper.show()
         app.processEvents()
-        card = wrapper.layout().itemAt(1).widget()
-        inner = card.layout().itemAt(0).widget()
-        assert card.height() >= 800
-        assert inner.content_scroll.viewport().height() >= 730
+        assert page.content_scroll.viewport().height() >= 850
         capture = Path(__file__).resolve().parents[1] / "output" / "part9-captures" / "telegram-settings-full-page.png"
         capture.parent.mkdir(parents=True, exist_ok=True)
         assert wrapper.grab().save(str(capture), "PNG")

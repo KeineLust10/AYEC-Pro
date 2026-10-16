@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import (
     QComboBox,
     QDateEdit,
     QFrame,
+    QBoxLayout,
     QGridLayout,
     QHBoxLayout,
     QHeaderView,
@@ -27,7 +28,7 @@ from PyQt6.QtWidgets import (
 )
 
 from src.ui.widgets.navigation_glyph import navigation_icon
-from src.utils.theme_colors import theme_qss
+from src.utils.theme_colors import qc, theme_qss
 from src.utils.theme_manager import ThemeManager
 
 
@@ -56,6 +57,7 @@ class _InvoiceInputDelegate(QStyledItemDelegate):
             return
         super().setModelData(editor, model, index)
 
+
     def paint(self, painter: QPainter, option: QStyleOptionViewItem, index):
         super().paint(painter, option, index)
         if index.column() not in self.INPUT_COLUMNS:
@@ -81,6 +83,35 @@ class _InvoiceInputDelegate(QStyledItemDelegate):
             painter.drawLine(arrow_x - 3, arrow_y - 1, arrow_x, arrow_y + 2)
             painter.drawLine(arrow_x, arrow_y + 2, arrow_x + 3, arrow_y - 1)
         painter.restore()
+
+
+class _InvoiceSwitch(QCheckBox):
+    """Keep checkbox behavior while painting the reference switch control."""
+
+    def __init__(self, text, parent=None):
+        super().__init__(text, parent)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setMinimumHeight(24)
+        self.setStyleSheet(theme_qss(
+            "QCheckBox { color: @text_muted; font-size: 10px; spacing: 0px; padding-right: 42px; } "
+            "QCheckBox::indicator { width: 0px; height: 0px; }"
+        ))
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        track = 34
+        height = 18
+        x = self.width() - track - 2
+        y = (self.height() - height) // 2
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(qc("success") if self.isChecked() else qc("border"))
+        painter.drawRoundedRect(x, y, track, height, height // 2, height // 2)
+        knob_x = x + track - height + 1 if self.isChecked() else x + 1
+        painter.setBrush(qc("text"))
+        painter.drawEllipse(knob_x, y + 1, height - 2, height - 2)
+
 
 
 class _InvoiceResponsiveFilter(QObject):
@@ -127,13 +158,62 @@ class _InvoiceResponsiveFilter(QObject):
             else:
                 self.aside.setMinimumWidth(0)
                 self.aside.setMaximumWidth(16777215)
+            self._set_mobile_layout(page_width < 520)
             self.primary.setMinimumWidth(0)
             self.primary_scroll.setHorizontalScrollBarPolicy(
                 Qt.ScrollBarPolicy.ScrollBarAlwaysOff
             )
             self.aside_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-            QTimer.singleShot(0, self._fit_line_columns)
+            QTimer.singleShot(0, self._refresh_responsive_geometry)
         return False
+
+    def _set_mobile_layout(self, mobile):
+        layouts = getattr(self.page, "_invoice_mobile_layouts", {})
+        if not layouts:
+            return
+        direction = QBoxLayout.Direction.TopToBottom if mobile else QBoxLayout.Direction.LeftToRight
+        layouts["ribbon"].setDirection(direction)
+        layouts["title"].setMaximumWidth(16777215 if mobile else 350)
+        layouts["title"].setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred
+        )
+        layouts["ribbon_card"].setMinimumHeight(0 if mobile else 119)
+        layouts["ribbon_card"].setMaximumHeight(500 if mobile else 119)
+        layouts["actions_widget"].setMaximumWidth(16777215 if mobile else 362)
+        layouts["actions_widget"].setSizePolicy(
+            QSizePolicy.Policy.Expanding if mobile else QSizePolicy.Policy.Maximum,
+            QSizePolicy.Policy.Preferred,
+        )
+        layouts["ribbon"].setAlignment(
+            layouts["actions"],
+            Qt.AlignmentFlag.AlignLeft if mobile else Qt.AlignmentFlag.AlignRight,
+        )
+        layouts["badge"].setDirection(
+            QBoxLayout.Direction.LeftToRight
+        )
+        layouts["action_row"].setDirection(QBoxLayout.Direction.LeftToRight)
+        for button, maximum in zip(
+            layouts["action_buttons"], (120, 110, 64) if mobile else (140, 120, 72)
+        ):
+            button.setMaximumWidth(maximum)
+        layouts["meta"].setMinimumHeight(0 if mobile else 282)
+        for grid, widgets, spans in layouts["grids"]:
+            for widget in widgets:
+                grid.removeWidget(widget)
+            if mobile:
+                for row, widget in enumerate(widgets):
+                    grid.addWidget(widget, row, 0, 1, spans)
+                for column in range(spans):
+                    grid.setColumnStretch(column, 0)
+                grid.setColumnStretch(0, 1)
+            else:
+                for row, column, row_span, column_span, widget in layouts["grid_rows"][id(grid)]:
+                    grid.addWidget(widget, row, column, row_span, column_span)
+                for column, stretch in enumerate(layouts["grid_stretches"][id(grid)]):
+                    grid.setColumnStretch(column, stretch)
+        layouts["notes_row"].setDirection(direction)
+        layouts["notes_card"].setMinimumHeight(0 if mobile else 138)
+        layouts["notes_card"].setMaximumHeight(260 if mobile else 138)
 
     def _fit_line_columns(self):
         table = getattr(self.page, "items_table", None)
@@ -152,6 +232,11 @@ class _InvoiceResponsiveFilter(QObject):
         scale = available_width / total_width
         for column, width in visible_columns:
             table.setColumnWidth(column, max(38, int(width * scale)))
+
+    def _refresh_responsive_geometry(self):
+        if self.stacked:
+            self.aside.setFixedWidth(max(0, self.primary.width() - 42))
+        self._fit_line_columns()
 
 
 def _label(text, token="text_muted", size=11, weight=500):
@@ -225,6 +310,7 @@ def build_invoice_composer(page):
 
     primary = QWidget()
     primary.setObjectName("InvoicePrimaryColumn")
+    primary.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
     primary.setStyleSheet("background: transparent;")
     primary_layout = QVBoxLayout(primary)
     primary_layout.setContentsMargins(15, 9, 27, 27)
@@ -244,7 +330,7 @@ def build_invoice_composer(page):
         "QFrame#InvoiceSummaryAside { background: @finance_surface_lowest; border-left: 1px solid @border; }"
     ))
     aside_layout = QVBoxLayout(aside)
-    aside_layout.setContentsMargins(17, 10, 18, 28)
+    aside_layout.setContentsMargins(0, 10, 18, 28)
     aside_layout.setSpacing(18)
     aside_scroll = QScrollArea()
     aside_scroll.setWidgetResizable(True)
@@ -263,7 +349,8 @@ def build_invoice_composer(page):
     page.installEventFilter(page._invoice_responsive_filter)
 
     ribbon, ribbon_layout = _card("InvoiceTitleRibbon", (12, 9, 12, 9))
-    ribbon.setFixedHeight(119)
+    ribbon.setMinimumHeight(119)
+    ribbon.setMaximumHeight(119)
     ribbon_row = QHBoxLayout()
     ribbon_row.setContentsMargins(0, 0, 0, 0)
     ribbon_row.setSpacing(10)
@@ -276,11 +363,13 @@ def build_invoice_composer(page):
     ))
     ribbon_row.addWidget(icon)
     title_holder = QWidget()
-    title_holder.setFixedWidth(230)
+    title_holder.setMinimumWidth(0)
+    title_holder.setMaximumWidth(230)
+    title_holder.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
     title_column = QVBoxLayout(title_holder)
     title_column.setContentsMargins(0, 0, 0, 0)
     title_column.setSpacing(3)
-    page.page_title = QLabel("E-Fatura Olu\u015fturma Studio")
+    page.page_title = QLabel("E-Fatura Olu\u015fturma\nStudio")
     page.page_title.setWordWrap(True)
     page.page_title.setStyleSheet(theme_qss("color: @text; font-size: 14px; font-weight: 800;"))
     title_column.addWidget(page.page_title)
@@ -321,7 +410,9 @@ def build_invoice_composer(page):
     page.btn_import_order.setStyleSheet(_button_style())
     page.btn_import_order.setIcon(navigation_icon("document", 15, "finance_breadcrumb_active"))
     page.btn_import_order.setIconSize(QSize(15, 15))
-    page.btn_import_order.setFixedWidth(140)
+    page.btn_import_order.setMinimumWidth(0)
+    page.btn_import_order.setMaximumWidth(140)
+    page.btn_import_order.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
     page.btn_import_order.setFixedHeight(56)
     page.btn_import_order.clicked.connect(page.open_linked_order_picker)
     action_row.addWidget(page.btn_import_order)
@@ -329,7 +420,9 @@ def build_invoice_composer(page):
     page.btn_add_item.setStyleSheet(_button_style("primary"))
     page.btn_add_item.setIcon(navigation_icon("plus_circle", 15, "selection_text"))
     page.btn_add_item.setIconSize(QSize(15, 15))
-    page.btn_add_item.setFixedWidth(120)
+    page.btn_add_item.setMinimumWidth(0)
+    page.btn_add_item.setMaximumWidth(120)
+    page.btn_add_item.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
     page.btn_add_item.setFixedHeight(56)
     page.btn_add_item.clicked.connect(page.add_row)
     action_row.addWidget(page.btn_add_item)
@@ -337,12 +430,18 @@ def build_invoice_composer(page):
     page.btn_remove_item.setStyleSheet(_button_style())
     page.btn_remove_item.setIcon(navigation_icon("document", 14, "danger"))
     page.btn_remove_item.setIconSize(QSize(14, 14))
-    page.btn_remove_item.setFixedWidth(72)
+    page.btn_remove_item.setMinimumWidth(0)
+    page.btn_remove_item.setMaximumWidth(72)
+    page.btn_remove_item.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
     page.btn_remove_item.setFixedHeight(56)
     page.btn_remove_item.clicked.connect(lambda _checked=False: page.remove_row())
     action_row.addWidget(page.btn_remove_item)
     ribbon_actions.addLayout(action_row)
-    ribbon_row.addLayout(ribbon_actions)
+    ribbon_actions_widget = QWidget()
+    ribbon_actions_widget.setLayout(ribbon_actions)
+    ribbon_actions_widget.setMaximumWidth(362)
+    ribbon_actions_widget.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
+    ribbon_row.addWidget(ribbon_actions_widget)
     ribbon_layout.addLayout(ribbon_row)
     primary_layout.addWidget(ribbon)
     primary_layout.addSpacing(14)
@@ -352,10 +451,18 @@ def build_invoice_composer(page):
     meta.setMinimumHeight(282)
     page.master_data_heading = _label("M\u00fc\u015fteri & Fatura \u00dcst Bilgileri", "text", 12, 700)
     page.master_data_heading.setParent(meta)
-    page.master_data_heading.setGeometry(12, 4, 300, 20)
+    page.master_data_heading.setGeometry(34, 2, 286, 24)
     page.master_data_heading.setStyleSheet(theme_qss(
-        "color: @text; background: @finance_surface; font-size: 12px; font-weight: 700; padding: 0 5px;"
+        "color: @text; background: @finance_surface_alt; border: 1px solid @finance_outline; "
+        "border-radius: 5px; font-size: 12px; font-weight: 700; padding: 1px 6px;"
     ))
+    page.master_data_icon = QLabel(meta)
+    page.master_data_icon.setGeometry(16, 6, 16, 16)
+    page.master_data_icon.setPixmap(
+        navigation_icon("card", 14, "finance_breadcrumb_active").pixmap(QSize(14, 14))
+    )
+    page.master_data_icon.show()
+    page.master_data_icon.raise_()
     page.master_data_heading.show()
     page.master_data_heading.raise_()
 
@@ -363,25 +470,50 @@ def build_invoice_composer(page):
     page.cmb_customer = QComboBox()
     page.cmb_customer.setEditable(False)
     page.cmb_customer.setPlaceholderText("M\u00fc\u015fteri Se\u00e7in...")
-    page.cmb_customer.setStyleSheet(inputs)
+    page.cmb_customer.setStyleSheet(inputs + theme_qss("QComboBox { padding-right: 72px; }"))
     page.cmb_customer.currentIndexChanged.connect(page.on_customer_change)
+    page.customer_registered_badge = QLabel("Kay\u0131tl\u0131")
+    page.customer_registered_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    page.customer_registered_badge.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+    page.customer_registered_badge.setStyleSheet(theme_qss(
+        "color: @success; background: @finance_surface_alt; border: 1px solid @border; "
+        "border-radius: 4px; padding: 2px 5px; margin-right: 22px; font-size: 9px; font-weight: 600;"
+    ))
+    page.customer_registered_badge.hide()
+    page.cmb_customer.currentIndexChanged.connect(
+        lambda index: page.customer_registered_badge.setVisible(
+            index >= 0 and page.cmb_customer.currentData() is not None
+        )
+    )
     customer_label = _label("M\u00fc\u015fteri / Cari \u00dcnvan\u0131 *", "text_muted", 11)
-    customer_row = QHBoxLayout()
-    customer_row.setContentsMargins(0, 0, 0, 0)
-    customer_row.setSpacing(5)
-    customer_row.addWidget(page.cmb_customer, 1)
     page.btn_customer_directory = QPushButton("Cari Rehber (F4)")
     page.btn_customer_directory.setStyleSheet(theme_qss(
         "QPushButton { background: transparent; color: @finance_breadcrumb_active; border: none; font-size: 9px; }"
     ))
-    page.btn_customer_directory.setFixedWidth(92)
+    page.btn_customer_directory.setFixedHeight(18)
+    page.btn_customer_directory.setMinimumWidth(0)
     page.btn_customer_directory.clicked.connect(page.cmb_customer.setFocus)
-    customer_row.addWidget(page.btn_customer_directory)
+    customer_header = QHBoxLayout()
+    customer_header.setContentsMargins(0, 0, 0, 0)
+    customer_header.setSpacing(4)
+    customer_header.addWidget(customer_label)
+    customer_header.addStretch(1)
+    customer_header.addWidget(page.btn_customer_directory)
+    customer_row = QGridLayout()
+    customer_row.setContentsMargins(0, 0, 0, 0)
+    customer_row.setSpacing(0)
+    customer_row.addWidget(page.cmb_customer, 0, 0)
+    customer_row.addWidget(
+        page.customer_registered_badge,
+        0,
+        0,
+        Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
+    )
     customer_holder = QWidget()
     customer_holder_layout = QVBoxLayout(customer_holder)
     customer_holder_layout.setContentsMargins(0, 0, 0, 0)
     customer_holder_layout.setSpacing(4)
-    customer_holder_layout.addWidget(customer_label)
+    customer_holder_layout.addLayout(customer_header)
     customer_holder_layout.addLayout(customer_row)
 
     page.inp_vkn = QLineEdit()
@@ -396,9 +528,14 @@ def build_invoice_composer(page):
     top_fields.setHorizontalSpacing(9)
     top_fields.setVerticalSpacing(6)
     meta_layout.addSpacing(37)
-    top_fields.addWidget(customer_holder, 0, 0, 1, 6)
-    top_fields.addWidget(_field("Vergi / TC Kimlik No", page.inp_vkn), 0, 6, 1, 3)
-    top_fields.addWidget(_field("Vergi Dairesi", page.tax_office), 0, 9, 1, 3)
+    top_field_widgets = (
+        customer_holder,
+        _field("Vergi / TC Kimlik No", page.inp_vkn),
+        _field("Vergi Dairesi", page.tax_office),
+    )
+    top_field_positions = ((0, 0, 1, 6), (0, 6, 1, 3), (0, 9, 1, 3))
+    for widget, (row, column, row_span, column_span) in zip(top_field_widgets, top_field_positions):
+        top_fields.addWidget(widget, row, column, row_span, column_span)
     meta_layout.addLayout(top_fields)
 
     page.invoice_scenario = QComboBox()
@@ -462,6 +599,7 @@ def build_invoice_composer(page):
     row_two.setContentsMargins(0, 1, 0, 11)
     row_two.setHorizontalSpacing(9)
     row_two.setVerticalSpacing(6)
+    row_two_fields = []
     for column, title, widget in (
         (0, "Senaryo", page.invoice_scenario),
         (1, "Fatura Tipi", page.invoice_type),
@@ -469,7 +607,9 @@ def build_invoice_composer(page):
         (3, "D\u00fczenleme Saati", page.invoice_time),
         (4, "Para Birimi & Fatura Kuru", currency_holder),
     ):
-        row_two.addWidget(_field(title, widget), 0, column)
+        field_widget = _field(title, widget)
+        row_two_fields.append(field_widget)
+        row_two.addWidget(field_widget, 0, column)
     for column, stretch in enumerate((5, 6, 5, 5, 9)):
         row_two.setColumnStretch(column, stretch)
     meta_layout.addLayout(row_two)
@@ -482,8 +622,13 @@ def build_invoice_composer(page):
     row_three = QGridLayout()
     row_three.setContentsMargins(0, 0, 0, 0)
     row_three.setHorizontalSpacing(9)
-    row_three.addWidget(_field("A\u00e7\u0131k Adres & Posta Kodu", page.inp_addr), 0, 0, 1, 8)
-    row_three.addWidget(_field("Ba\u011fl\u0131 \u0130rsaliye No / Belge Ref", page.inp_delivery_reference), 0, 8, 1, 4)
+    row_three_fields = (
+        _field("A\u00e7\u0131k Adres & Posta Kodu", page.inp_addr),
+        _field("Ba\u011fl\u0131 \u0130rsaliye No / Belge Ref", page.inp_delivery_reference),
+    )
+    row_three_positions = ((0, 0, 1, 8), (0, 8, 1, 4))
+    for widget, (row, column, row_span, column_span) in zip(row_three_fields, row_three_positions):
+        row_three.addWidget(widget, row, column, row_span, column_span)
     meta_layout.addLayout(row_three)
     primary_layout.addWidget(meta)
 
@@ -586,7 +731,8 @@ def build_invoice_composer(page):
     primary_layout.addWidget(lines)
 
     notes, notes_layout = _card("InvoiceNotesCard", (10, 8, 10, 8))
-    notes.setFixedHeight(138)
+    notes.setMinimumHeight(138)
+    notes.setMaximumHeight(138)
     notes_row = QHBoxLayout()
     notes_row.setContentsMargins(0, 0, 0, 0)
     notes_row.setSpacing(10)
@@ -612,6 +758,41 @@ def build_invoice_composer(page):
     notes_layout.addLayout(notes_row)
     primary_layout.addWidget(notes)
     primary_layout.addStretch(1)
+
+    page._invoice_mobile_layouts = {
+        "ribbon": ribbon_row,
+        "title": title_holder,
+        "ribbon_card": ribbon,
+        "actions": ribbon_actions,
+        "actions_widget": ribbon_actions_widget,
+        "badge": badge_row,
+        "action_row": action_row,
+        "action_buttons": (page.btn_import_order, page.btn_add_item, page.btn_remove_item),
+        "meta": meta,
+        "notes_row": notes_row,
+        "notes_card": notes,
+        "grids": (
+            (top_fields, top_field_widgets, 12),
+            (row_two, tuple(row_two_fields), 5),
+            (row_three, row_three_fields, 12),
+        ),
+        "grid_rows": {
+            id(top_fields): tuple(
+                (*position, widget)
+                for position, widget in zip(top_field_positions, top_field_widgets)
+            ),
+            id(row_two): tuple((0, column, 1, 1, widget) for column, widget in enumerate(row_two_fields)),
+            id(row_three): tuple(
+                (*position, widget)
+                for position, widget in zip(row_three_positions, row_three_fields)
+            ),
+        },
+        "grid_stretches": {
+            id(top_fields): (0,) * 12,
+            id(row_two): (5, 6, 5, 5, 9),
+            id(row_three): (0,) * 12,
+        },
+    }
 
     summary_title = QHBoxLayout()
     title_block = QVBoxLayout()
@@ -718,9 +899,8 @@ def build_invoice_composer(page):
     payment_row.addWidget(_field("Vade Tarihi", page.due_date), 1)
     payment_row.addWidget(_field("\u00d6deme Kanal\u0131", page.payment_channel), 1)
     payment_layout.addLayout(payment_row)
-    page.chk_auto_reconcile = QCheckBox("Cari Hesaba Otomatik \u0130\u015fle")
+    page.chk_auto_reconcile = _InvoiceSwitch("Cari Hesaba Otomatik \u0130\u015fle")
     page.chk_auto_reconcile.setChecked(True)
-    page.chk_auto_reconcile.setStyleSheet(theme_qss("QCheckBox { color: @text_muted; font-size: 10px; spacing: 6px; }"))
     payment_layout.addWidget(page.chk_auto_reconcile)
     aside_layout.addWidget(payment_card)
     aside_layout.addStretch(1)

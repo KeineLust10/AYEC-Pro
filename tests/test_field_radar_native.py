@@ -1,27 +1,40 @@
 import os
 import sqlite3
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PyQt6.QtCore import QPoint, Qt, QTimer, QUrlQuery
-from PyQt6.QtGui import QFont, QFontDatabase, QImage
+from PyQt6.QtCore import QPoint, QPointF, Qt, QTimer, QUrlQuery
+from PyQt6.QtGui import QColor, QFont, QFontDatabase, QImage
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication, QListWidget, QDialog, QPushButton, QLabel, QWidget, QLineEdit
 
 from src.ui.widgets.field_radar_canvas import FieldRadarCanvas
 from src.ui.pages.field_service_page import FieldServicePage
 from src.ui.pages.field_service_components import PersonnelCard
+from src.ui.mixins._main_window_nav_mixin import MainWindowNavMixin
+from src.utils.page_ids import PageIds
+from src.utils.theme_manager import ThemeManager
 from src.ui.widgets.modern_dialog import ModernDialog
+
+
+def _disable_tile_fetch(radar):
+    radar._request_tile = lambda *args, **kwargs: None
+    radar._request_traffic_tile = lambda *args, **kwargs: None
 
 
 def test_native_radar_rejects_bad_coordinates_preserves_identity_and_selects_marker():
     app = QApplication.instance() or QApplication([])
     radar = FieldRadarCanvas(39.6, 27.8)
+    _disable_tile_fetch(radar)
     assert not radar.map_status.isHidden()
     assert radar.font().family() in {"Inter", "Segoe UI", "Arial"}
     assert radar.font().pixelSize() == 12
+    radar._update_map_telemetry()
+    assert "OL\u00c7EK: 14.5x" in radar.map_telemetry_label.text()
+    assert radar._tile_zoom_scale()[0] == 17
     radar.resize(700, 600)
     source = [{"id": 7, "name": "Actual technician", "lat": 39.6, "lng": 27.8},
               {"id": 8, "lat": None, "lng": 27.8},
@@ -65,6 +78,7 @@ def test_native_radar_rejects_bad_coordinates_preserves_identity_and_selects_mar
 def test_hidden_radar_pauses_animation_timer():
     app = QApplication.instance() or QApplication([])
     radar = FieldRadarCanvas(40.1, 27.6)
+    _disable_tile_fetch(radar)
     radar.show()
     app.processEvents()
     assert radar._pulse_timer.isActive()
@@ -160,6 +174,7 @@ def test_native_page_routes_coordinate_actions_and_reads_personnel_without_migra
     app = QApplication.instance() or QApplication([])
     connection = sqlite3.connect(":memory:")
     connection.execute("CREATE TABLE personnel(id INTEGER,name TEXT,role TEXT,lat REAL,lng REAL,status TEXT,is_deleted INTEGER,is_active INTEGER)")
+    connection.execute("CREATE TABLE appointments(id INTEGER,customer_name TEXT,phone TEXT,date TEXT,time TEXT,description TEXT,status TEXT,is_deleted INTEGER)")
     connection.executemany("INSERT INTO personnel VALUES(?,?,?,?,?,?,?,?)", [
         (7, "Actual technician", "TEKN\u0130SYEN", 39.6, 27.8, "Gorevde", 0, 1),
         (8, "\u00c7a\u011fr\u0131 GPS", "Saha", None, None, "Bo\u015fta", 0, 1),
@@ -167,10 +182,18 @@ def test_native_page_routes_coordinate_actions_and_reads_personnel_without_migra
         (10, "Inactive", "Saha", 39.6, 27.8, "", 0, 0),
         (11, "Manager", "Yonetici", 39.6, 27.8, "", 0, 1),
     ])
+    connection.executemany("INSERT INTO appointments VALUES(?,?,?,?,?,?,?,?)", [
+        (1, "Open Job", "", "2026-10-13", "14:00", "Visit", "Bekliyor", 0),
+        (2, "Completed Job", "", "2026-10-12", "10:00", "Closed", "Tamamlandi", 0),
+        (3, "Deleted Job", "", "2026-10-13", "15:00", "Deleted", "Bekliyor", 1),
+    ])
     def forbidden(*args):
         raise AssertionError("No migration, network request or web map allowed")
     db = SimpleNamespace(cursor=connection.cursor(), get_setting=lambda key, default=None: default, get_field_technicians=forbidden)
     page = FieldServicePage(db)
+    assert page.default_lat == 40.10441
+    assert page.default_lng == 27.6564
+    assert page.map_view.center == (40.10441, 27.6564)
     monkeypatch.setattr(page, "notify", lambda *args: None)
     monkeypatch.setattr(page, "_get_search_results", forbidden)
     changes = connection.total_changes
@@ -179,6 +202,17 @@ def test_native_page_routes_coordinate_actions_and_reads_personnel_without_migra
     assert [record["id"] for record in page.map_view.personnel] == [7]
     assert page.field_kpi_values[0].text() == "2 Personel"
     assert page.field_kpi_notes[0].text() == "1 GPS kaydi / 2 personel"
+    assert page.operation_panel.mode_buttons["teams"].text() == "Ekipler (2)"
+    assert page.operation_panel.mode_buttons["jobs"].text() == "\u0130\u015f Emirleri (1)"
+    page.operation_panel.mode_buttons["teams"].click()
+    assert page.operation_panel.location_card.isHidden()
+    assert not page.operation_panel.scroll_area.isHidden()
+    assert not page.operation_panel.filter_container.isHidden()
+    page.operation_panel.mode_buttons["jobs"].click()
+    assert not page.operation_panel.jobs_scroll_area.isHidden()
+    job_card = page.operation_panel.jobs_layout.itemAt(0).widget()
+    assert job_card.findChild(QLabel).text() == "Open Job"
+    page.operation_panel.mode_buttons["customer"].click()
     def visible_cards():
         return [page.scroll_layout.itemAt(index).widget() for index in range(page.scroll_layout.count())
                 if isinstance(page.scroll_layout.itemAt(index).widget(), PersonnelCard)]
@@ -192,6 +226,7 @@ def test_native_page_routes_coordinate_actions_and_reads_personnel_without_migra
     assert page.location_scroll.isHidden()
     finished = []
     monkeypatch.setattr(page, "finish_personnel_duty", finished.append)
+    page.operation_panel.mode_buttons["teams"].click()
     page.radar_filter_buttons["warnings"].click()
     assert [card.t_data["id"] for card in visible_cards()] == [8]
     assert page.map_view.personnel == []
@@ -221,6 +256,8 @@ def test_native_page_routes_coordinate_actions_and_reads_personnel_without_migra
         page.share_location()
         page.assign_location_to_personnel()
         assert shared == assigned == [(40.5, 28.25)]
+        page.copy_map_link_button.click()
+        assert clipboard_text[0] == "https://www.google.com/maps?q=40.500000,28.250000"
         app.clipboard().setText("91.0000,28.2500")
         page.paste_whatsapp_link()
         assert page.map_view.center == (40.5, 28.25)
@@ -306,7 +343,42 @@ def test_field_action_buttons_open_task_traffic_and_route(monkeypatch):
     ]
     assert "duz cizgi tahmini" in page.map_view.route_status.text()
     assert warnings[-1][1] == "success"
+    page.redraw_route_button.click()
+    assert len(route_requests) == 2
+    assert route_requests[-1] == ("test-key", page.map_view.route_points)
     page.close()
+
+
+def test_vector_map_error_returns_to_tomtom_raster_with_route(monkeypatch):
+    app = QApplication.instance() or QApplication([])
+    connection = sqlite3.connect(":memory:")
+    connection.execute("CREATE TABLE personnel(id INTEGER,name TEXT,role TEXT,lat REAL,lng REAL,status TEXT)")
+    db = SimpleNamespace(cursor=connection.cursor(), get_setting=lambda key, default=None: default)
+    page = FieldServicePage(db)
+    _disable_tile_fetch(page.map_view)
+    vector_view = QWidget()
+    vector_view.selected_coordinates = (40.2, 27.7)
+    vector_view.route_points = [(40.1, 27.6), (40.2, 27.7)]
+    page.vector_map_view = vector_view
+    page.map_stack.addWidget(vector_view)
+    page.map_stack.setCurrentWidget(vector_view)
+    page._vector_map_ready = False
+    focused = []
+    routes = []
+    notifications = []
+    monkeypatch.setattr(page.map_view, "focus_coordinates", lambda *point: focused.append(point))
+    monkeypatch.setattr(page.map_view, "set_route", lambda points: routes.append(points))
+    monkeypatch.setattr(page, "notify", lambda *args: notifications.append(args))
+
+    page._check_vector_map_ready()
+
+    assert page.map_stack.currentWidget() is page.map_view
+    assert focused == [(40.2, 27.7)]
+    assert routes == [[(40.1, 27.6), (40.2, 27.7)]]
+    assert page.overview.map_mode_button.text() == "3D Vektor"
+    assert notifications
+    page.close()
+    connection.close()
 
 
 def test_manual_route_drawing_adds_stops_finishes_and_clears():
@@ -405,6 +477,35 @@ def test_tomtom_routing_request_replaces_draft_with_road_geometry():
     radar.close()
 
 
+def test_route_turns_do_not_fill_the_area_between_segments():
+    app = QApplication.instance() or QApplication([])
+    radar = FieldRadarCanvas(40.1, 27.6)
+    _disable_tile_fetch(radar)
+    radar.resize(500, 400)
+    radar.set_route([
+        (40.101, 27.601),
+        (40.101, 27.602),
+        (40.099, 27.602),
+    ])
+    positions = {
+        (40.1, 27.6): QPointF(30, 30),
+        (40.101, 27.601): QPointF(100, 100),
+        (40.101, 27.602): QPointF(300, 100),
+        (40.099, 27.602): QPointF(300, 300),
+    }
+    radar._screen_point = lambda latitude, longitude: positions[
+        (round(float(latitude), 3), round(float(longitude), 3))
+    ]
+    radar.show()
+    app.processEvents()
+    image = QImage(radar.size(), QImage.Format.Format_ARGB32)
+    image.fill(Qt.GlobalColor.transparent)
+    radar.render(image)
+
+    assert image.pixelColor(250, 150) != QColor("#34d399")
+    radar.close()
+
+
 def test_field_map_search_and_manual_refresh_controls():
     app = QApplication.instance() or QApplication([])
     radar = FieldRadarCanvas(40.1, 27.6)
@@ -419,8 +520,10 @@ def test_field_map_search_and_manual_refresh_controls():
     app.processEvents()
     toolbar_rect = radar.map_toolbar.rect()
     route_toolbar_rect = radar.route_toolbar.rect()
+    assert not radar.refresh_map_button.isVisible()
+    assert not radar.filter_action_button.isVisible()
     for control in (radar.map_search_input, radar.map_search_button,
-                    radar.refresh_map_button):
+                    radar.map_mode_toolbar):
         assert toolbar_rect.contains(control.geometry())
     for control in (radar.draw_route_button, radar.finish_route_button,
                     radar.clear_route_button, radar.share_route_button):
@@ -436,6 +539,7 @@ def test_field_map_search_and_manual_refresh_controls():
 def test_tomtom_traffic_uses_orbis_overlay_and_never_persists_tiles():
     app = QApplication.instance() or QApplication([])
     radar = FieldRadarCanvas(40.1, 27.6)
+    expected_map_style = FieldRadarCanvas._current_tomtom_style()
 
     class Signal:
         def connect(self, callback):
@@ -484,7 +588,7 @@ def test_tomtom_traffic_uses_orbis_overlay_and_never_persists_tiles():
     map_requests = [request for request, _reply in network.gets
                     if request.url().path().startswith("/maps/orbis/display/raster/tile/")]
     assert map_requests
-    assert map_requests[0].url().query() == "apiVersion=2&style=street-dark&tileSize=256&geopoliticalView=TR"
+    assert map_requests[0].url().query() == f"apiVersion=2&style={expected_map_style}&tileSize=256&geopoliticalView=TR"
     assert map_requests[0].rawHeader(b"TomTom-Api-Key") == b"sample-key"
     assert map_requests[0].rawHeader(b"TomTom-Api-Version") == b"2"
     assert "tile.openstreetmap.org" not in hosts
@@ -541,8 +645,17 @@ def test_field_map_search_results_open_on_map_and_select_coordinates():
     assert type(page.overview).__name__ == "FieldMapOverview"
     assert type(page.operation_panel).__name__ == "FieldOperationsPanel"
     assert len(page.overview.metric_cards) == 4
+    assert [button.objectName() for button in page.overview.window_buttons] == [
+        "field_window_minimize",
+        "field_window_maximize",
+        "field_window_close",
+    ]
+    assert all(not button.icon().isNull() for button in page.overview.window_buttons)
+    assert "font-size:18.75px" in page.operation_panel.customer_name_value.styleSheet()
+    assert "font-size:17.5px" in page.operation_panel.share_preview_label.styleSheet()
     heading = page.overview.layout().itemAt(0).layout()
-    assert heading.itemAt(0).widget().alignment() & Qt.AlignmentFlag.AlignLeft
+    title = heading.itemAt(0).layout().itemAt(0).widget()
+    assert title.text().endswith("AYEC PRO")
     page.resize(1600, 1000)
     page.show()
     app.processEvents()
@@ -555,6 +668,8 @@ def test_field_map_search_results_open_on_map_and_select_coordinates():
     page.on_result_clicked(page.list_results.item(0))
     assert page.map_view.center == (40.5, 28.25)
     assert page.map_view.map_search_input.text() == "Gonen, Balikesir"
+    assert page.operation_panel.selected_address_label.text() == "Gonen, Balikesir"
+    assert page.operation_panel.customer_name_value.text() == "\u0130\u015f emri se\u00e7ilmedi"
     assert page.list_results.isHidden()
     page.close()
     connection.close()
@@ -604,7 +719,6 @@ def test_field_map_compact_route_controls_do_not_overlap_traffic_legend():
     radar.add_route_point(40.2, 27.7)
     radar.show()
     app.processEvents()
-    assert radar.route_toolbar.y() > radar.traffic_legend.y()
     assert not radar.route_toolbar.geometry().intersects(radar.traffic_legend.geometry())
     assert radar.draw_route_button.x() == 0
     assert radar.route_status.y() > radar.route_toolbar.y()
@@ -652,13 +766,17 @@ def test_field_map_toolbar_and_location_actions_do_not_overlap():
     radar.show()
     app.processEvents()
     toolbar_rect = radar.map_toolbar.rect()
-    assert toolbar_rect.contains(radar.refresh_map_button.geometry())
+    assert not radar.refresh_map_button.isVisible()
+    assert not radar.filter_action_button.isVisible()
+    assert toolbar_rect.contains(radar.map_mode_toolbar.geometry())
     route_toolbar_rect = radar.route_toolbar.rect()
     for control in (radar.draw_route_button, radar.finish_route_button,
                     radar.clear_route_button):
         assert route_toolbar_rect.contains(control.geometry())
     assert not radar.map_search_input.geometry().intersects(radar.map_search_button.geometry())
-    assert not radar.map_search_button.geometry().intersects(radar.refresh_map_button.geometry())
+    assert radar.map_search_input.maximumWidth() == 480
+    assert radar.map_search_button.width() == 118
+    assert radar.map_telemetry_bar.y() == radar.map_toolbar.y() + radar.map_toolbar.height()
     radar.close()
 
     connection = sqlite3.connect(":memory:")
@@ -673,7 +791,7 @@ def test_field_map_toolbar_and_location_actions_do_not_overlap():
     assert page.location_scroll.height() >= 190
     assert page.location_scroll.height() <= 260
     action_buttons = page.location_controls.findChildren(QPushButton)
-    assert len(action_buttons) == 5
+    assert len(action_buttons) == 6
     assert all(button.isVisible() for button in action_buttons)
     assert page.location_controls.findChildren(QLineEdit) == []
     location_rect = page.location_scroll.geometry().translated(page.sidebar.pos())
@@ -714,6 +832,147 @@ def test_field_map_fits_compact_desktop_window():
     connection.close()
 
 
+def test_field_map_shell_mode_keeps_sidebar_visible_and_restores_navigation():
+    app = QApplication.instance() or QApplication([])
+    shell = QWidget()
+    header = QWidget(shell)
+    sidebar = QWidget(shell)
+    top_nav = QWidget(shell)
+    status_bar = QWidget(shell)
+    assistant_fab = QWidget(shell)
+    shell.show()
+    app.processEvents()
+    window = SimpleNamespace(
+        _active_nav_mode="ust_bar",
+        _current_page_index=int(PageIds.FIELD_MAP),
+        _assistant_fab_enabled=True,
+        _set_field_map_reference_theme=lambda _enabled: None,
+        app_header=header,
+        app_sidebar=sidebar,
+        app_top_nav=top_nav,
+        shell_status_bar=status_bar,
+        assistant_fab=assistant_fab,
+    )
+    window._set_field_map_shell_mode = lambda enabled: (
+        MainWindowNavMixin._set_field_map_shell_mode(window, enabled)
+    )
+
+    MainWindowNavMixin.apply_nav_mode(window, "ust_bar")
+
+    assert not header.isVisible()
+    assert sidebar.isVisible()
+    assert not top_nav.isVisible()
+    assert not status_bar.isVisible()
+    assert not assistant_fab.isVisible()
+
+    window._current_page_index = int(PageIds.DASHBOARD)
+    MainWindowNavMixin.apply_nav_mode(window, "ust_bar")
+
+    assert header.isVisible()
+    assert not sidebar.isVisible()
+    assert top_nav.isVisible()
+    assert status_bar.isVisible()
+    assert assistant_fab.isVisible()
+    shell.close()
+
+
+def test_field_map_theme_refresh_uses_theme_manager_without_forcing_dark_palette(monkeypatch):
+    sidebar = QWidget()
+    page = QWidget()
+    refreshed = []
+    original_theme = ThemeManager._current_theme
+
+    monkeypatch.setattr(
+        ThemeManager,
+        "refresh_widget_tree",
+        lambda widget, include_root=True: refreshed.append(widget),
+    )
+    monkeypatch.setattr(
+        ThemeManager,
+        "apply_theme",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("Theme is user-managed")),
+    )
+    window = SimpleNamespace(
+        app_sidebar=sidebar,
+        pages={int(PageIds.FIELD_MAP): page},
+    )
+
+    MainWindowNavMixin._set_field_map_reference_theme(window, True)
+
+    assert ThemeManager._current_theme == original_theme
+    assert refreshed == [sidebar, page]
+
+
+def test_tomtom_basemap_style_follows_theme_manager():
+    original_theme = ThemeManager._current_theme
+    try:
+        ThemeManager._current_theme = "AYEC"
+        assert FieldRadarCanvas._current_tomtom_style() == "street-light"
+        ThemeManager._current_theme = "Koyu Mavi"
+        assert FieldRadarCanvas._current_tomtom_style() == "street-dark"
+    finally:
+        ThemeManager._current_theme = original_theme
+
+
+def test_closing_field_map_cancels_deferred_refresh(monkeypatch):
+    app = QApplication.instance() or QApplication([])
+    connection = sqlite3.connect(":memory:")
+    connection.execute("CREATE TABLE personnel(id INTEGER,name TEXT,role TEXT,lat REAL,lng REAL,status TEXT)")
+    db = SimpleNamespace(cursor=connection.cursor(), get_setting=lambda key, default=None: default)
+    refreshes = []
+    monkeypatch.setattr(FieldServicePage, "refresh_data", lambda _self: refreshes.append(True))
+
+    page = FieldServicePage(db)
+    page.show()
+    app.processEvents()
+    page.close()
+    QTest.qWait(150)
+
+    assert refreshes == []
+    connection.close()
+
+
+def test_field_map_skips_recent_refreshes_and_resumes_pending_refresh(monkeypatch):
+    app = QApplication.instance() or QApplication([])
+    connection = sqlite3.connect(":memory:")
+    connection.execute("CREATE TABLE personnel(id INTEGER,name TEXT,role TEXT,lat REAL,lng REAL,status TEXT)")
+    db = SimpleNamespace(cursor=connection.cursor(), get_setting=lambda key, default=None: default)
+    refreshes = []
+
+    def record_refresh(page):
+        refreshes.append(page)
+        page._last_refresh_at = time.monotonic()
+        page._refresh_requested = False
+
+    monkeypatch.setattr(FieldServicePage, "refresh_data", record_refresh)
+    page = FieldServicePage(db)
+    try:
+        page.show()
+        QTest.qWait(130)
+        assert refreshes == [page]
+
+        page.hide()
+        page.show()
+        QTest.qWait(130)
+        assert refreshes == [page]
+
+        page._schedule_refresh(100)
+        page.hide()
+        QTest.qWait(130)
+        assert refreshes == [page]
+
+        page.show()
+        deadline = time.monotonic() + 2
+        while len(refreshes) < 2 and time.monotonic() < deadline:
+            QTest.qWait(50)
+        assert refreshes == [page, page]
+    finally:
+        page.close()
+        page.deleteLater()
+        app.processEvents()
+        connection.close()
+
+
 def test_field_map_overview_reflows_after_full_size_window_shows():
     app = QApplication.instance() or QApplication([])
     from PyQt6.QtWidgets import QMainWindow
@@ -727,6 +986,10 @@ def test_field_map_overview_reflows_after_full_size_window_shows():
     host.show()
     app.processEvents()
     assert page.overview.height() >= page.overview.layout().sizeHint().height()
+    metric_widths = [card.width() for card in page.metric_cards]
+    assert max(metric_widths) - min(metric_widths) <= 1
+    value_tops = [card.layout().itemAt(1).widget().y() for card in page.metric_cards]
+    assert len(set(value_tops)) == 1
     host.close()
     connection.close()
 
@@ -831,6 +1094,61 @@ def test_map_caches_and_pending_requests_are_bounded():
     assert len(radar._traffic_pending) == radar.MAX_PENDING_TRAFFIC_TILES
     radar.close()
     assert all(reply.aborted for _request, reply in network.requests)
+
+
+def test_tomtom_transient_tile_failure_retries_tomtom_without_osm_fallback():
+    from PyQt6.QtNetwork import QNetworkReply
+
+    app = QApplication.instance() or QApplication([])
+
+    class Signal:
+        def connect(self, callback):
+            self.callback = callback
+
+    class Reply:
+        NetworkError = QNetworkReply.NetworkError
+
+        def __init__(self):
+            self.finished = Signal()
+
+        def error(self):
+            return self.NetworkError.TimeoutError
+
+        def readAll(self):
+            return b""
+
+        def attribute(self, _attribute):
+            return 503
+
+        def rawHeader(self, _name):
+            return b""
+
+        def deleteLater(self):
+            pass
+
+    class Network:
+        def __init__(self):
+            self.requests = []
+
+        def get(self, request):
+            reply = Reply()
+            self.requests.append((request, reply))
+            return reply
+
+    radar = FieldRadarCanvas(40.1, 27.6)
+    radar._network = Network()
+    radar.set_tomtom_api_key("test-key")
+    radar._request_tile(14, 9000, 6000)
+    key = (14, 9000, 6000)
+    request, reply = radar._network.requests[0]
+
+    radar._tile_received(key, reply, "tomtom", radar._base_generation)
+
+    assert request.url().host() == "api.tomtom.com"
+    assert len(radar._network.requests) == 1
+    assert not radar._tomtom_map_unavailable
+    assert radar._tile_retry_after[key] > time.monotonic()
+    radar.close()
 
 
 def test_map_refresh_respects_osm_disk_cache():
@@ -1127,7 +1445,7 @@ def test_tomtom_basemap_permission_error_falls_back_to_osm_without_disabling_tra
     radar.close()
 
 
-def test_field_filter_action_targets_visible_personnel_search():
+def test_field_filter_and_quick_route_actions_remain_accessible():
     app = QApplication.instance() or QApplication([])
     connection = sqlite3.connect(":memory:")
     connection.execute("CREATE TABLE personnel(id INTEGER,name TEXT,role TEXT,lat REAL,lng REAL,status TEXT)")
@@ -1137,6 +1455,14 @@ def test_field_filter_action_targets_visible_personnel_search():
     app.processEvents()
     page.findChild(QPushButton, "field_action_filter").click()
     assert page.personnel_search.hasFocus()
+    route_action = next(
+        button for button in page.operation_panel.location_action_buttons
+        if button.objectName() == "field_location_draw_route"
+    )
+    page.location_toggle.click()
+    app.processEvents()
+    route_action.click()
+    assert page.map_view.route_drawing
     page.close()
     connection.close()
 

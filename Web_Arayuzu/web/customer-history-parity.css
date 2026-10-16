@@ -1,0 +1,42 @@
+.customer-history-select-all {
+  margin: 0 0 10px;
+}
+
+.c360-panel table th:first-child,
+.c360-panel table td:first-child {
+  text-align: center;
+  width: 54px;
+}
+
+.c360-panel table td:first-child input[type="checkbox"] {
+  accent-color: var(--accent, #2563eb);
+}
+
+#customerHistoryPrintArea {
+  display: none;
+}
+
+@media print {
+  body[data-customer-history-print="1"] > *:not(#customerHistoryPrintArea) {
+    display: none !important;
+  }
+
+  body[data-customer-history-print="1"] #customerHistoryPrintArea {
+    display: block !important;
+    color: #111;
+    font: 12pt Arial, sans-serif;
+    padding: 18mm;
+  }
+
+  #customerHistoryPrintArea table {
+    border-collapse: collapse;
+    width: 100%;
+  }
+
+  #customerHistoryPrintArea th,
+  #customerHistoryPrintArea td {
+    border: 1px solid #666;
+    padding: 7px;
+    text-align: left;
+  }
+}

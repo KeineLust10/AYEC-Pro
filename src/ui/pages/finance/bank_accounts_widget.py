@@ -780,7 +780,7 @@ class BankAccountsWidget(QWidget):
             identity = QLabel(iban or name or number or "-")
             identity.setTextFormat(Qt.TextFormat.PlainText)
             identity.setToolTip(identity.text())
-            identity.setStyleSheet(theme_qss("font-family:'JetBrains Mono','DejaVu Sans';font-size:10px;color:@finance_text_muted;"))
+            identity.setStyleSheet(theme_qss("font-family:'JetBrains Mono';font-size:10px;color:@finance_text_muted;"))
             caption = QLabel("Kullan\u0131labilir Bakiye")
             caption.setStyleSheet(theme_qss("font-size:10px;color:@finance_text_muted;"))
             kind = card_order(row)[0]
@@ -804,7 +804,7 @@ class BankAccountsWidget(QWidget):
             button.clicked.connect(lambda checked=False, rid=account_id: self._select_card_account(rid))
             self.account_cards_layout.addWidget(button)
             self.account_card_buttons[account_id] = button
-        distribution = QFrame()
+        distribution = QFrame(self.account_cards_container)
         distribution.setObjectName("BankFundDistribution")
         distribution.setStyleSheet(theme_qss("QFrame#BankFundDistribution{background:@finance_surface;border:none;border-radius:4px;}"))
         distribution_layout = QVBoxLayout(distribution)
@@ -839,8 +839,8 @@ class BankAccountsWidget(QWidget):
         distribution_layout.addLayout(bar)
         distribution_layout.addLayout(legend)
         distribution.setToolTip("Pozitif hesap bakiyelerinin dagilimi")
-        distribution.setVisible(bool(self.fund_distribution))
         self.account_cards_layout.addWidget(distribution)
+        distribution.setVisible(bool(self.fund_distribution))
         self.account_cards_layout.addStretch(1)
 
     def _select_card_account(self, account_id):
@@ -936,7 +936,7 @@ class BankAccountsWidget(QWidget):
             lay.setSpacing(8)
             cap = QLabel(title_text)
             cap.setStyleSheet(theme_qss("font-size:10px;font-weight:700;color:@finance_text_muted;"))
-            value_lbl.setStyleSheet(theme_qss(f"font-family:'JetBrains Mono','DejaVu Sans';font-size:24px;font-weight:800;color:{color};"))
+            value_lbl.setStyleSheet(theme_qss(f"font-family:'JetBrains Mono';font-size:24px;font-weight:800;color:{color};"))
             lay.addWidget(cap)
             lay.addWidget(value_lbl)
             card.setFixedHeight(94)

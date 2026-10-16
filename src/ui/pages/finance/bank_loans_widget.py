@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (
     QButtonGroup, QPushButton, QLabel, QTableWidget,
     QTableWidgetItem, QHeaderView, QFormLayout, QDoubleSpinBox, QSpinBox,
     QDateEdit, QMessageBox, QTreeWidget, QTreeWidgetItem, QMenu,
-    QAbstractItemView, QFileDialog, QDialog
+    QAbstractItemView, QFileDialog, QDialog, QScrollArea, QLayout, QBoxLayout, QSizePolicy
 )
 from PyQt6.QtCore import Qt, QDate
 from PyQt6.QtGui import QColor, QFont, QIcon, QAction, QTextDocument
@@ -13,7 +13,7 @@ from PyQt6.QtPrintSupport import QPrintDialog, QPrinter
 import csv
 from html import escape
 
-from src.utils.theme_colors import theme_qss, qc
+from src.utils.theme_colors import theme_qss, qc, tc
 from src.utils.design_system import DesignTokens
 from src.utils.currency_helper import CurrencyHelper
 from src.utils.toast_notification import show_success, show_error
@@ -21,6 +21,7 @@ from src.utils.message_helper import show_question, show_warning
 from src.ui.components.message_box import ModernConfirm
 from src.ui.dialogs.base_modern_dialog import BaseModernDialog
 from src.ui.dialogs.loan_wizard_advanced import AdvancedLoanWizard
+from src.ui.widgets.navigation_glyph import navigation_icon
 from src.utils.context_menu_settings import is_context_menu_enabled
 from src.utils.logger import logger
 from datetime import datetime, timedelta
@@ -41,8 +42,34 @@ class LoansWidget(QWidget):
     def _format_display_money(self, amount_try):
         return CurrencyHelper.format_from_try(amount_try, db=self.db, currency_code=self._display_currency())
 
+    def apply_theme_styles(self):
+        self.btn_add_loan.setStyleSheet(theme_qss(
+            "QPushButton{background:@accent;color:@selection_text;border:0;border-radius:8px;"
+            "padding:0 18px;font-weight:700;} QPushButton:hover{background:@accent_hover;}"
+        ))
+        self.loan_page_info.setStyleSheet(theme_qss("color: @text;"))
+        for row in range(self.installment_table.rowCount()):
+            item = self.installment_table.item(row, 3)
+            if item is not None:
+                is_paid = str(item.text() or "").casefold() == "\u00f6dendi"
+                item.setForeground(qc("success" if is_paid else "warning"))
+
     def init_ui(self):
-        layout = QVBoxLayout(self)
+        root_layout = QVBoxLayout(self)
+        self.root_layout = root_layout
+        root_layout.setContentsMargins(0, 0, 0, 0)
+        root_layout.setSpacing(0)
+        self.content_scroll = QScrollArea(self)
+        self.content_scroll.setObjectName("loanPageScroll")
+        self.content_scroll.setWidgetResizable(True)
+        self.content_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.content_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.content_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.content_scroll.setMinimumWidth(0)
+        self.content_widget = QWidget()
+        layout = QVBoxLayout(self.content_widget)
+        self.content_layout = layout
+        layout.setSizeConstraint(QLayout.SizeConstraint.SetNoConstraint)
         layout.setContentsMargins(18, 19, 18, 3)
         layout.setSpacing(16)
 
@@ -63,10 +90,10 @@ class LoansWidget(QWidget):
         """))
         self.btn_add_loan.setText("+  Yeni Kredi Ekle")
         self.btn_add_loan.setFixedHeight(46)
-        self.btn_add_loan.setStyleSheet(
-            "QPushButton{background:#059669;color:#ffffff;border:0;border-radius:8px;"
-            "padding:0 18px;font-weight:700;} QPushButton:hover{background:#047857;}"
-        )
+        self.btn_add_loan.setStyleSheet(theme_qss(
+            "QPushButton{background:@accent;color:@selection_text;border:0;border-radius:8px;"
+            "padding:0 18px;font-weight:700;} QPushButton:hover{background:@accent_hover;}"
+        ))
 
         # Loans Tree remains the data and context-action source for the schedule view.
         self.tree = QTreeWidget()
@@ -111,66 +138,103 @@ class LoansWidget(QWidget):
 
     def _build_reference_view(self, layout):
         self.metric_values = []
+        self.metric_cards = []
         metrics = QGridLayout()
+        self.metrics_layout = metrics
         metrics.setHorizontalSpacing(12)
-        for label, accent in (
-            ("Toplam Kredi Tutar\u0131", "#60a5fa"),
-            ("Kalan Ana Para & Bor\u00e7", "#fbbf24"),
-            ("Ayl\u0131k Taksit Tutar\u0131", "#22d3ee"),
-            ("S\u0131radaki Taksit Tarihi", "#c084fc"),
-        ):
+        for index, (label, accent, icon_kind) in enumerate((
+            ("Toplam Kredi Tutar\u0131", "accent", "building"),
+            ("Kalan Ana Para & Bor\u00e7", "warning", "money"),
+            ("Ayl\u0131k Taksit Tutar\u0131", "accent", "calendar"),
+            ("S\u0131radaki Taksit Tarihi", "accent", "clipboard"),
+        )):
+            icon_color = tc(accent)
             card = QFrame()
+            card.setMinimumWidth(0)
             card.setMinimumHeight(88)
-            card.setStyleSheet(
-                f"QFrame{{background:#101827;border:1px solid #263449;border-radius:10px;}}"
-            )
+            card.setStyleSheet(theme_qss(
+                "QFrame{background:@surface;border:1px solid @border;border-radius:10px;}"
+            ))
             card_layout = QVBoxLayout(card)
-            card_layout.setContentsMargins(14, 10, 14, 10)
+            card_layout.setContentsMargins(14, 7, 14, 7)
+            card_layout.setSpacing(0)
+            heading = QWidget(card)
+            heading_layout = QHBoxLayout(heading)
+            heading_layout.setContentsMargins(0, 0, 0, 0)
+            heading_layout.setSpacing(8)
             name = QLabel(label.upper())
-            name.setStyleSheet(f"color:{accent};font-size:11px;font-weight:700;border:0;")
+            name.setWordWrap(True)
+            name.setObjectName("loanMetricName")
+            name.setStyleSheet(theme_qss("color:@text_muted;font-size:11px;font-weight:700;border:0;"))
+            heading_layout.addWidget(name, 1)
+            icon_frame = QFrame(heading)
+            icon_frame.setObjectName("loanMetricIconFrame")
+            icon_frame.setFixedSize(32, 32)
+            icon_frame.setStyleSheet(theme_qss(
+                f"QFrame{{background:@surface_alt;border:1px solid @{accent};border-radius:8px;}}"
+            ))
+            icon_layout = QHBoxLayout(icon_frame)
+            icon_layout.setContentsMargins(0, 0, 0, 0)
+            icon_label = QLabel(icon_frame)
+            icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            icon_label.setPixmap(navigation_icon(icon_kind, 18, icon_color).pixmap(18, 18))
+            icon_layout.addWidget(icon_label)
+            heading_layout.addWidget(icon_frame)
+            card_layout.addWidget(heading)
             value = QLabel("--")
-            value.setStyleSheet(
-                "QLabel { color: rgb(255,255,255); font-size: 22px; font-weight: bold; border: 0; }"
-            )
+            value.setObjectName("loanMetricValue")
+            value.setMinimumWidth(0)
+            value.setMaximumWidth(16777215)
+            value.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            value.setStyleSheet(theme_qss(
+                f"QLabel {{ color: {'@warning' if index == 1 else '@text'}; "
+                "font-size: 22px; font-weight: bold; border: 0; }"
+            ))
             detail = QLabel("")
-            detail.setStyleSheet("color:#94a3b8;font-size:11px;border:0;")
-            card_layout.addWidget(name)
+            detail.setWordWrap(True)
+            detail_color = "@success" if index == 1 else "@danger" if index == 3 else "@text_muted"
+            detail.setStyleSheet(f"color:{detail_color};font-size:11px;border:0;")
             card_layout.addWidget(value)
             card_layout.addWidget(detail)
             metrics.addWidget(card, 0, len(self.metric_values))
             self.metric_values.append((value, detail))
+            self.metric_cards.append(card)
         layout.addLayout(metrics)
 
-        filters = QHBoxLayout()
+        filters = QGridLayout()
+        self.filters_layout = filters
+        filters.setHorizontalSpacing(6)
+        filters.setVerticalSpacing(6)
         filters.setContentsMargins(0, 0, 0, 2)
         self.loan_search = QLineEdit()
         self.loan_search.setPlaceholderText("Banka ad\u0131, kredi no veya kullan\u0131m yeri ara...")
         self.loan_search.setMinimumWidth(200)
         self.loan_search.setFixedHeight(46)
         self.loan_search.setStyleSheet(
-            "QLineEdit{background:#111b2c;color:#e2e8f0;border:1px solid #263449;"
+            theme_qss("QLineEdit{background:@surface;color:@text;border:1px solid @border;"
             "border-radius:8px;padding:8px 12px;}"
+            )
         )
         self.loan_search.textChanged.connect(self._render_reference_view)
-        filters.addWidget(self.loan_search, 1)
+        filters.addWidget(self.loan_search, 0, 0)
         self.loan_filter = QComboBox()
         self.loan_filter.addItems(["Yaln\u0131zca Aktif Krediler", "T\u00fcm Krediler"])
         self.loan_filter.setFixedHeight(46)
         self.loan_filter.currentIndexChanged.connect(self._render_reference_view)
-        filters.addWidget(self.loan_filter)
+        filters.addWidget(self.loan_filter, 0, 1)
         self.currency_buttons = QButtonGroup(self)
         self.currency_codes = {}
-        for code, caption in (("USD", "USD ($)"), ("TRY", "TRY (\u20ba)"), ("EUR", "EUR (\u20ac)")):
+        for index, (code, caption) in enumerate((("USD", "USD ($)"), ("TRY", "TRY (\u20ba)"), ("EUR", "EUR (\u20ac)"))):
             button = QPushButton(caption)
             button.setCheckable(True)
             button.setFixedHeight(46)
             button.setStyleSheet(
-                "QPushButton{background:#111b2c;color:#94a3b8;border:1px solid #263449;"
-                "padding:7px 10px;} QPushButton:checked{background:#2563eb;color:white;}"
+                theme_qss("QPushButton{background:@surface;color:@text_muted;border:1px solid @border;"
+                "padding:7px 10px;} QPushButton:checked{background:@accent;color:@selection_text;}")
             )
             self.currency_buttons.addButton(button)
             self.currency_codes[button] = code
-            filters.addWidget(button)
+            filters.addWidget(button, 0, 2 + index)
         default_currency = "USD"
         selected_currency = next(
             (button for button, code in self.currency_codes.items() if code == default_currency),
@@ -182,25 +246,39 @@ class LoansWidget(QWidget):
         self.btn_accounts = QPushButton("Banka Hesaplar\u0131")
         self.btn_accounts.setFixedHeight(46)
         self.btn_accounts.setStyleSheet(
-            "QPushButton{background:#111b2c;color:#dbeafe;border:1px solid #263449;"
+            theme_qss("QPushButton{background:@surface;color:@text;border:1px solid @border;"
             "border-radius:6px;padding:7px 9px;font-size:10px;}"
+            )
         )
-        filters.addWidget(self.btn_accounts)
+        filters.addWidget(self.btn_accounts, 0, 5)
         self.btn_export_reference.setToolTip("Kredi ve taksit planini CSV olarak disa aktar")
         self.btn_export_reference.clicked.connect(self._export_reference_csv)
         self.btn_print_reference = QPushButton("Yazd\u0131r")
         self.btn_print_reference.setFixedHeight(46)
         self.btn_print_reference.clicked.connect(self._print_reference_view)
-        for action_button in (self.btn_export_reference, self.btn_print_reference):
+        for index, action_button in enumerate((self.btn_export_reference, self.btn_print_reference), 6):
             action_button.setFixedHeight(46)
             action_button.setStyleSheet(
-                "QPushButton{background:#111b2c;color:#dbeafe;border:1px solid #263449;"
+                theme_qss("QPushButton{background:@surface;color:@text;border:1px solid @border;"
                 "border-radius:6px;padding:7px 9px;font-size:10px;}"
-                "QPushButton:hover{background:#1e293b;border-color:#3b82f6;}"
+                "QPushButton:hover{background:@hover_bg;border-color:@accent;}"
+                )
             )
-            filters.addWidget(action_button)
-        filters.addWidget(self.btn_add_loan)
-        layout.addLayout(filters)
+            filters.addWidget(action_button, 0, index)
+        filters.addWidget(self.btn_add_loan, 0, 8)
+        filters.setColumnStretch(0, 1)
+        self.filters_scroll = QScrollArea(self)
+        self.filters_scroll.setObjectName("loanFiltersScroll")
+        self.filters_scroll.setWidgetResizable(True)
+        self.filters_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.filters_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.filters_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.filters_scroll.setMinimumWidth(0)
+        self.filters_widget = QWidget()
+        self.filters_widget.setLayout(filters)
+        self.filters_scroll.setWidget(self.filters_widget)
+        self.filters_scroll.setFixedHeight(54)
+        layout.addWidget(self.filters_scroll)
 
         self.contract_header = QFrame()
         self.contract_header.setObjectName("loanContractHeader")
@@ -238,12 +316,13 @@ class LoansWidget(QWidget):
         header_layout.addWidget(contract_identity)
         self.contract_status = QLabel("\u25cf  Aktif Kredi")
         self.contract_status.setStyleSheet(
-            "color:#6ee7b7;background:#064e3b;border:1px solid #047857;"
+            theme_qss("color:@success;background:@success_bg;border:1px solid @success;"
             "border-radius:10px;padding:4px 8px;font-size:11px;font-weight:700;"
+            )
         )
         self.contract_status.setFixedWidth(92)
         header_layout.addWidget(self.contract_status)
-        header_layout.addSpacing(160)
+        header_layout.addStretch(1)
         self.contract_amount = QLabel("")
         self.contract_amount.setWordWrap(True)
         self.contract_amount.setMinimumWidth(80)
@@ -287,15 +366,27 @@ class LoansWidget(QWidget):
         loan_menu.addAction("Krediyi Sil", lambda: self._with_selected_loan(self.delete_loan))
         self.loan_actions_button.setMenu(loan_menu)
         header_layout.addWidget(self.loan_actions_button)
+        self._contract_spacers = [
+            self.contract_layout.itemAt(index).spacerItem() for index in (3, 8)
+        ]
         self.loan_schedule_panel = QFrame()
         self.loan_schedule_panel.setObjectName("LoanSchedulePanel")
         self.loan_schedule_panel.setStyleSheet(
-            "QFrame#LoanSchedulePanel{background:#0f1725;border:1px solid #263449;border-radius:8px;}"
+            theme_qss("QFrame#LoanSchedulePanel{background:@surface;border:1px solid @border;border-radius:8px;}")
         )
         self.loan_schedule_layout = QVBoxLayout(self.loan_schedule_panel)
         self.loan_schedule_layout.setContentsMargins(0, 0, 0, 0)
         self.loan_schedule_layout.setSpacing(0)
-        self.loan_schedule_layout.addWidget(self.contract_header)
+        self.contract_header_scroll = QScrollArea(self.loan_schedule_panel)
+        self.contract_header_scroll.setObjectName("loanContractHeaderScroll")
+        self.contract_header_scroll.setWidgetResizable(True)
+        self.contract_header_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.contract_header_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.contract_header_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.contract_header_scroll.setMinimumWidth(0)
+        self.contract_header_scroll.setFixedHeight(66)
+        self.contract_header_scroll.setWidget(self.contract_header)
+        self.loan_schedule_layout.addWidget(self.contract_header_scroll)
 
         self.installment_table = QTableWidget()
         self.installment_table.setColumnCount(6)
@@ -308,11 +399,11 @@ class LoansWidget(QWidget):
         self.installment_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.installment_table.setShowGrid(False)
         self.installment_table.setStyleSheet(
-            "QTableWidget{background:#0f1725;color:#e2e8f0;border:1px solid #263449;"
-            "border-radius:8px;gridline-color:#1e293b;}"
-            "QHeaderView::section{background:#172236;color:#94a3b8;border:0;"
-            "border-bottom:1px solid #263449;padding:8px 10px;font-size:11px;font-weight:700;}"
-            "QTableWidget::item{padding:7px 10px;border-bottom:1px solid #1e293b;}"
+            theme_qss("QTableWidget{background:@window;color:@text;border:1px solid @border;"
+            "border-radius:8px;gridline-color:@border;}"
+            "QHeaderView::section{background:@surface_alt;color:@text_muted;border:0;"
+            "border-bottom:1px solid @border;padding:8px 10px;font-size:11px;font-weight:700;}"
+            "QTableWidget::item{padding:7px 10px;border-bottom:1px solid @border;}")
         )
         header = self.installment_table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
@@ -326,6 +417,7 @@ class LoansWidget(QWidget):
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(5, QHeaderView.ResizeMode.Fixed)
         self.installment_table.setColumnWidth(5, 120)
+        self.installment_table.setMinimumWidth(0)
         self.installment_table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.installment_table.setMinimumHeight(260)
         self.installment_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -338,9 +430,10 @@ class LoansWidget(QWidget):
         self.installment_footer = QWidget(self.loan_schedule_panel)
         self.installment_footer.setFixedHeight(30)
         self.installment_footer.setStyleSheet(
-            "background:#0f1725;border-top:1px solid #263449;"
+            theme_qss("background:@surface;border-top:1px solid @border;")
         )
         footer = QHBoxLayout(self.installment_footer)
+        self.installment_footer_layout = footer
         footer.setContentsMargins(10, 0, 10, 0)
         self.loan_page_info = QLabel("")
         footer.addWidget(self.loan_page_info)
@@ -356,6 +449,8 @@ class LoansWidget(QWidget):
         self.loan_schedule_layout.addWidget(self.installment_footer)
         layout.addWidget(self.loan_schedule_panel, 0)
         layout.addStretch(1)
+        self.content_scroll.setWidget(self.content_widget)
+        self.root_layout.addWidget(self.content_scroll)
         self._installment_rows = []
         self._selected_loan_id = None
         self._installment_page = 1
@@ -611,7 +706,7 @@ class LoansWidget(QWidget):
                 item = QTableWidgetItem(text)
                 item.setData(Qt.ItemDataRole.UserRole, installment.get("id"))
                 if upcoming:
-                    item.setBackground(QColor("#182234"))
+                    item.setBackground(qc("surface_alt"))
                 if column in (1, 2, 3):
                     item.setTextAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
                 if column == 3:
@@ -624,14 +719,15 @@ class LoansWidget(QWidget):
                     cell_layout.setContentsMargins(8, 0, 4, 0)
                     cell_layout.setSpacing(7)
                     badge = QLabel(f"{number:02d}")
-                    badge_color = "#0f513e" if paid else "#6b4d14" if upcoming else "#263246"
-                    badge_text = "#34d399" if paid else "#fbbf24" if upcoming else "#94a3b8"
+                    badge_color = "@success_bg" if paid else "@warning_bg" if upcoming else "@surface_alt"
+                    badge_text = "@success" if paid else "@warning" if upcoming else "@text_muted"
                     badge.setStyleSheet(
-                        f"QLabel{{background:{badge_color};color:{badge_text};border-radius:4px;"
+                        theme_qss(f"QLabel{{background:{badge_color};color:{badge_text};border-radius:4px;"
                         "padding:2px 5px;font-size:10px;font-weight:700;}}"
+                        )
                     )
                     title = QLabel(f"Taksit {number}")
-                    title.setStyleSheet("color:#e2e8f0;font-size:11px;font-weight:600;border:0;")
+                    title.setStyleSheet(theme_qss("color:@text;font-size:11px;font-weight:600;border:0;"))
                     cell_layout.addWidget(badge)
                     cell_layout.addWidget(title)
                     cell_layout.addStretch(1)
@@ -639,28 +735,30 @@ class LoansWidget(QWidget):
                 elif column == 3:
                     badge = QLabel("\u2713  \u00d6dendi" if paid else "Bekliyor")
                     badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                    badge_bg = "#123b31" if paid else "#49371a" if upcoming else "#263246"
-                    badge_fg = "#34d399" if paid else "#fbbf24" if upcoming else "#94a3b8"
+                    badge_bg = "@success_bg" if paid else "@warning_bg" if upcoming else "@surface_alt"
+                    badge_fg = "@success" if paid else "@warning" if upcoming else "@text_muted"
+                    badge_border = "@success" if paid else "@warning" if upcoming else "@border"
                     badge.setStyleSheet(
-                        f"QLabel{{background:{badge_bg};color:{badge_fg};border:1px solid "
-                        f"{'#075e4b' if paid else '#805d1d' if upcoming else '#3b4a60'};"
+                        theme_qss(f"QLabel{{background:{badge_bg};color:{badge_fg};border:1px solid "
+                        f"{badge_border};"
                         "border-radius:5px;padding:2px 7px;font-size:10px;font-weight:700;}}"
+                        )
                     )
                     self.installment_table.setCellWidget(row_index, column, badge)
                 elif upcoming and column == 1:
-                    item.setForeground(QColor("#fbbf24"))
+                    item.setForeground(qc("warning"))
                 self.installment_table.setItem(row_index, column, item)
             action = QPushButton(
-                "\u00d6deme Detaylar\u0131" if paid else "\u015eimdi \u00d6de" if upcoming else "Taksit Plan\u0131"
+                "Dekont G\u00f6r\u00fcnt\u00fcle" if paid else "\u015eimdi \u00d6de" if upcoming else "Taksit Plan\u0131"
             )
             action_padding = "2px 5px" if compact else "5px 9px"
             action_font = "10px" if compact else "11px"
             action.setStyleSheet(
-                "QPushButton{background:#172338;color:#cbd5e1;border:1px solid #334155;"
+                theme_qss("QPushButton{background:@surface_alt;color:@text_muted;border:1px solid @border;"
                 f"border-radius:5px;padding:{action_padding};font-size:{action_font};}}"
                 if not upcoming else
-                "QPushButton{background:#2563eb;color:#ffffff;border:0;border-radius:5px;"
-                f"padding:{action_padding};font-size:{action_font};font-weight:700;}}"
+                "QPushButton{background:@accent;color:@selection_text;border:0;border-radius:5px;"
+                f"padding:{action_padding};font-size:{action_font};font-weight:700;}}")
             )
             action.setFixedHeight(24 if compact else 30)
             action.setMinimumWidth(106 if compact else 132)
@@ -677,10 +775,8 @@ class LoansWidget(QWidget):
         )
         self.loan_page_info.setText(
             f"Toplam G\u00f6r\u00fcnt\u00fclenen: <b>{len(visible)} / {len(installments)}</b> Taksit"
-            f"  \u00b7  \u00d6denen: <span style='color:#34d399'>"
-            f"{paid_count}</span>"
-            f"  \u00b7  Kalan: <span style='color:#fbbf24'>"
-            f"{len(installments) - paid_count}</span>"
+            f"  \u00b7  \u00d6denen: <b>{paid_count}</b>"
+            f"  \u00b7  Kalan: <b>{len(installments) - paid_count}</b>"
         )
         self.loan_page_label.setText(f"Sayfa {self._installment_page} / {pages}")
         self.loan_previous.setEnabled(self._installment_page > 1)
@@ -692,17 +788,117 @@ class LoansWidget(QWidget):
             min(natural_height, max(260, self.height() - 230))
         )
         self.loan_schedule_panel.setFixedHeight(
-            self.contract_header.height() + self.installment_table.height()
+            self.contract_header_scroll.height() + self.installment_table.height()
             + self.installment_footer.height()
         )
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        compact = event.size().height() < 700
-        self.layout().setContentsMargins(8, 8, 8, 8) if compact else self.layout().setContentsMargins(18, 19, 18, 3)
-        self.layout().setSpacing(6 if compact else 16)
+        mobile = event.size().width() < 620
+        compact = event.size().height() < 700 or mobile
+        self.content_layout.setContentsMargins(8, 8, 8, 8) if compact else self.content_layout.setContentsMargins(18, 19, 18, 3)
+        self.content_layout.setSpacing(6 if compact else 16)
+        if hasattr(self, "metrics_layout"):
+            for index, card in enumerate(self.metric_cards):
+                self.metrics_layout.removeWidget(card)
+                self.metrics_layout.addWidget(card, index // 2 if mobile else 0, index % 2 if mobile else index)
+            self.metrics_layout.setColumnStretch(0, 1)
+            if mobile:
+                self.metrics_layout.setColumnStretch(1, 1)
+                self.metrics_layout.setColumnStretch(2, 0)
+                self.metrics_layout.setColumnStretch(3, 0)
+            else:
+                for column in range(1, 4):
+                    self.metrics_layout.setColumnStretch(column, 1)
+            filter_widgets = [
+                self.loan_search,
+                self.loan_filter,
+                *self.currency_buttons.buttons(),
+                self.btn_accounts,
+                self.btn_export_reference,
+                self.btn_print_reference,
+                self.btn_add_loan,
+            ]
+            for widget in filter_widgets:
+                self.filters_layout.removeWidget(widget)
+            if mobile:
+                self.filters_layout.addWidget(self.loan_search, 0, 0, 1, 9)
+                self.filters_layout.addWidget(self.loan_filter, 1, 0, 1, 9)
+                for index, button in enumerate(self.currency_buttons.buttons()):
+                    self.filters_layout.addWidget(button, 2, index * 3, 1, 3)
+                self.filters_layout.addWidget(self.btn_accounts, 3, 0, 1, 3)
+                self.filters_layout.addWidget(self.btn_export_reference, 3, 3, 1, 3)
+                self.filters_layout.addWidget(self.btn_print_reference, 3, 6, 1, 3)
+                self.filters_layout.addWidget(self.btn_add_loan, 4, 0, 1, 9)
+                for column in range(9):
+                    self.filters_layout.setColumnStretch(column, 1)
+            else:
+                for column, widget in enumerate(filter_widgets):
+                    self.filters_layout.addWidget(widget, 0, column)
+                self.filters_layout.setColumnStretch(0, 1)
+                for column in range(1, 9):
+                    self.filters_layout.setColumnStretch(column, 0)
+            self.filters_scroll.setFixedHeight(254 if mobile else 54)
+        if hasattr(self, "contract_header_scroll"):
+            self.contract_layout.setDirection(
+                QBoxLayout.Direction.TopToBottom if mobile else QBoxLayout.Direction.LeftToRight
+            )
+            self.contract_layout.setSpacing(6 if mobile else 8)
+            for spacer in self._contract_spacers:
+                if mobile:
+                    spacer.changeSize(
+                        0, 0, QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed
+                    )
+                else:
+                    spacer.changeSize(
+                        0, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum
+                    )
+            self.contract_layout.invalidate()
+            header_height = max(60, self.contract_layout.sizeHint().height()) if mobile else 60
+            self.contract_header.setFixedHeight(header_height)
+            self.contract_header_scroll.setFixedHeight(header_height + 12 if mobile else 66)
+            for card in self.metric_cards:
+                card.layout().setContentsMargins(8, 6, 8, 6) if mobile else card.layout().setContentsMargins(14, 7, 14, 7)
+                icon_frame = card.findChild(QFrame, "loanMetricIconFrame")
+                if icon_frame is not None:
+                    icon_frame.setFixedSize(28 if mobile else 32, 28 if mobile else 32)
+                metric_name = card.findChild(QLabel, "loanMetricName")
+                if metric_name is not None:
+                    metric_name.setStyleSheet(
+                        theme_qss("color:@text_muted;font-size:9px;font-weight:700;border:0;" if mobile
+                        else "color:@text_muted;font-size:11px;font-weight:700;border:0;")
+                    )
+                metric_value = card.findChild(QLabel, "loanMetricValue")
+                if metric_value is not None:
+                    metric_value.setStyleSheet(
+                        theme_qss(f"QLabel {{ color: {'@warning' if self.metric_cards.index(card) == 1 else '@text'}; "
+                        f"font-size: {18 if mobile else 22}px; font-weight: bold; border: 0; }}")
+                    )
+                    metric_value.setSizePolicy(
+                        QSizePolicy.Policy.Ignored if mobile else QSizePolicy.Policy.Expanding,
+                        QSizePolicy.Policy.Fixed,
+                    )
         if hasattr(self, "contract_meta"):
-            self.contract_meta.setVisible(event.size().width() >= 1120)
+            self.contract_meta.setVisible(True)
+        if hasattr(self, "installment_footer_layout"):
+            self.installment_footer_layout.setContentsMargins(6 if mobile else 10, 2 if mobile else 0, 6 if mobile else 10, 2 if mobile else 0)
+            self.loan_page_info.setWordWrap(mobile)
+            if mobile:
+                self.loan_page_info.setMinimumWidth(0)
+                self.loan_page_info.setSizePolicy(
+                    QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred
+                )
+                self.loan_previous.setFixedWidth(64)
+                self.loan_page_label.setFixedWidth(60)
+                self.loan_next.setFixedWidth(64)
+            else:
+                self.loan_page_info.setSizePolicy(
+                    QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred
+                )
+                for control in (self.loan_previous, self.loan_page_label, self.loan_next):
+                    control.setMinimumWidth(0)
+                    control.setMaximumWidth(16777215)
+            self.installment_footer.setFixedHeight(56 if mobile else 30)
         if hasattr(self, "installment_table") and hasattr(self, "_installment_rows"):
             row_height = 32 if compact else 37
             for row_index in range(self.installment_table.rowCount()):
@@ -714,7 +910,7 @@ class LoansWidget(QWidget):
                 min(natural_height, max(260, self.height() - 230))
             )
             self.loan_schedule_panel.setFixedHeight(
-                self.contract_header.height() + self.installment_table.height()
+                self.contract_header_scroll.height() + self.installment_table.height()
                 + self.installment_footer.height()
             )
 

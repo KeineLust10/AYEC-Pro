@@ -1,0 +1,39 @@
+#statusSmsTemplate,
+#statusSmsMessage {
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.status-sms-compose {
+  display: grid;
+  gap: 10px;
+}
+
+.status-sms-compose > label {
+  color: var(--text, #e2e8f0);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.status-sms-recipient {
+  padding: 12px;
+  border: 1px solid var(--border, #263449);
+  border-radius: 8px;
+  background: var(--surface-alt, #151f31);
+  line-height: 1.6;
+}
+
+.status-sms-compose > #statusSmsMessage {
+  min-height: 140px;
+  resize: vertical;
+}
+
+.status-sms-compose > #statusSmsCount {
+  color: var(--text-muted, #94a3b8);
+  text-align: right;
+}
+
+.status-sms-compose > .status-sms-warning {
+  margin: 0;
+  color: var(--danger, #f87171);
+}

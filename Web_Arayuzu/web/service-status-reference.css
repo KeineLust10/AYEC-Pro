@@ -1,0 +1,150 @@
+body[data-status-display="wall"] {
+  min-width: 980px;
+  overflow: auto;
+}
+
+body[data-status-display="wall"] .app-shell {
+  display: block;
+  min-height: 100vh;
+}
+
+body[data-status-display="wall"] .app-shell > .topbar,
+body[data-status-display="wall"] .app-shell > .sidebar,
+body[data-status-display="wall"] .shell-status-bar {
+  display: none !important;
+}
+
+body[data-status-display="wall"] .app-shell > .main,
+body[data-status-display="wall"] .app-shell .content {
+  width: 100%;
+  max-width: none;
+  min-height: 100vh;
+  margin: 0;
+  padding: 24px 36px;
+}
+
+body[data-status-display="wall"] .page-head > .actions,
+body[data-status-display="wall"] .status-wall-refresh-count,
+body[data-status-display="wall"] .status-wall-list > header nav,
+body[data-status-display="wall"] .status-wall-toolbar,
+body[data-status-display="wall"] .status-wall-pager,
+body[data-status-display="wall"] .status-wall-table th:nth-child(1),
+body[data-status-display="wall"] .status-wall-table td:nth-child(1),
+body[data-status-display="wall"] .status-wall-table th:nth-child(6),
+body[data-status-display="wall"] .status-wall-table td:nth-child(6),
+body[data-status-display="wall"] .status-wall-table th:nth-child(7),
+body[data-status-display="wall"] .status-wall-table td:nth-child(7),
+body[data-status-display="wall"] .status-wall-table th:nth-child(8),
+body[data-status-display="wall"] .status-wall-table td:nth-child(8),
+body[data-status-display="wall"] .status-wall-table th:nth-child(9),
+body[data-status-display="wall"] .status-wall-table td:nth-child(9) {
+  display: none !important;
+}
+
+body[data-status-display="wall"] .status-wall-layout,
+body[data-status-display="wall"] .status-wall-main,
+body[data-status-display="wall"] .status-wall-list {
+  width: 100%;
+  max-width: none;
+}
+
+body[data-status-display="wall"] .status-wall-layout {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
+body[data-status-display="wall"] .status-wall-side {
+  display: none !important;
+}
+
+body[data-page="service-status"] .status-wall-assistant > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+body[data-page="service-status"] .status-wall-assistant h4 {
+  margin: 10px 0 6px;
+  color: var(--brand-2);
+  font-size: 11px;
+}
+
+body[data-page="service-status"] .status-wall-assistant h4.warning {
+  color: var(--warning);
+}
+
+body[data-page="service-status"] .status-wall-assistant p {
+  min-height: 42px;
+  margin: 0;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-2);
+  white-space: pre-line;
+}
+
+body[data-page="service-status"] .status-wall-technicians article {
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: center;
+}
+
+body[data-page="service-status"] .status-wall-personnel-avatar {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--brand-2);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+@media (min-width: 761px) {
+  body[data-page="service-status"] {
+    --sidebar: 250px;
+  }
+
+  body[data-page="service-status"] .status-wall-layout {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(330px, 0.46fr) !important;
+    gap: 14px;
+  }
+}
+
+body[data-status-display="wall"] .status-wall-list > header h3 {
+  font-size: 24px;
+}
+
+body[data-status-display="wall"] .status-wall-table th,
+body[data-status-display="wall"] .status-wall-table td {
+  padding: 16px 18px;
+  font-size: 19px;
+}
+
+body[data-status-display="wall"] .status-wall-table td > small {
+  display: block;
+  margin-top: 5px;
+}
+
+body[data-status-display="wall"] .status-wall-metrics > article {
+  min-height: 116px;
+}
+
+body[data-page="service-status"] .status-wall-target-date,
+body[data-page="service-status"][data-status-target-date="hidden"] .status-wall-target-date {
+  display: none;
+}
+
+body[data-page="service-status"][data-status-target-date="visible"] .status-wall-target-date {
+  display: table-cell;
+}
+
+.status-wall-target-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted, #a5adbb);
+  font-size: 12px;
+  white-space: nowrap;
+}

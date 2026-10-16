@@ -42,7 +42,7 @@ def test_stock_metrics_preserve_real_values_and_native_filter_slots(monkeypatch,
         ]
         assert [card.val_lbl.text() for card in cards] == expected
         for card, metric in zip(cards, ['all', 'value', 'critical', 'profit']):
-            assert card.height() == 132
+            assert card.height() == 82
             assert card.graphicsEffect() is None
             assert 'border-radius: 14px' in card.styleSheet()
             assert 'transparent' in card.val_lbl.styleSheet()
@@ -75,7 +75,7 @@ def test_stock_metrics_preserve_real_values_and_native_filter_slots(monkeypatch,
         assert total == stats['total_types']
         assert page.table_stock.columnCount() == 12
         assert page.table_stock.columnWidth(2) >= 210
-        assert page.table_stock.verticalHeader().defaultSectionSize() == 110
+        assert page.table_stock.verticalHeader().defaultSectionSize() == 56
         assert page.table_stock.horizontalHeaderItem(2).text() == "Par\u00e7a / \u00dcr\u00fcn Tan\u0131m\u0131"
         assert page.table_stock.cellWidget(0, 11) is not None
         action_cell = page.table_stock.cellWidget(0, 11)

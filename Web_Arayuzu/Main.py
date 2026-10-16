@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import calendar
 import binascii
 import csv
 import hashlib
@@ -14,6 +15,7 @@ import io
 import importlib.util
 import json
 import logging
+import math
 import mimetypes
 import os
 import re
@@ -30,6 +32,7 @@ import threading
 import time
 import traceback
 import unicodedata
+import uuid
 import zipfile
 import zlib
 from contextlib import closing
@@ -39,10 +42,33 @@ from email.utils import formataddr
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from http.cookies import SimpleCookie
 from pathlib import Path, PureWindowsPath
-from urllib.parse import parse_qs, unquote, urlencode, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlencode, urlparse
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 from xml.etree import ElementTree
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+try:
+    from .google_drive_web import (
+        exchange_authorization as exchange_google_drive_authorization,
+        new_authorization as new_google_drive_authorization,
+        upload_backup as upload_google_drive_backup,
+        validate_web_client_config as validate_google_drive_client_config,
+    )
+except ImportError:
+    try:
+        from Web_Arayuzu.google_drive_web import (
+            exchange_authorization as exchange_google_drive_authorization,
+            new_authorization as new_google_drive_authorization,
+            upload_backup as upload_google_drive_backup,
+            validate_web_client_config as validate_google_drive_client_config,
+        )
+    except ImportError:
+        from google_drive_web import (
+            exchange_authorization as exchange_google_drive_authorization,
+            new_authorization as new_google_drive_authorization,
+            upload_backup as upload_google_drive_backup,
+            validate_web_client_config as validate_google_drive_client_config,
+        )
 
 
 ROOT = Path(__file__).resolve().parent
@@ -127,6 +153,8 @@ except (TypeError, ValueError):
 _SCHEMA_LOCK = threading.Lock()
 _SCHEMA_READY_PATHS: set[str] = set()
 _TENANT_LOCAL = threading.local()
+_FISCAL_ARCHIVE_CHECKSUM_CACHE: dict[tuple, str] = {}
+_FISCAL_ARCHIVE_CHECKSUM_LOCK = threading.Lock()
 _AUTH_LOCK = threading.Lock()
 _AUTH_FAILURES: dict[str, list[float]] = {}
 _GOOGLE_NONCES: dict[str, float] = {}
@@ -424,6 +452,30 @@ def ensure_operational_schema(conn: sqlite3.Connection) -> None:
         conn.commit()
     finally:
         conn.execute("PRAGMA foreign_keys=ON")
+    device_columns = {row[1] for row in conn.execute('PRAGMA table_info("devices")')}
+    for column, declaration in (
+        ("bios_password", "TEXT"),
+        ("delivery_method", "TEXT"),
+        ("service_location", "TEXT"),
+        ("other_info", "TEXT"),
+        ("delivered_by_name", "TEXT"),
+        ("delivered_by_phone", "TEXT"),
+    ):
+        if column not in device_columns:
+            conn.execute(f'ALTER TABLE "devices" ADD COLUMN "{column}" {declaration}')
+    fast_note_columns = {
+        row[1] for row in conn.execute('PRAGMA table_info("fast_notes")')
+    }
+    for column in ("display_category", "title"):
+        if column not in fast_note_columns:
+            conn.execute(f'ALTER TABLE "fast_notes" ADD COLUMN "{column}" TEXT')
+    customer_note_columns = {
+        row[1] for row in conn.execute('PRAGMA table_info("customer_notes")')
+    }
+    for column in ("note_type", "title"):
+        if column not in customer_note_columns:
+            conn.execute(f'ALTER TABLE "customer_notes" ADD COLUMN "{column}" TEXT')
+    conn.commit()
     available = {
         row[0]
         for row in conn.execute(
@@ -540,6 +592,7 @@ def ensure_web_schema(conn: sqlite3.Connection) -> None:
         "interface_edit_access": "INTEGER DEFAULT 0",
         "phone": "TEXT",
         "must_change_password": "INTEGER DEFAULT 0",
+        "password_updated_at": "TEXT",
         "temporary_password_expires_at": "TEXT",
     }
     for column, definition in additions.items():
@@ -687,8 +740,14 @@ def ensure_web_schema(conn: sqlite3.Connection) -> None:
 
 def _raw_connect(path: Path) -> sqlite3.Connection:
     path = Path(path).expanduser().resolve()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(path, timeout=30, check_same_thread=False)
+    archive_path_value = getattr(_TENANT_LOCAL, "fiscal_archive_path", None)
+    archive_path = Path(archive_path_value).resolve() if archive_path_value else None
+    if archive_path is not None and path == archive_path:
+        uri = "file:" + quote(str(path).replace("\\", "/"), safe="/:", encoding="utf-8") + "?mode=ro"
+        conn = sqlite3.connect(uri, uri=True, timeout=30, check_same_thread=False)
+    else:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(path, timeout=30, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA busy_timeout=30000")
     return conn
@@ -696,6 +755,10 @@ def _raw_connect(path: Path) -> sqlite3.Connection:
 
 def _ensure_path_schema(conn: sqlite3.Connection, path: Path) -> None:
     current_path = str(Path(path).resolve())
+    archive_path_value = getattr(_TENANT_LOCAL, "fiscal_archive_path", None)
+    archive_path = str(Path(archive_path_value).resolve()) if archive_path_value else ""
+    if archive_path and current_path == archive_path:
+        return
     if current_path not in _SCHEMA_READY_PATHS or not schema_ready(conn):
         with _SCHEMA_LOCK:
             if current_path not in _SCHEMA_READY_PATHS or not schema_ready(conn):
@@ -1071,6 +1134,11 @@ def registry_connect() -> sqlite3.Connection:
         ),
     )
     conn.execute("CREATE TABLE IF NOT EXISTS google_identities (subject TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, user_id INTEGER NOT NULL, created_at TEXT NOT NULL)")
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS google_drive_oauth_states ("
+        "state_hash TEXT PRIMARY KEY,tenant_id TEXT NOT NULL,user_id INTEGER NOT NULL,"
+        "created_at TEXT NOT NULL)"
+    )
     conn.commit()
     return conn
 
@@ -1494,6 +1562,92 @@ def protect_telegram_bot_token(value: object) -> str:
     return SecureSettingStore.PREFIX + encrypted
 
 
+def protect_sms_auth_token(value: object) -> str:
+    from src.utils.secure_setting_store import SecureSettingStore
+
+    token = str(value or "")
+    if not token or SecureSettingStore.is_encrypted(token):
+        return token
+    encrypted = SecureSettingStore._fernet().encrypt(token.encode("utf-8")).decode("ascii")
+    return SecureSettingStore.PREFIX + encrypted
+
+
+def _protect_google_drive_value(value: str) -> str:
+    from src.utils.secure_setting_store import SecureSettingStore
+
+    encrypted = SecureSettingStore._fernet().encrypt(str(value).encode("utf-8")).decode("ascii")
+    return SecureSettingStore.PREFIX + encrypted
+
+
+def _reveal_google_drive_value(value: object) -> str:
+    from src.utils.secure_setting_store import SecureSettingStore
+    from cryptography.fernet import InvalidToken
+
+    raw = str(value or "")
+    if not raw.startswith(SecureSettingStore.PREFIX):
+        return ""
+    try:
+        return SecureSettingStore._fernet().decrypt(
+            raw[len(SecureSettingStore.PREFIX):].encode("ascii")
+        ).decode("utf-8")
+    except (InvalidToken, ValueError, TypeError, UnicodeError):
+        return ""
+
+
+def _google_drive_setting(conn: sqlite3.Connection, key: str, value: str | None = None) -> str:
+    if value is None:
+        row = conn.execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()
+        return _reveal_google_drive_value(row[0] if row else "")
+    conn.execute(
+        "INSERT INTO settings(key,value) VALUES(?,?) "
+        "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+        (key, _protect_google_drive_value(value) if value else ""),
+    )
+    return ""
+
+
+def _google_drive_redirect_uri() -> str:
+    configured = str(os.environ.get("AYEC_GOOGLE_DRIVE_REDIRECT_URI") or "").strip()
+    value = configured or (PUBLIC_SERVER_URL + "/api/desktop/backups/google-drive/callback")
+    parsed = urlparse(value)
+    local_host = parsed.hostname in {"localhost", "127.0.0.1", "::1"}
+    if (
+        not parsed.netloc
+        or (parsed.scheme != "https" and not (local_host and parsed.scheme == "http"))
+        or parsed.username
+        or parsed.password
+        or parsed.query
+        or parsed.fragment
+        or parsed.path != "/api/desktop/backups/google-drive/callback"
+    ):
+        raise ValueError("Configure an HTTPS Google Drive callback URL at the server callback endpoint.")
+    return value
+
+
+def _consume_google_drive_state(state: str) -> dict | None:
+    if not state or len(state) > 256:
+        return None
+    digest = hashlib.sha256(state.encode("utf-8")).hexdigest()
+    with closing(registry_connect()) as conn:
+        row = conn.execute(
+            "SELECT tenant_id,user_id,created_at FROM google_drive_oauth_states WHERE state_hash=?",
+            (digest,),
+        ).fetchone()
+        if not row:
+            return None
+        conn.execute("DELETE FROM google_drive_oauth_states WHERE state_hash=?", (digest,))
+        conn.commit()
+    try:
+        created = datetime.fromisoformat(str(row["created_at"]))
+        if created.tzinfo is None:
+            created = created.replace(tzinfo=timezone.utc)
+        if utc_now() - created > timedelta(minutes=10):
+            return None
+    except (TypeError, ValueError):
+        return None
+    return {"tenant_id": str(row["tenant_id"]), "user_id": int(row["user_id"])}
+
+
 def send_license_email(tenant_id: str, recipient: str, subject: str, text: str) -> tuple[bool, str]:
     recipient = str(recipient or "").strip()
     if not valid_email(recipient):
@@ -1872,6 +2026,7 @@ def _store_support_backup_for_tenant(
     product_code: str = "teknik_servis",
     hardware_id: str = "",
     installation_id: str = "",
+    deduplicate: bool = True,
 ) -> dict:
     if len(payload) < 100 or len(payload) > 1024 * 1024 * 1024:
         raise ValueError("Backup size is invalid")
@@ -1880,12 +2035,14 @@ def _store_support_backup_for_tenant(
     if not tenant_id:
         raise PermissionError("Company session is required")
     digest = hashlib.sha256(payload).hexdigest()
-    with closing(registry_connect()) as conn:
-        existing = conn.execute(
-            "SELECT id FROM support_backups WHERE tenant_id=? AND sha256=? AND product_code=? "
-            "AND hardware_id=? AND installation_id=?",
-            (tenant_id, digest, product_code, hardware_id, installation_id)
-        ).fetchone()
+    existing = None
+    if deduplicate:
+        with closing(registry_connect()) as conn:
+            existing = conn.execute(
+                "SELECT id FROM support_backups WHERE tenant_id=? AND sha256=? AND product_code=? "
+                "AND hardware_id=? AND installation_id=?",
+                (tenant_id, digest, product_code, hardware_id, installation_id)
+            ).fetchone()
     if existing:
         cleanup = prune_support_backups(tenant_id)
         return {"ok": True, "backup_id": int(existing[0]), "duplicate": True,
@@ -1990,6 +2147,1003 @@ def support_store_backup(user: dict, payload: bytes, original_name: str = "deskt
         result["product_archive_ok"] = False
         result["product_archive_error"] = str(error)
     return result
+
+
+def _desktop_backup_context(user: dict | None) -> tuple[dict, str, str]:
+    actor = dict(user or {})
+    tenant_id = str(actor.get("_tenant_id") or active_tenant_id() or "")
+    if not tenant_id:
+        raise PermissionError("Company session is required")
+    if tenant_id != active_tenant_id() and not is_control_admin(actor):
+        raise PermissionError("Backup access is limited to the active company")
+    if not role_is_admin(actor.get("role")) and not is_control_admin(actor):
+        raise PermissionError("Administrator access is required")
+    tenant = _tenant_record_required(tenant_id)
+    product_code = str(tenant.get("product_code") or "teknik_servis").strip().lower()
+    if product_code not in configured_product_codes():
+        raise ValueError("Unknown backup product")
+    return tenant, tenant_id, product_code
+
+
+def desktop_list_backups(user: dict) -> list[dict]:
+    _tenant, tenant_id, product_code = _desktop_backup_context(user)
+    with closing(registry_connect()) as conn:
+        items = rows(
+            conn,
+            "SELECT id,original_name,size_bytes,source,created_at,product_code,hardware_id,"
+            "installation_id,sha256 FROM support_backups "
+            "WHERE tenant_id=? AND product_code=? AND status='available' "
+            "ORDER BY id DESC LIMIT 25",
+            (tenant_id, product_code),
+        )
+    return [
+        {
+            "id": int(item["id"]),
+            "filename": item.get("original_name") or "backup.db",
+            "size_bytes": int(item.get("size_bytes") or 0),
+            "source": item.get("source") or "web",
+            "created_at": item.get("created_at") or "",
+            "product_code": item.get("product_code") or product_code,
+            "hardware_id": item.get("hardware_id") or "",
+            "installation_id": item.get("installation_id") or "",
+            "sha256": item.get("sha256") or "",
+        }
+        for item in items
+    ]
+
+
+def desktop_create_backup(user: dict, source: str = "web") -> dict:
+    tenant, tenant_id, product_code = _desktop_backup_context(user)
+    tenant_root = TENANT_ROOT.resolve()
+    source_path = active_db_path().resolve()
+    expected_path = (tenant_root / Path(str(tenant.get("db_filename") or "")).name).resolve()
+    if source_path != expected_path or source_path.parent != tenant_root or not source_path.is_file():
+        raise PermissionError("Active company database path is invalid")
+    with tempfile.TemporaryDirectory(prefix="ayec-web-backup-") as temp_dir:
+        snapshot_path = Path(temp_dir) / "snapshot.db"
+        db_source = sqlite3.connect(str(source_path), timeout=30)
+        snapshot = sqlite3.connect(str(snapshot_path), timeout=30)
+        try:
+            db_source.backup(snapshot)
+            integrity = str(snapshot.execute("PRAGMA integrity_check").fetchone()[0] or "")
+            if integrity.lower() != "ok":
+                raise ValueError("Backup integrity check failed")
+            snapshot.commit()
+        finally:
+            snapshot.close()
+            db_source.close()
+        payload = snapshot_path.read_bytes()
+    result = _store_support_backup_for_tenant(
+        tenant_id,
+        int(dict(user).get("id") or 0),
+        payload,
+        source_path.name,
+        str(source or "web")[:80],
+        product_code,
+        "web-runtime",
+        "web-app",
+    )
+    _support_audit(
+        user,
+        "tenant_backup_created",
+        tenant_id,
+        detail={
+            "backup_id": int(result.get("backup_id") or 0),
+            "product_code": product_code,
+            "size_bytes": int(result.get("size_bytes") or len(payload)),
+            "sha256": result.get("sha256") or hashlib.sha256(payload).hexdigest(),
+            "source": str(source or "web")[:80],
+        },
+    )
+    return result
+
+
+def desktop_stage_restore_backup(user: dict, original_name: str, payload: bytes) -> dict:
+    tenant, tenant_id, product_code = _desktop_backup_context(user)
+    if len(payload) < 100 or len(payload) > 1024 * 1024 * 1024:
+        raise ValueError("Backup size is invalid")
+    if not payload.startswith(b"SQLite format 3\x00"):
+        raise ValueError("Only SQLite database backups are accepted")
+    filename = Path(PureWindowsPath(unquote(str(original_name or ""))).name).name
+    if (
+        len(filename) > 180
+        or any(ord(char) < 32 for char in filename)
+        or Path(filename).suffix.casefold() not in {".db", ".sqlite", ".sqlite3"}
+    ):
+        raise ValueError("Choose a SQLite database backup file")
+    tenant_root = TENANT_ROOT.resolve()
+    live_path = (tenant_root / Path(str(tenant.get("db_filename") or "")).name).resolve()
+    if live_path.parent != tenant_root or not live_path.is_file():
+        raise PermissionError("Active company database path is invalid")
+    user_id = int(dict(user).get("id") or 0)
+    with closing(sqlite3.connect(
+        "file:" + quote(str(live_path).replace("\\", "/"), safe="/:", encoding="utf-8") + "?mode=ro",
+        uri=True,
+    )) as live_db:
+        live_user_columns = table_columns(live_db, "users")
+        live_company_columns = table_columns(live_db, "company_info")
+        if not {"id", "username", "email"}.issubset(live_user_columns) or "company_name" not in live_company_columns:
+            raise PermissionError("Active company identity cannot be verified")
+        live_user = live_db.execute(
+            "SELECT username,email FROM users WHERE id=?", (user_id,)
+        ).fetchone()
+        live_company = live_db.execute(
+            "SELECT company_name FROM company_info ORDER BY id LIMIT 1"
+        ).fetchone()
+    company_name = str(tenant.get("company_name") or "").strip().casefold()
+    identities = {str(value or "").strip().casefold() for value in live_user or () if str(value or "").strip()}
+    if (
+        not user_id
+        or not identities
+        or not live_company
+        or str(live_company[0] or "").strip().casefold() != company_name
+    ):
+        raise PermissionError("Active company account identity cannot be verified")
+
+    with tempfile.TemporaryDirectory(prefix="ayec-web-restore-stage-") as temp_dir:
+        source_path = Path(temp_dir) / "uploaded.db"
+        snapshot_path = Path(temp_dir) / "snapshot.db"
+        source_path.write_bytes(payload)
+        uri = "file:" + quote(str(source_path).replace("\\", "/"), safe="/:", encoding="utf-8") + "?mode=ro"
+        with closing(sqlite3.connect(uri, uri=True, timeout=30)) as source:
+            integrity = str(source.execute("PRAGMA integrity_check").fetchone()[0] or "")
+            if integrity.lower() != "ok":
+                raise ValueError("Backup integrity check failed")
+            user_columns = table_columns(source, "users")
+            company_columns = table_columns(source, "company_info")
+            identity_columns = [name for name in ("username", "email") if name in user_columns]
+            if "id" not in user_columns or not identity_columns or "company_name" not in company_columns:
+                raise ValueError("Backup company identity cannot be verified")
+            identity_sql = ",".join(f'"{name}"' for name in identity_columns)
+            imported_user = source.execute(
+                f"SELECT {identity_sql} FROM users WHERE id=? LIMIT 1", (user_id,)
+            ).fetchone()
+            imported_company = source.execute(
+                "SELECT company_name FROM company_info ORDER BY id LIMIT 1"
+            ).fetchone()
+            imported_identities = {
+                str(value or "").strip().casefold()
+                for value in imported_user or ()
+                if str(value or "").strip()
+            }
+            if (
+                not imported_user
+                or not identities.intersection(imported_identities)
+                or not imported_company
+                or str(imported_company[0] or "").strip().casefold() != company_name
+            ):
+                raise PermissionError("Backup belongs to a different company account")
+            snapshot = sqlite3.connect(str(snapshot_path), timeout=30)
+            try:
+                source.backup(snapshot)
+                snapshot_integrity = str(snapshot.execute("PRAGMA integrity_check").fetchone()[0] or "")
+                if snapshot_integrity.lower() != "ok":
+                    raise ValueError("Backup snapshot integrity check failed")
+                snapshot.commit()
+            finally:
+                snapshot.close()
+        clean_payload = snapshot_path.read_bytes()
+
+    result = _store_support_backup_for_tenant(
+        tenant_id,
+        user_id,
+        clean_payload,
+        filename,
+        "web-restore-staging",
+        product_code,
+        "",
+        "",
+        deduplicate=False,
+    )
+    _support_audit(
+        user,
+        "tenant_restore_backup_staged",
+        tenant_id,
+        detail={
+            "backup_id": int(result.get("backup_id") or 0),
+            "filename": filename,
+            "sha256": result.get("sha256") or "",
+        },
+    )
+    return {**result, "filename": filename, "restore_via": "Admin_Konsol"}
+
+
+class _FiscalDatabaseAdapter:
+    """Expose the fiscal service database contract without initializing/migrating a tenant DB."""
+
+    def __init__(self, path: Path):
+        self.conn = sqlite3.connect(str(path), timeout=30)
+        self.cursor = self.conn.cursor()
+
+    def _get_table_columns(self, table: str) -> list[str]:
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", str(table or "")):
+            return []
+        return [str(row[1]) for row in self.cursor.execute(f'PRAGMA table_info("{table}")')]
+
+    def _safe_identifier(self, name: str) -> str:
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", str(name or "")):
+            raise ValueError("Invalid database identifier")
+        return f'"{name}"'
+
+    def get_internal_setting(self, key: str, default: str = "") -> str:
+        if not {"key", "value"}.issubset(self._get_table_columns("internal_settings")):
+            return default
+        row = self.cursor.execute(
+            "SELECT value FROM internal_settings WHERE key=?", (str(key),)
+        ).fetchone()
+        return str(row[0]) if row and row[0] is not None else default
+
+    def set_internal_setting(self, key: str, value) -> bool:
+        columns = set(self._get_table_columns("internal_settings"))
+        if not {"key", "value"}.issubset(columns):
+            raise RuntimeError("Fiscal settings table is unavailable")
+        self.cursor.execute(
+            "INSERT INTO internal_settings(key,value) VALUES(?,?) "
+            "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            (str(key), str(value or "")),
+        )
+        self.conn.commit()
+        return True
+
+    def close(self) -> None:
+        self.conn.close()
+
+
+def _fiscal_service_for_active_tenant(user: dict):
+    tenant_id = str(dict(user or {}).get("_tenant_id") or active_tenant_id() or "")
+    if not tenant_id or tenant_id != active_tenant_id():
+        raise PermissionError("Fiscal access is limited to the active company")
+    tenant = _tenant_record_required(tenant_id)
+    tenant_root = TENANT_ROOT.resolve()
+    path = active_db_path().resolve()
+    expected = (tenant_root / Path(str(tenant.get("db_filename") or "")).name).resolve()
+    if path != expected or path.parent != tenant_root or not path.is_file():
+        raise PermissionError("Active company database path is invalid")
+    from src.services.fiscal_year_service import FiscalYearService
+
+    adapter = _FiscalDatabaseAdapter(path)
+    host = type("FiscalHost", (), {"db": adapter})()
+    service = FiscalYearService(host)
+
+    def archive_old_data(year_to_archive):
+        with tempfile.TemporaryDirectory(prefix="ayec-fiscal-archive-") as temp_dir:
+            snapshot_path = Path(temp_dir) / "snapshot.db"
+            source = sqlite3.connect(str(path), timeout=30)
+            snapshot = sqlite3.connect(str(snapshot_path), timeout=30)
+            try:
+                source.backup(snapshot)
+                integrity = str(snapshot.execute("PRAGMA integrity_check").fetchone()[0] or "")
+                if integrity.lower() != "ok":
+                    raise ValueError("Fiscal archive integrity check failed")
+                snapshot.commit()
+            finally:
+                snapshot.close()
+                source.close()
+            payload = snapshot_path.read_bytes()
+        product_code = str(tenant.get("product_code") or "teknik_servis").strip().lower()
+        if product_code not in configured_product_codes():
+            raise ValueError("Unknown backup product")
+        archive_name = f"archive_{int(year_to_archive)}.db"
+        result = _store_support_backup_for_tenant(
+            tenant_id,
+            int(dict(user).get("id") or 0),
+            payload,
+            archive_name,
+            "fiscal-rollover",
+            product_code,
+            "web-runtime",
+            "web-app",
+            deduplicate=False,
+        )
+        backup_id = int(result.get("backup_id") or 0)
+        with closing(registry_connect()) as conn:
+            conn.execute(
+                "UPDATE support_backups SET protected_until=? WHERE id=? AND tenant_id=?",
+                ("9999-12-31T23:59:59+00:00", backup_id, tenant_id),
+            )
+            conn.commit()
+        _support_audit(
+            user,
+            "fiscal_archive_created",
+            tenant_id,
+            detail={"backup_id": backup_id, "archive_name": archive_name, "year": int(year_to_archive)},
+        )
+        return archive_name
+
+    service.archive_old_data = archive_old_data
+    return service, adapter, tenant, tenant_id
+
+
+def desktop_fiscal_rollover_plan(user: dict) -> dict:
+    service, adapter, _tenant, _tenant_id = _fiscal_service_for_active_tenant(user)
+    try:
+        return service.get_manual_rollover_plan()
+    finally:
+        adapter.close()
+
+
+def _fiscal_backup_scope(user: dict) -> tuple[str, str]:
+    actor = dict(user or {})
+    tenant_id = str(actor.get("_tenant_id") or active_tenant_id() or "")
+    if not tenant_id or tenant_id != active_tenant_id():
+        raise PermissionError("Fiscal archive access is limited to the active company")
+    tenant = _tenant_record_required(tenant_id)
+    product_code = str(tenant.get("product_code") or "teknik_servis").strip().lower()
+    if product_code not in configured_product_codes():
+        raise ValueError("Unknown backup product")
+    return tenant_id, product_code
+
+
+def desktop_fiscal_archive_list(user: dict) -> list[dict]:
+    tenant_id, product_code = _fiscal_backup_scope(user)
+    with closing(registry_connect()) as conn:
+        items = rows(
+            conn,
+            "SELECT id,original_name,created_at,size_bytes,sha256 FROM support_backups "
+            "WHERE tenant_id=? AND product_code=? AND source='fiscal-rollover' "
+            "AND status='available' ORDER BY id DESC LIMIT 100",
+            (tenant_id, product_code),
+        )
+    return [
+        {
+            "id": int(item["id"]),
+            "filename": Path(str(item.get("original_name") or "archive.db")).name,
+            "created_at": str(item.get("created_at") or ""),
+            "size_bytes": int(item.get("size_bytes") or 0),
+            "sha256": str(item.get("sha256") or ""),
+        }
+        for item in items
+    ]
+
+
+def desktop_import_legacy_fiscal_archives(user: dict) -> dict:
+    tenant_id, product_code = _fiscal_backup_scope(user)
+    actor = dict(user or {})
+    if not role_is_admin(actor.get("role")):
+        raise PermissionError("Company administrator permission is required")
+    tenant = _tenant_record_required(tenant_id)
+    tenant_root = TENANT_ROOT.resolve()
+    active_database = (tenant_root / Path(str(tenant.get("db_filename") or "")).name).resolve()
+    if active_database.parent != tenant_root or not active_database.is_file():
+        raise PermissionError("Active company database path is invalid")
+    user_id = int(actor.get("id") or 0)
+    company_name = str(tenant.get("company_name") or "").strip().casefold()
+    if not company_name or user_id <= 0:
+        raise PermissionError("Company account identity is unavailable")
+    with closing(sqlite3.connect(
+        "file:" + quote(str(active_database).replace("\\", "/"), safe="/:", encoding="utf-8") + "?mode=ro",
+        uri=True,
+    )) as live_database:
+        live_user_columns = table_columns(live_database, "users")
+        live_company_columns = table_columns(live_database, "company_info")
+        if not {"id", "username", "email"}.issubset(live_user_columns) or "company_name" not in live_company_columns:
+            raise PermissionError("Company identity cannot be verified")
+        live_user = live_database.execute(
+            "SELECT username,email FROM users WHERE id=?", (user_id,)
+        ).fetchone()
+        live_company = live_database.execute(
+            "SELECT company_name FROM company_info ORDER BY id LIMIT 1"
+        ).fetchone()
+    if not live_user or not live_company or str(live_company[0] or "").strip().casefold() != company_name:
+        raise PermissionError("Active company account identity cannot be verified")
+    identities = {str(value or "").strip().casefold() for value in live_user if str(value or "").strip()}
+
+    search_roots = {tenant_root, DB_PATH.expanduser().resolve().parent}
+    candidates: dict[Path, str] = {}
+    for root in search_roots:
+        if not root.is_dir():
+            continue
+        for source in root.glob("archive_*.db"):
+            match = re.fullmatch(r"archive_(\d{4})\.db", source.name, flags=re.IGNORECASE)
+            if not match or source.is_symlink():
+                continue
+            resolved = source.resolve()
+            if resolved.parent != root or resolved == active_database or not resolved.is_file():
+                continue
+            candidates[resolved] = source.name
+
+    imported = []
+    skipped = []
+    for source, filename in sorted(candidates.items(), key=lambda pair: pair[1].casefold()):
+        try:
+            size = source.stat().st_size
+            if size < 100 or size > 1024 * 1024 * 1024:
+                raise ValueError("Archive size is invalid")
+            uri = "file:" + quote(str(source).replace("\\", "/"), safe="/:", encoding="utf-8") + "?mode=ro"
+            with closing(sqlite3.connect(uri, uri=True, timeout=30)) as original:
+                original.row_factory = sqlite3.Row
+                integrity = str(original.execute("PRAGMA integrity_check").fetchone()[0] or "")
+                if integrity.lower() != "ok":
+                    raise ValueError("Archive integrity check failed")
+                columns = table_columns(original, "users")
+                company_columns = table_columns(original, "company_info")
+                identity_columns = [name for name in ("username", "email") if name in columns]
+                if "id" not in columns or not identity_columns or "company_name" not in company_columns:
+                    raise ValueError("Archive account identity cannot be verified")
+                quoted_identity_columns = ",".join(f'"{name}"' for name in identity_columns)
+                archived_user = original.execute(
+                    f"SELECT {quoted_identity_columns} FROM users WHERE id=? LIMIT 1",
+                    (user_id,),
+                ).fetchone()
+                archived_company = original.execute(
+                    "SELECT company_name FROM company_info ORDER BY id LIMIT 1"
+                ).fetchone()
+                archived_identities = {
+                    str(value or "").strip().casefold()
+                    for value in archived_user or ()
+                    if str(value or "").strip()
+                }
+                if (
+                    not archived_user
+                    or not archived_identities.intersection(identities)
+                    or not archived_company
+                    or str(archived_company[0] or "").strip().casefold() != company_name
+                ):
+                    raise PermissionError("Archive belongs to a different company account")
+                with tempfile.TemporaryDirectory(prefix="ayec-legacy-fiscal-") as temp_dir:
+                    snapshot_path = Path(temp_dir) / "snapshot.db"
+                    snapshot = sqlite3.connect(str(snapshot_path), timeout=30)
+                    try:
+                        original.backup(snapshot)
+                        snapshot_integrity = str(snapshot.execute("PRAGMA integrity_check").fetchone()[0] or "")
+                        if snapshot_integrity.lower() != "ok":
+                            raise ValueError("Archive snapshot integrity check failed")
+                        snapshot.commit()
+                    finally:
+                        snapshot.close()
+                    payload = snapshot_path.read_bytes()
+            result = _store_support_backup_for_tenant(
+                tenant_id,
+                user_id,
+                payload,
+                filename,
+                "fiscal-rollover",
+                product_code,
+                "web-runtime",
+                "legacy-desktop",
+                deduplicate=False,
+            )
+            backup_id = int(result.get("backup_id") or 0)
+            with closing(registry_connect()) as conn:
+                conn.execute(
+                    "UPDATE support_backups SET protected_until=? WHERE id=? AND tenant_id=? AND source='fiscal-rollover'",
+                    ("9999-12-31T23:59:59+00:00", backup_id, tenant_id),
+                )
+                conn.commit()
+            _support_audit(
+                user,
+                "fiscal_archive_imported",
+                tenant_id,
+                detail={"backup_id": backup_id, "archive_name": filename, "sha256": result.get("sha256", "")},
+            )
+            imported.append({"backup_id": backup_id, "filename": filename})
+        except Exception as error:
+            skipped.append({"filename": filename, "reason": str(error)[:240]})
+    return {"ok": True, "imported": imported, "skipped": skipped}
+
+
+def _fiscal_archive_file(user: dict, backup_id: int) -> tuple[Path, str, str]:
+    tenant_id, product_code = _fiscal_backup_scope(user)
+    with closing(registry_connect()) as conn:
+        item = conn.execute(
+            "SELECT filename,original_name,sha256 FROM support_backups "
+            "WHERE id=? AND tenant_id=? AND product_code=? AND source='fiscal-rollover' "
+            "AND status='available'",
+            (int(backup_id), tenant_id, product_code),
+        ).fetchone()
+    if not item:
+        raise LookupError("Fiscal archive was not found")
+    support_root = SUPPORT_BACKUP_ROOT.resolve()
+    tenant_dir = (support_root / tenant_id).resolve()
+    if support_root not in tenant_dir.parents:
+        raise PermissionError("Fiscal archive path is invalid")
+    target = (tenant_dir / Path(str(item[0] or "")).name).resolve()
+    if tenant_dir not in target.parents or not target.is_file():
+        raise LookupError("Fiscal archive file is unavailable")
+    expected_digest = str(item[2] or "")
+    file_stat = target.stat()
+    checksum_key = (
+        str(target), int(backup_id), expected_digest, int(file_stat.st_size), int(file_stat.st_mtime_ns)
+    )
+    with _FISCAL_ARCHIVE_CHECKSUM_LOCK:
+        actual_digest = _FISCAL_ARCHIVE_CHECKSUM_CACHE.get(checksum_key)
+    if actual_digest is None:
+        digest = hashlib.sha256()
+        with target.open("rb") as archive_file:
+            for chunk in iter(lambda: archive_file.read(1024 * 1024), b""):
+                digest.update(chunk)
+        actual_digest = digest.hexdigest()
+        if secrets.compare_digest(actual_digest, expected_digest):
+            with _FISCAL_ARCHIVE_CHECKSUM_LOCK:
+                if len(_FISCAL_ARCHIVE_CHECKSUM_CACHE) >= 512:
+                    _FISCAL_ARCHIVE_CHECKSUM_CACHE.clear()
+                _FISCAL_ARCHIVE_CHECKSUM_CACHE[checksum_key] = actual_digest
+    if not secrets.compare_digest(actual_digest, expected_digest):
+        raise ValueError("Fiscal archive checksum validation failed")
+    return target, Path(str(item[1] or "archive.db")).name, str(item[2] or "")
+
+
+def activate_fiscal_archive_context(user: dict, backup_id: int) -> dict:
+    target, filename, _digest = _fiscal_archive_file(user, backup_id)
+    with closing(sqlite3.connect(
+        "file:" + quote(str(target).replace("\\", "/"), safe="/:", encoding="utf-8") + "?mode=ro",
+        uri=True,
+    )) as conn:
+        conn.execute("SELECT name FROM sqlite_master LIMIT 1").fetchone()
+    _TENANT_LOCAL.fiscal_archive_id = str(int(backup_id))
+    _TENANT_LOCAL.fiscal_archive_path = target
+    _TENANT_LOCAL.fiscal_archive_name = filename
+    return {"id": str(int(backup_id)), "filename": filename}
+
+
+def desktop_fiscal_archive_finance(user: dict, backup_id: int) -> dict:
+    target, filename, archive_digest = _fiscal_archive_file(user, backup_id)
+    uri = "file:" + quote(str(target).replace("\\", "/"), safe="/:", encoding="utf-8") + "?mode=ro"
+    with closing(sqlite3.connect(uri, uri=True)) as conn:
+        conn.row_factory = sqlite3.Row
+        integrity = str(conn.execute("PRAGMA integrity_check").fetchone()[0] or "")
+        if integrity.lower() != "ok":
+            raise ValueError("Fiscal archive integrity check failed")
+        columns = table_columns(conn, "accounting")
+        if not columns:
+            raise ValueError("Fiscal archive does not contain finance records")
+        deleted_filter = "WHERE COALESCE(is_deleted,0)=0" if "is_deleted" in columns else ""
+        ordering = "date DESC,id DESC" if {"date", "id"}.issubset(columns) else "rowid DESC"
+        finance_rows = [
+            dict(row)
+            for row in conn.execute(
+                f"SELECT * FROM accounting {deleted_filter} ORDER BY {ordering} LIMIT 5000"
+            ).fetchall()
+        ]
+    return {
+        "archive": {
+            "filename": filename,
+            "sha256": archive_digest,
+        },
+        "rows": finance_rows,
+    }
+
+
+def desktop_fiscal_rollover(user: dict, payload: dict) -> dict:
+    if not bool(payload.get("accountant_approved")):
+        raise PermissionError("Accountant approval is required")
+    password = str(payload.get("password") or "")
+    if not password or not password_matches(password, str(dict(user).get("password") or "")):
+        raise PermissionError("Current user password is incorrect")
+    selections = payload.get("selections") if isinstance(payload.get("selections"), dict) else {}
+    service, adapter, _tenant, tenant_id = _fiscal_service_for_active_tenant(user)
+    try:
+        result = service.trigger_manual_rollover(
+            selections=selections,
+            approved_by=str(dict(user).get("username") or ""),
+        )
+        if result.get("ok"):
+            _support_audit(
+                user,
+                "fiscal_year_rollover_completed",
+                tenant_id,
+                detail={
+                    "archive_name": result.get("archive_name") or "",
+                    "opening_count": int((result.get("opening_summary") or {}).get("count") or 0),
+                    "selections": result.get("opening_summary", {}).get("selections") or selections,
+                },
+            )
+        return result
+    finally:
+        adapter.close()
+
+
+def desktop_create_logout_backup(user: dict | None) -> dict | None:
+    if not user or not role_is_admin(user.get("role")):
+        return None
+    with closing(db_connect()) as conn:
+        row = conn.execute(
+            "SELECT value FROM settings WHERE key='backup_on_exit'"
+        ).fetchone()
+    if row and str(row[0] or "0") != "1":
+        return None
+    return desktop_create_backup(user, source="web-logout")
+
+
+def run_tenant_backup_schedule_once(now: datetime | None = None) -> list[dict]:
+    current = now or datetime.now().astimezone()
+    results = []
+    tenant_root = TENANT_ROOT.resolve()
+    for tenant in tenant_records():
+        clear_tenant_context()
+        tenant_id = str(tenant.get("id") or "")
+        try:
+            set_tenant_context(tenant)
+            database_path = active_db_path().resolve()
+            if database_path.parent != tenant_root or not database_path.is_file():
+                continue
+            with closing(sqlite3.connect(str(database_path), timeout=10)) as conn:
+                conn.row_factory = sqlite3.Row
+                settings_exists = conn.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='settings'"
+                ).fetchone()
+                users_exists = conn.execute(
+                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='users'"
+                ).fetchone()
+                if not settings_exists or not users_exists:
+                    continue
+                settings = {
+                    str(row["key"]): str(row["value"] or "")
+                    for row in conn.execute(
+                        "SELECT key,value FROM settings WHERE key IN (?, ?, ?)",
+                        ("backup_daily_enabled", "backup_daily_time", "backup_last_run_morning"),
+                    )
+                }
+                timezone_row = conn.execute(
+                    "SELECT value FROM settings WHERE key='backup_timezone'"
+                ).fetchone()
+                tenant_now = current
+                timezone_name = str(timezone_row[0] or "").strip() if timezone_row else ""
+                if current.tzinfo is not None and timezone_name:
+                    try:
+                        tenant_now = current.astimezone(ZoneInfo(timezone_name))
+                    except (ZoneInfoNotFoundError, ValueError):
+                        logging.getLogger(__name__).warning(
+                            "Invalid backup timezone for tenant %s: %s", tenant_id, timezone_name
+                        )
+                today = tenant_now.strftime("%Y-%m-%d")
+                current_hm = tenant_now.strftime("%H:%M")
+                backup_time = settings.get("backup_daily_time", "12:00")
+                if settings.get("backup_daily_enabled") != "1" or settings.get("backup_last_run_morning") == today:
+                    continue
+                if not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", backup_time) or backup_time > current_hm:
+                    continue
+                admin_row = next(
+                    (row for row in conn.execute(
+                        "SELECT id,username,full_name,role FROM users "
+                        "WHERE COALESCE(active,1)=1 ORDER BY id"
+                    ) if role_is_admin(row["role"])),
+                    None,
+                )
+                if not admin_row:
+                    continue
+                actor = dict(admin_row)
+                actor["_tenant_id"] = tenant_id
+                actor["_company_name"] = str(tenant.get("company_name") or "")
+            backup = desktop_create_backup(actor, source="web-scheduler")
+            with closing(sqlite3.connect(str(database_path), timeout=10)) as conn:
+                upsert_setting(conn, "settings", "backup_last_run_morning", today)
+                conn.commit()
+            results.append({"tenant_id": tenant_id, "backup_id": backup.get("backup_id"), "ok": True})
+        except Exception as error:
+            logging.getLogger(__name__).exception(
+                "Scheduled tenant backup failed for %s", tenant_id
+            )
+            results.append({"tenant_id": tenant_id, "ok": False, "error": str(error)})
+        finally:
+            clear_tenant_context()
+    return results
+
+
+class TenantBackupScheduler:
+    def __init__(self, interval_seconds: int = 30):
+        self.interval_seconds = max(10, int(interval_seconds))
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._run, name="ayec-tenant-backups", daemon=True)
+
+    def start(self) -> None:
+        if not self._thread.is_alive():
+            self._thread.start()
+
+    def stop(self) -> None:
+        self._stop.set()
+        if self._thread.is_alive():
+            self._thread.join(timeout=5)
+
+    def _run(self) -> None:
+        while not self._stop.is_set():
+            try:
+                run_tenant_backup_schedule_once()
+            except Exception:
+                logging.getLogger(__name__).exception("Tenant backup scheduler pass failed")
+            self._stop.wait(self.interval_seconds)
+
+
+def desktop_download_backup(user: dict, backup_id: int) -> tuple[bytes, str, str]:
+    _tenant, tenant_id, product_code = _desktop_backup_context(user)
+    with closing(registry_connect()) as conn:
+        backup = conn.execute(
+            "SELECT product_code,hardware_id,installation_id FROM support_backups "
+            "WHERE id=? AND tenant_id=? AND product_code=? AND status='available'",
+            (int(backup_id), tenant_id, product_code),
+        ).fetchone()
+    if not backup:
+        raise LookupError("Backup was not found")
+    return support_backup_file(
+        user,
+        int(backup_id),
+        product_code,
+        str(backup[1] or ""),
+        str(backup[2] or ""),
+    )
+
+
+def _check_note_finance_effects(direction: str, status: str) -> tuple[str | None, str | None]:
+    if direction == "Giri\u015f (Al\u0131nan)" and status == "Tahsil Edildi":
+        return "Gelir", "Gider"
+    if direction == "\u00c7\u0131k\u0131\u015f (Verilen)" and status == "\u00d6dendi":
+        return "Gider", "Gelir"
+    if status == "Ciro Edildi":
+        return None, "Gider"
+    return None, None
+
+
+def _active_company_required(user: dict) -> str:
+    tenant_id = str(active_tenant_id() or "")
+    actor_tenant_id = str(dict(user or {}).get("_tenant_id") or "")
+    if not tenant_id:
+        raise PermissionError("Company session is required")
+    if actor_tenant_id and actor_tenant_id != tenant_id and not is_control_admin(user):
+        raise PermissionError("Access is limited to the active company")
+    return tenant_id
+
+
+def _bank_manager_required(user: dict) -> None:
+    if not user or not role_is_admin(dict(user).get("role")):
+        raise PermissionError("Admin permission is required")
+
+
+def _check_note_tenant_required(user: dict) -> str:
+    return _active_company_required(user)
+
+
+def desktop_check_note_status_options(user: dict, check_id: int, requested_status: str = "") -> dict:
+    if not user:
+        raise PermissionError("Company session is required")
+    _check_note_tenant_required(user)
+    from src.database import Database
+
+    database = Database(db_name=str(active_db_path()), init_mode="connection_only")
+    try:
+        database.cursor.execute(
+            "SELECT id,type,direction,status FROM checks_notes WHERE id=?", (int(check_id),)
+        )
+        row = database.cursor.fetchone()
+        if not row:
+            raise LookupError("Check or note was not found")
+        current_status = str(row[3] or "")
+        status = str(requested_status or current_status)
+        if status not in {"Portf\u00f6yde", "Tahsil Edildi", "Ciro Edildi", "\u00d6dendi", "Kar\u015f\u0131l\u0131ks\u0131z", "\u0130ade"}:
+            raise ValueError("Check or note status is invalid")
+        bank_type, reversal_type = _check_note_finance_effects(str(row[2] or ""), status)
+        banks = database.get_bank_accounts() if bank_type else []
+        return {
+            "status": current_status,
+            "requested_status": status,
+            "bank_transaction_type": bank_type,
+            "reversal_transaction_type": reversal_type,
+            "bank_accounts": [
+                {
+                    "id": int(bank.get("id") if isinstance(bank, dict) else bank[0]),
+                    "bank_name": str(bank.get("bank_name") if isinstance(bank, dict) else bank[1] or ""),
+                }
+                for bank in (banks or [])
+            ],
+        }
+    finally:
+        database.close()
+
+
+def desktop_update_check_note_status(
+    user: dict,
+    check_id: int,
+    new_status: str,
+    bank_account_id: int | None = None,
+) -> dict:
+    if not user:
+        raise PermissionError("Company session is required")
+    tenant_id = _check_note_tenant_required(user)
+    statuses = {"Portf\u00f6yde", "Tahsil Edildi", "Ciro Edildi", "\u00d6dendi", "Kar\u015f\u0131l\u0131ks\u0131z", "\u0130ade"}
+    if new_status not in statuses:
+        raise ValueError("Check or note status is invalid")
+    from src.database import Database
+
+    database = Database(db_name=str(active_db_path()), init_mode="connection_only")
+    try:
+        database.cursor.execute(
+            "SELECT id,type,direction,amount,bank_name,issuer,recipient,status "
+            "FROM checks_notes WHERE id=?",
+            (int(check_id),),
+        )
+        row = database.cursor.fetchone()
+        if not row:
+            raise LookupError("Check or note was not found")
+        if str(row[7] or "") == new_status:
+            raise ValueError("Check or note already has this status")
+        bank_type, reversal_type = _check_note_finance_effects(str(row[2] or ""), new_status)
+        bank_id = int(bank_account_id) if bank_account_id not in (None, "", 0, "0", -1, "-1") else None
+        if bank_id and not bank_type:
+            raise ValueError("A bank account is not used for this status")
+        if bank_id:
+            available_banks = database.get_bank_accounts() or []
+            valid_ids = {
+                int(bank.get("id") if isinstance(bank, dict) else bank[0])
+                for bank in available_banks
+            }
+            if bank_id not in valid_ids:
+                raise ValueError("Select an available bank account")
+
+        database.cursor.execute(
+            "UPDATE checks_notes SET status=? WHERE id=?", (new_status, int(check_id))
+        )
+        if database.cursor.rowcount != 1:
+            raise LookupError("Check or note was not found")
+        transaction_ids = []
+        check_type = str(row[1] or "")
+        amount = float(row[3] or 0)
+        bank_name = str(row[4] or "")
+        issuer = str(row[5] or "")
+        recipient = str(row[6] or "")
+        customer_name = issuer if str(row[2] or "") == "Giri\u015f (Al\u0131nan)" else recipient
+        description = (
+            f"{check_type} {new_status} - {bank_name} - {issuer}/{recipient} (ID: {int(check_id)})"
+        )
+        if reversal_type:
+            transaction_id = database.add_transaction(
+                t_type=reversal_type,
+            category=f"{check_type} Portf\u00f6y \u00c7\u0131k\u0131\u015f\u0131",
+                amount=amount,
+                description=description + " - Portf\u00f6y \u00c7\u0131k\u0131\u015f\u0131",
+                customer_name=customer_name,
+                payment_method="\u00c7ek/Senet",
+                commit=False,
+            )
+            if not transaction_id:
+                raise RuntimeError("Portfolio accounting entry could not be created")
+            transaction_ids.append(int(transaction_id))
+        if bank_type and bank_id:
+            transaction_id = database.add_transaction(
+                t_type=bank_type,
+                category=f"Banka/Kasa Hareketi ({check_type})",
+                amount=amount,
+                description=description + " - Kasa \u0130\u015flemi",
+                bank_account_id=bank_id,
+                customer_name=customer_name,
+                payment_method="\u00c7ek/Senet",
+                commit=False,
+            )
+            if not transaction_id:
+                raise RuntimeError("Bank accounting entry could not be created")
+            transaction_ids.append(int(transaction_id))
+        database.conn.commit()
+        _support_audit(
+            user,
+            "check_note_status_updated",
+            tenant_id,
+            detail={"check_id": int(check_id), "status": new_status, "transaction_ids": transaction_ids},
+        )
+        return {"ok": True, "status": new_status, "transaction_ids": transaction_ids}
+    except Exception:
+        database.conn.rollback()
+        raise
+    finally:
+        database.close()
+
+
+def desktop_add_check_note(user: dict, payload: dict) -> dict:
+    if not user:
+        raise PermissionError("Company session is required")
+    tenant_id = _check_note_tenant_required(user)
+    import math
+
+    data = dict(payload or {})
+    check_type = str(data.get("type") or "").strip()
+    direction = str(data.get("direction") or "").strip()
+    status = str(data.get("status") or "Portf\u00f6yde").strip()
+    issuer = str(data.get("issuer") or "").strip()
+    recipient = str(data.get("recipient") or "").strip()
+    try:
+        amount = float(data.get("amount") or 0)
+        due_date = datetime.strptime(str(data.get("due_date") or ""), "%Y-%m-%d").date().isoformat()
+    except (TypeError, ValueError) as error:
+        raise ValueError("Check or note amount and due date are invalid") from error
+    if check_type not in {"\u00c7ek", "Senet"}:
+        raise ValueError("Check or note type is invalid")
+    if direction not in {"Giri\u015f (Al\u0131nan)", "\u00c7\u0131k\u0131\u015f (Verilen)"}:
+        raise ValueError("Check or note direction is invalid")
+    if status not in {"Portf\u00f6yde", "Tahsil Edildi", "Ciro Edildi", "\u00d6dendi", "Kar\u015f\u0131l\u0131ks\u0131z", "\u0130ade"}:
+        raise ValueError("Check or note status is invalid")
+    if not math.isfinite(amount) or amount <= 0:
+        raise ValueError("Amount must be greater than zero")
+    if not issuer and not recipient:
+        raise ValueError("Issuer/debtor or recipient is required")
+    data = {
+        "type": check_type,
+        "direction": direction,
+        "amount": amount,
+        "due_date": due_date,
+        "issuer": issuer,
+        "recipient": recipient,
+        "bank_name": str(data.get("bank_name") or "").strip(),
+        "branch_name": str(data.get("branch_name") or "").strip(),
+        "status": status,
+    }
+    from src.database import Database
+
+    database = Database(db_name=str(active_db_path()), init_mode="connection_only")
+    try:
+        check_id = database.add_check_note(data)
+        if not check_id:
+            raise RuntimeError("Check or note could not be created")
+        finance_warning = None
+        try:
+            if direction == "Giri\u015f (Al\u0131nan)":
+                transaction_type = "Gelir"
+                category = f"Al\u0131nan {check_type}"
+                description = f"{check_type} Al\u0131nd\u0131 - D\u00fczenleyen: {issuer} (Vade: {due_date})"
+                customer_name = issuer or None
+            else:
+                transaction_type = "Gider"
+                category = f"Verilen {check_type}"
+                description = f"{check_type} Verildi - Al\u0131c\u0131: {recipient} (Vade: {due_date})"
+                customer_name = recipient or None
+            database.add_transaction(
+                t_type=transaction_type,
+                category=category,
+                amount=amount,
+                description=description,
+                customer_name=customer_name,
+                payment_method="\u00c7ek/Senet",
+            )
+        except Exception as error:
+            logger.exception("Initial check or note accounting entry failed")
+            finance_warning = str(error)
+        _support_audit(
+            user,
+            "check_note_created",
+            tenant_id,
+            detail={"check_id": int(check_id), "status": status},
+        )
+        return {"ok": True, "id": int(check_id), "finance_warning": finance_warning}
+    finally:
+        database.close()
+
+
+def desktop_bank_account_transfer(user: dict, payload: dict) -> dict:
+    if not user:
+        raise PermissionError("Company session is required")
+    _bank_manager_required(user)
+    _active_company_required(user)
+    import math
+
+    data = dict(payload or {})
+    try:
+        source_id = int(data.get("from_account_id") or 0)
+        target_id = int(data.get("to_account_id") or 0)
+        amount = float(data.get("amount") or 0)
+    except (TypeError, ValueError) as error:
+        raise ValueError("Transfer details are invalid") from error
+    if source_id <= 0 or target_id <= 0 or source_id == target_id:
+        raise ValueError("Select different source and target accounts")
+    if not math.isfinite(amount) or not 0 < amount <= 1_000_000_000:
+        raise ValueError("Transfer amount is invalid")
+    description = str(data.get("description") or "")[:200]
+    from src.database import Database
+
+    database = Database(db_name=str(active_db_path()), init_mode="connection_only")
+    try:
+        database.cursor.execute(
+            "SELECT id, is_active FROM bank_accounts WHERE id IN (?, ?)",
+            (source_id, target_id),
+        )
+        active_ids = {
+            int(row[0]) for row in database.cursor.fetchall() if int(row[1] or 0) == 1
+        }
+        if active_ids != {source_id, target_id}:
+            raise ValueError("Select two active accounts")
+        ok, message = database.transfer_between_accounts(
+            source_id, target_id, amount, description
+        )
+        if not ok:
+            raise ValueError(str(message or "Bank transfer failed"))
+        return {"ok": True}
+    finally:
+        database.close()
 
 
 def control_queue_restore(actor: dict, data: dict) -> dict:
@@ -2178,16 +3332,24 @@ def admin_dashboard() -> dict:
     except Exception:
         pct = 0
         disk_str = "?"
-    # Online users (sessions active in last 5 min) - approximate
+    # Count active sessions separately from sessions created in the last 24 hours.
     online = 0
+    logins_24h = 0
     try:
         with closing(registry_connect()) as conn:
-            cutoff = (utc_now() - timedelta(minutes=5)).isoformat(timespec="seconds")
+            now = utc_now()
+            cutoff = (now - timedelta(minutes=5)).isoformat(timespec="seconds")
             row = conn.execute(
                 "SELECT COUNT(*) FROM sessions WHERE last_seen >= ? OR created_at >= ?",
                 (cutoff, cutoff)
             ).fetchone()
             online = int(row[0]) if row else 0
+            login_cutoff = (now - timedelta(hours=24)).isoformat(timespec="seconds")
+            login_row = conn.execute(
+                "SELECT COUNT(*) FROM sessions WHERE created_at >= ?",
+                (login_cutoff,)
+            ).fetchone()
+            logins_24h = int(login_row[0]) if login_row else 0
     except Exception:
         pass
     logs_data: list = []
@@ -2243,7 +3405,7 @@ def admin_dashboard() -> dict:
         "active_companies": active,
         "inactive_companies": inactive,
         "online_users": online,
-        "logins_today": online,
+        "logins_today": logins_24h,
         "disk_percent": pct,
         "disk_usage": disk_str,
         "backup_coverage": backup_coverage,
@@ -2788,7 +3950,7 @@ def admin_execute_query(tenant_id: str, sql: str, actor: dict | None = None) -> 
     path = TENANT_ROOT / filename
     if not path.exists():
         raise LookupError("Veritabani dosyasi bulunamadi")
-    
+
     query = str(sql or "").strip()
     if not query:
         raise ValueError("Sorgu metni bos olamaz")
@@ -3585,7 +4747,7 @@ def admin_send_notification(data: dict, actor: dict | None = None) -> dict:
     icon = str(data.get("icon") or "info")
     popup = bool(data.get("popup", True))
     if not title or not body_text:
-        raise ValueError("Baslık ve icerik zorunludur")
+        raise ValueError("Basl\u0131k ve icerik zorunludur")
     with closing(registry_connect()) as conn:
         if not conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='platform_notifications'").fetchone():
             conn.execute("""CREATE TABLE IF NOT EXISTS platform_notifications (
@@ -3693,21 +4855,37 @@ def admin_live_status() -> list:
                     (tid, cutoff, cutoff),
                     default=0,
                 )
+                latest = conn.execute(
+                    "SELECT user_id,last_seen,user_agent,ip FROM sessions WHERE tenant_id=? "
+                    "ORDER BY COALESCE(last_seen,created_at) DESC LIMIT 1",
+                    (tid,),
+                ).fetchone()
+                latest = dict(latest) if latest else {}
                 result.append({
                     "id": tid,
                     "company_name": t.get("company_name", "?"),
+                    "sector": t.get("sector") or "",
+                    "db_filename": t.get("db_filename") or "",
                     "online": active_sessions > 0,
                     "active_users": active_sessions,
-                    "last_seen": "",
+                    "last_seen": latest.get("last_seen") or "",
+                    "user_id": latest.get("user_id"),
+                    "user_agent": latest.get("user_agent") or "",
+                    "ip_address": latest.get("ip") or "",
                 })
     except Exception:
         for t in tenants:
             result.append({
                 "id": t.get("id", ""),
                 "company_name": t.get("company_name", "?"),
+                "sector": t.get("sector") or "",
+                "db_filename": t.get("db_filename") or "",
                 "online": False,
                 "active_users": 0,
                 "last_seen": "",
+                "user_id": None,
+                "user_agent": "",
+                "ip_address": "",
             })
     return result
 
@@ -4089,7 +5267,7 @@ def control_add_staged_update(actor: dict, data: dict) -> dict:
 
 
 def clear_tenant_context() -> None:
-    for name in ("tenant_id", "db_path", "company_name"):
+    for name in ("tenant_id", "db_path", "company_name", "fiscal_archive_id", "fiscal_archive_path", "fiscal_archive_name"):
         if hasattr(_TENANT_LOCAL, name):
             delattr(_TENANT_LOCAL, name)
 
@@ -4107,7 +5285,15 @@ def set_tenant_context(tenant: dict | None) -> None:
 
 
 def active_db_path() -> Path:
-    return Path(getattr(_TENANT_LOCAL, "db_path", None) or DB_PATH).resolve()
+    return Path(
+        getattr(_TENANT_LOCAL, "fiscal_archive_path", None)
+        or getattr(_TENANT_LOCAL, "db_path", None)
+        or DB_PATH
+    ).resolve()
+
+
+def active_fiscal_archive_id() -> str:
+    return str(getattr(_TENANT_LOCAL, "fiscal_archive_id", "") or "")
 
 
 def active_tenant_id() -> str:
@@ -4261,6 +5447,1640 @@ def rows(conn: sqlite3.Connection, sql: str, params=()) -> list[dict]:
 def scalar(conn: sqlite3.Connection, sql: str, params=(), default=0):
     row = conn.execute(sql, params).fetchone()
     return row[0] if row and row[0] is not None else default
+
+
+def _partner_workspace_analytics(conn: sqlite3.Connection, partner_id: int) -> tuple[list[dict], list[dict]]:
+    conn.execute("""CREATE TABLE IF NOT EXISTS partner_timeline (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, partner_id INTEGER NOT NULL, shipment_id INTEGER,
+        event_type TEXT NOT NULL DEFAULT 'GENEL', detail TEXT,
+        event_date TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT '')""")
+    timeline_columns = set(table_columns(conn, "partner_timeline"))
+    for name, definition in (
+        ("partner_id", "INTEGER DEFAULT 0"), ("shipment_id", "INTEGER"),
+        ("event_type", "TEXT DEFAULT 'GENEL'"), ("detail", "TEXT"),
+        ("event_date", "TEXT DEFAULT ''"), ("created_at", "TEXT DEFAULT ''"),
+    ):
+        if name not in timeline_columns:
+            conn.execute(f'ALTER TABLE partner_timeline ADD COLUMN "{name}" {definition}')
+    shipment_columns = set(table_columns(conn, "partner_shipments"))
+    for name, definition in (
+        ("partner_cost", "REAL DEFAULT 0"), ("customer_price", "REAL DEFAULT 0"),
+        ("quote_amount", "REAL DEFAULT 0"), ("status", "TEXT DEFAULT ''"),
+        ("sent_at", "TEXT"), ("created_at", "TEXT"),
+    ):
+        if name not in shipment_columns:
+            conn.execute(f'ALTER TABLE partner_shipments ADD COLUMN "{name}" {definition}')
+    timeline = rows(
+        conn,
+        "SELECT event_date,event_type,COALESCE(detail,'') AS detail,COALESCE(shipment_id,'') AS shipment_id "
+        "FROM partner_timeline WHERE partner_id=? ORDER BY event_date DESC,id DESC LIMIT 100",
+        (partner_id,),
+    )
+    trends = rows(
+        conn,
+        """SELECT COALESCE(substr(COALESCE(sent_at,created_at),1,7),'-') AS period,
+                  COUNT(*) AS shipment_count,
+                  SUM(CASE WHEN COALESCE(status,'') IN ('Geri Geldi','Musteriye Teslim Edildi','Tamamlandi','Teslim Edildi') THEN 1 ELSE 0 END) AS completed_count,
+                  COALESCE(SUM(partner_cost),0) AS partner_cost,
+                  COALESCE(SUM(customer_price),0) AS customer_price,
+                  COALESCE(SUM(quote_amount),0) AS quote_amount
+           FROM partner_shipments WHERE partner_id=? GROUP BY period ORDER BY period DESC""",
+        (partner_id,),
+    )
+    conn.commit()
+    return timeline, trends
+
+
+def desktop_partner_workspace(conn: sqlite3.Connection, partner_id=None) -> dict:
+    """Read partner cards and one selected partner's shipments from the active tenant DB."""
+    if not scalar(conn, "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='customers'"):
+        return {"partners": [], "selected_partner": None, "shipments": [], "timeline": [], "trends": []}
+    customer_columns = set(table_columns(conn, "customers"))
+    deleted_filter = " AND COALESCE(is_deleted, 0) = 0" if "is_deleted" in customer_columns else ""
+    customer_rows = rows(conn, f'SELECT * FROM customers WHERE 1=1{deleted_filter} ORDER BY id DESC')
+    partner_types = {"bayi", "tedarikci", "tedarik\u00e7i"}
+    partners = [
+        item for item in customer_rows
+        if ("is_partner" in customer_columns and str(item.get("is_partner") or "").strip().casefold() in {"1", "true"})
+        or str(item.get("type") or "").strip().casefold() in partner_types
+    ]
+    selected = next((item for item in partners if str(item.get("id")) == str(partner_id)), None)
+    shipments = []
+    timeline = []
+    trends = []
+    if selected and scalar(
+        conn, "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='partner_shipments'"
+    ):
+        shipments = rows(
+            conn,
+            "SELECT * FROM partner_shipments WHERE partner_id = ? "
+            "ORDER BY COALESCE(sent_at, created_at, updated_at) DESC, id DESC LIMIT 1000",
+            (int(selected["id"]),),
+        )
+        timeline, trends = _partner_workspace_analytics(conn, int(selected["id"]))
+    return {"partners": partners, "selected_partner": selected, "shipments": shipments, "timeline": timeline, "trends": trends}
+
+
+def desktop_save_partner_shipment(conn: sqlite3.Connection, payload: dict) -> dict:
+    """Create or update a partner shipment inside the active tenant database."""
+    if not isinstance(payload, dict):
+        raise ValueError("A shipment record is required.")
+    try:
+        partner_id = int(payload.get("partner_id") or 0)
+    except (TypeError, ValueError):
+        raise ValueError("A partner must be selected.")
+    if partner_id <= 0:
+        raise ValueError("A partner must be selected.")
+    partner = next(
+        (item for item in desktop_partner_workspace(conn)["partners"] if int(item["id"]) == partner_id),
+        None,
+    )
+    if not partner:
+        raise LookupError("Partner not found.")
+    customer = str(payload.get("customer_name") or "").strip()
+    product = str(payload.get("product_name") or "").strip()
+    if not customer or not product:
+        raise ValueError("Customer and product are required.")
+    shipment_id = payload.get("id")
+    try:
+        shipment_id = int(shipment_id) if shipment_id not in (None, "") else None
+    except (TypeError, ValueError):
+        raise ValueError("Invalid shipment ID.")
+    for name, default in (("partner_cost", 0), ("customer_price", 0), ("quote_amount", 0)):
+        try:
+            amount = float(payload.get(name) or 0)
+        except (TypeError, ValueError):
+            raise ValueError("Shipment amounts must be numeric.")
+        if not 0 <= amount <= 10_000_000:
+            raise ValueError("Shipment amounts must be between 0 and 10000000.")
+    conn.execute("""CREATE TABLE IF NOT EXISTS partner_shipments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, partner_id INTEGER NOT NULL, partner_name TEXT NOT NULL,
+        customer_name TEXT, product_name TEXT, serial_no TEXT, issue_summary TEXT, shipment_reason TEXT,
+        outbound_tracking_no TEXT, return_tracking_no TEXT, external_ref_no TEXT, status TEXT DEFAULT 'Hazirlaniyor',
+        partner_cost REAL DEFAULT 0, customer_price REAL DEFAULT 0, currency TEXT DEFAULT 'TRY',
+        quote_status TEXT DEFAULT 'Beklemede', quote_amount REAL DEFAULT 0, approval_status TEXT DEFAULT 'Onay Bekliyor',
+        contract_type TEXT, sla_level TEXT, accessories TEXT, return_qc TEXT, cosmetic_status TEXT,
+        missing_parts TEXT, cost_responsibility TEXT, notes TEXT, sent_at TEXT, returned_at TEXT,
+        created_at TEXT NOT NULL, updated_at TEXT NOT NULL)""")
+    columns = set(table_columns(conn, "partner_shipments"))
+    additions = {
+        "partner_id": "INTEGER DEFAULT 0", "partner_name": "TEXT DEFAULT ''",
+        "customer_name": "TEXT", "product_name": "TEXT", "serial_no": "TEXT",
+        "issue_summary": "TEXT", "shipment_reason": "TEXT", "outbound_tracking_no": "TEXT",
+        "return_tracking_no": "TEXT", "external_ref_no": "TEXT", "status": "TEXT DEFAULT 'Hazirlaniyor'",
+        "partner_cost": "REAL DEFAULT 0", "customer_price": "REAL DEFAULT 0",
+        "quote_status": "TEXT DEFAULT 'Beklemede'", "quote_amount": "REAL DEFAULT 0",
+        "approval_status": "TEXT DEFAULT 'Onay Bekliyor'", "contract_type": "TEXT", "sla_level": "TEXT",
+        "currency": "TEXT DEFAULT 'TRY'", "accessories": "TEXT", "return_qc": "TEXT",
+        "cosmetic_status": "TEXT", "missing_parts": "TEXT", "cost_responsibility": "TEXT",
+        "notes": "TEXT", "sent_at": "TEXT", "returned_at": "TEXT",
+        "created_at": "TEXT", "updated_at": "TEXT",
+    }
+    for column, definition in additions.items():
+        if column not in columns:
+            conn.execute(f'ALTER TABLE partner_shipments ADD COLUMN "{column}" {definition}')
+    if shipment_id is not None:
+        exists = conn.execute(
+            "SELECT 1 FROM partner_shipments WHERE id=? AND partner_id=?", (shipment_id, partner_id)
+        ).fetchone()
+        if not exists:
+            raise LookupError("Shipment not found for this partner.")
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    fields = {
+        "partner_id": partner_id, "partner_name": str(partner.get("name") or "").strip(),
+        "customer_name": customer, "product_name": product,
+        "serial_no": str(payload.get("serial_no") or "").strip(),
+        "issue_summary": str(payload.get("issue_summary") or "").strip(),
+        "shipment_reason": str(payload.get("shipment_reason") or "").strip(),
+        "outbound_tracking_no": str(payload.get("outbound_tracking_no") or "").strip(),
+        "return_tracking_no": str(payload.get("return_tracking_no") or "").strip(),
+        "external_ref_no": str(payload.get("external_ref_no") or "").strip(),
+        "status": str(payload.get("status") or "Hazirlaniyor").strip(),
+        "partner_cost": float(payload.get("partner_cost") or 0),
+        "customer_price": float(payload.get("customer_price") or 0),
+        "currency": str(payload.get("currency") or "TRY").strip().upper(),
+        "quote_status": str(payload.get("quote_status") or "Beklemede").strip(),
+        "quote_amount": float(payload.get("quote_amount") or 0),
+        "approval_status": str(payload.get("approval_status") or "Onay Bekliyor").strip(),
+        "contract_type": str(payload.get("contract_type") or partner.get("contract_type") or "Standart Anlasma").strip(),
+        "sla_level": str(payload.get("sla_level") or partner.get("sla_level") or "24 Saat Donus").strip(),
+        "accessories": str(payload.get("accessories") or "").strip(),
+        "return_qc": str(payload.get("return_qc") or "Beklemede").strip(),
+        "cosmetic_status": str(payload.get("cosmetic_status") or "Kontrol Edilmedi").strip(),
+        "missing_parts": str(payload.get("missing_parts") or "Yok").strip(),
+        "cost_responsibility": str(payload.get("cost_responsibility") or "Partner").strip(),
+        "notes": str(payload.get("notes") or "").strip(),
+        "sent_at": str(payload.get("sent_at") or now[:10]).strip(),
+        "returned_at": str(payload.get("returned_at") or now[:10]).strip(),
+        "updated_at": now,
+    }
+    for date_key in ("sent_at", "returned_at"):
+        try:
+            datetime.strptime(fields[date_key], "%Y-%m-%d")
+        except ValueError:
+            raise ValueError("Shipment dates must use YYYY-MM-DD format.")
+    if shipment_id:
+        assignments = ", ".join(f'"{key}"=?' for key in fields)
+        conn.execute(
+            f"UPDATE partner_shipments SET {assignments} WHERE id=? AND partner_id=?",
+            (*fields.values(), shipment_id, partner_id),
+        )
+        saved_id = shipment_id
+    else:
+        fields["created_at"] = now
+        names = ", ".join(f'"{key}"' for key in fields)
+        marks = ", ".join("?" for _ in fields)
+        cursor = conn.execute(f"INSERT INTO partner_shipments ({names}) VALUES ({marks})", tuple(fields.values()))
+        saved_id = cursor.lastrowid
+    conn.execute("""CREATE TABLE IF NOT EXISTS partner_timeline (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, partner_id INTEGER NOT NULL, shipment_id INTEGER,
+        event_type TEXT NOT NULL, detail TEXT, event_date TEXT NOT NULL, created_at TEXT NOT NULL)""")
+    conn.execute(
+        "INSERT INTO partner_timeline (partner_id, shipment_id, event_type, detail, event_date, created_at) VALUES (?,?,?,?,?,?)",
+        (partner_id, saved_id, "shipment_saved", f"{product} | durum={fields['status']} | teklif={fields['quote_status']} | onay={fields['approval_status']}", fields["sent_at"], now),
+    )
+    conn.commit()
+    return {"ok": True, "id": saved_id}
+
+
+MAX_PARTNER_DOCUMENT_BYTES = 25 * 1024 * 1024
+
+
+def _partner_document_table(conn: sqlite3.Connection) -> None:
+    conn.execute("""CREATE TABLE IF NOT EXISTS partner_documents (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, partner_id INTEGER NOT NULL, shipment_id INTEGER,
+        title TEXT NOT NULL, category TEXT, file_path TEXT NOT NULL, added_at TEXT NOT NULL)""")
+    columns = set(table_columns(conn, "partner_documents"))
+    for name, definition in (
+        ("partner_id", "INTEGER DEFAULT 0"), ("shipment_id", "INTEGER"),
+        ("title", "TEXT DEFAULT ''"), ("category", "TEXT"),
+        ("file_path", "TEXT DEFAULT ''"), ("added_at", "TEXT DEFAULT ''"),
+    ):
+        if name not in columns:
+            conn.execute(f'ALTER TABLE partner_documents ADD COLUMN "{name}" {definition}')
+    conn.commit()
+
+
+def _partner_document_root(create: bool = False) -> Path:
+    base = active_db_path().resolve().parent
+    root = (base / "partner_documents").resolve()
+    if root.parent != base:
+        raise PermissionError("Partner document storage is outside the active tenant")
+    if create:
+        root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def _partner_document_partner(conn: sqlite3.Connection, partner_id: object) -> dict:
+    try:
+        target_id = int(partner_id)
+    except (TypeError, ValueError) as error:
+        raise ValueError("A partner must be selected.") from error
+    partner = next(
+        (item for item in desktop_partner_workspace(conn)["partners"] if int(item["id"]) == target_id),
+        None,
+    )
+    if not partner:
+        raise LookupError("Partner not found.")
+    return partner
+
+
+def _partner_notes_table(conn: sqlite3.Connection) -> str:
+    conn.execute("""CREATE TABLE IF NOT EXISTS customer_notes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, customer_id INTEGER, type TEXT,
+        title TEXT, content TEXT, created_at TEXT)""")
+    columns = set(table_columns(conn, "customer_notes"))
+    for name, definition in (
+        ("customer_id", "INTEGER"), ("title", "TEXT"),
+        ("content", "TEXT"), ("created_at", "TEXT"),
+    ):
+        if name not in columns:
+            conn.execute(f'ALTER TABLE customer_notes ADD COLUMN "{name}" {definition}')
+    if "type" not in columns and "note_type" not in columns:
+        conn.execute('ALTER TABLE customer_notes ADD COLUMN "type" TEXT')
+        columns.add("type")
+    type_column = "note_type" if "note_type" in columns else "type"
+    conn.commit()
+    return type_column
+
+
+def desktop_partner_notes(conn: sqlite3.Connection, partner_id: object) -> dict:
+    partner = _partner_document_partner(conn, partner_id)
+    type_column = _partner_notes_table(conn)
+    items = rows(
+        conn,
+        f'SELECT id,COALESCE("{type_column}",\'Genel Not\') AS note_type,'
+        "COALESCE(title,'') AS title,COALESCE(content,'') AS content,"
+        "COALESCE(created_at,'') AS created_at FROM customer_notes "
+        "WHERE customer_id=? ORDER BY created_at DESC,id DESC",
+        (int(partner["id"]),),
+    )
+    return {"partner": {"id": int(partner["id"]), "name": str(partner.get("name") or "")}, "notes": items}
+
+
+def desktop_save_partner_note(conn: sqlite3.Connection, payload: dict) -> dict:
+    if not isinstance(payload, dict):
+        raise ValueError("A partner note record is required.")
+    partner = _partner_document_partner(conn, payload.get("partner_id"))
+    type_column = _partner_notes_table(conn)
+    action = str(payload.get("action") or "save").strip().lower()
+    try:
+        note_id = int(payload.get("id") or payload.get("note_id") or 0)
+    except (TypeError, ValueError) as error:
+        raise ValueError("Invalid partner note ID.") from error
+    if action == "delete":
+        if note_id <= 0:
+            raise ValueError("A valid partner note ID is required.")
+        if not conn.execute(
+            "SELECT 1 FROM customer_notes WHERE id=? AND customer_id=?",
+            (note_id, int(partner["id"])),
+        ).fetchone():
+            raise LookupError("Partner note not found.")
+        conn.execute("DELETE FROM customer_notes WHERE id=? AND customer_id=?", (note_id, int(partner["id"])))
+        conn.commit()
+        return {"ok": True, "id": note_id, "action": "delete"}
+    if action != "save":
+        raise ValueError("Unsupported partner note action.")
+    note_type = str(payload.get("note_type") or "Genel Not").strip()
+    allowed_types = {"Genel Not", "WhatsApp Mesaj\u0131", "SMS", "Telefon G\u00f6r\u00fc\u015fmesi", "E-Posta"}
+    if note_type not in allowed_types:
+        raise ValueError("Unsupported partner note type.")
+    content = str(payload.get("content") or "").strip()
+    if not content:
+        raise ValueError("Note content cannot be empty.")
+    if len(content) > 25_000_000:
+        raise ValueError("Partner note content is too large.")
+    title = str(payload.get("title") or "").strip()[:240]
+    if not title:
+        title = "Not " + datetime.now().strftime("%Y-%m-%d %H:%M")
+    now = datetime.now().isoformat(timespec="seconds")
+    if note_id:
+        cursor = conn.execute(
+            f'UPDATE customer_notes SET title=?,content=?,"{type_column}"=? '
+            "WHERE id=? AND customer_id=?",
+            (title, content, note_type, note_id, int(partner["id"])),
+        )
+        if not cursor.rowcount:
+            raise LookupError("Partner note not found.")
+        result_action = "update"
+    else:
+        cursor = conn.execute(
+            f'INSERT INTO customer_notes (customer_id,"{type_column}",title,content,created_at) VALUES (?,?,?,?,?)',
+            (int(partner["id"]), note_type, title, content, now),
+        )
+        note_id = int(cursor.lastrowid)
+        result_action = "insert"
+    conn.commit()
+    return {"ok": True, "id": note_id, "action": result_action}
+
+
+def desktop_save_partner_profile(conn: sqlite3.Connection, payload: dict) -> dict:
+    if not isinstance(payload, dict):
+        raise ValueError("A partner profile is required.")
+    if not scalar(conn, "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='customers'"):
+        raise LookupError("Customer table is unavailable.")
+    profile_columns = set(table_columns(conn, "customers"))
+    for name, definition in (
+        ("name", "TEXT DEFAULT ''"), ("phone", "TEXT"), ("email", "TEXT"),
+        ("type", "TEXT DEFAULT 'Bayi'"), ("city", "TEXT"), ("service_type", "TEXT"),
+        ("commission_rate", "REAL DEFAULT 0"), ("is_partner", "INTEGER DEFAULT 0"),
+        ("contract_type", "TEXT"), ("sla_level", "TEXT"), ("created_at", "TEXT"),
+    ):
+        if name not in profile_columns:
+            conn.execute(f'ALTER TABLE customers ADD COLUMN "{name}" {definition}')
+            profile_columns.add(name)
+    name = str(payload.get("name") or "").strip()
+    if not name:
+        raise ValueError("Partner name is required.")
+    try:
+        commission = float(payload.get("commission_rate") or 0)
+    except (TypeError, ValueError) as error:
+        raise ValueError("Commission must be a number from 0 to 100.") from error
+    if not math.isfinite(commission) or not 0 <= commission <= 100:
+        raise ValueError("Commission must be a number from 0 to 100.")
+    partner_type = str(payload.get("type") or "Bayi").strip()
+    if partner_type not in {"Kurumsal", "Bayi", "Tedarikci"}:
+        raise ValueError("Unsupported partner type.")
+    values = {
+        "name": name, "phone": str(payload.get("phone") or "").strip(),
+        "email": str(payload.get("email") or "").strip(), "type": partner_type,
+        "city": str(payload.get("city") or "").strip(),
+        "service_type": str(payload.get("service_type") or "Genel").strip(),
+        "commission_rate": commission, "is_partner": 1,
+        "contract_type": str(payload.get("contract_type") or "Standart Anlasma").strip(),
+        "sla_level": str(payload.get("sla_level") or "24 Saat Donus").strip(),
+    }
+    target_id = payload.get("id")
+    if target_id not in (None, ""):
+        try:
+            target_id = int(target_id)
+        except (TypeError, ValueError) as error:
+            raise ValueError("Invalid partner ID.") from error
+        _partner_document_partner(conn, target_id)
+        updates = {key: value for key, value in values.items() if key in profile_columns}
+        assignments = ",".join(f'"{key}"=?' for key in updates)
+        conn.execute(f'UPDATE customers SET {assignments} WHERE id=?', (*updates.values(), target_id))
+        result_action = "update"
+    else:
+        if "created_at" in profile_columns:
+            values["created_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        fields = {key: value for key, value in values.items() if key in profile_columns}
+        names = ",".join(f'"{key}"' for key in fields)
+        placeholders = ",".join("?" for _ in fields)
+        cursor = conn.execute(f'INSERT INTO customers ({names}) VALUES ({placeholders})', tuple(fields.values()))
+        target_id = int(cursor.lastrowid)
+        result_action = "insert"
+    conn.commit()
+    return {"ok": True, "id": target_id, "action": result_action}
+
+
+def _partner_document_shipment(conn: sqlite3.Connection, partner_id: int, shipment_id: object) -> int | None:
+    if shipment_id in (None, ""):
+        return None
+    try:
+        target_id = int(shipment_id)
+    except (TypeError, ValueError) as error:
+        raise ValueError("Invalid shipment ID.") from error
+    if target_id <= 0:
+        raise ValueError("Invalid shipment ID.")
+    if not scalar(conn, "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='partner_shipments'"):
+        raise LookupError("Shipment not found for this partner.")
+    if not conn.execute(
+        "SELECT 1 FROM partner_shipments WHERE id=? AND partner_id=?", (target_id, partner_id)
+    ).fetchone():
+        raise LookupError("Shipment not found for this partner.")
+    return target_id
+
+
+def desktop_partner_documents(conn: sqlite3.Connection, partner_id: object, shipment_id=None) -> list[dict]:
+    partner = _partner_document_partner(conn, partner_id)
+    selected_shipment = _partner_document_shipment(conn, int(partner["id"]), shipment_id)
+    _partner_document_table(conn)
+    if selected_shipment is None:
+        found = rows(
+            conn,
+            "SELECT id,shipment_id,title,category,file_path,added_at FROM partner_documents "
+            "WHERE partner_id=? ORDER BY added_at DESC,id DESC",
+            (int(partner["id"]),),
+        )
+    else:
+        found = rows(
+            conn,
+            "SELECT id,shipment_id,title,category,file_path,added_at FROM partner_documents "
+            "WHERE partner_id=? AND shipment_id=? ORDER BY added_at DESC,id DESC",
+            (int(partner["id"]), selected_shipment),
+        )
+    root = _partner_document_root().resolve()
+    result = []
+    for item in found:
+        available = False
+        try:
+            path = Path(str(item.get("file_path") or "")).resolve()
+            path.relative_to(root)
+            available = path.is_file()
+        except (OSError, ValueError):
+            pass
+        result.append({
+            "id": int(item["id"]), "shipment_id": item.get("shipment_id"),
+            "title": str(item.get("title") or ""), "category": str(item.get("category") or ""),
+            "added_at": str(item.get("added_at") or ""), "available": available,
+            "url": f"/api/desktop/partners/documents/{int(item['id'])}/download" if available else "",
+        })
+    return result
+
+
+def desktop_upload_partner_document(conn: sqlite3.Connection, payload: dict) -> dict:
+    if not isinstance(payload, dict):
+        raise ValueError("A valid file upload is required.")
+    partner = _partner_document_partner(conn, payload.get("partner_id"))
+    partner_id = int(partner["id"])
+    shipment_id = _partner_document_shipment(conn, partner_id, payload.get("shipment_id"))
+    name_parts = re.split(r"[\\/]", str(payload.get("filename") or "").strip())
+    filename = re.sub(r"[\x00-\x1f\x7f]", "_", name_parts[-1])[:240]
+    if filename in {"", ".", ".."}:
+        raise ValueError("A valid file name is required.")
+    encoded = str(payload.get("data_base64") or "")
+    if not encoded or len(encoded) > 36 * 1024 * 1024:
+        raise ValueError("File is empty or exceeds the 25 MB limit.")
+    try:
+        data = base64.b64decode(encoded, validate=True)
+    except (ValueError, binascii.Error) as error:
+        raise ValueError("File data is invalid.") from error
+    if not data or len(data) > MAX_PARTNER_DOCUMENT_BYTES:
+        raise ValueError("File is empty or exceeds the 25 MB limit.")
+    suffix = Path(filename).suffix
+    if suffix and not re.fullmatch(r"\.[A-Za-z0-9_-]{1,16}", suffix):
+        suffix = ".bin"
+    root = _partner_document_root(create=True)
+    stored = root / (uuid.uuid4().hex + suffix.lower())
+    _partner_document_table(conn)
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    category = str(payload.get("category") or ("Sevk Belgesi" if shipment_id else "Partner Belgesi"))[:120]
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        with stored.open("xb") as target:
+            target.write(data)
+        cursor = conn.execute(
+            "INSERT INTO partner_documents (partner_id,shipment_id,title,category,file_path,added_at) "
+            "VALUES (?,?,?,?,?,?)",
+            (partner_id, shipment_id, filename, category, str(stored), now),
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        stored.unlink(missing_ok=True)
+        raise
+    return {"ok": True, "id": int(cursor.lastrowid), "title": filename, "category": category, "added_at": now}
+
+
+def desktop_delete_partner_document(conn: sqlite3.Connection, payload: dict) -> dict:
+    if not isinstance(payload, dict):
+        raise ValueError("A document ID is required.")
+    partner = _partner_document_partner(conn, payload.get("partner_id"))
+    try:
+        document_id = int(payload.get("id") or 0)
+    except (TypeError, ValueError) as error:
+        raise ValueError("A valid document ID is required.") from error
+    if document_id <= 0:
+        raise ValueError("A valid document ID is required.")
+    _partner_document_table(conn)
+    row = conn.execute(
+        "SELECT file_path FROM partner_documents WHERE id=? AND partner_id=?",
+        (document_id, int(partner["id"])),
+    ).fetchone()
+    if not row:
+        raise LookupError("Partner document not found.")
+    conn.execute("DELETE FROM partner_documents WHERE id=? AND partner_id=?", (document_id, int(partner["id"])))
+    conn.commit()
+    try:
+        root = _partner_document_root().resolve()
+        stored = Path(str(row[0] or "")).resolve()
+        stored.relative_to(root)
+        stored.unlink(missing_ok=True)
+    except (OSError, ValueError):
+        pass
+    return {"ok": True, "id": document_id}
+
+
+def desktop_download_partner_document(conn: sqlite3.Connection, document_id: object) -> tuple[bytes, str]:
+    try:
+        target_id = int(document_id)
+    except (TypeError, ValueError) as error:
+        raise ValueError("A valid document ID is required.") from error
+    _partner_document_table(conn)
+    row = conn.execute("SELECT file_path,title FROM partner_documents WHERE id=?", (target_id,)).fetchone()
+    if not row:
+        raise LookupError("Partner document not found.")
+    root = _partner_document_root().resolve()
+    path = Path(str(row[0] or "")).resolve()
+    try:
+        path.relative_to(root)
+    except ValueError as error:
+        raise LookupError("This legacy local file is not available to the web application.") from error
+    if not path.is_file():
+        raise LookupError("Partner document file was not found.")
+    return path.read_bytes(), str(row[1] or path.name)
+
+
+def _partner_finance_tables(conn: sqlite3.Connection) -> None:
+    conn.execute("""CREATE TABLE IF NOT EXISTS partner_shipments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, partner_id INTEGER NOT NULL, partner_name TEXT NOT NULL,
+        customer_name TEXT, product_name TEXT, serial_no TEXT, issue_summary TEXT, shipment_reason TEXT,
+        outbound_tracking_no TEXT, return_tracking_no TEXT, external_ref_no TEXT, status TEXT DEFAULT 'Hazirlaniyor',
+        partner_cost REAL DEFAULT 0, customer_price REAL DEFAULT 0, currency TEXT DEFAULT 'TRY',
+        quote_status TEXT DEFAULT 'Beklemede', quote_amount REAL DEFAULT 0, approval_status TEXT DEFAULT 'Onay Bekliyor',
+        contract_type TEXT, sla_level TEXT, accessories TEXT, return_qc TEXT, cosmetic_status TEXT,
+        missing_parts TEXT, cost_responsibility TEXT, notes TEXT, sent_at TEXT, returned_at TEXT,
+        created_at TEXT, updated_at TEXT)""")
+    shipment_columns = set(table_columns(conn, "partner_shipments"))
+    for name, definition in (
+        ("partner_id", "INTEGER DEFAULT 0"), ("partner_name", "TEXT DEFAULT ''"),
+        ("product_name", "TEXT"), ("serial_no", "TEXT"), ("sent_at", "TEXT"),
+        ("partner_cost", "REAL DEFAULT 0"),
+        ("customer_price", "REAL DEFAULT 0"), ("currency", "TEXT DEFAULT 'TRY'"),
+        ("created_at", "TEXT"), ("updated_at", "TEXT"),
+    ):
+        if name not in shipment_columns:
+            conn.execute(f'ALTER TABLE partner_shipments ADD COLUMN "{name}" {definition}')
+    conn.execute("""CREATE TABLE IF NOT EXISTS partner_finance_entries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, partner_id INTEGER NOT NULL, shipment_id INTEGER,
+        entry_type TEXT NOT NULL, amount REAL NOT NULL, currency TEXT DEFAULT 'TRY',
+        payment_method TEXT, description TEXT, invoice_no TEXT, invoice_date TEXT,
+        entry_date TEXT NOT NULL, created_at TEXT NOT NULL)""")
+    finance_columns = set(table_columns(conn, "partner_finance_entries"))
+    for name, definition in (
+        ("partner_id", "INTEGER DEFAULT 0"), ("shipment_id", "INTEGER"),
+        ("entry_type", "TEXT DEFAULT 'PAYMENT'"), ("amount", "REAL DEFAULT 0"),
+        ("currency", "TEXT DEFAULT 'TRY'"), ("payment_method", "TEXT"),
+        ("description", "TEXT"), ("invoice_no", "TEXT"), ("invoice_date", "TEXT"),
+        ("entry_date", "TEXT DEFAULT ''"), ("created_at", "TEXT DEFAULT ''"),
+    ):
+        if name not in finance_columns:
+            conn.execute(f'ALTER TABLE partner_finance_entries ADD COLUMN "{name}" {definition}')
+    conn.commit()
+
+
+def _partner_finance_currency(conn: sqlite3.Connection) -> tuple[str, int]:
+    code = "TRY"
+    precision = 2
+    if scalar(conn, "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='settings'"):
+        configured = (setting_value(conn, "currency") or setting_value(conn, "default_currency", "TRY")).upper()
+        code = "USD" if "USD" in configured or "$" in configured else "EUR" if "EUR" in configured else "TRY"
+        try:
+            precision = min(3, max(0, int(setting_value(conn, "currency_precision", "2"))))
+        except (TypeError, ValueError):
+            precision = 2
+    return code, precision
+
+
+def _partner_finance_convert(conn: sqlite3.Connection, amount: float, source: str, target: str) -> float:
+    source_code = str(source or "TRY").upper()
+    target_code = str(target or "TRY").upper()
+    if source_code == target_code:
+        return float(amount or 0)
+    source_rate = resolve_exchange_rate(conn, source_code)
+    target_rate = resolve_exchange_rate(conn, target_code)
+    return float(amount or 0) * source_rate / target_rate
+
+
+def desktop_partner_finance(conn: sqlite3.Connection, partner_id: object) -> dict:
+    partner = _partner_document_partner(conn, partner_id)
+    _partner_finance_tables(conn)
+    target_currency, precision = _partner_finance_currency(conn)
+    selected_partner_id = int(partner["id"])
+    shipments = rows(
+        conn,
+        "SELECT id,COALESCE(product_name,'') AS product_name,COALESCE(partner_cost,0) AS partner_cost,"
+        "COALESCE(customer_price,0) AS customer_price,COALESCE(currency,'TRY') AS currency,"
+        "COALESCE(serial_no,'') AS serial_no,COALESCE(sent_at,'') AS sent_at "
+        "FROM partner_shipments WHERE partner_id=? ORDER BY id DESC",
+        (selected_partner_id,),
+    )
+    cost_total = 0.0
+    customer_total = 0.0
+    for shipment in shipments:
+        source_currency = str(shipment["currency"] or "TRY").upper()
+        cost_total += _partner_finance_convert(conn, float(shipment["partner_cost"] or 0), source_currency, target_currency)
+        customer_total += _partner_finance_convert(conn, float(shipment["customer_price"] or 0), source_currency, target_currency)
+    raw_entries = rows(
+        conn,
+        "SELECT id,shipment_id,entry_date,entry_type,COALESCE(description,'') AS description,"
+        "COALESCE(payment_method,'') AS payment_method,COALESCE(invoice_no,'') AS invoice_no,"
+        "COALESCE(invoice_date,'') AS invoice_date,COALESCE(amount,0) AS amount,COALESCE(currency,'TRY') AS currency "
+        "FROM partner_finance_entries WHERE partner_id=? ORDER BY entry_date DESC,id DESC",
+        (selected_partner_id,),
+    )
+    entries = []
+    paid_total = 0.0
+    for entry in raw_entries:
+        entry_currency = str(entry["currency"] or "TRY").upper()
+        converted = _partner_finance_convert(conn, float(entry["amount"] or 0), entry_currency, target_currency)
+        entry["display_amount"] = converted
+        entries.append(entry)
+        if str(entry["entry_type"] or "").upper() == "PAYMENT":
+            paid_total += converted
+    reconciliation = []
+    for shipment in conn.execute(
+        """SELECT ps.id,COALESCE(ps.product_name,''),COALESCE(ps.partner_cost,0),COALESCE(ps.currency,'TRY'),
+                  COALESCE(SUM(CASE WHEN pfe.entry_type='PAYMENT' THEN pfe.amount ELSE 0 END),0),
+                  COALESCE(MAX(COALESCE(pfe.currency,'TRY')),'TRY'),COALESCE(MAX(COALESCE(pfe.invoice_no,'')),'')
+           FROM partner_shipments ps LEFT JOIN partner_finance_entries pfe
+             ON pfe.partner_id=ps.partner_id AND pfe.shipment_id=ps.id
+           WHERE ps.partner_id=? GROUP BY ps.id,ps.product_name,ps.partner_cost,ps.currency ORDER BY ps.id DESC""",
+        (selected_partner_id,),
+    ).fetchall():
+        cost = _partner_finance_convert(conn, float(shipment[2] or 0), str(shipment[3] or "TRY"), target_currency)
+        paid = _partner_finance_convert(conn, float(shipment[4] or 0), str(shipment[5] or shipment[3] or "TRY"), target_currency)
+        reconciliation.append({
+            "shipment_id": int(shipment[0]), "product_name": str(shipment[1] or ""),
+            "cost": cost, "paid": paid, "remaining": cost - paid, "invoice_no": str(shipment[6] or ""),
+        })
+    return {
+        "partner": {"id": selected_partner_id, "name": str(partner.get("name") or "")},
+        "currency": target_currency, "precision": precision,
+        "summary": {"total_cost": cost_total, "total_paid": paid_total, "balance": cost_total - paid_total, "customer_total": customer_total},
+        "entries": entries, "reconciliation": reconciliation,
+        "shipments": [{
+            "id": item["id"],
+            "label": "#{id} | {product} | {serial} | {date}".format(
+                id=item["id"], product=item["product_name"] or "Urun",
+                serial=item["serial_no"] or "-", date=item["sent_at"] or "-",
+            ),
+        } for item in shipments],
+    }
+
+
+def desktop_save_partner_payment(conn: sqlite3.Connection, payload: dict) -> dict:
+    if not isinstance(payload, dict):
+        raise ValueError("A payment record is required.")
+    partner = _partner_document_partner(conn, payload.get("partner_id"))
+    partner_id = int(partner["id"])
+    _partner_finance_tables(conn)
+    try:
+        amount = float(payload.get("amount") or 0)
+    except (TypeError, ValueError) as error:
+        raise ValueError("Payment amount must be numeric.") from error
+    if not math.isfinite(amount) or amount <= 0 or amount > 10_000_000:
+        raise ValueError("Payment amount must be between 0 and 10000000.")
+    shipment_id = _partner_document_shipment(conn, partner_id, payload.get("shipment_id"))
+    currency, _precision = _partner_finance_currency(conn)
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    entry_date = str(payload.get("entry_date") or now[:10]).strip()
+    invoice_date = str(payload.get("invoice_date") or now[:10]).strip()
+    for value in (entry_date, invoice_date):
+        try:
+            datetime.strptime(value, "%Y-%m-%d")
+        except ValueError as error:
+            raise ValueError("Payment dates must use YYYY-MM-DD format.") from error
+    cursor = conn.execute(
+        """INSERT INTO partner_finance_entries (
+            partner_id,shipment_id,entry_type,amount,currency,payment_method,description,
+            invoice_no,invoice_date,entry_date,created_at
+        ) VALUES (?,?,'PAYMENT',?,?,?,?,?,?,?,?)""",
+        (
+            partner_id, shipment_id, amount, currency,
+            str(payload.get("payment_method") or "Havale / EFT").strip()[:120],
+            str(payload.get("description") or "Partner odemesi").strip()[:500],
+            str(payload.get("invoice_no") or "").strip()[:120], invoice_date, entry_date, now,
+        ),
+    )
+    conn.commit()
+    return {"ok": True, "id": int(cursor.lastrowid)}
+
+
+def desktop_audit_page(conn, *, limit=100, offset=0, query="", hours="24", severity="Tumu", module=""):
+    clauses = []
+    params = []
+    search = str(query or "").strip().lower()
+    if search:
+        clauses.append("(" + " OR ".join(
+            "instr(lower(COALESCE(\"%s\",'')),?)>0" % column
+            for column in ("user_id", "table_name", "action", "details")
+        ) + ")")
+        params.extend([search] * 4)
+    if str(hours or "24").lower() != "all":
+        try:
+            span = max(1, min(8760, int(hours or 24)))
+        except (TypeError, ValueError):
+            span = 24
+        end = datetime.now()
+        clauses.append("created_at>=? AND created_at<=?")
+        params.extend(((end - timedelta(hours=span)).strftime("%Y-%m-%d %H:%M:%S"), end.strftime("%Y-%m-%d %H:%M:%S")))
+    if str(severity or "Tumu") != "Tumu":
+        severity_expression = (
+            "UPPER(CASE WHEN json_valid(details) THEN COALESCE(json_extract(details,'$.severity'), "
+            "json_extract(details,'$.level'), '-') ELSE '-' END)"
+        )
+        if str(severity).upper() == "WARN":
+            clauses.append(f"{severity_expression} IN ('WARN','WARNING')")
+        else:
+            clauses.append(f"{severity_expression}=?")
+            params.append(str(severity).upper())
+    module_expression = (
+        "CASE WHEN lower(table_name) LIKE '%auth%' OR lower(table_name) LIKE '%session%' "
+        "OR lower(action) IN ('login','logout') THEN 'Kullan\u0131c\u0131 Giri\u015fi' "
+        "WHEN lower(table_name) LIKE '%stock%' OR lower(table_name) LIKE '%inventory%' "
+        "OR lower(table_name) LIKE '%product%' OR lower(table_name) LIKE '%part%' THEN 'Stok Hareketi' "
+        "WHEN lower(table_name) LIKE '%service%' OR lower(table_name) LIKE '%repair%' "
+        "OR lower(table_name) LIKE '%appointment%' OR lower(table_name) LIKE '%field%' "
+        "OR lower(table_name) LIKE '%technician%' THEN 'Servis Operasyonu' "
+        "WHEN lower(table_name) LIKE '%finance%' OR lower(table_name) LIKE '%transaction%' "
+        "OR lower(table_name) LIKE '%invoice%' OR lower(table_name) LIKE '%payment%' "
+        "OR lower(table_name) LIKE '%cash%' OR lower(table_name) LIKE '%bank%' "
+        "OR lower(table_name) LIKE '%currency%' OR lower(table_name) LIKE '%accounting%' "
+        "OR lower(table_name) LIKE '%cari%' THEN 'Finans & Cari' ELSE 'Sistem Ayarlar\u0131' END"
+    )
+    if module:
+        clauses.append(f"({module_expression})=?")
+        params.append(str(module))
+    where = " WHERE " + " AND ".join(clauses) if clauses else ""
+    total = int(scalar(conn, "SELECT COUNT(*) FROM audit_logs" + where, params, 0))
+    page_limit = min(max(int(limit), 1), 1000)
+    page_offset = max(int(offset), 0)
+    records = rows(
+        conn,
+        "SELECT * FROM audit_logs" + where + " ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?",
+        (*params, page_limit, page_offset),
+    )
+    return records, total, page_limit, page_offset
+
+
+def desktop_suspend_audit_account(conn, actor: dict, target_user_id) -> dict:
+    if not actor or not role_is_admin(actor.get("role")):
+        raise PermissionError("Administrator permission is required")
+    try:
+        target_id = int(target_user_id)
+    except (TypeError, ValueError) as error:
+        raise ValueError("A valid account ID is required") from error
+    if target_id <= 0:
+        raise ValueError("A valid account ID is required")
+    if str(actor.get("id") or "") == str(target_id):
+        raise PermissionError("You cannot suspend your own account")
+    account = conn.execute(
+        "SELECT id, username, COALESCE(active,1) AS active FROM users WHERE id=?",
+        (target_id,),
+    ).fetchone()
+    if account is None:
+        raise LookupError("Account not found")
+    if not int(account["active"] or 0):
+        raise ValueError("Account is already suspended")
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    details = json.dumps(
+        {"target_user_id": target_id, "target_username": account["username"]},
+        ensure_ascii=True,
+        separators=(",", ":"),
+    )
+    conn.execute("UPDATE users SET active=0 WHERE id=?", (target_id,))
+    conn.execute(
+        "INSERT INTO audit_logs(user_id,table_name,action,details,created_at) VALUES(?,?,?,?,?)",
+        (actor.get("id"), "users", "ACCOUNT_SUSPENDED", details, now),
+    )
+    conn.commit()
+    return {"ok": True, "user_id": target_id, "username": account["username"], "active": False}
+
+
+def desktop_bulk_change_user_passwords(conn, actor: dict, payload: dict) -> dict:
+    if not actor or not role_is_admin(actor.get("role")):
+        raise PermissionError("Administrator permission is required")
+    data = payload if isinstance(payload, dict) else {}
+    raw_changes = data.get("changes")
+    if not isinstance(raw_changes, list) or not raw_changes:
+        raise ValueError("Select at least one account")
+    if len(raw_changes) > 500:
+        raise ValueError("Too many accounts selected")
+    changes = []
+    for item in raw_changes:
+        if not isinstance(item, dict):
+            raise ValueError("Each password change must include an account and password")
+        try:
+            user_id = int(item.get("user_id"))
+        except (TypeError, ValueError) as error:
+            raise ValueError("Each password change requires a valid account ID") from error
+        changes.append((user_id, item.get("password", "")))
+    from types import SimpleNamespace
+    from src.utils.user_account_actions import change_account_passwords
+
+    count = change_account_passwords(SimpleNamespace(conn=conn), actor.get("id"), changes)
+    return {"ok": True, "changed": count}
+
+
+def desktop_create_managed_user(conn, actor: dict, payload: dict) -> dict:
+    if not actor or not role_is_admin(actor.get("role")):
+        raise PermissionError("Administrator permission is required")
+    data = payload if isinstance(payload, dict) else {}
+    full_name = str(data.get("full_name") or "").strip()
+    username = str(data.get("username") or "").strip()
+    password = str(data.get("password") or "")
+    email = str(data.get("email") or "").strip()
+    phone = str(data.get("phone") or "").strip()
+    department = str(data.get("department") or "General").strip()
+    active = 1 if str(data.get("active", 1)).lower() not in {"0", "false", "no"} else 0
+    from src.utils.role_utils import normalize_role
+    from src.utils.password_security import validate_new_password
+
+    role_options = {"Teknisyen", "Muhasebe", "Sat\u0131\u015f", "Admin", "Di\u011fer"}
+    requested_role = str(data.get("role") or "Teknisyen").strip()
+    role = normalize_role(requested_role)
+    if requested_role.lower() in {"y\u00f6netici", "yonetici", "administrator"}:
+        role = "Admin"
+    if role not in role_options:
+        raise ValueError("A supported desktop role is required")
+    if not full_name or len(full_name) > 60:
+        raise ValueError("Full name must contain 1 to 60 characters")
+    if not re.fullmatch(r"[^\s\x00-\x1f\x7f]{3,40}", username):
+        raise ValueError("Username must contain 3 to 40 non-space characters")
+    if email and (len(email) > 254 or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email)):
+        raise ValueError("Email address is invalid")
+    digits = "".join(character for character in phone if character.isdigit())
+    if digits and len(digits) > 2 and len(digits) not in (12, 13):
+        raise ValueError("Phone number must use the desktop +90 format")
+    password_error = validate_new_password(password)
+    if password_error:
+        raise ValueError(password_error)
+    permissions = data.get("permissions")
+    if isinstance(permissions, str):
+        try:
+            permissions = json.loads(permissions)
+        except json.JSONDecodeError as error:
+            raise ValueError("Permission selection is invalid") from error
+    if role_is_admin(role):
+        permission_text = json.dumps({"mode": "all"}, separators=(",", ":"))
+        edit_access = 1
+    else:
+        pages = permissions.get("pages", []) if isinstance(permissions, dict) else []
+        if not isinstance(pages, list) or len(pages) > 500:
+            raise ValueError("Permission selection is invalid")
+        try:
+            parsed_page_ids = [int(page_id) for page_id in pages]
+        except (TypeError, ValueError) as error:
+            raise ValueError("Permission selection is invalid") from error
+        if any(page_id < 0 or page_id > 1000 for page_id in parsed_page_ids):
+            raise ValueError("Permission selection is invalid")
+        page_ids = sorted(set(parsed_page_ids))
+        permission_text = json.dumps({"pages": page_ids}, separators=(",", ":"))
+        edit_access = 0
+    conn.execute("BEGIN IMMEDIATE")
+    if conn.execute("SELECT 1 FROM users WHERE lower(username)=lower(?)", (username,)).fetchone():
+        conn.rollback()
+        raise ValueError("Username is already in use")
+    if email and conn.execute("SELECT 1 FROM users WHERE lower(email)=lower(?)", (email,)).fetchone():
+        conn.rollback()
+        raise ValueError("Email is already in use")
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    try:
+        personnel_id = None
+        if scalar(conn, "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='personnel'"):
+            personnel_id = insert_available(conn, "personnel", {
+                "name": full_name,
+                "role": role,
+                "phone": phone,
+                "email": email or None,
+                "department": department,
+                "active": active,
+                "created_at": now,
+            })
+        user_id = insert_available(conn, "users", {
+            "username": username,
+            "password": password_hash(password),
+            "email": email or None,
+            "phone": phone,
+            "role": role,
+            "created_at": now,
+            "full_name": full_name,
+            "name": full_name,
+            "personnel_id": personnel_id,
+            "department": department,
+            "active": active,
+            "is_active": active,
+            "permissions": permission_text,
+            "interface_edit_access": edit_access,
+        })
+        audit_details = json.dumps(
+            {"user_id": user_id, "username": username, "role": role},
+            ensure_ascii=True,
+            separators=(",", ":"),
+        )
+        conn.execute(
+            "INSERT INTO audit_logs(user_id,table_name,action,details,created_at) VALUES(?,?,?,?,?)",
+            (actor.get("id"), "users", "USER_CREATED", audit_details, now),
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    return {"ok": True, "user_id": user_id, "username": username, "role": role, "active": bool(active)}
+
+
+def desktop_update_managed_user(conn, actor: dict, payload: dict) -> dict:
+    if not actor or not role_is_admin(actor.get("role")):
+        raise PermissionError("Administrator permission is required")
+    data = payload if isinstance(payload, dict) else {}
+    try:
+        user_id = int(data.get("user_id"))
+    except (TypeError, ValueError) as error:
+        raise ValueError("A valid user ID is required") from error
+    from src.utils.role_utils import normalize_role
+    from src.utils.password_security import validate_new_password, hash_password
+
+    username = str(data.get("username") or "").strip()
+    if not re.fullmatch(r"[^\s\x00-\x1f\x7f]{3,40}", username):
+        raise ValueError("Username must contain 3 to 40 non-space characters")
+    email = str(data.get("email") or "").strip()
+    if email and (len(email) > 254 or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email)):
+        raise ValueError("Email address is invalid")
+    phone = str(data.get("phone") or "").strip()
+    digits = "".join(character for character in phone if character.isdigit())
+    if digits and len(digits) > 2 and len(digits) not in (12, 13):
+        raise ValueError("Phone number must use the desktop +90 format")
+    full_name = str(data.get("full_name") or "").strip()
+    if len(full_name) > 60:
+        raise ValueError("Full name must contain no more than 60 characters")
+    requested_role = str(data.get("role") or "Teknisyen").strip()
+    role = normalize_role(requested_role)
+    if requested_role.casefold() in {"yonetici", "administrator"}:
+        role = "Admin"
+    if role not in {"Master", "Admin", "Teknisyen", "Muhasebe", "Personel", "Sat\u0131\u015f", "Di\u011fer"}:
+        raise ValueError("A supported desktop role is required")
+    password = str(data.get("password") or "")
+    if password:
+        password_error = validate_new_password(password)
+        if password_error:
+            raise ValueError(password_error)
+    secret_question = str(data.get("secret_question") or "").strip()
+    secret_answer = str(data.get("secret_answer") or "").strip()
+    if bool(secret_question) != bool(secret_answer):
+        raise ValueError("Secret question and answer must be provided together")
+    if data.get("personnel_id") in (None, ""):
+        personnel_id = None
+    else:
+        try:
+            personnel_id = int(data.get("personnel_id"))
+        except (TypeError, ValueError) as error:
+            raise ValueError("Personnel selection is invalid") from error
+    permissions = data.get("permissions")
+    if isinstance(permissions, str):
+        try:
+            permissions = json.loads(permissions)
+        except json.JSONDecodeError as error:
+            raise ValueError("Permission selection is invalid") from error
+    if role_is_admin(role):
+        permission_text = json.dumps({"mode": "all"}, separators=(",", ":"))
+        edit_access = 1
+    else:
+        pages = permissions.get("pages", []) if isinstance(permissions, dict) else []
+        if not isinstance(pages, list) or len(pages) > 500:
+            raise ValueError("Permission selection is invalid")
+        try:
+            page_ids = sorted({int(page_id) for page_id in pages})
+        except (TypeError, ValueError) as error:
+            raise ValueError("Permission selection is invalid") from error
+        if any(page_id < 0 or page_id > 1000 for page_id in page_ids):
+            raise ValueError("Permission selection is invalid")
+        permission_text = json.dumps({"pages": page_ids}, separators=(",", ":"))
+        edit_access = 1 if str(data.get("interface_edit_access", "0")).casefold() in {"1", "true", "yes", "on"} else 0
+    active = 1 if str(data.get("active", "1")).casefold() not in {"0", "false", "no"} else 0
+    auto_login = 1 if str(data.get("auto_login", "0")).casefold() in {"1", "true", "yes", "on"} else 0
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        if not role_is_admin(dict(conn.execute("SELECT role FROM users WHERE id=?", (actor.get("id"),)).fetchone() or {}).get("role")):
+            raise PermissionError("Administrator permission is required")
+        current = conn.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
+        if current is None:
+            raise LookupError("User account was not found")
+        current = dict(current)
+        current_username = str(current.get("username") or "")
+        if current_username.casefold() in {"admin", "master"} and username.casefold() != current_username.casefold():
+            raise PermissionError("The built-in account name cannot be changed")
+        if username.casefold() in {"admin", "master"} and username.casefold() != current_username.casefold():
+            raise PermissionError("The built-in account name cannot be assigned")
+        if conn.execute("SELECT 1 FROM users WHERE lower(username)=lower(?) AND id<>?", (username, user_id)).fetchone():
+            raise ValueError("Username is already in use")
+        if email and conn.execute("SELECT 1 FROM users WHERE lower(email)=lower(?) AND id<>?", (email, user_id)).fetchone():
+            raise ValueError("Email is already in use")
+        if personnel_id is not None:
+            if not scalar(conn, "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='personnel'"):
+                raise ValueError("Personnel records are unavailable")
+            if not conn.execute("SELECT 1 FROM personnel WHERE id=?", (personnel_id,)).fetchone():
+                raise ValueError("Selected personnel record was not found")
+        columns = set(table_columns(conn, "users"))
+        updates = {
+            "username": username,
+            "email": email or None,
+            "role": role,
+            "personnel_id": personnel_id,
+            "permissions": permission_text,
+            "auto_login": auto_login,
+            "active": active,
+            "full_name": full_name or current.get("full_name") or username,
+            "phone": phone or None,
+            "interface_edit_access": edit_access,
+        }
+        if password:
+            updates["password"] = hash_password(password)
+            updates["password_updated_at"] = now
+        if secret_question and secret_answer:
+            if "secret_question" not in columns or "secret_answer_hash" not in columns:
+                raise ValueError("Secret-question fields are unavailable in this database")
+            updates["secret_question"] = secret_question
+            updates["secret_answer_hash"] = hashlib.sha256(secret_answer.lower().encode("utf-8")).hexdigest()
+        clean = {key: value for key, value in updates.items() if key in columns}
+        if not clean:
+            raise ValueError("No supported user fields were supplied")
+        assignments = ",".join(f'"{key}"=?' for key in clean)
+        conn.execute(f'UPDATE users SET {assignments} WHERE id=?', (*clean.values(), user_id))
+        if "audit_logs" in {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'") }:
+            details = json.dumps({"user_id": user_id, "username": username, "role": role}, ensure_ascii=True, separators=(",", ":"))
+            conn.execute("INSERT INTO audit_logs(user_id,table_name,action,details,created_at) VALUES(?,?,?,?,?)", (actor.get("id"), "users", "USER_UPDATED", details, now))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    return {"ok": True, "user_id": user_id, "username": username, "role": role, "active": bool(active)}
+
+
+def desktop_delete_managed_user(conn, actor: dict, target_user_id) -> dict:
+    if not actor or not role_is_admin(actor.get("role")):
+        raise PermissionError("Administrator permission is required")
+    try:
+        target_id = int(target_user_id)
+    except (TypeError, ValueError) as error:
+        raise ValueError("A valid account ID is required") from error
+    if target_id <= 0:
+        raise ValueError("A valid account ID is required")
+    if str(actor.get("id") or "") == str(target_id):
+        raise PermissionError("You cannot delete your own account")
+    columns = set(table_columns(conn, "users"))
+    deleted_col = "is_deleted" if "is_deleted" in columns else ("is_archived" if "is_archived" in columns else None)
+    active_col = "active" if "active" in columns else ("is_active" if "is_active" in columns else None)
+    deleted_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        account = conn.execute("SELECT id,username FROM users WHERE id=?", (target_id,)).fetchone()
+        if account is None:
+            raise LookupError("Account not found")
+        if deleted_col:
+            conn.execute(f'UPDATE users SET "{deleted_col}"=1 WHERE id=?', (target_id,))
+            if active_col:
+                conn.execute(f'UPDATE users SET "{active_col}"=0 WHERE id=?', (target_id,))
+            mode = deleted_col
+        elif active_col:
+            if "deleted_at" in columns:
+                conn.execute(
+                    f'UPDATE users SET "{active_col}"=0, deleted_at=? WHERE id=?',
+                    (deleted_at, target_id),
+                )
+            else:
+                conn.execute(f'UPDATE users SET "{active_col}"=0 WHERE id=?', (target_id,))
+            mode = active_col
+        else:
+            conn.execute("DELETE FROM users WHERE id=?", (target_id,))
+            mode = "hard_delete"
+        details = json.dumps(
+            {"target_user_id": target_id, "target_username": account["username"], "mode": mode},
+            ensure_ascii=True,
+            separators=(",", ":"),
+        )
+        conn.execute(
+            "INSERT INTO audit_logs(user_id,table_name,action,details,created_at) VALUES(?,?,?,?,?)",
+            (actor.get("id"), "users", "USER_DELETED", details, deleted_at),
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    return {"ok": True, "user_id": target_id, "username": account["username"], "mode": mode}
+
+
+def desktop_twilio_credentials(conn: sqlite3.Connection) -> dict:
+    if not scalar(conn, "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='settings'"):
+        return {"account_sid": "", "auth_token": "", "from_number": ""}
+    settings = {
+        str(item["key"]): str(item["value"] or "")
+        for item in conn.execute(
+            "SELECT key,value FROM settings WHERE key IN ('twilio_account_sid','twilio_auth_token','twilio_from_number')"
+        ).fetchall()
+    }
+    token = settings.get("twilio_auth_token", "")
+    if token.startswith("enc:v1:"):
+        from src.utils.secure_setting_store import SecureSettingStore
+        try:
+            token = SecureSettingStore._fernet().decrypt(token[len("enc:v1:"):].encode("ascii")).decode("utf-8")
+        except Exception:
+            token = ""
+    return {
+        "account_sid": settings.get("twilio_account_sid", "").strip(),
+        "auth_token": token,
+        "from_number": settings.get("twilio_from_number", "").strip(),
+    }
+
+
+def desktop_service_sms_target(conn: sqlite3.Connection, tracking_no: object) -> dict:
+    tracking = str(tracking_no or "").strip()
+    if not tracking or len(tracking) > 128:
+        raise ValueError("A valid service tracking number is required")
+    columns = set(table_columns(conn, "devices"))
+    if not {"tracking_no", "customer_name", "customer_contact"}.issubset(columns):
+        raise ValueError("Service contact fields are unavailable")
+    active_clauses = [f'COALESCE("{column}",0)=0' for column in ("is_deleted", "is_archived") if column in columns]
+    where = " AND ".join(["tracking_no=?", *active_clauses])
+    row = conn.execute(
+        f'SELECT tracking_no,customer_name,customer_contact FROM devices WHERE {where} LIMIT 1',
+        (tracking,),
+    ).fetchone()
+    if row is None:
+        raise LookupError("Service record not found")
+    credentials = desktop_twilio_credentials(conn)
+    return {
+        "tracking_no": str(row["tracking_no"] or tracking),
+        "customer_name": str(row["customer_name"] or ""),
+        "phone": str(row["customer_contact"] or ""),
+        "configured": bool(credentials["account_sid"] and credentials["auth_token"] and credentials["from_number"]),
+    }
+
+
+def desktop_send_service_sms(conn: sqlite3.Connection, payload: dict, urlopen_fn=None) -> dict:
+    if not isinstance(payload, dict):
+        raise ValueError("A valid SMS request is required")
+    target = desktop_service_sms_target(conn, payload.get("tracking_no"))
+    if not target["configured"]:
+        raise ValueError("SMS service is not configured")
+    message = str(payload.get("message") or "").strip()
+    if not message:
+        raise ValueError("Enter an SMS message")
+    if len(message) > 1600:
+        raise ValueError("SMS message must be 1600 characters or fewer")
+    phone = target["phone"].strip()
+    digits = re.sub(r"\D", "", phone)
+    if digits.startswith("00"):
+        digits = digits[2:]
+    elif digits.startswith("0"):
+        digits = "90" + digits[1:]
+    elif not phone.startswith("+") and not digits.startswith("90"):
+        digits = "90" + digits
+    if not phone or len(digits) < 10 or len(digits) > 15:
+        raise ValueError("Customer phone number is invalid")
+    recipient = "+" + digits
+    credentials = desktop_twilio_credentials(conn)
+    account_sid = credentials["account_sid"]
+    token = credentials["auth_token"]
+    sender = credentials["from_number"]
+    if not re.fullmatch(r"AC[0-9a-fA-F]{32}", account_sid) or not token or not sender:
+        raise ValueError("SMS service is not configured")
+    from urllib.error import HTTPError, URLError
+    from urllib.parse import urlencode
+    from urllib.request import Request, urlopen
+    import base64
+    encoded = base64.b64encode((account_sid + ":" + token).encode("utf-8")).decode("ascii")
+    request = Request(
+        f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages.json",
+        data=urlencode({"To": recipient, "From": sender, "Body": message}).encode("ascii"),
+        headers={"Authorization": "Basic " + encoded, "Content-Type": "application/x-www-form-urlencoded"},
+        method="POST",
+    )
+    try:
+        with (urlopen_fn or urlopen)(request, timeout=20) as response:
+            result = json.loads(response.read().decode("utf-8"))
+    except HTTPError as error:
+        raise ValueError("SMS provider rejected the message") from error
+    except (URLError, TimeoutError, OSError) as error:
+        raise ValueError("SMS provider connection failed") from error
+    message_sid = str(result.get("sid") or "")
+    if not message_sid:
+        raise ValueError("SMS provider did not confirm the message")
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS sms_log (id INTEGER PRIMARY KEY AUTOINCREMENT, tracking_no TEXT, phone TEXT, message TEXT, twilio_sid TEXT, sent_at TEXT)"
+    )
+    conn.execute(
+        "INSERT INTO sms_log(tracking_no,phone,message,twilio_sid,sent_at) VALUES(?,?,?,?,?)",
+        (target["tracking_no"], target["phone"], message, message_sid, datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+    )
+    conn.commit()
+    return {"ok": True, "message_id": message_sid, "to": recipient}
+
+
+def desktop_test_service_sms(conn: sqlite3.Connection, urlopen_fn=None) -> dict:
+    credentials = desktop_twilio_credentials(conn)
+    account_sid = credentials["account_sid"]
+    token = credentials["auth_token"]
+    if not re.fullmatch(r"AC[0-9a-fA-F]{32}", account_sid) or not token or not credentials["from_number"]:
+        raise ValueError("SMS service is not configured")
+    from urllib.error import HTTPError, URLError
+    from urllib.request import Request, urlopen
+    import base64
+    auth = base64.b64encode((account_sid + ":" + token).encode("utf-8")).decode("ascii")
+    request = Request(
+        f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}.json",
+        headers={"Authorization": "Basic " + auth},
+        method="GET",
+    )
+    try:
+        with (urlopen_fn or urlopen)(request, timeout=20) as response:
+            result = json.loads(response.read().decode("utf-8"))
+    except HTTPError as error:
+        raise ValueError("SMS provider rejected the credentials") from error
+    except (URLError, TimeoutError, OSError) as error:
+        raise ValueError("SMS provider connection failed") from error
+    return {"ok": True, "status": "success", "message": "Connected to Twilio account: " + str(result.get("friendly_name") or "")}
+
+
+MAX_CONTRACT_ATTACHMENT_BYTES = 25 * 1024 * 1024
+
+
+def _contract_attachment_root(create: bool = False) -> Path:
+    tenant_id = active_tenant_id()
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", tenant_id):
+        raise PermissionError("An active tenant is required")
+    base = (TENANT_ROOT.resolve() / "contract_docs").resolve()
+    root = (base / tenant_id).resolve()
+    if root.parent != base:
+        raise PermissionError("Contract storage is outside the active tenant")
+    if create:
+        root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def _contract_attachment_table(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS contract_attachments (id INTEGER PRIMARY KEY AUTOINCREMENT, contract_id INTEGER, file_path TEXT, filename TEXT, created_at TEXT)"
+    )
+
+
+def _migrate_legacy_contract_attachment(conn: sqlite3.Connection, row: sqlite3.Row, tenant_root: Path) -> Path | None:
+    """Copy a desktop-era contract_docs/<name> file into isolated tenant storage."""
+    raw_path = Path(str(row["file_path"] or "")).expanduser()
+    if raw_path.name in {"", ".", ".."} or raw_path.name != Path(row["filename"] or raw_path.name).name:
+        return None
+    legacy_roots = {(ROOT.parent / "contract_docs").resolve(), (Path.cwd() / "contract_docs").resolve()}
+    candidates = []
+    if not raw_path.is_absolute() and raw_path.parent == Path("contract_docs"):
+        candidates = [base / raw_path.name for base in legacy_roots]
+    elif raw_path.is_absolute():
+        resolved_raw = raw_path.resolve()
+        if resolved_raw.parent in legacy_roots:
+            candidates = [resolved_raw]
+        else:
+            return None
+    source = next((candidate.resolve() for candidate in candidates if candidate.is_file()), None)
+    if source is None or source.parent not in legacy_roots:
+        return None
+    tenant_root.mkdir(parents=True, exist_ok=True)
+    destination = tenant_root / (uuid.uuid4().hex + (source.suffix[:17] if re.fullmatch(r"\.[A-Za-z0-9_-]{1,16}", source.suffix) else ".bin").lower())
+    try:
+        shutil.copyfile(source, destination)
+        conn.execute("UPDATE contract_attachments SET file_path=? WHERE id=?", (str(destination), row["id"]))
+        conn.commit()
+    except Exception:
+        destination.unlink(missing_ok=True)
+        raise
+    return destination
+
+
+def _contract_record(conn: sqlite3.Connection, contract_id: object) -> dict:
+    try:
+        contract_id = int(contract_id)
+    except (TypeError, ValueError) as error:
+        raise ValueError("A valid contract ID is required") from error
+    if contract_id <= 0:
+        raise ValueError("A valid contract ID is required")
+    columns = set(table_columns(conn, "contracts"))
+    if "id" not in columns:
+        raise LookupError("Contract not found")
+    clauses = ["id=?"]
+    for column in ("is_deleted", "is_archived"):
+        if column in columns:
+            clauses.append(f'COALESCE("{column}",0)=0')
+    row = conn.execute(
+        'SELECT * FROM contracts WHERE ' + " AND ".join(clauses) + " LIMIT 1",
+        (contract_id,),
+    ).fetchone()
+    if row is None:
+        raise LookupError("Contract not found")
+    record = dict(row)
+    customer_name = str(record.get("customer_name") or "")
+    if not customer_name and record.get("customer_id") is not None:
+        customer_columns = set(table_columns(conn, "customers"))
+        if {"id", "name"}.issubset(customer_columns):
+            customer = conn.execute("SELECT name FROM customers WHERE id=?", (record["customer_id"],)).fetchone()
+            customer_name = str(customer[0] or "") if customer else ""
+    return {
+        "id": contract_id,
+        "title": str(record.get("title") or ""),
+        "customer_name": customer_name,
+        "contract_type": str(record.get("contract_type") or ""),
+        "description": str(record.get("description") or ""),
+    }
+
+
+def desktop_contract_detail(conn: sqlite3.Connection, contract_id: object) -> dict:
+    contract = _contract_record(conn, contract_id)
+    _contract_attachment_table(conn)
+    root = _contract_attachment_root()
+    attachments = []
+    for row in conn.execute(
+        "SELECT id,file_path,filename,created_at FROM contract_attachments WHERE contract_id=? ORDER BY id DESC",
+        (contract["id"],),
+    ).fetchall():
+        path = Path(str(row["file_path"] or "")).expanduser()
+        try:
+            resolved = path.resolve()
+            resolved.relative_to(root)
+            available = resolved.is_file()
+        except (OSError, ValueError):
+            try:
+                resolved = _migrate_legacy_contract_attachment(conn, row, root)
+                available = bool(resolved and resolved.is_file())
+            except OSError:
+                available = False
+        attachments.append({
+            "id": int(row["id"]),
+            "filename": str(row["filename"] or path.name),
+            "created_at": str(row["created_at"] or ""),
+            "available": available,
+        })
+    return {"contract": contract, "attachments": attachments}
+
+
+def desktop_upload_contract_attachment(conn: sqlite3.Connection, contract_id: object, payload: dict) -> dict:
+    contract = _contract_record(conn, contract_id)
+    if not isinstance(payload, dict):
+        raise ValueError("A valid file upload is required")
+    name_parts = re.split(r"[\\/]", str(payload.get("filename") or "").strip())
+    filename = re.sub(r"[\x00-\x1f\x7f]", "_", name_parts[-1])[:240]
+    if filename in {"", ".", ".."}:
+        raise ValueError("A valid file name is required")
+    encoded = str(payload.get("data_base64") or "")
+    if not encoded or len(encoded) > 36 * 1024 * 1024:
+        raise ValueError("File is empty or exceeds the 25 MB limit")
+    try:
+        data = base64.b64decode(encoded, validate=True)
+    except (ValueError, binascii.Error) as error:
+        raise ValueError("File data is invalid") from error
+    if not data or len(data) > MAX_CONTRACT_ATTACHMENT_BYTES:
+        raise ValueError("File is empty or exceeds the 25 MB limit")
+    suffix = Path(filename).suffix
+    if suffix and not re.fullmatch(r"\.[A-Za-z0-9_-]{1,16}", suffix):
+        suffix = ".bin"
+    root = _contract_attachment_root(create=True)
+    stored = root / (uuid.uuid4().hex + suffix.lower())
+    _contract_attachment_table(conn)
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        with stored.open("xb") as target:
+            target.write(data)
+        created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        cursor = conn.execute(
+            "INSERT INTO contract_attachments(contract_id,file_path,filename,created_at) VALUES(?,?,?,?)",
+            (contract["id"], str(stored), filename, created_at),
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        stored.unlink(missing_ok=True)
+        raise
+    return {"ok": True, "id": int(cursor.lastrowid), "filename": filename, "created_at": created_at}
+
+
+def desktop_delete_contract_attachment(conn: sqlite3.Connection, attachment_id: object) -> dict:
+    try:
+        attachment_id = int(attachment_id)
+    except (TypeError, ValueError) as error:
+        raise ValueError("A valid attachment ID is required") from error
+    if attachment_id <= 0:
+        raise ValueError("A valid attachment ID is required")
+    _contract_attachment_table(conn)
+    row = conn.execute(
+        "SELECT id,contract_id,file_path,filename FROM contract_attachments WHERE id=?",
+        (attachment_id,),
+    ).fetchone()
+    if row is None:
+        raise LookupError("Contract attachment not found")
+    _contract_record(conn, row["contract_id"])
+    root = _contract_attachment_root()
+    path = Path(str(row["file_path"] or "")).expanduser()
+    try:
+        path.resolve().relative_to(root)
+        safe_path = path.resolve()
+    except (OSError, ValueError):
+        safe_path = _migrate_legacy_contract_attachment(conn, row, root)
+    conn.execute("DELETE FROM contract_attachments WHERE id=?", (attachment_id,))
+    conn.commit()
+    if safe_path is not None:
+        safe_path.unlink(missing_ok=True)
+    return {"ok": True, "id": attachment_id}
+
+
+def desktop_delete_contract(conn: sqlite3.Connection, contract_id: object) -> dict:
+    contract = _contract_record(conn, contract_id)
+    contract_id = contract["id"]
+    _contract_attachment_table(conn)
+    root = _contract_attachment_root()
+    rows = conn.execute(
+        "SELECT id,contract_id,file_path,filename FROM contract_attachments WHERE contract_id=? ORDER BY id",
+        (contract_id,),
+    ).fetchall()
+    cleanup_paths = []
+    for row in rows:
+        path = Path(str(row["file_path"] or "")).expanduser()
+        try:
+            path.resolve().relative_to(root)
+            safe_path = path.resolve()
+        except (OSError, ValueError):
+            safe_path = _migrate_legacy_contract_attachment(conn, row, root)
+        if safe_path is not None and safe_path not in cleanup_paths:
+            cleanup_paths.append(safe_path)
+
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        conn.execute("DELETE FROM contract_attachments WHERE contract_id=?", (contract_id,))
+        deleted = conn.execute("DELETE FROM contracts WHERE id=?", (contract_id,))
+        if deleted.rowcount != 1:
+            raise LookupError("Contract not found")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+
+    for path in cleanup_paths:
+        try:
+            path.unlink(missing_ok=True)
+        except OSError as error:
+            logger.debug("Contract attachment cleanup fallback: %s", error)
+    return {"ok": True, "id": contract_id, "attachments_deleted": len(rows)}
+
+
+def desktop_download_contract_attachment(conn: sqlite3.Connection, attachment_id: object) -> tuple[bytes, str]:
+    try:
+        attachment_id = int(attachment_id)
+    except (TypeError, ValueError) as error:
+        raise ValueError("A valid attachment ID is required") from error
+    _contract_attachment_table(conn)
+    row = conn.execute(
+        "SELECT id,contract_id,file_path,filename FROM contract_attachments WHERE id=?",
+        (attachment_id,),
+    ).fetchone()
+    if row is None:
+        raise LookupError("Contract attachment not found")
+    _contract_record(conn, row["contract_id"])
+    path = Path(str(row["file_path"] or "")).expanduser()
+    try:
+        path = path.resolve()
+        path.relative_to(_contract_attachment_root())
+    except (OSError, ValueError) as error:
+        try:
+            path = _migrate_legacy_contract_attachment(conn, row, _contract_attachment_root())
+        except OSError:
+            path = None
+        if path is None:
+            raise LookupError("Contract attachment is unavailable") from error
+    if not path.is_file():
+        raise LookupError("Contract attachment is unavailable")
+    return path.read_bytes(), str(row["filename"] or path.name)
+
+
+def _ensure_personnel_daily_wage_schema(conn: sqlite3.Connection) -> None:
+    if not scalar(conn, "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='personnel'"):
+        raise LookupError("Personnel table is unavailable")
+    columns = set(table_columns(conn, "personnel"))
+    for column, ddl in (("employment_type", "TEXT DEFAULT 'monthly'"), ("daily_wage", "REAL DEFAULT 0")):
+        if column not in columns:
+            conn.execute(f'ALTER TABLE "personnel" ADD COLUMN "{column}" {ddl}')
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS personnel_daily_wages ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, personnel_id INTEGER NOT NULL, "
+        "work_year INTEGER NOT NULL, work_month INTEGER NOT NULL, work_days REAL NOT NULL, "
+        "daily_wage REAL NOT NULL, total_amount REAL NOT NULL, payment_date TEXT NOT NULL, "
+        "note TEXT, accounting_id INTEGER, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+        "UNIQUE(personnel_id,work_year,work_month))"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_personnel_daily_wages_period "
+        "ON personnel_daily_wages(work_year,work_month,personnel_id)"
+    )
+    duplicates = scalar(
+        conn,
+        "SELECT COUNT(*) FROM (SELECT 1 FROM personnel_daily_wages "
+        "GROUP BY personnel_id,work_year,work_month HAVING COUNT(*)>1)",
+        default=0,
+    )
+    if not duplicates:
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_personnel_daily_wages_unique "
+            "ON personnel_daily_wages(personnel_id,work_year,work_month)"
+        )
+    conn.commit()
+
+
+def desktop_personnel_daily_wages(conn: sqlite3.Connection, year: object, month: object) -> dict:
+    try:
+        year, month = int(year), int(month)
+    except (TypeError, ValueError) as error:
+        raise ValueError("A valid payroll period is required") from error
+    if year < 2000 or year > 2100 or month < 1 or month > 12:
+        raise ValueError("A valid payroll period is required")
+    _ensure_personnel_daily_wage_schema(conn)
+    data = rows(conn,
+        "SELECT w.id,w.personnel_id,p.name AS personnel_name,w.work_year,w.work_month,"
+        "w.work_days,w.daily_wage,w.total_amount,w.payment_date,w.note "
+        "FROM personnel_daily_wages w JOIN personnel p ON p.id=w.personnel_id "
+        "WHERE w.work_year=? AND w.work_month=? ORDER BY p.name COLLATE NOCASE",
+        (year, month),
+    )
+    return {"available": True, "rows": data}
+
+
+def desktop_save_personnel_daily_wage(conn: sqlite3.Connection, payload: object) -> dict:
+    if not isinstance(payload, dict):
+        raise ValueError("A valid daily wage record is required")
+    try:
+        personnel_id = int(payload.get("personnel_id"))
+        year = int(payload.get("work_year"))
+        month = int(payload.get("work_month"))
+        work_days = round(float(payload.get("work_days")), 1)
+    except (TypeError, ValueError) as error:
+        raise ValueError("Personnel, period, and work days are required") from error
+    note = str(payload.get("note") or "").strip()
+    if not 0 < personnel_id or not 2000 <= year <= 2100 or not 1 <= month <= 12:
+        raise ValueError("Personnel or payroll period is invalid")
+    if not 0.5 <= work_days <= 31 or len(note) > 500:
+        raise ValueError("Work days must be between 0.5 and 31; notes are limited to 500 characters")
+    _ensure_personnel_daily_wage_schema(conn)
+    person_columns = set(table_columns(conn, "personnel"))
+    active_clause = " AND COALESCE(is_deleted,0)=0" if "is_deleted" in person_columns else ""
+    person = conn.execute(
+        "SELECT id,name,employment_type,daily_wage FROM personnel WHERE id=?" + active_clause,
+        (personnel_id,),
+    ).fetchone()
+    if not person:
+        raise LookupError("Personnel record not found")
+    daily_wage = float(person["daily_wage"] or 0)
+    if str(person["employment_type"] or "monthly") != "daily" or daily_wage <= 0:
+        raise ValueError("Selected personnel has no daily wage")
+    if not scalar(conn, "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='accounting'"):
+        raise LookupError("Accounting table is unavailable")
+    total = round(work_days * daily_wage, 2)
+    payment_date = f"{year:04d}-{month:02d}-{calendar.monthrange(year, month)[1]:02d}"
+    name = str(person["name"] or "")
+    description = f"{name} | Yevmiye | {work_days:g} gun x {daily_wage:,.2f} TL"
+    if note:
+        description += f" | {note}"
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        existing = conn.execute(
+            "SELECT id,accounting_id FROM personnel_daily_wages WHERE personnel_id=? AND work_year=? AND work_month=?",
+            (personnel_id, year, month),
+        ).fetchone()
+        created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        accounting_id = existing["accounting_id"] if existing else None
+        if accounting_id:
+            conn.execute(
+                "UPDATE accounting SET type=?,category=?,amount=?,description=?,date=?,customer_name=? WHERE id=?",
+                ("Gider", "Yevmiye", total, description, payment_date, name, accounting_id),
+            )
+        else:
+            cursor = conn.execute(
+                "INSERT INTO accounting(type,category,amount,description,date,created_at,customer_name) VALUES(?,?,?,?,?,?,?)",
+                ("Gider", "Yevmiye", total, description, payment_date, created_at, name),
+            )
+            accounting_id = cursor.lastrowid
+        if existing:
+            conn.execute(
+                "UPDATE personnel_daily_wages SET work_days=?,daily_wage=?,total_amount=?,payment_date=?,note=?,accounting_id=? WHERE id=?",
+                (work_days, daily_wage, total, payment_date, note, accounting_id, existing["id"]),
+            )
+            record_id = existing["id"]
+        else:
+            cursor = conn.execute(
+                "INSERT INTO personnel_daily_wages(personnel_id,work_year,work_month,work_days,daily_wage,total_amount,payment_date,note,accounting_id) VALUES(?,?,?,?,?,?,?,?,?)",
+                (personnel_id, year, month, work_days, daily_wage, total, payment_date, note, accounting_id),
+            )
+            record_id = cursor.lastrowid
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    return {"ok": True, "id": int(record_id), "total_amount": total, "payment_date": payment_date}
+
+
+def desktop_delete_personnel_daily_wage(conn: sqlite3.Connection, record_id: object) -> dict:
+    try:
+        record_id = int(record_id)
+    except (TypeError, ValueError) as error:
+        raise ValueError("A valid daily wage ID is required") from error
+    _ensure_personnel_daily_wage_schema(conn)
+    row = conn.execute("SELECT accounting_id FROM personnel_daily_wages WHERE id=?", (record_id,)).fetchone()
+    if row is None:
+        raise LookupError("Daily wage record not found")
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        conn.execute("DELETE FROM personnel_daily_wages WHERE id=?", (record_id,))
+        if row["accounting_id"]:
+            conn.execute("DELETE FROM accounting WHERE id=?", (row["accounting_id"],))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    return {"ok": True, "id": record_id}
 
 
 def utc_now() -> datetime:
@@ -4459,7 +7279,7 @@ def setting_value(conn: sqlite3.Connection, key: str, default: str = "") -> str:
 
 def upsert_setting(conn: sqlite3.Connection, table: str, key: str, value) -> None:
     if table not in {"settings", "internal_settings"}:
-        raise ValueError("Geçersiz ayar tablosu")
+        raise ValueError("Ge\u00e7ersiz ayar tablosu")
     conn.execute(
         f'INSERT INTO "{table}" (key,value) VALUES (?,?) '
         "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
@@ -4528,7 +7348,7 @@ def create_session(user_id: int, remember: bool, user_agent: str, ip_address: st
     if tenant_id:
         tenant = tenant_by_id(tenant_id)
         if not tenant:
-            raise LookupError("Firma bulunamadı.")
+            raise LookupError("Firma bulunamad\u0131.")
         set_tenant_context(tenant)
     tenant_id = tenant_id or active_tenant_id()
     token = f"{tenant_id}.{secrets.token_urlsafe(48)}" if tenant_id else secrets.token_urlsafe(48)
@@ -4600,15 +7420,15 @@ def validate_account(data: dict, require_company: bool = False) -> dict:
         "company_name": str(data.get("company_name") or "").strip(),
     }
     if not re.fullmatch(r"[A-Za-z0-9_.-]{3,40}", clean["username"]):
-        raise ValueError("Kullanıcı adı 3-40 karakter olmalı; harf, rakam, nokta, tire ve alt çizgi kullanılabilir.")
+        raise ValueError("Kullan\u0131c\u0131 ad\u0131 3-40 karakter olmal\u0131; harf, rakam, nokta, tire ve alt \u00e7izgi kullan\u0131labilir.")
     if len(clean["full_name"]) < 3:
-        raise ValueError("Ad soyad en az 3 karakter olmalıdır.")
+        raise ValueError("Ad soyad en az 3 karakter olmal\u0131d\u0131r.")
     if not valid_email(clean["email"]):
-        raise ValueError("Geçerli bir e-posta adresi girin.")
+        raise ValueError("Ge\u00e7erli bir e-posta adresi girin.")
     if len(clean["password"]) < 8 or not re.search(r"[A-Za-z]", clean["password"]) or not re.search(r"\d", clean["password"]):
-        raise ValueError("Parola en az 8 karakter olmalı ve en az bir harf ile bir rakam içermelidir.")
+        raise ValueError("Parola en az 8 karakter olmal\u0131 ve en az bir harf ile bir rakam i\u00e7ermelidir.")
     if require_company and len(clean["company_name"]) < 2:
-        raise ValueError("Firma adı zorunludur.")
+        raise ValueError("Firma ad\u0131 zorunludur.")
     return clean
 
 
@@ -4630,19 +7450,19 @@ def send_registration_emails(member: dict, event: str = "registration") -> tuple
     company_name = str(config.get("company_name") or "AYEC Pro").strip()
     member_email = str(member.get("email") or "").strip()
     if not valid_email(member_email) or not valid_email(admin_email):
-        return False, "Üye veya yönetici e-posta adresi geçersiz."
+        return False, "\u00dcye veya y\u00f6netici e-posta adresi ge\u00e7ersiz."
 
-    member_name = html.escape(str(member.get("full_name") or member.get("username") or "Kullanıcı"))
+    member_name = html.escape(str(member.get("full_name") or member.get("username") or "Kullan\u0131c\u0131"))
     username = html.escape(str(member.get("username") or ""))
-    event_label = "ilk kurulum yöneticisi" if event == "setup" else "yeni kullanıcı"
+    event_label = "ilk kurulum y\u00f6neticisi" if event == "setup" else "yeni kullan\u0131c\u0131"
     messages: list[EmailMessage] = []
 
     welcome = EmailMessage()
-    welcome["Subject"] = f"{company_name} · AYEC Pro hesabınız hazır"
+    welcome["Subject"] = f"{company_name} \u00b7 AYEC Pro hesab\u0131n\u0131z haz\u0131r"
     welcome["From"] = smtp_from
     welcome["To"] = member_email
     welcome["Reply-To"] = SUPPORT_EMAIL
-    welcome.set_content(f"Merhaba {member.get('full_name') or member.get('username')}, AYEC Pro hesabınız oluşturuldu. Kullanıcı adınız: {member.get('username')}")
+    welcome.set_content(f"Merhaba {member.get('full_name') or member.get('username')}, AYEC Pro hesab\u0131n\u0131z olu\u015fturuldu. Kullan\u0131c\u0131 ad\u0131n\u0131z: {member.get('username')}")
     welcome.add_alternative(
         f"<div style='font-family:Segoe UI,Arial;padding:24px'><h2>Ho\u015f geldiniz, {member_name}</h2>"
         f"<p><b>{html.escape(company_name)}</b> AYEC Pro hesab\u0131n\u0131z olu\u015fturuldu.</p>"
@@ -4654,14 +7474,14 @@ def send_registration_emails(member: dict, event: str = "registration") -> tuple
     messages.append(welcome)
 
     notice = EmailMessage()
-    notice["Subject"] = f"AYEC Pro · {event_label.title()} kaydı"
+    notice["Subject"] = f"AYEC Pro \u00b7 {event_label.title()} kayd\u0131"
     notice["From"] = smtp_from
     notice["To"] = admin_email
     notice["Reply-To"] = SUPPORT_EMAIL
-    notice.set_content(f"{member.get('full_name')} ({member.get('username')}) için yeni hesap oluşturuldu: {member_email}")
+    notice.set_content(f"{member.get('full_name')} ({member.get('username')}) i\u00e7in yeni hesap olu\u015fturuldu: {member_email}")
     notice.add_alternative(
-        f"<div style='font-family:Segoe UI,Arial;padding:24px'><h2>Yeni hesap kaydı</h2>"
-        f"<p><b>Ad Soyad:</b> {member_name}</p><p><b>Kullanıcı:</b> {username}</p>"
+        f"<div style='font-family:Segoe UI,Arial;padding:24px'><h2>Yeni hesap kayd\u0131</h2>"
+        f"<p><b>Ad Soyad:</b> {member_name}</p><p><b>Kullan\u0131c\u0131:</b> {username}</p>"
         f"<p><b>E-posta:</b> {html.escape(member_email)}</p><p><b>Rol:</b> {html.escape(str(member.get('role') or 'User'))}</p></div>",
         subtype="html",
     )
@@ -4676,7 +7496,7 @@ def send_registration_emails(member: dict, event: str = "registration") -> tuple
             if official["tls"]:
                 server.starttls(context=ssl.create_default_context())
                 server.ehlo()
-        recipients = [("üye", welcome, member_email), ("yönetici", notice, admin_email)]
+        recipients = [("\u00fcye", welcome, member_email), ("y\u00f6netici", notice, admin_email)]
         delivered: list[str] = []
         failed: list[str] = []
         with server:
@@ -4689,12 +7509,12 @@ def send_registration_emails(member: dict, event: str = "registration") -> tuple
                 except Exception as error:
                     failed.append(f"{label}: {error}")
         if not failed:
-            return True, "Üye ve yönetici e-postaları gönderildi."
+            return True, "\u00dcye ve y\u00f6netici e-postalar\u0131 g\u00f6nderildi."
         if delivered:
-            return False, f"{', '.join(delivered)} e-postası gönderildi; {failed[0]} gönderilemedi."
-        return False, f"E-postalar gönderilemedi: {failed[0]}"
+            return False, f"{', '.join(delivered)} e-postas\u0131 g\u00f6nderildi; {failed[0]} g\u00f6nderilemedi."
+        return False, f"E-postalar g\u00f6nderilemedi: {failed[0]}"
     except Exception as error:
-        return False, f"Hesap oluşturuldu fakat e-posta gönderilemedi: {error}"
+        return False, f"Hesap olu\u015fturuldu fakat e-posta g\u00f6nderilemedi: {error}"
 
 
 def setting_bool(value) -> bool:
@@ -4847,7 +7667,7 @@ def setup_application(data: dict, allow_existing: bool = False) -> dict:
         sector = product_code
     existing_tenants = tenant_records()
     if existing_tenants and not allow_existing:
-        raise PermissionError("İlk kurulum daha önce tamamlanmış.")
+        raise PermissionError("\u0130lk kurulum daha \u00f6nce tamamlanm\u0131\u015f.")
     normalized_company_name = normalize_identifier(account["company_name"])
     if any(
         normalize_identifier(tenant["company_name"]) == normalized_company_name
@@ -4872,7 +7692,7 @@ def setup_application(data: dict, allow_existing: bool = False) -> dict:
     set_tenant_context(tenant)
     with closing(db_connect()) as conn:
         if scalar(conn, "SELECT COUNT(*) FROM users", default=0):
-            raise PermissionError("İlk kurulum daha önce tamamlanmış.")
+            raise PermissionError("\u0130lk kurulum daha \u00f6nce tamamlanm\u0131\u015f.")
         is_platform_owner = is_platform_owner_email(account["email"])
         conn.execute("BEGIN IMMEDIATE")
         cursor = conn.execute(
@@ -4982,21 +7802,21 @@ def register_account(data: dict, tenant_id: str | None = None) -> dict:
     if tenant_id:
         tenant = tenant_by_id(tenant_id)
         if not tenant:
-            raise LookupError("Firma bulunamadı.")
+            raise LookupError("Firma bulunamad\u0131.")
         set_tenant_context(tenant)
     if not active_tenant_id():
         if account["company_name"]:
             return setup_application(data, allow_existing=True)
-        raise PermissionError("Firma seçimi gerekiyor. Yeni firma için firma adını girin.")
+        raise PermissionError("Firma se\u00e7imi gerekiyor. Yeni firma i\u00e7in firma ad\u0131n\u0131 girin.")
     with closing(db_connect()) as conn:
         if scalar(conn, "SELECT COUNT(*) FROM users", default=0) == 0:
-            raise PermissionError("Önce ilk kurulum sihirbazını tamamlayın.")
+            raise PermissionError("\u00d6nce ilk kurulum sihirbaz\u0131n\u0131 tamamlay\u0131n.")
         if setting_value(conn, "web_registration_enabled", "1") == "0":
-            raise PermissionError("Yeni kullanıcı kaydı yönetici tarafından kapatılmış.")
+            raise PermissionError("Yeni kullan\u0131c\u0131 kayd\u0131 y\u00f6netici taraf\u0131ndan kapat\u0131lm\u0131\u015f.")
         duplicate = find_account_by_identifier(conn, account["username"])
         duplicate = duplicate or find_account_by_identifier(conn, account["email"])
         if duplicate:
-            raise ValueError("Bu kullanıcı adı veya e-posta zaten kayıtlı.")
+            raise ValueError("Bu kullan\u0131c\u0131 ad\u0131 veya e-posta zaten kay\u0131tl\u0131.")
         cursor = conn.execute(
             """
             INSERT INTO users (username,password,email,role,created_at,full_name,active,interface_edit_access)
@@ -5069,7 +7889,7 @@ def create_database_backup(prefix: str = "manual") -> Path:
         with closing(sqlite3.connect(target)) as destination:
             source.backup(destination)
             if destination.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
-                raise RuntimeError("Otomatik yedek bütünlük kontrolünden geçemedi.")
+                raise RuntimeError("Otomatik yedek b\u00fct\u00fcnl\u00fck kontrol\u00fcnden ge\u00e7emedi.")
             destination.commit()
     return target
 
@@ -5129,13 +7949,13 @@ def validate_sync_epoch(body: dict) -> int:
 
 def wipe_user_data(user: dict, password: str, phrase: str) -> dict:
     if not role_is_admin(user.get("role")):
-        raise PermissionError("Wipe All yalnızca yönetici tarafından çalıştırılabilir.")
-    if phrase.strip() != "TÜM VERİLERİ SİL":
-        raise ValueError("Onay metni hatalı.")
+        raise PermissionError("Wipe All yaln\u0131zca y\u00f6netici taraf\u0131ndan \u00e7al\u0131\u015ft\u0131r\u0131labilir.")
+    if phrase.strip() != "T\u00dcM VER\u0130LER\u0130 S\u0130L":
+        raise ValueError("Onay metni hatal\u0131.")
     with closing(db_connect()) as conn:
         stored = conn.execute("SELECT password FROM users WHERE id=?", (user["id"],)).fetchone()
         if not stored or not password_matches(password, stored["password"]):
-            raise PermissionError("Yönetici parolası hatalı.")
+            raise PermissionError("Y\u00f6netici parolas\u0131 hatal\u0131.")
     tenant_id = str(user.get("_tenant_id") or active_tenant_id() or "")
     backup = create_database_backup("pre-wipe")
     stored_backup = support_store_backup(user, backup.read_bytes(), backup.name)
@@ -5189,6 +8009,56 @@ def update_available(conn: sqlite3.Connection, table: str, row_id: int, values: 
         return
     assignments = ",".join(f'"{key}"=?' for key in clean)
     conn.execute(f'UPDATE "{table}" SET {assignments} WHERE id=?', (*clean.values(), row_id))
+
+
+def save_web_customer_sector_extension(
+    conn: sqlite3.Connection,
+    customer_id: int,
+    sector: str,
+    payload: object,
+) -> None:
+    """Persist the active sector's customer-only extension fields."""
+    tables = {
+        "teknik_servis": (
+            "customer_technical_service_extension",
+            ("device_type", "device_brand", "device_model"),
+        ),
+        "otomotiv": (
+            "customer_automotive_extension",
+            ("vehicle_plate", "vehicle_vin", "vehicle_brand", "vehicle_model", "vehicle_year", "vehicle_engine"),
+        ),
+    }
+    table_spec = tables.get(str(sector or ""))
+    if not table_spec or not isinstance(payload, dict):
+        return
+    table, fields = table_spec
+    if table == "customer_technical_service_extension":
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS customer_technical_service_extension ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT, customer_id INTEGER NOT NULL UNIQUE, "
+            "device_type TEXT, device_brand TEXT, device_model TEXT, "
+            "created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP, "
+            "FOREIGN KEY(customer_id) REFERENCES customers(id) ON DELETE CASCADE)"
+        )
+    else:
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS customer_automotive_extension ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT, customer_id INTEGER NOT NULL UNIQUE, "
+            "vehicle_plate TEXT, vehicle_vin TEXT, vehicle_brand TEXT, vehicle_model TEXT, "
+            "vehicle_year TEXT, vehicle_engine TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP, "
+            "updated_at TEXT DEFAULT CURRENT_TIMESTAMP, "
+            "FOREIGN KEY(customer_id) REFERENCES customers(id) ON DELETE CASCADE)"
+        )
+    values = {field: str(payload.get(field) or "").strip() for field in fields}
+    names = ("customer_id", *fields, "updated_at")
+    now = datetime.now().isoformat(timespec="seconds")
+    placeholders = ",".join("?" for _ in names)
+    updates = ",".join(f'"{field}"=excluded."{field}"' for field in fields)
+    conn.execute(
+        f'INSERT INTO "{table}" ({",".join(names)}) VALUES ({placeholders}) '
+        f'ON CONFLICT(customer_id) DO UPDATE SET {updates},updated_at=excluded.updated_at',
+        (customer_id, *(values[field] for field in fields), now),
+    )
 
 
 def save_web_customer_balances(
@@ -5296,6 +8166,13 @@ def link_web_automotive_service(
             "vehicle_plate": plate,
             "vehicle_vin": request_values.get("vehicle_vin"),
             "entry_odometer": odometer,
+            "checklist_json": json.dumps(
+                request_values.get("checklist") or [], ensure_ascii=False
+            ),
+            "damage_marks_json": json.dumps(
+                request_values.get("damage_marks") or {"items": [], "general_note": ""},
+                ensure_ascii=False,
+            ),
             "created_at": created_at,
             "updated_at": created_at,
         },
@@ -5364,6 +8241,2694 @@ def vehicle_maintenance_detail(card_id: int) -> dict:
             ).fetchone()
             service = dict(service_row) if service_row else None
         return {"ok": True, "card": card, "items": items, "appointment": appointment, "service": service}
+
+
+def vehicle_maintenance_history(card_id: int) -> dict:
+    from src.database import Database
+
+    database = Database(str(active_db_path()), init_mode="connection_only")
+    try:
+        card, _items = database.get_vehicle_maintenance_card(int(card_id))
+        if not card:
+            raise LookupError("Bakim karti bulunamadi")
+        card_data = dict(card)
+        plate = str(card_data.get("vehicle_plate") or "").strip().upper()
+        maintenance, services = database.get_vehicle_history_snapshot(plate)
+        maintenance_rows = [dict(row) for row in maintenance]
+        service_rows = [dict(row) for row in services]
+        token = str(
+            (maintenance_rows[0].get("qr_token") if maintenance_rows else "")
+            or card_data.get("qr_token")
+            or ""
+        )
+        return {
+            "card_id": int(card_id),
+            "plate": plate,
+            "token": token,
+            "maintenance_rows": maintenance_rows,
+            "service_rows": service_rows,
+        }
+    finally:
+        database.close()
+
+
+def vehicle_maintenance_history_qr(card_id: int) -> bytes:
+    import qrcode
+
+    history = vehicle_maintenance_history(card_id)
+    payload = "ayec://vehicle-history/" + (history["token"] or history["plate"] or "AYEC")
+    image = qrcode.make(payload, box_size=6, border=2)
+    output = io.BytesIO()
+    image.save(output, format="PNG")
+    return output.getvalue()
+
+
+VEHICLE_MAINTENANCE_PHOTO_LABELS = (
+    "Yag Filtresi", "Hava Filtresi", "Eski Parca", "Yeni Parca", "Genel Gorunum"
+)
+VEHICLE_MAINTENANCE_PHOTO_LIMIT = 8 * 1024 * 1024
+
+
+def vehicle_maintenance_photo_directory() -> Path:
+    return active_db_path().parent / "maintenance_photos"
+
+
+EXTERNAL_TRACKING_PHOTO_LIMIT = 8 * 1024 * 1024
+
+
+def external_tracking_photo_directory() -> Path:
+    return active_db_path().parent / "external_tracking_photos"
+
+
+def ensure_external_tracking_photo_table(conn) -> None:
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS photos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tracking_no TEXT,
+            photo_path TEXT,
+            photo_label TEXT,
+            stage TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )"""
+    )
+
+
+def external_tracking_photos(tracking_no: str) -> list[dict]:
+    key = str(tracking_no or "").strip()[:160]
+    if not key:
+        raise ValueError("A tracking number is required")
+    root = external_tracking_photo_directory().resolve()
+    with closing(db_connect()) as conn:
+        ensure_external_tracking_photo_table(conn)
+        records = conn.execute(
+            "SELECT id,photo_path,photo_label,stage,created_at FROM photos "
+            "WHERE tracking_no=? AND stage=? ORDER BY id",
+            (key, "\u0130\u015flem"),
+        ).fetchall()
+        if not records:
+            records = conn.execute(
+                "SELECT id,photo_path,photo_label,stage,created_at FROM photos "
+                "WHERE tracking_no=? ORDER BY id",
+                (key,),
+            ).fetchall()
+    result = []
+    for record in records:
+        try:
+            path = Path(str(record[1] or "")).resolve()
+            path.relative_to(root)
+            available = path.is_file()
+        except (OSError, ValueError):
+            available = False
+        result.append({
+            "id": int(record[0]),
+            "photo_label": str(record[2] or ""),
+            "stage": str(record[3] or ""),
+            "created_at": str(record[4] or ""),
+            "available": available,
+            "url": f"/api/desktop/external-tracking/photo/{int(record[0])}" if available else "",
+        })
+    return result
+
+
+def external_tracking_add_photo(tracking_no: str, encoded: str, label: str = "", stage: str = "\u0130\u015flem") -> dict:
+    key = str(tracking_no or "").strip()[:160]
+    if not key:
+        raise ValueError("A tracking number is required")
+    try:
+        payload = base64.b64decode(str(encoded or ""), validate=True)
+    except (ValueError, binascii.Error) as error:
+        raise ValueError("Photo data is invalid") from error
+    if not payload or len(payload) > EXTERNAL_TRACKING_PHOTO_LIMIT:
+        raise ValueError("Photo is empty or exceeds the 8 MB limit")
+    signatures = ((b"\xff\xd8\xff", ".jpg"), (b"\x89PNG\r\n\x1a\n", ".png"), (b"BM", ".bmp"))
+    extension = next((ext for signature, ext in signatures if payload.startswith(signature)), None)
+    if not extension:
+        raise ValueError("Only JPEG, PNG, and BMP images are accepted")
+    folder = external_tracking_photo_directory()
+    folder.mkdir(parents=True, exist_ok=True)
+    target = folder / ("external_" + secrets.token_hex(16) + extension)
+    target.write_bytes(payload)
+    try:
+        with closing(db_connect()) as conn:
+            ensure_external_tracking_photo_table(conn)
+            cursor = conn.execute(
+                "INSERT INTO photos (tracking_no,photo_path,photo_label,stage) VALUES (?,?,?,?)",
+                (key, str(target), str(label or "")[:120], str(stage or "\u0130\u015flem")[:80]),
+            )
+            conn.commit()
+            return {"id": int(cursor.lastrowid), "photo_label": str(label or "")[:120], "available": True}
+    except Exception:
+        target.unlink(missing_ok=True)
+        raise
+
+
+def external_tracking_photo(photo_id: int) -> tuple[bytes, str]:
+    root = external_tracking_photo_directory().resolve()
+    with closing(db_connect()) as conn:
+        row = conn.execute("SELECT photo_path FROM photos WHERE id=?", (int(photo_id),)).fetchone()
+    if not row:
+        raise LookupError("Photo was not found")
+    path = Path(str(row[0] or "")).resolve()
+    try:
+        path.relative_to(root)
+    except ValueError as error:
+        raise LookupError("Photo access denied") from error
+    if not path.is_file():
+        raise LookupError("Photo file was not found")
+    mime = mimetypes.guess_type(path.name)[0]
+    if mime not in ("image/jpeg", "image/png", "image/bmp"):
+        raise LookupError("Photo type is unsupported")
+    return path.read_bytes(), mime
+
+
+def desktop_stock_photo(part_id: int) -> tuple[bytes, str]:
+    with closing(db_connect()) as conn:
+        deleted_filter = " AND COALESCE(is_deleted,0)=0" if "is_deleted" in table_columns(conn, "parts") else ""
+        row = conn.execute(
+            "SELECT photo_path FROM parts WHERE id=?" + deleted_filter,
+            (int(part_id),),
+        ).fetchone()
+    if not row:
+        raise LookupError("Stock photo was not found")
+    try:
+        path = Path(str(row[0] or "")).expanduser().resolve()
+        if not path.is_file():
+            raise LookupError("Stock photo file was not found")
+        size = path.stat().st_size
+    except OSError as error:
+        raise LookupError("Stock photo file is unavailable") from error
+    mime = mimetypes.guess_type(path.name)[0]
+    if mime not in ("image/jpeg", "image/png", "image/bmp", "image/webp"):
+        raise LookupError("Stock photo type is unsupported")
+    if size <= 0 or size > 12 * 1024 * 1024:
+        raise LookupError("Stock photo size is unsupported")
+    return path.read_bytes(), mime
+
+
+def desktop_stock_movement_page(page: int = 1, query: str = "", movement_type: str = "") -> dict:
+    page = max(1, min(int(page or 1), 1000000))
+    page_size = 100
+    search = str(query or "").strip()[:200]
+    movement_type = str(movement_type or "").strip()
+    if movement_type not in ("Giri\u015f", "\u00c7\u0131k\u0131\u015f"):
+        movement_type = ""
+    with closing(db_connect()) as conn:
+        if not scalar(conn, "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='stock_movements'"):
+            raise LookupError("Stock movement table is unavailable")
+        movement_columns = set(table_columns(conn, "stock_movements"))
+        part_columns = set(table_columns(conn, "parts")) if scalar(
+            conn, "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='parts'"
+        ) else set()
+        def movement_column(name: str, fallback: str) -> str:
+            return 'sm."' + name + '"' if name in movement_columns else fallback
+        name_columns = [name for name in ("name", "part_name") if name in part_columns]
+        part_name = "COALESCE(" + ",".join('p."' + name + '"' for name in name_columns)
+        if name_columns:
+            part_name += ","
+        part_name += "'Bilinmeyen Par\u00e7a')" if name_columns else "'Bilinmeyen Par\u00e7a'"
+        currency = 'UPPER(COALESCE(p."currency",\'TRY\'))' if "currency" in part_columns else "'TRY'"
+        unit_cost = 'COALESCE(p."purchase_price",0)' if "purchase_price" in part_columns else "0"
+        join_parts = " LEFT JOIN parts p ON p.id=sm.part_id" if part_columns else ""
+        active_filter = "COALESCE(sm.is_deleted,0)=0" if "is_deleted" in movement_columns else "1=1"
+        clauses = [active_filter]
+        params = []
+        if movement_type:
+            clauses.append(movement_column("movement_type", "''") + " LIKE ?")
+            params.append(movement_type + "%")
+        if search:
+            clauses.append(
+                "lower(" + part_name + " || ' ' || "
+                + movement_column("description", "''") + " || ' ' || "
+                + movement_column("movement_type", "''") + ") LIKE ?"
+            )
+            params.append("%" + search.lower() + "%")
+        where = " AND ".join(clauses)
+        total = int(scalar(conn, "SELECT COUNT(*) FROM stock_movements sm" + join_parts + " WHERE " + where, params) or 0)
+        page_count = max(1, (total + page_size - 1) // page_size)
+        page = min(page, page_count)
+        offset = (page - 1) * page_size
+        cursor = conn.execute(
+            "SELECT "
+            + movement_column("id", "0") + " AS id, "
+            + part_name + " AS part_name, "
+            + movement_column("movement_type", "''") + " AS movement_type, "
+            + movement_column("amount", "0") + " AS amount, "
+            + currency + " AS currency, " + unit_cost + " AS unit_cost, "
+            + movement_column("description", "''") + " AS description, "
+            + movement_column("created_at", "''") + " AS created_at "
+            + "FROM stock_movements sm" + join_parts + " WHERE " + where
+            + " ORDER BY " + movement_column("created_at", "''") + " DESC LIMIT ? OFFSET ?",
+            (*params, page_size, offset),
+        )
+        columns = [item[0] for item in cursor.description or ()]
+        records = [dict(zip(columns, row)) for row in cursor.fetchall()]
+        date_format = setting_value(conn, "date_format", "GG.AA.YYYY (31.12.2025)")
+    return {"rows": records, "total": total, "page": page, "page_size": page_size, "pages": page_count, "date_format": date_format}
+
+
+def desktop_stock_movement_workbook(page: int = 1, query: str = "", movement_type: str = "") -> bytes:
+    from io import BytesIO
+    from openpyxl import Workbook
+    from openpyxl.styles import Font
+
+    result = desktop_stock_movement_page(1, query, movement_type)
+    rows = list(result["rows"])
+    for page_number in range(2, int(result.get("pages") or 1) + 1):
+        rows.extend(desktop_stock_movement_page(page_number, query, movement_type)["rows"])
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Sheet"
+    headers = ["ID", "Par\u00e7a", "\u0130\u015flem", "Miktar", "PB", "Birim Maliyet", "A\u00e7\u0131klama", "Tarih"]
+    sheet.append(headers)
+    for cell in sheet[1]:
+        cell.font = Font(bold=True)
+    def safe_text(value) -> str:
+        text = str(value or "")
+        if text.lstrip(" \t")[:1] in ("=", "+", "-", "@"):
+            return "'" + text
+        return text
+    for item in rows:
+        amount = item.get("amount")
+        cost = item.get("unit_cost")
+        currency = str(item.get("currency") or "TRY").upper()
+        symbol = {"USD": "$", "EUR": "\u20ac"}.get(currency, "\u20ba")
+        try:
+            cost_text = f"{float(cost or 0):,.2f} {symbol}"
+        except (TypeError, ValueError):
+            cost_text = "0.00 " + symbol
+        raw_date = str(item.get("created_at") or "")
+        try:
+            from datetime import datetime
+            parsed_date = datetime.strptime(raw_date, "%Y-%m-%d %H:%M:%S")
+            date_format = str(result.get("date_format") or "")
+            if "YYYY-AA-GG" in date_format:
+                date_text = parsed_date.strftime("%Y-%m-%d")
+            elif "AA/GG/YYYY" in date_format:
+                date_text = parsed_date.strftime("%m/%d/%Y")
+            elif "Uzun Tarih" in date_format or "Mart" in date_format:
+                months = ["Ocak", "\u015eubat", "Mart", "Nisan", "May\u0131s", "Haziran", "Temmuz", "A\u011fustos", "Eyl\u00fcl", "Ekim", "Kas\u0131m", "Aral\u0131k"]
+                date_text = f"{parsed_date.day} {months[parsed_date.month - 1]} {parsed_date.year}"
+            else:
+                date_text = parsed_date.strftime("%d.%m.%Y")
+            date_text += " " + parsed_date.strftime("%H:%M")
+        except (TypeError, ValueError):
+            date_text = raw_date
+        sheet.append([
+            str(item.get("id") or ""),
+            safe_text(item.get("part_name")),
+            safe_text(item.get("movement_type")),
+            safe_text(amount if amount is not None else 0),
+            safe_text(item.get("currency") or "TRY"),
+            safe_text(cost_text),
+            safe_text(item.get("description")),
+            safe_text(date_text),
+        ])
+    sheet.freeze_panes = "A2"
+    buffer = BytesIO()
+    workbook.save(buffer)
+    return buffer.getvalue()
+
+
+def desktop_stock_workbook() -> bytes:
+    from openpyxl import Workbook
+
+    with closing(db_connect()) as conn:
+        if not scalar(conn, "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='parts'"):
+            raise LookupError("Stock table is unavailable")
+        part_columns = set(table_columns(conn, "parts"))
+        if not part_columns:
+            raise LookupError("Stock columns are unavailable")
+        selected_columns = [
+            name for name in (
+                "id", "code", "name", "brand", "category", "oem_code",
+                "equivalent_code", "compatible_models", "shelf_number", "stock",
+                "purchase_price", "price", "currency", "min_stock", "description",
+            ) if name in part_columns
+        ]
+        selected = ",".join('"' + name.replace('"', '""') + '"' for name in selected_columns)
+        active_filter = " WHERE COALESCE(is_deleted,0)=0" if "is_deleted" in part_columns else ""
+        records = conn.execute(f'SELECT {selected} FROM parts{active_filter} ORDER BY id DESC').fetchall()
+        rate_by_currency = {}
+        if "currency" in selected_columns:
+            currencies = {str(dict(zip(selected_columns, row)).get("currency") or "TRY").upper() for row in records}
+            rate_by_currency = {currency: resolve_exchange_rate(conn, currency) for currency in currencies}
+        tenant_id = active_tenant_id()
+        if tenant_id:
+            with closing(registry_connect()) as registry:
+                tenant = registry.execute(
+                    "SELECT sector FROM tenants WHERE id=?", (tenant_id,)
+                ).fetchone()
+        else:
+            tenant = None
+        automotive = bool(tenant and str(tenant[0] or "") == "otomotiv")
+        labels = {
+            "id": "ID", "code": "Stok Kodu" if automotive else "Barkod",
+            "name": "Par\u00e7a Ad\u0131" if automotive else "\u00dcr\u00fcn Ad\u0131",
+            "brand": "Marka", "category": "Kategori",
+            "oem_code": "OEM Kodu", "equivalent_code": "Muadil Kodu",
+            "compatible_models": "Uyumlu Ara\u00e7 / Motor",
+            "shelf_number": "Raf / Konum" if automotive else "Raf",
+            "stock": "Stok", "purchase_price": "Al\u0131\u015f Fiyat\u0131",
+            "price": "Sat\u0131\u015f Fiyat\u0131",
+            "currency": "Para Birimi" if automotive else "Birim",
+            "export_exchange_rate": "D\u00f6viz Kuru",
+            "purchase_price_try": "Al\u0131\u015f Fiyat\u0131 (TRY)",
+            "sale_price_try": "Sat\u0131\u015f Fiyat\u0131 (TRY)",
+            "stock_value_original": "Stok De\u011feri (Orijinal)",
+            "stock_value_try": "Stok De\u011feri (TRY)",
+            "min_stock": "Kritik Limit" if automotive else "Minimum Stok",
+            "description": "A\u00e7\u0131klama",
+        }
+        if automotive:
+            export_keys = [
+                "id", "code", "name", "brand", "category", "oem_code",
+                "equivalent_code", "compatible_models", "shelf_number", "stock",
+                "purchase_price", "price", "currency", "export_exchange_rate",
+                "purchase_price_try", "sale_price_try", "stock_value_original",
+                "stock_value_try", "min_stock", "description",
+            ]
+        else:
+            export_keys = [
+                "id", "code", "name", "brand", "category", "stock", "purchase_price",
+                "price", "currency", "export_exchange_rate", "purchase_price_try",
+                "sale_price_try", "stock_value_original", "stock_value_try",
+                "shelf_number", "description",
+            ]
+        export_keys = [key for key in export_keys if key in part_columns or key in {
+            "export_exchange_rate", "purchase_price_try", "sale_price_try",
+            "stock_value_original", "stock_value_try",
+        }]
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Stok"
+    sheet.append([labels.get(column, column) for column in export_keys])
+    for record in records:
+        part = dict(zip(selected_columns, record))
+        currency = str(part.get("currency") or "TRY").upper()
+        rate = rate_by_currency.get(currency, 1.0)
+        purchase_price = float(part.get("purchase_price") or 0)
+        sale_price = float(part.get("price") or 0)
+        stock = float(part.get("stock") or 0)
+        part.update({
+            "export_exchange_rate": rate,
+            "purchase_price_try": round(purchase_price * rate, 2),
+            "sale_price_try": round(sale_price * rate, 2),
+            "stock_value_original": round(purchase_price * stock, 2),
+            "stock_value_try": round(purchase_price * stock * rate, 2),
+        })
+        values = [part.get(key, "") for key in export_keys]
+        sheet.append(values)
+        for cell in sheet[sheet.max_row]:
+            if isinstance(cell.value, str) and cell.value.startswith(("=", "+", "-", "@")):
+                cell.data_type = "s"
+    output = io.BytesIO()
+    workbook.save(output)
+    return output.getvalue()
+
+
+def desktop_stock_pdf(workbook_payload: bytes | None = None, title_text: str = "AYEC Pro - Stok Listesi", allow_empty_records: bool = False) -> bytes:
+    from openpyxl import load_workbook
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    from xml.sax.saxutils import escape
+
+    source = workbook_payload if workbook_payload is not None else desktop_stock_workbook()
+    workbook = load_workbook(io.BytesIO(source), read_only=True, data_only=True)
+    try:
+        sheet = workbook.active
+        values = sheet.iter_rows(values_only=True)
+        headers = next(values, None)
+        records = list(values)
+    finally:
+        workbook.close()
+    if not headers or (not records and not allow_empty_records):
+        raise LookupError("No stock data is available for PDF export")
+
+    font_path = os.path.join(os.path.dirname(__file__), "web", "assets", "fonts", "PlusJakartaSans-400.ttf")
+    font_name = "AyecStockPdf"
+    if font_name not in pdfmetrics.getRegisteredFontNames():
+        pdfmetrics.registerFont(TTFont(font_name, font_path))
+    styles = getSampleStyleSheet()
+    cell_style = ParagraphStyle("AyecStockPdfCell", parent=styles["Normal"], fontName=font_name, fontSize=5.5, leading=7)
+    header_style = ParagraphStyle("AyecStockPdfHeader", parent=cell_style, fontSize=6, leading=7, textColor=colors.HexColor("#0F172A"))
+    table_data = [[Paragraph(escape(str(value or "")), header_style) for value in headers]]
+    table_data.extend([
+        [Paragraph(escape(str(value if value is not None else "")), cell_style) for value in record]
+        for record in records
+    ])
+    output = io.BytesIO()
+    document = SimpleDocTemplate(
+        output,
+        pagesize=landscape(A4),
+        leftMargin=18,
+        rightMargin=18,
+        topMargin=24,
+        bottomMargin=24,
+        title=title_text,
+    )
+    title = ParagraphStyle("AyecStockPdfTitle", parent=styles["Heading1"], fontName=font_name, fontSize=16, leading=20, textColor=colors.HexColor("#0F172A"))
+    meta = ParagraphStyle("AyecStockPdfMeta", parent=cell_style, fontSize=8, textColor=colors.HexColor("#475569"), spaceAfter=10)
+    available_width = landscape(A4)[0] - document.leftMargin - document.rightMargin
+    column_width = available_width / len(headers)
+    table = Table(table_data, repeatRows=1, colWidths=[column_width] * len(headers))
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#E2E8F0")),
+        ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#CBD5E1")),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F8FAFC")]),
+        ("LEFTPADDING", (0, 0), (-1, -1), 3),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 3),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+    ]))
+    document.build([
+        Paragraph(escape(title_text), title),
+        Paragraph("Tarih: " + datetime.now().strftime("%d.%m.%Y %H:%M"), meta),
+        table,
+    ])
+    return output.getvalue()
+
+
+def desktop_stock_movement_pdf(page: int = 1, query: str = "", movement_type: str = "") -> bytes:
+    workbook_payload = desktop_stock_movement_workbook(page, query, movement_type)
+    return desktop_stock_pdf(workbook_payload, "AYEC Pro - Stok Hareketleri")
+
+
+def desktop_stock_action_password_valid(password: str, user_id: int) -> bool:
+    password = str(password or "").strip()
+    if not password:
+        return False
+    with closing(db_connect()) as conn:
+        user = conn.execute(
+            "SELECT password FROM users WHERE id=? AND COALESCE(active,1)=1",
+            (int(user_id),),
+        ).fetchone()
+        if user and password_matches(password, str(user[0] or "")):
+            return True
+    try:
+        from src.utils.auth_manager import AuthManager
+
+        if AuthManager.verify_master_key(password):
+            return True
+    except Exception:
+        logger.exception("Stock action master key verification failed")
+    with closing(db_connect()) as conn:
+        stored_admin_password = setting_value(conn, "admin_pass")
+        if not stored_admin_password:
+            return False
+        try:
+            from src.utils.password_security import verify_password
+
+            valid, upgraded = verify_password(password, stored_admin_password)
+        except Exception:
+            logger.exception("Stock action administrator password verification failed")
+            return False
+        if valid and upgraded:
+            upsert_setting(conn, "settings", "admin_pass", upgraded)
+            conn.commit()
+        return bool(valid)
+
+
+def desktop_field_service_personnel_identity(conn, user: dict) -> int:
+    if not user:
+        return 0
+    columns = set(table_columns(conn, "personnel"))
+    if not {"id", "role"}.issubset(columns):
+        return 0
+    personnel_id = int(user.get("personnel_id") or 0)
+    username = str(user.get("username") or "").strip()
+    if personnel_id:
+        selected = ["id", "role"] + (["username"] if "username" in columns else [])
+        active_filters = ["id=?"]
+        if "is_deleted" in columns:
+            active_filters.append("COALESCE(is_deleted,0)=0")
+        if "is_active" in columns:
+            active_filters.append("COALESCE(is_active,1)=1")
+        row = conn.execute(
+            "SELECT " + ",".join('"' + key + '"' for key in selected)
+            + " FROM personnel WHERE " + " AND ".join(active_filters),
+            (personnel_id,),
+        ).fetchone()
+        if row:
+            item = dict(zip(selected, row))
+            row_username = str(item.get("username") or "").strip()
+            if "username" not in item or not row_username or row_username.casefold() == username.casefold():
+                normalized = unicodedata.normalize("NFKD", str(item.get("role") or ""))
+                normalized = normalized.encode("ascii", "ignore").decode("ascii").casefold()
+                if any(token in normalized for token in ("saha", "teknisyen", "destek", "personel")):
+                    return personnel_id
+    if username and "username" in columns:
+        row = conn.execute(
+            "SELECT id,role FROM personnel WHERE username=? "
+            + ("AND COALESCE(is_deleted,0)=0 " if "is_deleted" in columns else "")
+            + ("AND COALESCE(is_active,1)=1 " if "is_active" in columns else "")
+            + "ORDER BY id LIMIT 1",
+            (username,),
+        ).fetchone()
+        if row:
+            normalized = unicodedata.normalize("NFKD", str(row["role"] or ""))
+            normalized = normalized.encode("ascii", "ignore").decode("ascii").casefold()
+            if any(token in normalized for token in ("saha", "teknisyen", "destek", "personel")):
+                return int(row["id"])
+    return 0
+
+
+def desktop_field_service_update_own_location(user: dict, latitude, longitude) -> dict:
+    if not user:
+        raise PermissionError("Authentication is required")
+    try:
+        lat, lng = float(latitude), float(longitude)
+    except (TypeError, ValueError):
+        raise ValueError("Coordinates are invalid") from None
+    if not (-90 <= lat <= 90 and -180 <= lng <= 180):
+        raise ValueError("Coordinates are out of range")
+    with closing(db_connect()) as conn:
+        personnel_id = desktop_field_service_personnel_identity(conn, user)
+        if not personnel_id:
+            raise LookupError("This account is not linked to an active field personnel record")
+        columns = set(table_columns(conn, "personnel"))
+        for column, ddl in (("lat", "REAL"), ("lng", "REAL"), ("last_seen", "TEXT")):
+            if column not in columns:
+                conn.execute(f'ALTER TABLE "personnel" ADD COLUMN "{column}" {ddl}')
+                columns.add(column)
+        filters = ["id=?"]
+        if "is_deleted" in columns:
+            filters.append("COALESCE(is_deleted,0)=0")
+        if "is_active" in columns:
+            filters.append("COALESCE(is_active,1)=1")
+        last_seen = utc_now().isoformat(timespec="seconds")
+        cursor = conn.execute(
+            "UPDATE personnel SET lat=?,lng=?,last_seen=? WHERE " + " AND ".join(filters),
+            (lat, lng, last_seen, personnel_id),
+        )
+        if cursor.rowcount != 1:
+            raise LookupError("Active field personnel record was not found")
+        conn.commit()
+    return {"ok": True, "personnel_id": personnel_id, "lat": lat, "lng": lng, "last_seen": last_seen}
+
+
+def desktop_field_service_assign_location(personnel_id, latitude, longitude) -> dict:
+    try:
+        target_id = int(personnel_id)
+        lat, lng = float(latitude), float(longitude)
+    except (TypeError, ValueError):
+        raise ValueError("Personnel ID or coordinates are invalid") from None
+    if target_id <= 0 or not math.isfinite(lat) or not math.isfinite(lng):
+        raise ValueError("Personnel ID or coordinates are invalid")
+    if not (-90 <= lat <= 90 and -180 <= lng <= 180):
+        raise ValueError("Coordinates are out of range")
+    with closing(db_connect()) as conn:
+        columns = set(table_columns(conn, "personnel"))
+        if not {"id", "name", "role"}.issubset(columns):
+            raise LookupError("Field personnel records are unavailable")
+        filters = ["id=?"]
+        if "is_deleted" in columns:
+            filters.append("COALESCE(is_deleted,0)=0")
+        if "is_active" in columns:
+            filters.append("COALESCE(is_active,1)=1")
+        row = conn.execute(
+            "SELECT id,name,role FROM personnel WHERE " + " AND ".join(filters),
+            (target_id,),
+        ).fetchone()
+        if not row:
+            raise LookupError("Active field personnel record was not found")
+        normalized_role = unicodedata.normalize("NFKD", str(row["role"] or ""))
+        normalized_role = normalized_role.encode("ascii", "ignore").decode("ascii").casefold()
+        if not any(token in normalized_role for token in ("saha", "teknisyen", "destek", "personel")):
+            raise LookupError("Selected record is not field personnel")
+        for column, ddl in (("lat", "REAL"), ("lng", "REAL"), ("status", "TEXT"), ("last_seen", "TEXT")):
+            if column not in columns:
+                conn.execute(f'ALTER TABLE "personnel" ADD COLUMN "{column}" {ddl}')
+        last_seen = utc_now().isoformat(timespec="seconds")
+        cursor = conn.execute(
+            "UPDATE personnel SET lat=?,lng=?,status=?,last_seen=? WHERE " + " AND ".join(filters),
+            (lat, lng, "G\u00f6revde", last_seen, target_id),
+        )
+        if cursor.rowcount != 1:
+            raise LookupError("Active field personnel record was not found")
+        conn.commit()
+    return {"ok": True, "personnel_id": target_id, "lat": lat, "lng": lng, "last_seen": last_seen}
+
+
+def desktop_field_service_personnel(user: dict | None = None) -> dict:
+    with closing(db_connect()) as conn:
+        columns = set(table_columns(conn, "personnel"))
+        if not {"id", "name", "role"}.issubset(columns):
+            return {"personnel": [], "center": {"lat": 40.10441, "lng": 27.65640}, "can_share_location": False}
+        selected = [
+            column for column in ("id", "name", "role", "lat", "lng", "status", "last_seen", "is_active", "is_deleted")
+            if column in columns
+        ]
+        filters = []
+        if "is_deleted" in columns:
+            filters.append("COALESCE(is_deleted,0)=0")
+        if "is_active" in columns:
+            filters.append("COALESCE(is_active,1)=1")
+        where = " WHERE " + " AND ".join(filters) if filters else ""
+        quoted = ",".join('"' + name.replace('"', '""') + '"' for name in selected)
+        rows = conn.execute(f'SELECT {quoted} FROM personnel{where} ORDER BY id').fetchall()
+        personnel = []
+        for row in rows:
+            item = dict(zip(selected, row))
+            normalized_role = unicodedata.normalize("NFKD", str(item.get("role") or ""))
+            normalized_role = normalized_role.encode("ascii", "ignore").decode("ascii").casefold()
+            if not any(token in normalized_role for token in ("saha", "teknisyen", "destek", "personel")):
+                continue
+            item["job"] = item.get("role") or "Personel"
+            item["status"] = item.get("status") or "Durum bildirilmemis"
+            personnel.append(item)
+        try:
+            center = {
+                "lat": float(setting_value(conn, "map_default_lat", "40.10441")),
+                "lng": float(setting_value(conn, "map_default_lng", "27.65640")),
+            }
+        except (TypeError, ValueError):
+            center = {"lat": 40.10441, "lng": 27.65640}
+        can_share_location = desktop_field_service_personnel_identity(conn, user or {}) in {
+            int(person.get("id") or 0) for person in personnel
+        }
+    return {"personnel": personnel, "center": center, "can_share_location": can_share_location}
+
+
+_FIELD_GEOCODE_LOCK = threading.Lock()
+_FIELD_GEOCODE_NEXT_AT = 0.0
+
+
+def desktop_field_service_geocode(query: str) -> dict:
+    global _FIELD_GEOCODE_NEXT_AT
+    query = str(query or "").strip()
+    if not query or len(query) > 250:
+        raise ValueError("Search query must be between 1 and 250 characters")
+    with _FIELD_GEOCODE_LOCK:
+        delay = max(0.0, _FIELD_GEOCODE_NEXT_AT - time.monotonic())
+        if delay:
+            time.sleep(delay)
+        _FIELD_GEOCODE_NEXT_AT = time.monotonic() + 1.05
+    headers = {"User-Agent": "AYEC-Pro/2.0"}
+    params = urlencode({"q": query, "format": "json", "addressdetails": 1, "limit": 5})
+    try:
+        request = Request("https://nominatim.openstreetmap.org/search?" + params, headers=headers)
+        with urlopen(request, timeout=6) as response:
+            results = json.loads(response.read().decode("utf-8"))
+    except Exception:
+        logger.debug("Nominatim field map search failed", exc_info=True)
+        results = []
+    if not results:
+        try:
+            request = Request(
+                "https://photon.komoot.io/api/?" + urlencode({"q": query, "limit": 5}),
+                headers=headers,
+            )
+            with urlopen(request, timeout=6) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+            for feature in payload.get("features", []):
+                props = feature.get("properties") or {}
+                coords = (feature.get("geometry") or {}).get("coordinates") or []
+                if len(coords) < 2:
+                    continue
+                name_parts = [props.get(key) for key in ("name", "city", "state", "country") if props.get(key)]
+                results.append({
+                    "display_name": ", ".join(str(part) for part in name_parts) or query,
+                    "lat": coords[1],
+                    "lon": coords[0],
+                })
+        except Exception:
+            logger.debug("Photon field map search failed", exc_info=True)
+    normalized = []
+    for item in results[:5]:
+        try:
+            lat, lon = float(item.get("lat")), float(item.get("lon"))
+        except (TypeError, ValueError, AttributeError):
+            continue
+        if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+            continue
+        normalized.append({
+            "display_name": str(item.get("display_name") or query)[:500],
+            "lat": lat,
+            "lon": lon,
+        })
+    return {"results": normalized}
+
+
+def desktop_customer_reverse_geocode(latitude: object, longitude: object) -> dict:
+    try:
+        lat, lon = float(latitude), float(longitude)
+    except (TypeError, ValueError):
+        raise ValueError("Location coordinates are invalid") from None
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180) or (lat == 0 and lon == 0):
+        raise ValueError("Location coordinates are out of range")
+    global _FIELD_GEOCODE_NEXT_AT
+    with _FIELD_GEOCODE_LOCK:
+        delay = max(0.0, _FIELD_GEOCODE_NEXT_AT - time.monotonic())
+        if delay:
+            time.sleep(delay)
+        _FIELD_GEOCODE_NEXT_AT = time.monotonic() + 1.05
+    params = urlencode({"lat": lat, "lon": lon, "format": "jsonv2", "addressdetails": 1})
+    request = Request(
+        "https://nominatim.openstreetmap.org/reverse?" + params,
+        headers={"User-Agent": "AYEC-Pro/2.0"},
+    )
+    with urlopen(request, timeout=6) as response:
+        result = json.loads(response.read().decode("utf-8"))
+    address = result.get("address") or {}
+    road = str(address.get("road") or address.get("pedestrian") or "").strip()
+    house_number = str(address.get("house_number") or "").strip()
+    city = address.get("state") or address.get("city") or address.get("town") or address.get("village") or address.get("county") or ""
+    district = address.get("county") or address.get("municipality") or address.get("city_district") or ""
+    neighborhood = address.get("neighbourhood") or address.get("suburb") or address.get("quarter") or ""
+    return {
+        "display_name": str(result.get("display_name") or "")[:500],
+        "city": str(city)[:120],
+        "district": str(district)[:120],
+        "neighborhood": str(neighborhood)[:120],
+        "street": " ".join(value for value in (road, house_number) if value)[:200],
+        "zip_code": str(address.get("postcode") or "")[:24],
+    }
+
+
+def desktop_field_service_road_route(points: list) -> dict:
+    if not isinstance(points, list) or not 2 <= len(points) <= 25:
+        raise ValueError("A road route requires between 2 and 25 stops")
+    normalized = []
+    for point in points:
+        if not isinstance(point, dict):
+            raise ValueError("Route coordinates are invalid")
+        try:
+            lat, lon = float(point.get("lat")), float(point.get("lng"))
+        except (TypeError, ValueError):
+            raise ValueError("Route coordinates are invalid") from None
+        if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+            raise ValueError("Route coordinates are out of range")
+        normalized.append((lat, lon))
+    try:
+        from src.utils.local_secret_store import load_secret
+
+        api_key = str(load_secret("tomtom_traffic_api_key") or "").strip()
+    except Exception:
+        api_key = ""
+    if not api_key:
+        return {"ok": False, "reason": "missing_key"}
+    locations = ":".join("{:.6f},{:.6f}".format(lat, lon) for lat, lon in normalized)
+    query = urlencode({
+        "apiVersion": "2",
+        "key": api_key,
+        "routeType": "fast",
+        "traffic": "live",
+        "travelMode": "car",
+    })
+    request = Request(
+        "https://api.tomtom.com/maps/orbis/routing/calculateRoute/{}/json?{}".format(locations, query),
+        headers={"TomTom-Api-Version": "2", "Accept": "application/json", "User-Agent": "AYEC-Pro/2.0"},
+    )
+    with urlopen(request, timeout=12) as response:
+        payload = json.loads(response.read().decode("utf-8"))
+    routes = payload.get("routes") or []
+    if not routes:
+        return {"ok": False, "reason": "no_route"}
+    route = routes[0]
+    geometry = []
+    for leg in route.get("legs", []):
+        for item in leg.get("points", []):
+            try:
+                lat, lon = float(item.get("latitude")), float(item.get("longitude"))
+            except (TypeError, ValueError, AttributeError):
+                continue
+            if -90 <= lat <= 90 and -180 <= lon <= 180 and (not geometry or geometry[-1] != [lat, lon]):
+                geometry.append([lat, lon])
+    if len(geometry) < 2:
+        return {"ok": False, "reason": "invalid_geometry"}
+    summary = route.get("summary") or {}
+    return {
+        "ok": True,
+        "geometry": geometry,
+        "distance_meters": int(summary.get("lengthInMeters") or 0),
+        "duration_seconds": int(summary.get("travelTimeInSeconds") or 0),
+    }
+
+
+def desktop_field_service_traffic_tile(zoom: int, x: int, y: int):
+    try:
+        zoom, x, y = int(zoom), int(x), int(y)
+    except (TypeError, ValueError):
+        raise ValueError("Traffic tile coordinates are invalid") from None
+    if not 0 <= zoom <= 19 or not 0 <= x < (1 << zoom) or not 0 <= y < (1 << zoom):
+        raise ValueError("Traffic tile coordinates are out of range")
+    try:
+        from src.utils.local_secret_store import load_secret
+
+        api_key = str(load_secret("tomtom_traffic_api_key") or "").strip()
+    except Exception:
+        api_key = ""
+    if not api_key:
+        return None
+    params = urlencode({"apiVersion": "1", "key": api_key, "style": "dark", "tileSize": "256"})
+    request = Request(
+        "https://api.tomtom.com/maps/orbis/traffic/tile/flow/{}/{}/{}.png?{}".format(zoom, x, y, params),
+        headers={"TomTom-Api-Version": "1", "Accept": "image/png, application/json", "User-Agent": "AYEC-Pro/2.0"},
+    )
+    with urlopen(request, timeout=12) as response:
+        payload = response.read(1024 * 1024 + 1)
+    if len(payload) > 1024 * 1024 or not payload.startswith(b"\x89PNG\r\n\x1a\n"):
+        raise ValueError("Traffic service returned an invalid map tile")
+    return payload
+
+
+def desktop_field_service_vector_resource(target_url: str):
+    target_url = str(target_url or "").strip()
+    if not target_url or len(target_url) > 4096:
+        raise ValueError("TomTom vector resource URL is invalid")
+    parsed = urlparse(target_url)
+    decoded_path = unquote(parsed.path)
+    if (
+        parsed.scheme != "https"
+        or parsed.hostname != "api.tomtom.com"
+        or parsed.netloc.lower() != "api.tomtom.com"
+        or parsed.username
+        or parsed.password
+        or parsed.fragment
+        or not decoded_path.startswith("/maps/orbis/")
+        or any(part in {".", ".."} for part in decoded_path.split("/"))
+    ):
+        raise ValueError("TomTom vector resource URL is not allowed")
+    try:
+        from src.utils.local_secret_store import load_secret
+
+        api_key = str(load_secret("tomtom_traffic_api_key") or "").strip()
+    except Exception:
+        api_key = ""
+    if not api_key:
+        return None
+    query = [(key, value) for key, value in parse_qs(parsed.query, keep_blank_values=True).items()]
+    flattened = [(key, value) for key, values in query for value in values if key.casefold() != "key"]
+    flattened.append(("key", api_key))
+    upstream_url = "https://api.tomtom.com{}?{}".format(parsed.path, urlencode(flattened))
+    request = Request(
+        upstream_url,
+        headers={
+            "TomTom-Api-Version": "1" if "/traffic/tile/" in parsed.path else "2",
+            "Accept": "application/json, application/x-protobuf, image/png, image/jpeg, */*",
+            "Accept-Encoding": "identity",
+            "User-Agent": "AYEC-Pro/2.0",
+        },
+    )
+    with urlopen(request, timeout=15) as response:
+        payload = response.read(5 * 1024 * 1024 + 1)
+        content_type = response.headers.get("Content-Type", "application/octet-stream").split(";", 1)[0].strip().lower()
+    if len(payload) > 5 * 1024 * 1024:
+        raise ValueError("TomTom vector resource exceeded the size limit")
+    allowed_types = {
+        "application/json",
+        "application/octet-stream",
+        "application/vnd.mapbox-vector-tile",
+        "application/x-protobuf",
+        "image/pbf",
+        "application/font-woff",
+        "application/x-font-ttf",
+        "image/png",
+        "image/jpeg",
+        "image/webp",
+    }
+    if content_type not in allowed_types:
+        raise ValueError("TomTom vector resource returned an unsupported content type")
+    return payload, content_type
+
+
+def desktop_finish_field_service_duty(personnel_id: int) -> dict:
+    if int(personnel_id) <= 0:
+        raise ValueError("Invalid personnel ID")
+    with closing(db_connect()) as conn:
+        columns = set(table_columns(conn, "personnel"))
+        if not {"id", "status"}.issubset(columns):
+            raise LookupError("Personnel status is unavailable")
+        filters = ["id=?"]
+        params = [int(personnel_id)]
+        if "is_deleted" in columns:
+            filters.append("COALESCE(is_deleted,0)=0")
+        cursor = conn.execute(
+            "UPDATE personnel SET status=? WHERE " + " AND ".join(filters),
+            ("Bo\u015fta", *params),
+        )
+        if cursor.rowcount != 1:
+            raise LookupError("Personnel record was not found")
+        conn.commit()
+        row = conn.execute(
+            "SELECT id,name,status FROM personnel WHERE id=?", (int(personnel_id),)
+        ).fetchone()
+    return {"ok": True, "personnel": dict(row)}
+
+
+def desktop_delete_stock_part(part_id: int, password: str, user_id: int) -> dict:
+    password = str(password or "").strip()
+    if not password:
+        raise ValueError("Action password is required")
+    if not desktop_stock_action_password_valid(password, user_id):
+        raise PermissionError("Password was not accepted")
+    with closing(db_connect()) as conn:
+        columns = set(table_columns(conn, "parts"))
+        if not columns:
+            raise LookupError("Stock table is unavailable")
+        selected = [name for name in ("id", "name", "stock", "purchase_price", "currency", "is_deleted") if name in columns]
+        quoted = ",".join('"' + name.replace('"', '""') + '"' for name in selected)
+        row = conn.execute(
+            f'SELECT {quoted} FROM parts WHERE id=?', (int(part_id),)
+        ).fetchone()
+        if not row:
+            raise LookupError("Stock item was not found")
+        item = dict(zip(selected, row))
+        if item.get("is_deleted"):
+            raise LookupError("Stock item was not found")
+
+    from src.database import Database
+
+    database = Database(str(active_db_path()), init_mode="connection_only")
+    try:
+        stock = float(item.get("stock") or 0)
+        purchase_price = float(item.get("purchase_price") or 0)
+        currency = str(item.get("currency") or "TRY").upper()
+        name = str(item.get("name") or "Stock")
+        if stock > 0:
+            try:
+                database.record_stock_movement(
+                    int(part_id), -stock, current_stock=stock,
+                    type_val="\u00c7\u0131k\u0131\u015f (Silindi)",
+                    desc="Kart Silindi: " + name, commit=False,
+                )
+            except Exception:
+                pass
+        if stock > 0 and purchase_price > 0:
+            total = stock * purchase_price
+            database.add_transaction(
+                t_type="Gelir",
+                category="Stok \u0130ptali / Silinme",
+                amount=total,
+                description="Stok Kart\u0131 Silinme \u0130adesi: {} x {}".format(stock, name),
+                payment_method="Nakit",
+                currency=currency,
+                original_amount=total,
+            )
+        if not database.delete_part(int(part_id)):
+            raise RuntimeError("Stock item could not be deleted")
+        return {"ok": True, "id": int(part_id)}
+    finally:
+        database.close()
+
+
+def desktop_adjust_stock(part_id: int, delta: float, reference: str = "") -> dict:
+    delta = float(delta)
+    if not math.isfinite(delta) or delta == 0:
+        raise ValueError("A non-zero stock quantity is required")
+    from src.database import Database
+
+    database = Database(str(active_db_path()), init_mode="connection_only")
+    try:
+        part_columns = set(table_columns(database.conn, "parts"))
+        selected = [
+            column for column in ("id", "name", "stock", "purchase_price", "currency", "unit")
+            if column in part_columns
+        ]
+        row = database.conn.execute(
+            "SELECT " + ",".join('"' + column + '"' for column in selected)
+            + " FROM parts WHERE id=? AND COALESCE(is_deleted,0)=0",
+            (int(part_id),),
+        ).fetchone()
+        if not row:
+            raise LookupError("Stock item was not found")
+        item = dict(row)
+        current = float(item.get("stock") or 0)
+        new_stock = current + delta
+        if new_stock < 0:
+            raise ValueError("Insufficient stock")
+        name = str(item.get("name") or "Stock")
+        unit = str(item.get("unit") or "Adet")
+        movement_description = "Manuel G\u00fcncelleme - " + name
+        reference = str(reference or "").strip()[:160]
+        if reference:
+            movement_description += " | Ref: " + reference
+        if not database.adjust_stock(
+            int(part_id), delta, movement_description, commit=False
+        ):
+            raise RuntimeError("Stock movement could not be recorded")
+        movement_type = "Giri\u015f" if delta > 0 else "\u00c7\u0131k\u0131\u015f"
+        movement_row = database.conn.execute(
+            "SELECT id FROM stock_movements WHERE part_id=? AND movement_type=? "
+            "AND amount=? AND new_stock=? AND description=? ORDER BY id DESC LIMIT 1",
+            (int(part_id), movement_type, abs(delta), new_stock, movement_description),
+        ).fetchone()
+        if not movement_row:
+            raise RuntimeError("Stock movement ID could not be resolved")
+        movement_id = int(movement_row[0])
+
+        purchase_price = max(0.0, float(item.get("purchase_price") or 0))
+        currency = str(item.get("currency") or "TRY").upper()
+        quantity = abs(delta)
+        expense = round(purchase_price * quantity, 4) if purchase_price > 0 else 0.0
+        finance_id = None
+        finance_description = ""
+        exchange_rate = 1.0
+        if expense:
+            if delta > 0:
+                finance_description = f"Stok Ekleme (K\u0131sayol): {quantity:g} x {name}"
+                selected_services = [{
+                    "kind": "stock_purchase", "name": name, "quantity": quantity,
+                    "unit_price": purchase_price, "currency": currency,
+                    "line_total": expense,
+                }]
+                exchange_rate = resolve_exchange_rate(database.conn, currency)
+                finance_id = database.add_transaction(
+                    t_type="Gider", category="Stok Al\u0131m\u0131", amount=expense,
+                    description=finance_description, payment_method="Nakit",
+                    currency=currency, original_amount=expense,
+                    exchange_rate=exchange_rate, product_service_id=int(part_id),
+                    product_service_type="stock_purchase",
+                    selected_services=selected_services, commit=False,
+                )
+            else:
+                finance_description = f"Stok D\u00fc\u015f\u00fcm\u00fc (Manuel): {quantity:g} x {name}"
+                exchange_rate = resolve_exchange_rate(database.conn, currency)
+                finance_id = database.add_transaction(
+                    t_type="Gider", category="Stok D\u00fc\u015f\u00fcm\u00fc / Fire", amount=expense,
+                    description=finance_description, currency=currency,
+                    original_amount=expense, exchange_rate=exchange_rate,
+                    product_service_id=int(part_id), product_service_type="stock_adjustment",
+                    commit=False,
+                )
+        database.conn.commit()
+        return {
+            "ok": True, "id": int(part_id), "stock": new_stock,
+            "delta": delta, "movement_id": movement_id,
+            "finance_id": finance_id, "expense": expense, "currency": currency,
+            "exchange_rate": exchange_rate, "finance_description": finance_description,
+            "unit": unit,
+        }
+    except Exception:
+        database.conn.rollback()
+        raise
+    finally:
+        database.close()
+
+
+def external_tracking_delete_photo(photo_id: int) -> None:
+    root = external_tracking_photo_directory().resolve()
+    with closing(db_connect()) as conn:
+        row = conn.execute("SELECT photo_path FROM photos WHERE id=?", (int(photo_id),)).fetchone()
+        if not row:
+            raise LookupError("Photo was not found")
+        path = Path(str(row[0] or "")).resolve()
+        try:
+            path.relative_to(root)
+        except ValueError as error:
+            raise LookupError("Photo access denied") from error
+        conn.execute("DELETE FROM photos WHERE id=?", (int(photo_id),))
+        conn.commit()
+    path.unlink(missing_ok=True)
+
+
+EXTERNAL_TRACKING_IMPORT_LIMIT = 12 * 1024 * 1024
+
+
+def external_tracking_import(encoded: str, filename: str) -> dict:
+    try:
+        payload = base64.b64decode(str(encoded or ""), validate=True)
+    except (ValueError, binascii.Error) as error:
+        raise ValueError("Import data is invalid") from error
+    if not payload or len(payload) > EXTERNAL_TRACKING_IMPORT_LIMIT:
+        raise ValueError("Import file is empty or exceeds the 12 MB limit")
+    extension = Path(str(filename or "")).suffix.lower()
+    if extension == ".csv":
+        text = payload.decode("utf-8-sig")
+        source_rows = list(csv.reader(io.StringIO(text)))
+    elif extension in {".xlsx", ".xlsm"}:
+        from openpyxl import load_workbook
+
+        workbook = load_workbook(io.BytesIO(payload), read_only=True, data_only=True)
+        try:
+            source_rows = list(workbook.active.iter_rows(values_only=True))
+        finally:
+            workbook.close()
+    elif extension == ".xls":
+        try:
+            import pandas as pd
+        except ImportError as error:
+            raise ValueError("Legacy XLS import is unavailable") from error
+        try:
+            frame = pd.read_excel(io.BytesIO(payload), dtype=str, keep_default_na=False)
+        except Exception as error:
+            raise ValueError(f"Excel file could not be read: {error}") from error
+        source_rows = [list(frame.columns), *frame.fillna("").values.tolist()]
+    else:
+        raise ValueError("Choose an XLSX, XLS, or CSV file")
+    if not source_rows:
+        raise ValueError("Import file has no rows")
+
+    def normalize(value) -> str:
+        text = str(value or "").replace("\u0131", "i").replace("\u0130", "I")
+        text = unicodedata.normalize("NFKD", text)
+        text = "".join(char for char in text if not unicodedata.combining(char))
+        return " ".join(text.lower().replace("_", " ").replace("-", " ").split())
+
+    aliases = {
+        "emanet no": "internal", "emanet": "internal", "no": "internal", "internal no": "internal",
+        "musteri": "customer", "customer": "customer", "musteri adi": "customer",
+        "urun": "product", "product": "product", "parca": "product", "urun parca": "product", "malzeme": "product",
+        "servis": "service", "service": "service", "gonderilen yer": "service", "yer": "service", "firma": "service",
+        "servis no": "service_no", "service no": "service_no", "kayit no": "service_no", "servis kayit no": "service_no",
+        "tarih": "date", "date": "date", "gonderim tarihi": "date",
+        "gidis kargo": "out_cargo", "out cargo": "out_cargo", "gidis": "out_cargo", "gonderim": "out_cargo",
+        "donus kargo": "in_cargo", "in cargo": "in_cargo", "donus": "in_cargo", "gelis": "in_cargo",
+        "durum": "status", "status": "status", "notlar": "notes", "not": "notes", "notes": "notes", "aciklama": "notes",
+    }
+    header_index = None
+    mapping = {}
+    for index, row in enumerate(source_rows[:10]):
+        candidate = {aliases[normalize(value)]: col for col, value in enumerate(row) if normalize(value) in aliases}
+        if "customer" in candidate or "product" in candidate:
+            header_index, mapping = index, candidate
+            break
+    if header_index is None:
+        raise ValueError("Expected a customer or product column in the first 10 rows")
+
+    success = 0
+    failures = 0
+    now = datetime.now().isoformat(timespec="seconds")
+    columns = {
+        "internal": "internal_tracking_no", "customer": "customer_name", "product": "product_name",
+        "service": "external_service_name", "service_no": "external_service_no", "date": "sent_date",
+        "out_cargo": "outbound_cargo_no", "in_cargo": "inbound_cargo_no", "status": "status", "notes": "notes",
+    }
+    with closing(db_connect()) as conn:
+        if not scalar(conn, "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='external_warranty_tracking'"):
+            raise LookupError("External tracking table is not available")
+        available = set(table_columns(conn, "external_warranty_tracking"))
+        for row in source_rows[header_index + 1:header_index + 5001]:
+            values = {}
+            for key, target in columns.items():
+                index = mapping.get(key)
+                value = row[index] if index is not None and index < len(row) else ""
+                if value is None:
+                    value = ""
+                if hasattr(value, "isoformat"):
+                    value = value.isoformat()[:10]
+                values[target] = str(value).strip()
+            if not values["customer_name"] and not values["product_name"]:
+                continue
+            if not values["sent_date"]:
+                values["sent_date"] = now[:10]
+            if not values["status"]:
+                values["status"] = "Haz\u0131rlan\u0131yor"
+            values["created_at"] = now
+            clean = {key: value for key, value in values.items() if key in available}
+            try:
+                names = ",".join(f'"{key}"' for key in clean)
+                marks = ",".join("?" for _ in clean)
+                conn.execute(f'INSERT INTO external_warranty_tracking ({names}) VALUES ({marks})', tuple(clean.values()))
+                success += 1
+            except Exception:
+                failures += 1
+        conn.commit()
+    return {"success": success, "failures": failures}
+
+
+def external_tracking_workbook(record_ids: list[int] | None = None) -> bytes:
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
+
+    with closing(db_connect()) as conn:
+        query = "SELECT id,internal_tracking_no,customer_name,product_name,external_service_name,external_service_no,sent_date,outbound_cargo_no,inbound_cargo_no,status,notes FROM external_warranty_tracking ORDER BY id DESC"
+        records = conn.execute(query).fetchall()
+    if record_ids is not None:
+        selected = {int(value) for value in record_ids}
+        records = [record for record in records if int(record[0]) in selected]
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Dis Takip"
+    headers = ["ID", "Emanet No", "Musteri", "Urun", "Servis", "Servis No", "Tarih", "Gidis Kargo", "Donus Kargo", "Durum", "Notlar"]
+    sheet.append(headers)
+    for cell in sheet[1]:
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill("solid", fgColor="20345E")
+    for record in records:
+        sheet.append([record[index] if record[index] is not None else "" for index in range(len(headers))])
+        for cell in sheet[sheet.max_row]:
+            if isinstance(cell.value, str) and cell.value.startswith(("=", "+", "-", "@")):
+                cell.data_type = "s"
+    for column, width in zip("ABCDEFGHIJK", (8, 20, 24, 24, 24, 18, 16, 20, 20, 24, 36)):
+        sheet.column_dimensions[column].width = width
+    output = io.BytesIO()
+    workbook.save(output)
+    return output.getvalue()
+
+
+def desktop_documents_center_rows(conn: sqlite3.Connection) -> list[dict]:
+    result: list[dict] = []
+    try:
+        root = external_tracking_photo_directory().resolve()
+        for row in conn.execute(
+            "SELECT id,tracking_no,photo_path,photo_label,stage,created_at FROM photos ORDER BY id DESC"
+        ).fetchall():
+            photo_id = int(row[0])
+            try:
+                path = Path(str(row[2] or "")).resolve()
+                path.relative_to(root)
+                available = path.is_file()
+            except (OSError, ValueError):
+                available = False
+            result.append({
+                "key": f"photo:{photo_id}", "source": "Lojistik Fotograf",
+                "title": str(row[3] or row[1] or "Fotograf"), "category": str(row[4] or "Fotograf"),
+                "shipment": str(row[1] or ""), "date": str(row[5] or ""), "available": available,
+                "url": f"/api/desktop/external-tracking/photo/{photo_id}" if available else "",
+            })
+    except sqlite3.Error:
+        pass
+    try:
+        for row in conn.execute(
+            "SELECT id,COALESCE(name,code,id),COALESCE(category,'Stok'),photo_path,COALESCE(created_at,'') "
+            "FROM parts WHERE COALESCE(photo_path,'')<>''"
+        ).fetchall():
+            result.append({
+                "key": f"stock:{row[0]}", "source": "Stok Fotograf", "title": str(row[1] or ""),
+                "category": str(row[2] or "Stok"), "shipment": str(row[0]), "date": str(row[4] or ""),
+                "available": False, "url": "",
+            })
+    except sqlite3.Error:
+        pass
+    try:
+        for row in conn.execute(
+            "SELECT id,COALESCE(name,'Proje'),contract_path,COALESCE(created_at,'') "
+            "FROM projects WHERE COALESCE(contract_path,'')<>''"
+        ).fetchall():
+            project_id = int(row[0])
+            raw_path = str(row[2] or "")
+            available = False
+            try:
+                target = Path(raw_path).resolve()
+                available = target.parent == _contract_attachment_root(create=False).resolve() and target.suffix.lower() == ".pdf" and target.is_file()
+            except (OSError, PermissionError, RuntimeError):
+                pass
+            result.append({
+                "key": f"project:{project_id}", "source": "Proje Sozlesmesi", "title": str(row[1] or "Proje"),
+                "category": "Sozlesme", "shipment": str(project_id), "date": str(row[3] or ""),
+                "available": available, "url": f"/api/desktop/projects/{project_id}/contract/download" if available else "",
+            })
+    except sqlite3.Error:
+        pass
+    try:
+        _contract_attachment_table(conn)
+        for row in conn.execute(
+            "SELECT id,filename,contract_id,COALESCE(created_at,'') FROM contract_attachments ORDER BY id DESC"
+        ).fetchall():
+            attachment_id = int(row[0])
+            result.append({
+                "key": f"contract:{attachment_id}", "source": "Sozlesme Eki", "title": str(row[1] or "Ek"),
+                "category": "Sozlesme Eki", "shipment": str(row[2] or ""), "date": str(row[3] or ""),
+                "available": True, "url": f"/api/desktop/contracts/attachments/{attachment_id}/download",
+            })
+    except sqlite3.Error:
+        pass
+    try:
+        _partner_document_table(conn)
+        root = _partner_document_root().resolve()
+        for row in conn.execute(
+            "SELECT id,shipment_id,title,category,file_path,added_at,partner_id "
+            "FROM partner_documents ORDER BY added_at DESC,id DESC"
+        ).fetchall():
+            document_id = int(row[0])
+            try:
+                path = Path(str(row[4] or "")).resolve()
+                path.relative_to(root)
+                available = path.is_file()
+            except (OSError, ValueError):
+                available = False
+            result.append({
+                "key": f"partner-document:{document_id}", "source": "Partner Belgesi",
+                "title": str(row[2] or ""), "category": str(row[3] or "Partner Belgesi"),
+                "shipment": str(row[6]) + (" / " + str(row[1]) if row[1] else ""),
+                "date": str(row[5] or ""),
+                "available": available,
+                "url": f"/api/desktop/partners/documents/{document_id}/download" if available else "",
+            })
+    except (sqlite3.Error, PermissionError):
+        pass
+    result.sort(key=lambda row: row["date"], reverse=True)
+    return result
+
+
+def ensure_product_groups(conn: sqlite3.Connection) -> int:
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS product_groups (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+            is_active INTEGER DEFAULT 1,
+            created_at TEXT,
+            updated_at TEXT
+        )"""
+    )
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    seeded = 0
+    for table in ("device_brands", "devices"):
+        if not scalar(conn, "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?", (table,)):
+            continue
+        if "device_type" not in table_columns(conn, table):
+            continue
+        values = conn.execute(
+            f'SELECT DISTINCT TRIM(device_type) FROM "{table}" '
+            "WHERE TRIM(COALESCE(device_type,''))<>''"
+        ).fetchall()
+        for row in values:
+            cursor = conn.execute(
+                "INSERT OR IGNORE INTO product_groups (name,is_active,created_at,updated_at) VALUES (?,1,?,?)",
+                (str(row[0]).strip(), now, now),
+            )
+            seeded += max(0, int(cursor.rowcount or 0))
+    conn.commit()
+    return seeded
+
+
+def vehicle_maintenance_photos(card_id: int) -> list[dict]:
+    from src.database import Database
+
+    database = Database(str(active_db_path()), init_mode="connection_only")
+    try:
+        card, _items = database.get_vehicle_maintenance_card(int(card_id))
+        if not card:
+            raise LookupError("Bakim karti bulunamadi")
+        rows = database.get_vehicle_maintenance_photos(int(card_id)) or []
+        root = vehicle_maintenance_photo_directory().resolve()
+        result = []
+        for row in rows:
+            item = dict(row)
+            try:
+                path = Path(str(item.get("photo_path") or "")).resolve()
+                path.relative_to(root)
+                item["available"] = path.is_file()
+            except (OSError, ValueError):
+                item["available"] = False
+            item.pop("photo_path", None)
+            result.append(item)
+        return result
+    finally:
+        database.close()
+
+
+def vehicle_maintenance_add_photo(card_id: int, name: str, encoded: str, label: str) -> dict:
+    from src.database import Database
+
+    try:
+        payload = base64.b64decode(str(encoded or ""), validate=True)
+    except (ValueError, binascii.Error) as error:
+        raise ValueError("Fotograf verisi gecersiz") from error
+    if not payload or len(payload) > VEHICLE_MAINTENANCE_PHOTO_LIMIT:
+        raise ValueError("Fotograf bos veya 8 MB sinirini asiyor")
+    signatures = ((b"\xff\xd8\xff", ".jpg"), (b"\x89PNG\r\n\x1a\n", ".png"),
+                  (b"BM", ".bmp"), (b"RIFF", ".webp"))
+    extension = next((ext for signature, ext in signatures if payload.startswith(signature)), None)
+    if extension == ".webp" and payload[8:12] != b"WEBP":
+        extension = None
+    if not extension:
+        raise ValueError("Yalnizca JPEG, PNG, BMP veya WebP fotograflar kabul edilir")
+    if label not in VEHICLE_MAINTENANCE_PHOTO_LABELS:
+        raise ValueError("Fotograf etiketi gecersiz")
+    from src.database import Database
+
+    database = Database(str(active_db_path()), init_mode="connection_only")
+    target = None
+    try:
+        card, _items = database.get_vehicle_maintenance_card(int(card_id))
+        if not card:
+            raise LookupError("Bakim karti bulunamadi")
+        folder = vehicle_maintenance_photo_directory()
+        folder.mkdir(parents=True, exist_ok=True)
+        target = folder / ("maintenance_" + secrets.token_hex(16) + extension)
+        target.write_bytes(payload)
+        photo_id = database.add_vehicle_maintenance_photo(int(card_id), str(target), label)
+        if not photo_id:
+            raise RuntimeError("Fotograf kaydi eklenemedi")
+        return {"id": int(photo_id), "card_id": int(card_id), "photo_label": label, "available": True}
+    except Exception:
+        if target:
+            target.unlink(missing_ok=True)
+        raise
+    finally:
+        database.close()
+
+
+def vehicle_maintenance_photo(photo_id: int) -> tuple[bytes, str]:
+    from src.database import Database
+
+    database = Database(str(active_db_path()), init_mode="connection_only")
+    try:
+        row = database.cursor.execute(
+            "SELECT photo_path FROM vehicle_maintenance_photos WHERE id=?", (int(photo_id),)
+        ).fetchone()
+        if not row:
+            raise LookupError("Fotograf bulunamadi")
+        path = Path(str(row["photo_path"])).resolve()
+        path.relative_to(vehicle_maintenance_photo_directory().resolve())
+        if not path.is_file():
+            raise LookupError("Fotograf dosyasi bulunamadi")
+        mime = mimetypes.guess_type(path.name)[0]
+        if mime not in ("image/jpeg", "image/png", "image/bmp", "image/webp"):
+            raise LookupError("Fotograf turu desteklenmiyor")
+        return path.read_bytes(), mime
+    except ValueError as error:
+        raise LookupError("Fotograf erisimi reddedildi") from error
+    finally:
+        database.close()
+
+
+def vehicle_maintenance_delete_photo(photo_id: int) -> None:
+    from src.database import Database
+
+    database = Database(str(active_db_path()), init_mode="connection_only")
+    try:
+        row = database.cursor.execute(
+            "SELECT photo_path FROM vehicle_maintenance_photos WHERE id=?", (int(photo_id),)
+        ).fetchone()
+        if not row:
+            raise LookupError("Fotograf bulunamadi")
+        path = Path(str(row["photo_path"])).resolve()
+        try:
+            path.relative_to(vehicle_maintenance_photo_directory().resolve())
+            owned_path = True
+        except ValueError:
+            owned_path = False
+        if not database.delete_vehicle_maintenance_photo(int(photo_id)):
+            raise RuntimeError("Fotograf kaydi silinemedi")
+        if owned_path:
+            path.unlink(missing_ok=True)
+    finally:
+        database.close()
+
+
+def vehicle_maintenance_workbook(search_query: str = "") -> bytes:
+    from openpyxl import Workbook
+    from src.database import Database
+
+    database = Database(str(active_db_path()), init_mode="connection_only")
+    try:
+        cards = [dict(row) for row in database.get_vehicle_maintenance_cards(search_query)]
+    finally:
+        database.close()
+    headers = [
+        "ID", "Musteri", "Plaka", "Arac", "Bakim Tarihi", "Sonraki Bakim",
+        "Muayene", "Yaklasan KM", "Taslak Randevu", "Hatirlatma", "Foto",
+    ]
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Bakim"
+    sheet.append(headers)
+    sheet.freeze_panes = "A2"
+    sheet.auto_filter.ref = "A1:K1"
+    for card in cards:
+        due_odometer = int(card.get("next_due_odometer_min") or 0)
+        current_odometer = int(card.get("odometer") or 0)
+        remaining_km = f"{max(0, due_odometer - current_odometer)} KM" if due_odometer > 0 else ""
+        vehicle_name = " ".join(
+            str(value).strip()
+            for value in (card.get("vehicle_brand"), card.get("vehicle_model"))
+            if str(value or "").strip()
+        )
+        values = [
+            card.get("id") or "",
+            card.get("customer_name") or "",
+            card.get("vehicle_plate") or "",
+            vehicle_name,
+            card.get("service_date") or "",
+            card.get("next_maintenance_date") or "",
+            card.get("inspection_due_date") or "",
+            remaining_km,
+            card.get("appointment_date") or "",
+            card.get("reminder_date") or "",
+            int(card.get("photo_count") or 0),
+        ]
+        sheet.append([
+            "'" + value if isinstance(value, str) and value[:1] in "=+-@" else value
+            for value in values
+        ])
+    for column, width in enumerate((10, 24, 16, 24, 16, 18, 16, 18, 18, 16, 10), start=1):
+        sheet.column_dimensions[chr(64 + column)].width = width
+    output = io.BytesIO()
+    workbook.save(output)
+    return output.getvalue()
+
+
+def vehicle_maintenance_pdf(search_query: str = "") -> bytes:
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    from src.database import Database
+    from xml.sax.saxutils import escape
+
+    database = Database(str(active_db_path()), init_mode="connection_only")
+    try:
+        cards = [dict(row) for row in database.get_vehicle_maintenance_cards(str(search_query or "").strip()[:160])]
+        company_name = str(database.get_setting("company_name", "AYEC Pro") or "AYEC Pro").strip() or "AYEC Pro"
+        logo_path = str(database.get_setting("logo_path", "") or "").strip()
+    finally:
+        database.close()
+
+    headers = [
+        "ID", "Musteri", "Plaka", "Arac", "Bakim Tarihi", "Sonraki Bakim",
+        "Muayene", "Yaklasan KM", "Taslak Randevu", "Hatirlatma", "Foto",
+    ]
+    font_path = os.path.join(os.path.dirname(__file__), "web", "assets", "fonts", "PlusJakartaSans-400.ttf")
+    font_name = "AyecMaintenancePdf"
+    if font_name not in pdfmetrics.getRegisteredFontNames():
+        pdfmetrics.registerFont(TTFont(font_name, font_path))
+    styles = getSampleStyleSheet()
+    cell_style = ParagraphStyle("AyecMaintenanceCell", parent=styles["Normal"], fontName=font_name, fontSize=6.5, leading=8)
+    header_style = ParagraphStyle("AyecMaintenanceHeader", parent=cell_style, textColor=colors.HexColor("#0F172A"), fontSize=7.5, leading=9)
+    today_key = datetime.now().strftime("%Y-%m-%d")
+    due_maintenance = sum(bool(str(card.get("next_maintenance_date") or "") and str(card.get("next_maintenance_date") or "") <= today_key) for card in cards)
+    due_inspection = sum(bool(str(card.get("inspection_due_date") or "") and str(card.get("inspection_due_date") or "") <= today_key) for card in cards)
+    open_jobs = sum(bool(card.get("linked_device_id")) for card in cards)
+    data = [[Paragraph(escape(value), header_style) for value in headers]]
+    for card in cards:
+        due_odometer = int(card.get("next_due_odometer_min") or 0)
+        current_odometer = int(card.get("odometer") or 0)
+        vehicle_name = " ".join(
+            str(value).strip()
+            for value in (card.get("vehicle_brand"), card.get("vehicle_model"))
+            if str(value or "").strip()
+        )
+        values = [
+            card.get("id") or "", card.get("customer_name") or "", card.get("vehicle_plate") or "",
+            vehicle_name, card.get("service_date") or "", card.get("next_maintenance_date") or "",
+            card.get("inspection_due_date") or (""),
+            f"{max(0, due_odometer - current_odometer)} KM" if due_odometer > 0 else "",
+            card.get("appointment_date") or "", card.get("reminder_date") or "", int(card.get("photo_count") or 0),
+        ]
+        data.append([Paragraph(escape(str(value or "")), cell_style) for value in values])
+
+    output = io.BytesIO()
+    document = SimpleDocTemplate(
+        output, pagesize=landscape(A4), leftMargin=20, rightMargin=20, topMargin=24, bottomMargin=24,
+        title="Arac Bakim Raporu",
+    )
+    widths = [48, 120, 72, 96, 80, 80, 64, 64, 80, 64, 33]
+    table = Table(data, repeatRows=1, colWidths=widths)
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#E2E8F0")),
+        ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#CBD5E1")),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F8FAFC")]),
+        ("LEFTPADDING", (0, 0), (-1, -1), 5),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+    ]))
+    title = ParagraphStyle("AyecMaintenanceTitle", parent=styles["Heading1"], fontName=font_name, fontSize=20, leading=24, textColor=colors.HexColor("#0F172A"), spaceAfter=4)
+    subtitle = ParagraphStyle("AyecMaintenanceSubtitle", parent=cell_style, fontSize=9, leading=12, textColor=colors.HexColor("#475569"))
+    meta_style = ParagraphStyle("AyecMaintenanceMeta", parent=cell_style, fontSize=9, alignment=2, textColor=colors.HexColor("#0F172A"))
+    metric_label = ParagraphStyle("AyecMaintenanceMetricLabel", parent=cell_style, fontSize=7, textColor=colors.HexColor("#64748B"))
+    metric_value = ParagraphStyle("AyecMaintenanceMetricValue", parent=cell_style, fontSize=12, leading=14, textColor=colors.HexColor("#0F172A"))
+    summary = Table([[
+        [Paragraph("Toplam Kart", metric_label), Paragraph(str(len(cards)), metric_value)],
+        [Paragraph("Yaklasan Bakim", metric_label), Paragraph(str(due_maintenance), metric_value)],
+        [Paragraph("Muayene Yakini", metric_label), Paragraph(str(due_inspection), metric_value)],
+        [Paragraph("Acik Is Emri", metric_label), Paragraph(str(open_jobs), metric_value)],
+    ]], colWidths=[200, 200, 200, 200])
+    summary.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F1F5F9")),
+        ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
+        ("INNERGRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
+        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+        ("TOPPADDING", (0, 0), (-1, -1), 7),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+    ]))
+    logo = None
+    if logo_path and os.path.isfile(logo_path):
+        try:
+            logo = Image(logo_path, width=86, height=42, kind="proportional")
+        except Exception:
+            logo = None
+    heading = [
+        Paragraph(f"{escape(company_name)} - Arac Bakim Listesi", title),
+        Paragraph("Arac bakim, muayene ve hatirlatma kartlarinin toplu ozeti", subtitle),
+    ]
+    header = Table([[
+        logo or Paragraph(escape(company_name), subtitle),
+        heading,
+        Paragraph(f"<b>Olusturma Tarihi</b><br/>{datetime.now().strftime('%d.%m.%Y %H:%M')}", meta_style),
+    ]], colWidths=[90, 530, 181])
+    header.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LINEBELOW", (0, 0), (-1, -1), 2, colors.HexColor("#0EA5A4")),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+    ]))
+    footer = ParagraphStyle("AyecMaintenanceFooter", parent=subtitle, alignment=2)
+    document.build([
+        header, Spacer(1, 12), summary, Spacer(1, 14), table, Spacer(1, 12),
+        Paragraph(f"{escape(company_name)} | AYEC Pro Arac Bakim Raporu", footer),
+    ])
+    return output.getvalue()
+
+
+def vehicle_maintenance_cards_payload(search_query: str = "") -> dict:
+    from src.database import Database
+
+    database = Database(str(active_db_path()), init_mode="connection_only")
+    try:
+        cards = [dict(row) for row in database.get_vehicle_maintenance_cards(str(search_query or "").strip()[:160])]
+        return {"rows": cards, "count": len(cards)}
+    finally:
+        database.close()
+
+
+def customer_history_workbook(customer_name: str, service_rows: list, finance_rows: list) -> bytes:
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
+
+    if not isinstance(service_rows, list) or not isinstance(finance_rows, list):
+        raise ValueError("Export rows must be lists")
+    if len(service_rows) > 5000 or len(finance_rows) > 5000:
+        raise ValueError("Too many selected rows")
+
+    workbook = Workbook()
+    definitions = (
+        ("Servis Gecmisi", ["Takip No", "Cihaz", "Ariza", "Durum", "Ucret", "Tarih"], service_rows),
+        ("Finansal Hareketler", ["Kategori", "Aciklama", "Islem Tipi", "Tarih", "Tutar"], finance_rows),
+    )
+    for index, (title, headers, rows) in enumerate(definitions):
+        sheet = workbook.active if index == 0 else workbook.create_sheet()
+        sheet.title = title
+        sheet.append(headers)
+        sheet.freeze_panes = "A2"
+        for row in rows:
+            if not isinstance(row, list) or len(row) != len(headers):
+                raise ValueError("Invalid export row")
+            values = []
+            for value in row:
+                if value is None:
+                    values.append("")
+                    continue
+                if not isinstance(value, (str, int, float, bool)):
+                    raise ValueError("Invalid export cell")
+                text = str(value)[:4000]
+                values.append("'" + text if text[:1] in "=+-@" else text)
+            sheet.append(values)
+        sheet.auto_filter.ref = sheet.dimensions
+        for cell in sheet[1]:
+            cell.font = Font(bold=True, color="FFFFFF")
+            cell.fill = PatternFill("solid", fgColor="305496")
+        for column in sheet.columns:
+            letter = column[0].column_letter
+            width = min(48, max(12, max(len(str(cell.value or "")) for cell in column) + 2))
+            sheet.column_dimensions[letter].width = width
+    workbook.properties.title = f"Customer history - {str(customer_name)[:120]}"
+    output = io.BytesIO()
+    workbook.save(output)
+    return output.getvalue()
+
+
+def customer_list_workbook(rows: list) -> bytes:
+    from openpyxl import Workbook
+
+    if not isinstance(rows, list) or len(rows) > 5000:
+        raise ValueError("Invalid customer export rows")
+    headers = ["M\u00fc\u015fteri No", "Ad Soyad", "Firma", "Telefon", "E-posta", "T\u00fcr", "Adres"]
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Sheet1"
+    sheet.append(headers)
+    sheet.freeze_panes = "A2"
+    for row in rows:
+        if not isinstance(row, list) or len(row) != len(headers):
+            raise ValueError("Invalid customer export row")
+        values = []
+        for value in row:
+            if value is None:
+                values.append("")
+                continue
+            if not isinstance(value, (str, int, float, bool)):
+                raise ValueError("Invalid customer export cell")
+            if not isinstance(value, str):
+                values.append(value)
+                continue
+            text = str(value)[:4000]
+            values.append("'" + text if text[:1] in "=+-@" else text)
+        sheet.append(values)
+    sheet.auto_filter.ref = sheet.dimensions
+    for column in sheet.columns:
+        letter = column[0].column_letter
+        sheet.column_dimensions[letter].width = min(48, max(12, max(len(str(cell.value or "")) for cell in column) + 2))
+    output = io.BytesIO()
+    workbook.save(output)
+    return output.getvalue()
+
+
+def customer_list_pdf(rows: list) -> bytes:
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    from xml.sax.saxutils import escape
+
+    if not isinstance(rows, list) or len(rows) > 5000:
+        raise ValueError("Invalid customer export rows")
+    headers = ["M\u00fc No", "M\u00fc\u015fteri", "Tip", "\u0130leti\u015fim", "A\u00e7\u0131k Servis", "Bakiye", "Durum"]
+    data = [headers]
+    for row in rows:
+        if not isinstance(row, list) or len(row) != len(headers):
+            raise ValueError("Invalid customer export row")
+        if any(value is not None and not isinstance(value, (str, int, float, bool)) for value in row):
+            raise ValueError("Invalid customer export cell")
+        data.append([str(value or "")[:4000] for value in row])
+
+    font_path = os.path.join(os.path.dirname(__file__), "web", "assets", "fonts", "PlusJakartaSans-400.ttf")
+    font_name = "AyecCustomerPdf"
+    if font_name not in pdfmetrics.getRegisteredFontNames():
+        pdfmetrics.registerFont(TTFont(font_name, font_path))
+    output = io.BytesIO()
+    document = SimpleDocTemplate(output, pagesize=landscape(A4), title="M\u00fc\u015fteri Listesi")
+    styles = getSampleStyleSheet()
+    cell_style = ParagraphStyle("AyecCustomerCell", parent=styles["Normal"], fontName=font_name, fontSize=7, leading=9)
+    header_style = ParagraphStyle("AyecCustomerHeader", parent=cell_style, textColor=colors.white)
+    table_data = [[Paragraph(escape(value), header_style) for value in data[0]]]
+    table_data.extend([[Paragraph(escape(value), cell_style) for value in row] for row in data[1:]])
+    table = Table(table_data, repeatRows=1, colWidths=[48, 120, 55, 105, 105, 85, 75])
+    table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#305496")),
+        ("GRID", (0, 0), (-1, -1), 0.25, colors.lightgrey),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F4F6FA")]),
+        ("LEFTPADDING", (0, 0), (-1, -1), 5),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+        ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+    ]))
+    document.build([Paragraph("M\u00fc\u015fteri Listesi", styles["Heading1"]), Spacer(1, 12), table])
+    return output.getvalue()
+
+
+def einvoice_settings_payload(database) -> dict:
+    from src.utils.secure_setting_store import SecureSettingStore
+
+    api_key = SecureSettingStore.get(database, "einvoice_api_key")
+    return {
+        "provider": str(database.get_setting("einvoice_provider", "custom") or "custom"),
+        "environment": str(database.get_setting("einvoice_environment", "sandbox") or "sandbox"),
+        "api_url": str(database.get_setting("einvoice_api_url", "") or ""),
+        "api_key_configured": bool(api_key),
+    }
+
+
+def save_einvoice_settings(database, payload: dict) -> dict:
+    from src.api.einvoice_client import EInvoiceClient
+    from src.utils.secure_setting_store import SecureSettingStore
+
+    if not isinstance(payload, dict):
+        raise ValueError("Invalid e-invoice settings")
+    providers = {"custom", "uyumsoft", "logo", "efinans", "foriba"}
+    environments = {"sandbox", "live"}
+    provider = str(payload.get("provider") or "custom").strip()
+    environment = str(payload.get("environment") or "sandbox").strip()
+    api_url = str(payload.get("api_url") or "").strip()
+    api_key = str(payload.get("api_key") or "").strip()
+    clear_api_key = bool(payload.get("clear_api_key"))
+    if provider not in providers or environment not in environments:
+        raise ValueError("Invalid e-invoice provider or environment")
+    if len(api_url) > 2048 or len(api_key) > 4096:
+        raise ValueError("E-invoice configuration is too long")
+
+    saved_api_key = SecureSettingStore.get(database, "einvoice_api_key")
+    effective_api_key = "" if clear_api_key else api_key or saved_api_key
+    client = EInvoiceClient(
+        api_key=effective_api_key,
+        is_sandbox=environment == "sandbox",
+        base_url=api_url,
+    )
+    valid, message = client.validate_configuration()
+    if not valid:
+        raise ValueError(message)
+
+    database.set_setting("einvoice_provider", provider)
+    database.set_setting("einvoice_environment", environment)
+    database.set_setting("einvoice_api_url", api_url)
+    if clear_api_key:
+        SecureSettingStore.set(database, "einvoice_api_key", "")
+    elif api_key:
+        SecureSettingStore.set(database, "einvoice_api_key", api_key)
+    return einvoice_settings_payload(database)
+
+
+def send_einvoice_invoice(database, payload: dict) -> dict:
+    import math
+
+    from src.api.einvoice_client import EInvoiceClient
+    from src.finance.invoice_mapper import InvoiceMapper
+    from src.utils.secure_setting_store import SecureSettingStore
+
+    if not isinstance(payload, dict):
+        raise ValueError("Invalid e-invoice payload")
+    draft_id = int(payload.get("draft_id") or 0)
+    raw_data = payload.get("invoice")
+    if not isinstance(raw_data, dict):
+        raise ValueError("Invoice details are required")
+    receiver_name = str(payload.get("receiver_name") or "").strip()[:240]
+    receiver_vkn = str(payload.get("receiver_vkn") or "").strip()[:32]
+    if not receiver_name:
+        raise ValueError("Customer selection is required")
+    if len(raw_data.get("lines") or []) > 200:
+        raise ValueError("Invoice has too many lines")
+
+    items = []
+    for row in raw_data.get("lines") or []:
+        if not isinstance(row, dict):
+            raise ValueError("Invalid invoice line")
+        name = str(row.get("invoice-line-description") or "").strip()[:4000]
+        if not name:
+            continue
+        try:
+            quantity = float(row.get("invoice-line-qty") or 0)
+            unit_price = float(row.get("invoice-line-price") or 0)
+            discount_rate = float(row.get("invoice-line-discount") or 0)
+            vat_rate = float(row.get("invoice-line-vat") or 0)
+        except (TypeError, ValueError) as error:
+            raise ValueError("Invoice line contains an invalid number") from error
+        if not all(math.isfinite(value) for value in (quantity, unit_price, discount_rate, vat_rate)):
+            raise ValueError("Invoice line values must be finite numbers")
+        if quantity <= 0 or unit_price < 0 or not 0 <= discount_rate <= 100 or not 0 <= vat_rate <= 100:
+            raise ValueError("Invoice line values are outside the allowed range")
+        items.append({
+            "name": name,
+            "stock_code": str(row.get("invoice-line-code") or "")[:120],
+            "quantity": quantity,
+            "unit": str(row.get("invoice-line-unit") or "Adet")[:40],
+            "unit_price": unit_price,
+            "discount_rate": discount_rate,
+            "vat_rate": vat_rate,
+        })
+    if not items:
+        raise ValueError("Add at least one invoice line")
+
+    currency = str(raw_data.get("currency") or "TRY").upper()
+    if currency not in {"TRY", "USD", "EUR"}:
+        raise ValueError("Unsupported invoice currency")
+    try:
+        currency_rate = float(raw_data.get("exchange_rate") or 0)
+    except (TypeError, ValueError) as error:
+        raise ValueError("Invalid currency exchange rate") from error
+    if not math.isfinite(currency_rate) or currency_rate <= 0:
+        raise ValueError("Currency exchange rate must be greater than zero")
+    scenario = str(raw_data.get("scenario") or "TICARIFATURA")
+    invoice_type = str(payload.get("invoice_type") or "SATIS").split(" ", 1)[0]
+    allowed_scenarios = {"TICARIFATURA", "TEMELFATURA", "KAMU", "IHRACAT"}
+    allowed_types = {"SATIS", "TEVKIFAT", "ISTISNA", "IADE", "OZELMATRAH"}
+    if scenario not in allowed_scenarios or invoice_type not in allowed_types:
+        raise ValueError("Invalid invoice scenario or type")
+    try:
+        bank_account_id = int(raw_data.get("payment_account") or 0) or None
+    except (TypeError, ValueError):
+        bank_account_id = None
+
+    invoice_data = {
+        "receiver": {
+            "name": receiver_name,
+            "tax_id": receiver_vkn,
+            "tax_office": str(raw_data.get("tax_office") or "")[:240],
+            "address": str(raw_data.get("address") or "")[:2000],
+            "email": "",
+        },
+        "items": items,
+        "currency": currency,
+        "currency_rate": currency_rate,
+        "invoice_date": str(raw_data.get("date") or "")[:10],
+        "invoice_time": str(raw_data.get("time") or "")[:20],
+        "scenario": scenario,
+        "type": invoice_type,
+        "dispatch_reference": str(raw_data.get("delivery_reference") or "")[:120],
+        "notes": str(raw_data.get("notes") or "")[:4000],
+        "order_reference": str(raw_data.get("order_reference") or "")[:120],
+        "due_date": str(raw_data.get("due_date") or "")[:10],
+        "payment_channel": str(raw_data.get("payment_channel") or "")[:80],
+        "bank_account_id": bank_account_id,
+        "auto_reconcile": bool(raw_data.get("auto_reconcile")),
+    }
+    mapped = InvoiceMapper().to_json(invoice_data)
+    if draft_id:
+        cursor = database.cursor
+        cursor.execute("SELECT id FROM e_invoices WHERE id=?", (draft_id,))
+        if not cursor.fetchone():
+            raise ValueError("Invoice draft was not found")
+
+    settings = einvoice_settings_payload(database)
+    api_key = SecureSettingStore.get(database, "einvoice_api_key")
+    client = EInvoiceClient(
+        api_key=api_key,
+        is_sandbox=settings["environment"] == "sandbox",
+        base_url=settings["api_url"],
+    )
+    valid, message = client.validate_configuration()
+    if not valid:
+        raise ValueError(message)
+    success, response = client.send_invoice(mapped)
+    if not success:
+        detail = str(response.get("detail") or response.get("error") or "Invoice send failed")[:1000]
+        raise RuntimeError(detail)
+    if not isinstance(response, dict):
+        raise RuntimeError("Invoice provider returned an invalid response")
+
+    remote_uuid = str(response.get("uuid") or "---").strip()[:120]
+    status = str(response.get("status") or "SENT").strip()[:40]
+    stored_data = json.dumps(
+        {"message": str(response.get("message") or ""), "response": response, "request": mapped},
+        ensure_ascii=True,
+    )
+    amount = round(float(mapped["toplamlar"]["genel_toplam"]), 2)
+    amount_try = round(amount * currency_rate, 2)
+    if draft_id:
+        database.cursor.execute(
+            "UPDATE e_invoices SET uuid=?, invoice_type=?, receiver_name=?, receiver_vkn=?, amount=?, status=?, json_data=?, updated_at=CURRENT_TIMESTAMP WHERE id=?",
+            (remote_uuid, invoice_type, receiver_name, receiver_vkn, amount, status, stored_data, draft_id),
+        )
+    else:
+        database.cursor.execute(
+            "INSERT INTO e_invoices (uuid, invoice_type, receiver_name, receiver_vkn, amount, status, json_data) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (remote_uuid, invoice_type, receiver_name, receiver_vkn, amount, status, stored_data),
+        )
+        draft_id = int(database.cursor.lastrowid)
+    database.conn.commit()
+
+    finance_error = ""
+    if settings["environment"] == "live" and invoice_data["auto_reconcile"]:
+        description = f"E-Fatura Geliri ({remote_uuid or '---'})"
+        try:
+            try:
+                database.add_transaction_extended(
+                    type="Gelir",
+                    category="Resmi Fatura",
+                    amount=amount_try,
+                    description=description,
+                    date=datetime.now().strftime("%Y-%m-%d"),
+                    customer_name=receiver_name,
+                    bank_account_id=bank_account_id,
+                )
+            except Exception:
+                database.add_transaction(
+                    t_type="Gelir",
+                    category="Resmi Fatura",
+                    amount=amount_try,
+                    description=description,
+                    customer_name=receiver_name,
+                )
+        except Exception as error:
+            finance_error = str(error)[:500]
+    return {
+        "ok": True,
+        "id": draft_id,
+        "uuid": remote_uuid,
+        "status": status,
+        "message": str(response.get("message") or ""),
+        "sandbox": settings["environment"] == "sandbox",
+        "finance_error": finance_error,
+    }
+
+
+def einvoice_proforma_pdf(payload: dict) -> bytes:
+    import math
+    from xml.sax.saxutils import escape
+
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
+
+    if not isinstance(payload, dict) or not isinstance(payload.get("invoice"), dict):
+        raise ValueError("Invoice details are required")
+    invoice = payload["invoice"]
+    customer = str(payload.get("receiver_name") or "").strip()[:240]
+    receiver_vkn = str(payload.get("receiver_vkn") or "").strip()[:32]
+    lines = invoice.get("lines") or []
+    if not customer or not isinstance(lines, list) or len(lines) > 200:
+        raise ValueError("Proforma data is invalid")
+
+    currency = str(invoice.get("currency") or "TRY").upper()
+    symbols = {"TRY": "\u20ba", "USD": "$", "EUR": "\u20ac"}
+    if currency not in symbols:
+        raise ValueError("Unsupported invoice currency")
+    scenario = str(invoice.get("scenario") or "TICARIFATURA")
+    invoice_type = str(payload.get("invoice_type") or "SATIS").split(" ", 1)[0]
+    allowed_scenarios = {"TICARIFATURA", "TEMELFATURA", "KAMU", "IHRACAT"}
+    allowed_types = {"SATIS", "TEVKIFAT", "ISTISNA", "IADE", "OZELMATRAH"}
+    if scenario not in allowed_scenarios or invoice_type not in allowed_types:
+        raise ValueError("Invalid invoice scenario or type")
+
+    content = [
+        "E-FATURA TASLAK \u00d6N\u0130ZLEMES\u0130",
+        "M\u00fc\u015fteri: {}".format(customer),
+        "VKN/TCKN: {}".format(receiver_vkn),
+        "Tarih: {} {}".format(str(invoice.get("date") or "")[:10], str(invoice.get("time") or "")[:20]),
+        "Senaryo / Tip: {} / {}".format(scenario, invoice_type),
+        "",
+    ]
+    subtotal = 0.0
+    total_vat = 0.0
+    item_count = 0
+    for row in lines:
+        if not isinstance(row, dict):
+            raise ValueError("Invalid invoice line")
+        name = str(row.get("invoice-line-description") or "").strip()[:4000]
+        if not name:
+            continue
+        try:
+            quantity = float(row.get("invoice-line-qty") or 0)
+            price = float(row.get("invoice-line-price") or 0)
+            discount = float(row.get("invoice-line-discount") or 0)
+            vat_rate = float(row.get("invoice-line-vat") or 0)
+        except (TypeError, ValueError) as error:
+            raise ValueError("Invoice line contains an invalid number") from error
+        if not all(math.isfinite(value) for value in (quantity, price, discount, vat_rate)):
+            raise ValueError("Invoice line values must be finite numbers")
+        if quantity <= 0 or price < 0 or not 0 <= discount <= 100 or not 0 <= vat_rate <= 100:
+            raise ValueError("Invoice line values are outside the allowed range")
+        net = quantity * price * (1 - discount / 100)
+        subtotal += net
+        total_vat += net * vat_rate / 100
+        item_count += 1
+        content.append(
+            "{:02d}. {} | {:g} {} | {:.2f} {} | KDV %{:g}".format(
+                item_count,
+                name,
+                quantity,
+                str(row.get("invoice-line-unit") or "Adet")[:40],
+                price,
+                currency,
+                vat_rate,
+            )
+        )
+    if not item_count:
+        raise ValueError("Add at least one invoice line")
+    content.extend([
+        "",
+        "Toplam: {}{:.2f}".format(symbols[currency], subtotal + total_vat),
+        "Not: {}".format(str(invoice.get("notes") or "")[:4000]),
+    ])
+
+    font_path = os.path.join(os.path.dirname(__file__), "web", "assets", "fonts", "PlusJakartaSans-400.ttf")
+    font_name = "AyecEInvoiceProforma"
+    if font_name not in pdfmetrics.getRegisteredFontNames():
+        pdfmetrics.registerFont(TTFont(font_name, font_path))
+    output = io.BytesIO()
+    document = SimpleDocTemplate(output, pagesize=A4, title="Proforma Fatura")
+    styles = getSampleStyleSheet()
+    heading = ParagraphStyle("AyecProformaHeading", parent=styles["Heading2"], fontName=font_name, fontSize=16, leading=20)
+    body = ParagraphStyle("AyecProformaBody", parent=styles["Normal"], fontName=font_name, fontSize=10, leading=15)
+    story = [Paragraph("Proforma Fatura", heading), Spacer(1, 6), Paragraph(escape(content[0]), body), Spacer(1, 6)]
+    story.extend(Paragraph(escape(line) or "&nbsp;", body) for line in content[1:])
+    document.build(story)
+    return output.getvalue()
+
+
+def desktop_accounting_ledger_workbook(rows_to_export: list[dict]) -> bytes:
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill
+
+    headers = (
+        "Kayit ID", "Kaynak", "Tarih", "Islem Turu", "Aciklama", "Musteri",
+        "Orijinal Tutar", "Para Birimi", "Doviz Kuru", "TRY Karsiligi",
+        "Odeme Yontemi", "Takip No", "Referans", "Urun Hizmet ID",
+        "Urun Hizmet Turu", "Durum",
+    )
+    if not isinstance(rows_to_export, list) or len(rows_to_export) > 100000:
+        raise ValueError("Accounting export contains an invalid number of rows")
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Cari Hareketler"
+    sheet.append(headers)
+    for cell in sheet[1]:
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill("solid", fgColor="17324D")
+    for source_row in rows_to_export:
+        if not isinstance(source_row, dict):
+            continue
+        values = []
+        for key in headers:
+            value = source_row.get(key, "")
+            if isinstance(value, str) and value[:1] in "=+-@":
+                value = "'" + value
+            values.append(value)
+        sheet.append(values)
+    output = io.BytesIO()
+    workbook.save(output)
+    return output.getvalue()
+
+
+def desktop_unified_ledger_export_source(user: dict, *, period: str, search: str, limit: int, offset: int = 0) -> list[dict]:
+    if not user or not user.get("_tenant_id"):
+        raise PermissionError("Company session is required")
+    from src.database import Database
+    from src.utils.finance_manager import FinanceManager
+
+    database = Database(db_name=str(active_db_path()), init_mode="connection_only")
+    try:
+        database.conn.execute("PRAGMA query_only=ON")
+        manager = FinanceManager(database)
+        manager._repair_accounting_currency_values = lambda: None
+        rows = manager.get_unified_ledger(limit=limit, offset=offset, period=period, search=search)
+        try:
+            receipt_ids = {
+                int(row[0])
+                for row in database.conn.execute("SELECT accounting_id FROM accounting_receipts").fetchall()
+            }
+        except sqlite3.Error:
+            receipt_ids = set()
+        for row in rows:
+            if row.get("source") == "accounting":
+                try:
+                    row["receipt_available"] = int(row.get("id") or 0) in receipt_ids
+                except (TypeError, ValueError):
+                    row["receipt_available"] = False
+        return rows
+    finally:
+        database.close()
+
+
+def desktop_download_accounting_receipt(conn: sqlite3.Connection, accounting_id: object) -> tuple[bytes, str, str]:
+    try:
+        receipt_id = int(accounting_id)
+    except (TypeError, ValueError) as error:
+        raise ValueError("Accounting receipt ID is invalid") from error
+    if receipt_id < 1:
+        raise ValueError("Accounting receipt ID is invalid")
+    try:
+        row = conn.execute(
+            "SELECT filename,mime_type,content FROM accounting_receipts WHERE accounting_id=?",
+            (receipt_id,),
+        ).fetchone()
+    except sqlite3.Error as error:
+        raise LookupError("Accounting receipt was not found") from error
+    if not row or row[2] is None:
+        raise LookupError("Accounting receipt was not found")
+    filename = Path(str(row[0] or "receipt")).name or "receipt"
+    content = bytes(row[2])
+    if not content:
+        raise LookupError("Accounting receipt was not found")
+    content_type = mimetypes.guess_type(filename)[0] or str(row[1] or "application/octet-stream")
+    return content, filename, content_type
+
+
+def desktop_accounting_ledger_page(user: dict, options: dict) -> dict:
+    if not user or not user.get("_tenant_id"):
+        raise PermissionError("Company session is required")
+    period = str(options.get("period") or "fiscal").strip().lower()
+    if period not in {"fiscal", "today", "last7", "week", "month", "year"}:
+        raise ValueError("Ledger period is invalid")
+    search = str(options.get("search") or "").strip()
+    if len(search) > 200:
+        raise ValueError("Ledger search is limited to 200 characters")
+    page = options.get("page", 0)
+    if isinstance(page, bool) or not isinstance(page, int) or page < 0 or page > 1000000:
+        raise ValueError("Ledger page is invalid")
+    limit = 100
+    rows = desktop_unified_ledger_export_source(
+        user, period=period, search=search, limit=limit + 1, offset=page * limit
+    )
+    return {"rows": rows[:limit], "page": page, "limit": limit, "has_more": len(rows) > limit}
+
+
+def desktop_accounting_ledger_export_rows(user: dict, options: dict) -> list[dict]:
+    if not user or not user.get("_tenant_id"):
+        raise PermissionError("Company session is required")
+    period = str(options.get("period") or "fiscal").strip().lower()
+    if period not in {"fiscal", "today", "last7", "week", "month", "year"}:
+        raise ValueError("Ledger period is invalid")
+    search = str(options.get("search") or "").strip()
+    if len(search) > 200:
+        raise ValueError("Ledger search is limited to 200 characters")
+    filter_key = str(options.get("filter") or "ALL").strip().upper()
+    if filter_key not in {"ALL", "INCOME", "EXPENSE", "OPENING"}:
+        raise ValueError("Ledger filter is invalid")
+
+    from src.utils.finance_manager import FinanceManager
+
+    source_rows = desktop_unified_ledger_export_source(
+        user, period=period, search=search, limit=100000
+    )
+    export_rows = []
+    for row in source_rows:
+        type_label = str(row.get("type_label") or "")
+        if filter_key == "INCOME" and type_label not in {"Sat\u0131\u015f", "Gelir", "Tahsilat"}:
+            continue
+        if filter_key == "EXPENSE" and type_label != "Gider":
+            continue
+        if filter_key == "OPENING" and type_label != "A\u00e7\u0131l\u0131\u015f":
+            continue
+        export_rows.append(
+            {
+                "Kayit ID": row.get("id") or "",
+                "Kaynak": row.get("source") or "",
+                "Tarih": row.get("date") or "",
+                "Islem Turu": type_label,
+                "Aciklama": row.get("description") or "",
+                "Musteri": row.get("customer_name") or "",
+                "Orijinal Tutar": FinanceManager._safe_float(row.get("amount"), 0.0),
+                "Para Birimi": str(row.get("currency") or "TRY").upper(),
+                "Doviz Kuru": FinanceManager._safe_float(row.get("rate"), 1.0) or 1.0,
+                "TRY Karsiligi": FinanceManager._safe_float(row.get("amount_try"), 0.0),
+                "Odeme Yontemi": row.get("payment_method") or "",
+                "Takip No": row.get("tracking_no") or "",
+                "Referans": row.get("ref_no") or "",
+                "Urun Hizmet ID": row.get("product_service_id") or "",
+                "Urun Hizmet Turu": row.get("product_service_type") or "",
+                "Durum": row.get("status") or "",
+            }
+        )
+    return export_rows
+
+
+def desktop_contract_report_csv(user: dict, options: dict) -> bytes:
+    if not user or not user.get("_tenant_id"):
+        raise PermissionError("Company session is required")
+    search = str(options.get("search") or "").strip()
+    if len(search) > 200:
+        raise ValueError("Contract search is limited to 200 characters")
+    contract_type = str(options.get("type") or "all").strip()
+    sla = str(options.get("sla") or "all").strip()
+    status_filter = str(options.get("status") or "all").strip().lower()
+    if status_filter not in {"all", "active", "renewal", "expired", "draft"}:
+        raise ValueError("Contract status filter is invalid")
+    if len(contract_type) > 120 or len(sla) > 120:
+        raise ValueError("Contract filter is too long")
+    today_text = str(options.get("today") or "").strip()
+    if today_text:
+        try:
+            today = datetime.strptime(today_text, "%Y-%m-%d").date()
+        except ValueError as error:
+            raise ValueError("Contract report date is invalid") from error
+    else:
+        today = datetime.now().date()
+
+    database = Path(active_db_path())
+    conn = _raw_connect(database)
+    try:
+        conn.execute("PRAGMA query_only=ON")
+        if not scalar(conn, "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='contracts'"):
+            raise LookupError("Contract table is unavailable")
+        if not scalar(conn, "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='customers'"):
+            raise LookupError("Customer table is unavailable")
+        rows = conn.execute(
+            "SELECT c.id, cust.name, c.title, c.contract_type, c.start_date, c.end_date, "
+            "c.status, c.price, c.description FROM contracts c "
+            "LEFT JOIN customers cust ON c.customer_id=cust.id "
+            "AND COALESCE(cust.is_deleted,0)=0 ORDER BY c.end_date ASC"
+        ).fetchall()
+        currency_setting = (
+            setting_value(conn, "currency") or setting_value(conn, "default_currency", "TRY")
+        ).upper()
+        currency_code = "USD" if "USD" in currency_setting or "$" in currency_setting else (
+            "EUR" if "EUR" in currency_setting or "\u20ac" in currency_setting else "TRY"
+        )
+        currency_symbol = {"USD": "$", "EUR": "\u20ac", "TRY": "\u20ba"}[currency_code]
+        try:
+            precision = min(3, max(0, int(setting_value(conn, "currency_precision", "2"))))
+        except (TypeError, ValueError):
+            precision = 2
+    finally:
+        conn.close()
+
+    def search_key(value):
+        text = unicodedata.normalize(
+            "NFKD", str(value or "").strip().casefold().replace("\u0131", "i")
+        )
+        return "".join(character for character in text if not unicodedata.combining(character))
+
+    query_key = search_key(search)
+    type_key = search_key(contract_type)
+    sla_key = search_key(sla)
+    output = io.StringIO(newline="")
+    writer = csv.writer(output, delimiter=";", lineterminator="\r\n")
+    writer.writerow((
+        "S\u00f6zle\u015fme No", "M\u00fc\u015fteri / Kurum", "SLA", "Ge\u00e7erlilik",
+        "Kalan S\u00fcre", "Y\u0131ll\u0131k Hacim", "Cihaz / Park", "Periyodik", "Durum",
+    ))
+    for row in rows:
+        contract_id, customer_name, title, row_type, start_date, end_date, status, price, description = row
+        start_text, end_text = str(start_date or ""), str(end_date or "")
+        try:
+            year = start_text[:4] if len(start_text) >= 4 else "0000"
+            code = "AGR-{}-{:03d}".format(year, int(contract_id))
+        except (TypeError, ValueError):
+            code = "AGR-0000-000"
+        customer_text = "{}\n{}".format(str(customer_name or "-"), str(title or "")).rstrip()
+        validity = "\n".join(part for part in (start_text, end_text) if part)
+        try:
+            days = (datetime.strptime(end_text[:10], "%Y-%m-%d").date() - today).days
+        except ValueError:
+            days = None
+        if days is None:
+            remaining = "-"
+        elif days >= 0:
+            remaining = "{} G\u00fcn Kald\u0131".format(days)
+        else:
+            remaining = "{} G\u00fcn Ge\u00e7ti".format(abs(days))
+        try:
+            amount = float(price or 0)
+        except (TypeError, ValueError):
+            amount = 0.0
+        price_text = "{:,.{precision}f} {symbol}".format(
+            amount, precision=precision, symbol=currency_symbol
+        )
+        status_text = str(status or "-")
+        row_sla = str(row_type or "-")
+        normalized_status = search_key(status_text)
+        draft = "taslak" in normalized_status
+        expired = days is not None and days < 0
+        if status_filter == "active" and not ("aktif" in normalized_status and not expired and not draft):
+            continue
+        if status_filter == "renewal" and (
+            expired or draft or not ("yenileme" in normalized_status or (days is not None and 0 <= days <= 30))
+        ):
+            continue
+        if status_filter == "expired" and not expired:
+            continue
+        if status_filter == "draft" and not draft:
+            continue
+        if type_key not in {"", "all", "tum turler"} and type_key not in search_key(row_sla):
+            continue
+        if sla_key not in {"", "all"} and sla_key != search_key(row_sla):
+            continue
+        values = (code, customer_text, row_sla, validity, remaining, price_text, str(description or "-"), "-", status_text)
+        if query_key and not any(query_key in search_key(value) for value in values):
+            continue
+        writer.writerow(values)
+    return ("\ufeff" + output.getvalue()).encode("utf-8")
+
+
+def desktop_income_expense_export_csv(user: dict, options: dict) -> bytes:
+    import csv
+    import io
+    from src.utils.finance_manager import FinanceManager
+
+    search = str(options.get("search") or "").strip()
+    if len(search) > 200:
+        raise ValueError("Ledger search is limited to 200 characters")
+    month = str(options.get("month") or "").strip()
+    if month and not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", month):
+        raise ValueError("Ledger month is invalid")
+    tab = str(options.get("tab") or "all").strip().lower()
+    if tab not in {"all", "expense", "income", "tax", "personnel"}:
+        raise ValueError("Ledger tab is invalid")
+    source_rows = desktop_unified_ledger_export_source(
+        user, period="year", search="", limit=3000
+    )
+    output = io.StringIO(newline="")
+    writer = csv.writer(output)
+    writer.writerow(("Date", "Category", "Description", "Reference", "Amount TRY"))
+    query = search.casefold()
+
+    def safe_text(value):
+        text = str(value or "")
+        return "'" + text if text and text[0] in "=+-@" else text
+
+    for row in source_rows:
+        row_date = str(row.get("date") or "")
+        if month and row_date[:7] != month:
+            continue
+        kind = str(row.get("type_label") or "").casefold()
+        category = str(row.get("category") or "").casefold()
+        expense = row.get("color_code") == "red" or "gider" in kind
+        if tab == "expense" and not expense:
+            continue
+        if tab == "income" and expense:
+            continue
+        if tab == "tax" and not any(term in category for term in ("vergi", "sgk", "kdv")):
+            continue
+        if tab == "personnel" and not any(term in category for term in ("personel", "maa", "prim")):
+            continue
+        searchable = " ".join(
+            str(row.get(field) or "")
+            for field in ("date", "category", "description", "customer_name", "ref_no", "id")
+        ).casefold()
+        if query and query not in searchable:
+            continue
+        writer.writerow(
+            (
+                safe_text(row.get("date")),
+                safe_text(row.get("category") or row.get("type_label")),
+                safe_text(row.get("description")),
+                safe_text(row.get("ref_no")),
+                FinanceManager._safe_float(row.get("amount_try"), 0.0),
+            )
+        )
+    return output.getvalue().encode("utf-8-sig")
+
+
+def product_groups_export_workbook(search: str = "") -> bytes:
+    from openpyxl import Workbook
+    from openpyxl.styles import Font
+
+    with closing(db_connect()) as conn:
+        group_columns = set(table_columns(conn, "product_groups"))
+        if not {"name", "is_active"}.issubset(group_columns):
+            raise LookupError("Product groups are unavailable")
+        query = str(search or "").strip()[:160]
+        where = " WHERE name LIKE ?" if query else ""
+        params = ("%" + query + "%",) if query else ()
+        group_rows = conn.execute("SELECT name, is_active FROM product_groups" + where + " ORDER BY name COLLATE NOCASE", params).fetchall()
+        brand_columns = set(table_columns(conn, "device_brands"))
+        linked_brands = {}
+        linked_brands_available = {"id", "device_type", "brand", "is_active"}.issubset(brand_columns)
+        if linked_brands_available:
+            for row in conn.execute("SELECT DISTINCT device_type, brand FROM device_brands WHERE COALESCE(is_active,1)=1 ORDER BY id ASC"):
+                key = str(row[0] or "").strip().casefold()
+                brand = str(row[1] or "").strip()
+                if brand:
+                    values = linked_brands.setdefault(key, [])
+                    if brand.casefold() not in {value.casefold() for value in values}:
+                        values.append(brand)
+
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Urun Gruplari"
+    sheet.append(["Urun Grubu", "Bagli Marka / Kategori", "Durum"])
+    for cell in sheet[1]:
+        cell.font = Font(bold=True)
+    for row in group_rows:
+        name = str(row[0] or "")
+        brands = linked_brands.get(name.strip().casefold(), [])
+        sheet.append([name, "-" if not linked_brands_available else ", ".join(brands), "Aktif" if row[1] else "Pasif"])
+    for index, width in enumerate((36, 60, 14), start=1):
+        sheet.column_dimensions[chr(64 + index)].width = width
+    output = io.BytesIO()
+    workbook.save(output)
+    return output.getvalue()
+
+def device_brands_export_workbook(search: str = "", group: str = "", status: str = "active") -> bytes:
+    from openpyxl import Workbook
+    from openpyxl.styles import Font
+
+    with closing(db_connect()) as conn:
+        columns = set(table_columns(conn, "device_brands"))
+        if not columns:
+            raise LookupError("Brand catalog is unavailable")
+        selected = [name for name in ("device_type", "brand", "is_active") if name in columns]
+        where = " WHERE COALESCE(is_deleted,0)=0" if "is_deleted" in columns else ""
+        order = " ORDER BY device_type, brand" if {"device_type", "brand"}.issubset(columns) else ""
+        brand_rows = [dict(row) for row in conn.execute("SELECT " + ",".join(selected) + " FROM device_brands" + where + order)]
+        device_columns = set(table_columns(conn, "devices"))
+        counts_available = {"device_type", "device_brand"}.issubset(device_columns)
+        counts = {}
+        if counts_available:
+            device_where = " WHERE COALESCE(is_deleted,0)=0" if "is_deleted" in device_columns else ""
+            for row in conn.execute("SELECT device_type, device_brand, COUNT(*) FROM devices" + device_where + " GROUP BY device_type, device_brand"):
+                key = (str(row[0] or "").strip().casefold(), str(row[1] or "").strip().casefold())
+                counts[key] = counts.get(key, 0) + int(row[2] or 0)
+
+    normalized_search = str(search or "").strip().casefold()
+    normalized_group = str(group or "").strip().casefold()
+    if status not in {"active", "inactive", "all"}:
+        status = "active"
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Markalar"
+    sheet.append(["Cihaz Turu", "Marka", "Iliskili Servis Kayitlari", "Durum"])
+    for cell in sheet[1]:
+        cell.font = Font(bold=True)
+    for row in brand_rows:
+        device_type = str(row.get("device_type") or "")
+        brand = str(row.get("brand") or "")
+        active = bool(int(row.get("is_active") or 0))
+        if normalized_group and device_type.strip().casefold() != normalized_group:
+            continue
+        if status == "active" and not active or status == "inactive" and active:
+            continue
+        if normalized_search and normalized_search not in (device_type + " " + brand).casefold():
+            continue
+        key = (device_type.strip().casefold(), brand.strip().casefold())
+        count = counts.get(key, 0) if counts_available else "-"
+        sheet.append([device_type, brand, count, "Aktif" if active else "Pasif"])
+    for index, width in enumerate((28, 30, 28, 14), start=1):
+        sheet.column_dimensions[chr(64 + index)].width = width
+    output = io.BytesIO()
+    workbook.save(output)
+    return output.getvalue()
+
+def service_catalog_workbook() -> bytes:
+    from openpyxl import Workbook
+    from openpyxl.styles import Font
+
+    rename_map = (
+        ("name", "\u0130\u015f\u00e7ilik Ad\u0131"),
+        ("price_try", "TL"),
+        ("price_usd", "USD"),
+        ("price_eur", "EURO"),
+        ("is_active", "Durum"),
+        ("barcode", "Barkod"),
+        ("description", "A\u00e7\u0131klama"),
+    )
+    with closing(db_connect()) as conn:
+        if not scalar(conn, "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='services'"):
+            rows = []
+            columns = set()
+        else:
+            columns = set(table_columns(conn, "services"))
+            deleted_filter = " WHERE COALESCE(is_deleted,0)=0" if "is_deleted" in columns else ""
+            order_by = " ORDER BY name" if "name" in columns else ""
+            rows = [dict(row) for row in conn.execute(f"SELECT * FROM services{deleted_filter}{order_by}").fetchall()]
+
+    fields = [(key, label) for key, label in rename_map if key in columns]
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Sheet1"
+    headers = [label for _, label in fields]
+    sheet.append(headers)
+    for row in rows:
+        values = []
+        for key, _label in fields:
+            value = row.get(key)
+            if key == "is_active":
+                value = "Aktif" if bool(value if value is not None else 1) else "Pasif"
+            if isinstance(value, str) and value[:1] in "=+-@":
+                value = "'" + value[:4000]
+            elif isinstance(value, str):
+                value = value[:4000]
+            values.append(value)
+        sheet.append(values)
+    for cell in sheet[1]:
+        cell.font = Font(bold=True)
+    output = io.BytesIO()
+    workbook.save(output)
+    return output.getvalue()
+
+
+def service_catalog_import(rows: list, is_automotive: bool = False) -> dict:
+    import math
+
+    if not isinstance(rows, list) or not rows:
+        raise ValueError("No service rows were supplied")
+    if len(rows) > 1000:
+        raise ValueError("An import cannot contain more than 1000 service rows")
+
+    prepared = []
+    seen_names = set()
+    for index, row in enumerate(rows, start=1):
+        if not isinstance(row, dict):
+            raise ValueError(f"Row {index}: invalid row data")
+        name = str(row.get("name") or "").strip().upper()
+        if not name:
+            raise ValueError(f"Row {index}: service name is required")
+        normalized_name = name.casefold()
+        if normalized_name in seen_names:
+            raise ValueError(f"Row {index}: duplicate service name in the import")
+        seen_names.add(normalized_name)
+        try:
+            price = float(str(row.get("price") or "0").strip().replace(",", "."))
+        except (TypeError, ValueError) as error:
+            raise ValueError(f"Row {index}: invalid service price") from error
+        if not math.isfinite(price) or price < 0:
+            raise ValueError(f"Row {index}: service price must be zero or higher")
+        currency = str(row.get("currency") or "TRY").strip().upper()
+        currency = {"$": "USD", "US": "USD", "EURO": "EUR", "\u20ac": "EUR"}.get(currency, currency)
+        if currency not in {"TRY", "USD", "EUR"}:
+            raise ValueError(f"Row {index}: unsupported currency")
+        prepared.append({
+            "name": name,
+            "price": price,
+            "currency": currency,
+            "description": str(row.get("description") or "").strip(),
+            "barcode": str(row.get("barcode") or "").strip(),
+            "vehicle_type": str(row.get("vehicle_type") or "").strip(),
+            "vehicle_brand": str(row.get("vehicle_brand") or "").strip(),
+            "vehicle_model": str(row.get("vehicle_model") or "").strip(),
+            "vehicle_year": str(row.get("vehicle_year") or "").strip(),
+            "vehicle_plate": str(row.get("vehicle_plate") or "").strip(),
+        })
+
+    from src.database import Database
+    from src.utils.currency_helper import CurrencyHelper
+
+    database = Database(str(active_db_path()), init_mode="connection_only")
+    try:
+        database._ensure_services_management_schema()
+        program_currency = CurrencyHelper.get_code(database)
+        for row in prepared:
+            converted = CurrencyHelper.convert_amount(
+                database, row["price"], row["currency"], program_currency
+            )
+            row["price"] = float(converted)
+            row["currency"] = program_currency
+            if is_automotive:
+                vehicle_details = " | ".join(
+                    f"{label}: {row[key]}" for key, label in (
+                        ("vehicle_plate", "Plaka"), ("vehicle_brand", "Marka"),
+                        ("vehicle_model", "Model"), ("vehicle_year", "Yil"),
+                        ("vehicle_type", "Arac Tipi"),
+                    ) if row[key]
+                )
+                if vehicle_details:
+                    row["description"] = " | ".join(filter(None, (row["description"], vehicle_details)))
+
+        connection = database.conn
+        connection.execute("BEGIN IMMEDIATE")
+        try:
+            for row in prepared:
+                prices = database._normalize_service_prices(
+                    row["price"], row["currency"], None, None, None
+                )
+                legacy_price = prices[row["currency"]]
+                existing = connection.execute(
+                    "SELECT id FROM services WHERE name=?", (row["name"],)
+                ).fetchone()
+                values = (
+                    legacy_price, row["description"], row["barcode"], row["currency"],
+                    prices["TRY"], prices["USD"], prices["EUR"], 1,
+                    "Donan\u0131m & Lehim", 60, 20,
+                )
+                if existing:
+                    connection.execute(
+                        """UPDATE services SET price=?,description=?,barcode=?,currency=?,
+                           price_try=?,price_usd=?,price_eur=?,is_active=?,service_category=?,
+                           duration_minutes=?,vat_rate=?,is_deleted=0,deleted_at=NULL WHERE id=?""",
+                        (*values, existing[0]),
+                    )
+                else:
+                    connection.execute(
+                        """INSERT INTO services (name,price,description,barcode,currency,created_at,
+                           price_try,price_usd,price_eur,is_active,service_category,duration_minutes,vat_rate)
+                           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                        (row["name"], legacy_price, row["description"], row["barcode"], row["currency"],
+                         datetime.now().strftime("%Y-%m-%d %H:%M:%S"), prices["TRY"], prices["USD"],
+                         prices["EUR"], 1, "Donan\u0131m & Lehim", 60, 20),
+                    )
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            raise
+    finally:
+        database.close()
+    return {"ok": True, "imported": len(prepared)}
 
 
 def save_vehicle_maintenance_web(data: dict) -> dict:
@@ -5649,7 +11214,7 @@ def resolve_exchange_rate(conn: sqlite3.Connection, currency: str, supplied=None
     if currency in {"USD", "EUR"} and 0 < rate <= 1:
         raise ValueError(f"{currency} satis kuru gecersiz")
     if rate <= 0:
-        raise ValueError(f"{currency} satış kuru bulunamadı. Kur bilgisini güncelleyip tekrar deneyin.")
+        raise ValueError(f"{currency} sat\u0131\u015f kuru bulunamad\u0131. Kur bilgisini g\u00fcncelleyip tekrar deneyin.")
     return rate
 
 
@@ -5718,29 +11283,91 @@ def parse_money_amount(value: object) -> float:
     return float(text or 0)
 
 
+def desktop_apply_stock_price_increase(payload: dict) -> tuple[dict, int]:
+    if not isinstance(payload, dict):
+        raise ValueError("A valid stock price request is required")
+    action = str(payload.get("action") or "preview").strip().lower()
+    if action not in {"preview", "apply"}:
+        raise ValueError("A valid stock price action is required")
+    try:
+        raw_percentage = float(payload.get("percentage"))
+        percentage = int(raw_percentage)
+    except (TypeError, ValueError, OverflowError):
+        raise ValueError("Enter a whole percentage from 1 to 100") from None
+    if not math.isfinite(raw_percentage) or raw_percentage != percentage or not 1 <= percentage <= 100:
+        raise ValueError("Enter a whole percentage from 1 to 100")
+    category = str(payload.get("category") or "").strip()[:120]
+    where_sql = "COALESCE(is_deleted,0)=0"
+    parameters: list[object] = []
+    if category:
+        where_sql += " AND category=?"
+        parameters.append(category)
+
+    with closing(db_connect()) as conn:
+        if action == "preview":
+            count = int(conn.execute(f"SELECT COUNT(*) FROM parts WHERE {where_sql}", parameters).fetchone()[0])
+            return {"ok": True, "percentage": percentage, "category": category or None, "affected_count": count}, 200
+
+        try:
+            expected_count = int(payload.get("expected_count"))
+        except (TypeError, ValueError, OverflowError):
+            raise ValueError("A confirmed stock count is required") from None
+        if expected_count < 0:
+            raise ValueError("A confirmed stock count is required")
+        conn.execute("BEGIN IMMEDIATE")
+        count = int(conn.execute(f"SELECT COUNT(*) FROM parts WHERE {where_sql}", parameters).fetchone()[0])
+        if count != expected_count or count == 0:
+            conn.rollback()
+            return {"ok": False, "error": "Stock changed after preview. Review the affected count again."}, 409
+        cursor = conn.execute(
+            f"UPDATE parts SET price=ROUND(COALESCE(price,0)*?,2) WHERE {where_sql}",
+            [1 + percentage / 100.0, *parameters],
+        )
+        affected = int(cursor.rowcount or 0)
+        if affected != expected_count:
+            conn.rollback()
+            return {"ok": False, "error": "Stock changed during the update. No prices were changed."}, 409
+        try:
+            conn.execute(
+                "INSERT INTO audit_logs(action,details,created_at) VALUES(?,?,?)",
+                (
+                    "STOCK_PRICE_BULK_UPDATE",
+                    f"Voice price increase: {percentage} percent; scope={category or 'all active stock'}; affected={affected}",
+                    datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                ),
+            )
+        except sqlite3.Error as error:
+            logger.warning("Stock price update audit could not be written: %s", error)
+        conn.commit()
+        return {"ok": True, "percentage": percentage, "category": category or None, "affected_count": affected}, 200
+
+
 def save_stock_card(data: dict) -> dict:
     """Save part, movement and purchase expense in one atomic desktop-compatible operation."""
     now = datetime.now()
     name = str(data.get("name") or "").strip()
     code = str(data.get("code") or "").strip()
     if not name or not code:
-        raise ValueError("Stok kodu ve ürün adı zorunludur")
+        raise ValueError("Stok kodu ve \u00fcr\u00fcn ad\u0131 zorunludur")
     currency = str(data.get("currency") or "TRY").upper()
     if currency not in {"TRY", "USD", "EUR"}:
-        raise ValueError("Para birimi TRY, USD veya EUR olmalıdır")
+        raise ValueError("Para birimi TRY, USD veya EUR olmal\u0131d\u0131r")
     new_stock = max(0.0, float(data.get("stock") or 0))
     purchase_price = max(0.0, float(data.get("purchase_price") or 0))
     sale_price = max(0.0, float(data.get("price") or 0))
     row_id = int(data.get("id") or 0)
+    allowed_units = {"Adet", "Metre", "Kg", "Lt", "Paket", "Kutu"}
     with closing(db_connect()) as conn:
         conn.execute("BEGIN IMMEDIATE")
         old = None
         if row_id:
             old = conn.execute("SELECT * FROM parts WHERE id=? AND COALESCE(is_deleted,0)=0", (row_id,)).fetchone()
             if not old:
-                raise LookupError("Stok kartı bulunamadı")
+                raise LookupError("Stok kart\u0131 bulunamad\u0131")
             old_stock = float(old["stock"] or 0)
             columns = set(table_columns(conn, "parts"))
+            previous_unit = str(old["unit"] or "Adet") if "unit" in columns else "Adet"
+            unit = str(data.get("unit") or previous_unit).strip()
             values = {
                 "name": name, "part_name": name, "code": code,
                 "barcode": str(data.get("barcode") or "").strip(),
@@ -5749,6 +11376,7 @@ def save_stock_card(data: dict) -> dict:
                 "min_stock": max(0.0, float(data.get("min_stock") or 0)),
                 "purchase_price": purchase_price, "price": sale_price,
                 "brand": str(data.get("brand") or "").strip(),
+                "unit": unit,
                 "shelf_number": str((data.get("shelf_number") if "shelf_number" in data else (old["shelf_number"] if "shelf_number" in columns else "")) or "").strip(),
                 "oem_code": str((data.get("oem_code") if "oem_code" in data else (old["oem_code"] if "oem_code" in columns else "")) or "").strip(),
                 "equivalent_code": str((data.get("equivalent_code") if "equivalent_code" in data else (old["equivalent_code"] if "equivalent_code" in columns else "")) or "").strip(),
@@ -5763,6 +11391,7 @@ def save_stock_card(data: dict) -> dict:
             )
         else:
             old_stock = 0.0
+            unit = str(data.get("unit") or "Adet").strip()
             row_id = insert_available(conn, "parts", {
                 "name": name, "part_name": name, "code": code,
                 "barcode": str(data.get("barcode") or "").strip(),
@@ -5771,6 +11400,7 @@ def save_stock_card(data: dict) -> dict:
                 "min_stock": max(0.0, float(data.get("min_stock") or 0)),
                 "purchase_price": purchase_price, "price": sale_price,
                 "brand": str(data.get("brand") or "").strip(),
+                "unit": unit,
                 "shelf_number": str(data.get("shelf_number") or "").strip(),
                 "oem_code": str(data.get("oem_code") or "").strip(),
                 "equivalent_code": str(data.get("equivalent_code") or "").strip(),
@@ -5779,14 +11409,18 @@ def save_stock_card(data: dict) -> dict:
                 "created_at": now.isoformat(timespec="seconds"), "is_deleted": 0,
                 "updated_at": now.isoformat(timespec="microseconds"),
             })
+        if unit not in allowed_units:
+            raise ValueError("Birim de\u011feri ge\u00e7ersiz")
         delta = round(new_stock - old_stock, 6)
         movement_id = None
+        movement_label = "\u00dcr\u00fcn ekleme" if old is None else "Stok d\u00fczenleme"
+        finance_label = "Stok Al\u0131m\u0131" if old is None else "Stok G\u00fcncelleme"
         if delta:
             movement_id = insert_available(conn, "stock_movements", {
                 "part_id": row_id,
-                "movement_type": "Giriş" if delta > 0 else "Çıkış",
+                "movement_type": "Giri\u015f" if delta > 0 else "\u00c7\u0131k\u0131\u015f",
                 "amount": abs(delta), "new_stock": new_stock,
-                "description": "Ürün ekleme" if old is None else "Stok düzenleme",
+                "description": f"{movement_label}: {abs(delta):g} {unit}",
                 "created_at": now.isoformat(timespec="seconds"), "is_deleted": 0,
             })
         finance_id = None
@@ -5795,16 +11429,16 @@ def save_stock_card(data: dict) -> dict:
         if expense:
             ref_no = f"WEB-STOCK-{row_id}-{movement_id or 0}"
             finance_id = insert_available(conn, "accounting", {
-                "type": "Gider", "category": "Stok Alımı" if old is None else "Stok Güncelleme",
+                "type": "Gider", "category": finance_label,
                 "amount": expense, "original_amount": expense,
                 "try_equivalent": round(expense * rate, 4), "currency": currency,
                 "exchange_rate": rate,
-                "description": f"{'Stok Alımı' if old is None else 'Stok Güncelleme'}: {max(delta, 0):g} x {name}",
+                "description": f"{finance_label}: {max(delta, 0):g} {unit} x {name}",
                 "date": now.strftime("%Y-%m-%d"), "created_at": now.isoformat(timespec="seconds"),
                 "payment_method": str(data.get("payment_method") or "Nakit"),
                 "ref_no": ref_no, "product_service_id": row_id,
                 "product_service_type": "stock", "is_deleted": 0,
-                "selected_services": json.dumps({"part_id": row_id, "movement_id": movement_id, "quantity": max(delta, 0), "unit_cost": purchase_price, "currency": currency}, ensure_ascii=False),
+                "selected_services": json.dumps({"part_id": row_id, "movement_id": movement_id, "quantity": max(delta, 0), "unit": unit, "unit_cost": purchase_price, "currency": currency}, ensure_ascii=False),
             })
         elif old is not None and row_id:
             linked = conn.execute(
@@ -5822,6 +11456,86 @@ def save_stock_card(data: dict) -> dict:
         conn.commit()
         part = dict(conn.execute("SELECT * FROM parts WHERE id=?", (row_id,)).fetchone())
     return {"ok": True, "id": row_id, "part": part, "delta": delta, "movement_id": movement_id, "finance_id": finance_id, "expense": expense, "currency": currency, "exchange_rate": rate}
+
+
+def deduct_pc_builder_stock(payload: dict) -> dict:
+    """Deduct a complete PC build from one tenant stock transaction."""
+    if not isinstance(payload, dict):
+        raise ValueError("Invalid PC Builder stock payload")
+    items = payload.get("items")
+    if not isinstance(items, list) or not items or len(items) > 100:
+        raise ValueError("Select between 1 and 100 PC components")
+
+    quantities = {}
+    for item in items:
+        if not isinstance(item, dict):
+            raise ValueError("Invalid PC component")
+        try:
+            part_id = int(item.get("part_id"))
+            quantity = float(item.get("quantity"))
+        except (TypeError, ValueError) as error:
+            raise ValueError("PC component ID and quantity must be numeric") from error
+        if part_id <= 0 or not math.isfinite(quantity) or quantity <= 0:
+            raise ValueError("PC component ID and quantity must be positive")
+        quantities[part_id] = round(quantities.get(part_id, 0.0) + quantity, 6)
+
+    reference = str(payload.get("reference") or "").strip()[:80]
+    now = datetime.now()
+    results = []
+    with closing(db_connect()) as conn:
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            part_columns = set(table_columns(conn, "parts"))
+            if "stock" not in part_columns:
+                raise RuntimeError("Stock table has no quantity column")
+            staged = []
+            for part_id, quantity in quantities.items():
+                row = conn.execute(
+                    "SELECT * FROM parts WHERE id=? AND COALESCE(is_deleted,0)=0",
+                    (part_id,),
+                ).fetchone()
+                if not row:
+                    raise LookupError(f"Stock item {part_id} was not found")
+                current_stock = float(row["stock"] or 0)
+                if quantity > current_stock + 1e-9:
+                    raise ValueError(f"Insufficient stock for {row['name'] or part_id}")
+                staged.append((part_id, quantity, row, current_stock - quantity))
+
+            for part_id, quantity, row, new_stock in staged:
+                updates = {"stock": new_stock}
+                if "updated_at" in part_columns:
+                    updates["updated_at"] = now.isoformat(timespec="microseconds")
+                update_available(conn, "parts", part_id, updates)
+                movement_description = "PC Builder stock deduction"
+                if reference:
+                    movement_description += f" #{reference}"
+                movement_description += f": {row['name'] or part_id}"
+                movement_id = insert_available(
+                    conn,
+                    "stock_movements",
+                    {
+                        "part_id": part_id,
+                        "movement_type": "\u00c7\u0131k\u0131\u015f",
+                        "amount": quantity,
+                        "new_stock": new_stock,
+                        "description": movement_description,
+                        "created_at": now.isoformat(timespec="seconds"),
+                        "is_deleted": 0,
+                    },
+                )
+                results.append(
+                    {
+                        "part_id": part_id,
+                        "quantity": quantity,
+                        "stock": new_stock,
+                        "movement_id": movement_id,
+                    }
+                )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+    return {"ok": True, "items": results, "reference": reference}
 
 
 def reconcile_stock_finance(part_ids: list[int]) -> list[dict]:
@@ -5851,21 +11565,21 @@ def reconcile_stock_finance(part_ids: list[int]) -> list[dict]:
             if stock <= 0 or purchase_price <= 0:
                 continue
             movement = conn.execute(
-                "SELECT id FROM stock_movements WHERE part_id=? AND COALESCE(is_deleted,0)=0 AND movement_type LIKE 'Giriş%' ORDER BY id LIMIT 1",
+                "SELECT id FROM stock_movements WHERE part_id=? AND COALESCE(is_deleted,0)=0 AND movement_type LIKE 'Giri\u015f%' ORDER BY id LIMIT 1",
                 (part_id,),
             ).fetchone()
             movement_id = int(movement[0]) if movement else insert_available(conn, "stock_movements", {
-                "part_id": part_id, "movement_type": "Giriş", "amount": stock, "new_stock": stock,
-                "description": "Web stok sinyali düzeltmesi", "created_at": part.get("created_at") or now.isoformat(timespec="seconds"), "is_deleted": 0,
+                "part_id": part_id, "movement_type": "Giri\u015f", "amount": stock, "new_stock": stock,
+                "description": "Web stok sinyali d\u00fczeltmesi", "created_at": part.get("created_at") or now.isoformat(timespec="seconds"), "is_deleted": 0,
             })
             currency = str(part.get("currency") or "TRY").upper()
             rate = resolve_exchange_rate(conn, currency)
             expense = round(stock * purchase_price, 4)
             finance_id = insert_available(conn, "accounting", {
-                "type": "Gider", "category": "Stok Alımı", "amount": expense,
+                "type": "Gider", "category": "Stok Al\u0131m\u0131", "amount": expense,
                 "original_amount": expense, "try_equivalent": round(expense * rate, 4),
                 "currency": currency, "exchange_rate": rate,
-                "description": f"Stok Alımı: {stock:g} x {part.get('name') or part.get('part_name') or ''}",
+                "description": f"Stok Al\u0131m\u0131: {stock:g} x {part.get('name') or part.get('part_name') or ''}",
                 "date": str(part.get("created_at") or now.strftime("%Y-%m-%d"))[:10],
                 "created_at": part.get("created_at") or now.isoformat(timespec="seconds"),
                 "payment_method": "Nakit", "ref_no": marker,
@@ -6251,20 +11965,20 @@ def commit_sales_hub(data: dict) -> dict:
     """
     mode = str(data.get("mode") or "").lower()
     if mode not in {"proforma", "payment", "service"}:
-        raise ValueError("Geçersiz Sales Hub işlemi")
+        raise ValueError("Ge\u00e7ersiz Sales Hub i\u015flemi")
     customer_name_hint = str(data.get("customer_name") or "").strip()
     try:
         customer_id = int(data.get("customer_id") or 0)
     except (TypeError, ValueError):
         customer_id = 0
     if not customer_id and not customer_name_hint:
-        raise ValueError("Müşteri seçilmelidir")
+        raise ValueError("M\u00fc\u015fteri se\u00e7ilmelidir")
     raw_lines = data.get("lines") or []
     if not isinstance(raw_lines, list) or not raw_lines:
-        raise ValueError("Sepette en az bir ürün bulunmalıdır")
+        raise ValueError("Sepette en az bir \u00fcr\u00fcn bulunmal\u0131d\u0131r")
     currency = str(data.get("currency") or "TRY").upper()
     if currency not in {"TRY", "USD", "EUR"}:
-        raise ValueError("Geçersiz teklif para birimi")
+        raise ValueError("Ge\u00e7ersiz teklif para birimi")
     rates = data.get("rates") if isinstance(data.get("rates"), dict) else {}
     now = datetime.now()
     vat_percent = max(0.0, min(float(data.get("vat_rate") or 0), 100.0))
@@ -6283,36 +11997,60 @@ def commit_sales_hub(data: dict) -> dict:
             raise ValueError("M\u00fc\u015fteri se\u00e7ilmelidir")
         customer_row = conn.execute("SELECT * FROM customers WHERE id=? AND COALESCE(is_deleted,0)=0", (customer_id,)).fetchone()
         if not customer_row:
-            raise LookupError("Müşteri kaydı bulunamadı")
+            raise LookupError("M\u00fc\u015fteri kayd\u0131 bulunamad\u0131")
         customer = dict(customer_row)
         selected_rate = resolve_exchange_rate(conn, currency, data.get("exchange_rate") or rates.get(currency))
         lines = []
         subtotal_try = 0.0
         total_cost_try = 0.0
         for raw in raw_lines:
+            line_type = str(raw.get("line_type") or "stock").lower()
             part_id = int(raw.get("product_id") or raw.get("part_id") or 0)
             quantity = max(0.0, float(raw.get("qty") or 0))
-            if not part_id or quantity <= 0:
-                raise ValueError("Sepet satırı geçersiz")
-            part_row = conn.execute("SELECT * FROM parts WHERE id=? AND COALESCE(is_deleted,0)=0", (part_id,)).fetchone()
-            if not part_row:
-                raise LookupError("Sepetteki stok kartlarından biri bulunamadı")
-            part = dict(part_row)
-            if mode == "payment" and quantity > float(part.get("stock") or 0):
-                raise ValueError(f"{part.get('name') or part.get('part_name')} için yeterli stok yok")
-            source_currency = str(part.get("currency") or "TRY").upper()
-            source_rate = resolve_exchange_rate(conn, source_currency, rates.get(source_currency))
-            unit_try = round(float(part.get("price") or 0) * source_rate, 6)
+            if quantity <= 0 or line_type not in {"stock", "service"}:
+                raise ValueError("Sepet sat\u0131r\u0131 ge\u00e7ersiz")
+            if line_type == "service":
+                service_name = str(raw.get("service_name") or "").strip()[:200]
+                if not service_name:
+                    raise ValueError("Hizmet ad\u0131 zorunludur")
+                part = {"id": None, "name": service_name, "description": str(raw.get("service_description") or ""), "brand": "", "code": "", "category": "Hizmet", "currency": currency, "price": 0, "purchase_price": 0, "stock": 0}
+                part_id = None
+                source_currency = currency
+                source_rate = selected_rate
+            else:
+                if not part_id:
+                    raise ValueError("Sepet sat\u0131r\u0131 ge\u00e7ersiz")
+                part_row = conn.execute("SELECT * FROM parts WHERE id=? AND COALESCE(is_deleted,0)=0", (part_id,)).fetchone()
+                if not part_row:
+                    raise LookupError("Sepetteki stok kartlar\u0131ndan biri bulunamad\u0131")
+                part = dict(part_row)
+                if mode == "payment" and quantity > float(part.get("stock") or 0):
+                    raise ValueError(f"{part.get('name') or part.get('part_name')} i\u00e7in yeterli stok yok")
+                source_currency = str(part.get("currency") or "TRY").upper()
+                source_rate = resolve_exchange_rate(conn, source_currency, rates.get(source_currency))
+            raw_unit_price = raw.get("unit_price")
+            if raw_unit_price in (None, ""):
+                unit_try = round(float(part.get("price") or 0) * source_rate, 6)
+            else:
+                try:
+                    override_price = float(raw_unit_price)
+                except (TypeError, ValueError) as error:
+                    raise ValueError("Ge\u00e7ersiz birim fiyat") from error
+                if not math.isfinite(override_price) or not 0 <= override_price <= 1_000_000_000:
+                    raise ValueError("Birim fiyat 0 ile 1.000.000.000 aras\u0131nda olmal\u0131d\u0131r")
+                unit_try = round(override_price * selected_rate, 6)
+            description = str(raw.get("description") or "").strip()[:500]
             unit_selected = round(unit_try / selected_rate, 6)
             cost_try = round(float(part.get("purchase_price") or 0) * source_rate, 6)
             line_try = unit_try * quantity
             subtotal_try += line_try
             total_cost_try += cost_try * quantity
             lines.append({
-                "part": part, "part_id": part_id, "qty": quantity,
+                "part": part, "part_id": part_id, "line_type": line_type, "qty": quantity,
                 "source_currency": source_currency, "source_rate": source_rate,
                 "unit_try": unit_try, "unit_selected": unit_selected,
                 "line_try": line_try, "line_selected": line_try / selected_rate,
+                "description": description,
             })
         subtotal_try = round(subtotal_try, 4)
         discount_try = round(subtotal_try * discount_percent / 100.0, 4)
@@ -6323,9 +12061,9 @@ def commit_sales_hub(data: dict) -> dict:
         discount = round(discount_try / selected_rate, 4)
         vat_amount = round(vat_try / selected_rate, 4)
         total = round(total_try / selected_rate, 4)
-        symbol = {"TRY": "₺", "USD": "$", "EUR": "€"}[currency]
+        symbol = {"TRY": "\u20ba", "USD": "$", "EUR": "\u20ac"}[currency]
         customer_name = customer.get("name") or customer.get("customer_name") or ""
-        # Proforma issuer comes from Firma AyarlarÄ±. The customer remains the
+        # Proforma issuer comes from Company Settings; the customer remains the customer.
         # recipient/contact; it must not replace the issuer company name.
         issuer_company = setting_value(conn, "company_name", "").strip()
         if not issuer_company:
@@ -6376,7 +12114,7 @@ def commit_sales_hub(data: dict) -> dict:
                 "discount_try": discount_try, "vat_amount_try": vat_try, "total_try": total_try,
                 "status": "Teklif", "source": "Web Sales Hub", "created_at": now.isoformat(timespec="seconds"),
             }
-            offer_payload["payload_json"] = json.dumps({**offer_payload, "items": [{"productId": item["part_id"], "name": item["part"].get("name"), "qty": item["qty"], "price": item["unit_selected"], "price_try": item["unit_try"]} for item in lines]}, ensure_ascii=False)
+            offer_payload["payload_json"] = json.dumps({**offer_payload, "items": [{"productId": item["part_id"], "type": item["line_type"], "name": item["part"].get("name"), "qty": item["qty"], "price": item["unit_selected"], "price_try": item["unit_try"], "description": item["description"]} for item in lines]}, ensure_ascii=False)
             if existing_offer_id:
                 offer_payload["updated_at"] = now.isoformat(timespec="seconds")
                 update_available(
@@ -6393,17 +12131,17 @@ def commit_sales_hub(data: dict) -> dict:
             for item in lines:
                 part = item["part"]
                 item_ids.append(insert_available(conn, "offer_items", {
-                    "offer_id": offer_id, "item_id": item["part_id"], "item_type": "stock",
+                    "offer_id": offer_id, "item_id": item["part_id"], "item_type": item["line_type"],
                     "service": part.get("name") or part.get("part_name") or "",
                     "description": clean_offer_line_description(
-                        part.get("description"),
+                        item["description"] or part.get("description"),
                         service=part.get("name") or part.get("part_name") or "",
                         brand=part.get("brand") or "",
                         category=part.get("category") or "",
                     ),
                     "brand": part.get("brand") or "", "qty": item["qty"],
                     "unit_price": item["unit_selected"], "line_total": item["line_selected"],
-                    "payload_json": json.dumps({"code": part.get("code"), "currency": currency, "unit_try": item["unit_try"], "source_currency": item["source_currency"]}, ensure_ascii=False),
+                    "payload_json": json.dumps({"code": part.get("code"), "currency": currency, "unit_try": item["unit_try"], "source_currency": item["source_currency"], "price_overridden": item["unit_try"] != round(float(part.get("price") or 0) * item["source_rate"], 6)}, ensure_ascii=False),
                 }))
             result.update({
                 "offer_id": offer_id,
@@ -6418,7 +12156,7 @@ def commit_sales_hub(data: dict) -> dict:
                 # source-currency value in original_amount for the audit trail.
                 "type": "Gelir", "category": "Sat\u0131\u015f", "amount": total_try,
                 "original_amount": total, "try_equivalent": total_try, "currency": currency,
-                "exchange_rate": selected_rate, "description": f"{sale_no} Sales Hub peşin satış",
+                "exchange_rate": selected_rate, "description": f"{sale_no} Sales Hub pe\u015fin sat\u0131\u015f",
                 "date": now.strftime("%Y-%m-%d"), "created_at": now.isoformat(timespec="seconds"),
                 "customer_id": customer_id, "customer_name": customer_name,
                 "payment_method": str(data.get("payment_method") or "Web"), "tracking_no": sale_no,
@@ -6427,21 +12165,23 @@ def commit_sales_hub(data: dict) -> dict:
             cost_id = None
             if total_cost_try > 0:
                 cost_id = insert_available(conn, "accounting", {
-                    "type": "Gider", "category": "Satılan Malın Maliyeti", "amount": round(total_cost_try, 4),
+                    "type": "Gider", "category": "Sat\u0131lan Mal\u0131n Maliyeti", "amount": round(total_cost_try, 4),
                     "original_amount": round(total_cost_try, 4), "try_equivalent": round(total_cost_try, 4),
                     "currency": "TRY", "exchange_rate": 1,
-                    "description": f"Satılan Malın Maliyeti - {sale_no} ({len(lines)} kalem)",
+                    "description": f"Sat\u0131lan Mal\u0131n Maliyeti - {sale_no} ({len(lines)} kalem)",
                     "date": now.strftime("%Y-%m-%d"), "created_at": now.isoformat(timespec="seconds"),
                     "customer_id": customer_id, "customer_name": customer_name,
                     "payment_method": "Mahsup", "tracking_no": sale_no, "ref_no": sale_no, "is_deleted": 0,
                 })
             movement_ids = []
             for item in lines:
+                if item["line_type"] == "service":
+                    continue
                 new_stock = round(float(item["part"].get("stock") or 0) - item["qty"], 6)
                 conn.execute("UPDATE parts SET stock=? WHERE id=?", (new_stock, item["part_id"]))
                 movement_ids.append(insert_available(conn, "stock_movements", {
-                    "part_id": item["part_id"], "movement_type": "Çıkış", "amount": item["qty"],
-                    "new_stock": new_stock, "description": f"{sale_no} Sales Hub peşin satış",
+                    "part_id": item["part_id"], "movement_type": "\u00c7\u0131k\u0131\u015f", "amount": item["qty"],
+                    "new_stock": new_stock, "description": f"{sale_no} Sales Hub pe\u015fin sat\u0131\u015f" + (f" | {item['description']}" if item["description"] else ""),
                     "created_at": now.isoformat(timespec="seconds"), "is_deleted": 0,
                 }))
             current_balance = _customer_balance(conn, customer_id, currency)
@@ -6453,13 +12193,13 @@ def commit_sales_hub(data: dict) -> dict:
             debit_id = insert_available(conn, "currency_transactions", {
                 "customer_id": customer_id, "transaction_type": "DEBIT", "amount": total,
                 "currency": currency, "exchange_rate": selected_rate, "try_equivalent": total_try,
-                "description": f"Peşin satış borç kaydı: {sale_no}", "tracking_no": sale_no,
+                "description": f"Pe\u015fin sat\u0131\u015f bor\u00e7 kayd\u0131: {sale_no}", "tracking_no": sale_no,
                 "created_at": now.isoformat(timespec="seconds"), "current_balance": debit_balance,
             })
             credit_id = insert_available(conn, "currency_transactions", {
                 "customer_id": customer_id, "transaction_type": "CREDIT", "amount": total,
                 "currency": currency, "exchange_rate": selected_rate, "try_equivalent": total_try,
-                "description": f"Peşin satış tahsilatı: {sale_no}", "tracking_no": sale_no,
+                "description": f"Pe\u015fin sat\u0131\u015f tahsilat\u0131: {sale_no}", "tracking_no": sale_no,
                 "created_at": now.isoformat(timespec="seconds"), "current_balance": current_balance,
             })
             _set_customer_balance(conn, customer_id, currency, current_balance, now)
@@ -6467,11 +12207,15 @@ def commit_sales_hub(data: dict) -> dict:
         else:
             service_no = str(data.get("reference") or f"SRV-{now.strftime('%Y%m%d%H%M%S')}")
             product_names = ", ".join(str(item["part"].get("name") or item["part"].get("part_name") or "") for item in lines)
+            line_notes = "; ".join(
+                f"{item['part'].get('name') or item['part'].get('part_name') or ''}: {item['description']}"
+                for item in lines if item["description"]
+            )
             device_id = insert_available(conn, "devices", {
                 "tracking_no": service_no, "customer_id": customer_id, "customer_name": customer_name,
                 "device_type": str(data.get("device_type") or "Cihaz"), "device_model": product_names,
-                "fault_description": f"Sales Hub kaydı — {data.get('offer_no') or service_no}",
-                "repair_details": f"Sepet toplamı: {total:g} {currency} | TRY karşılığı: {total_try:g}",
+                "fault_description": f"Sales Hub kayd\u0131 \u2014 {data.get('offer_no') or service_no}",
+                "repair_details": f"Sepet toplam\u0131: {total:g} {currency} | TRY kar\u015f\u0131l\u0131\u011f\u0131: {total_try:g}" + (f" | {line_notes}" if line_notes else ""),
                 "status": "Bekliyor", "entry_date": now.strftime("%Y-%m-%d"),
                 "estimated_date": data.get("estimated_date") or None,
                 "service_source": "Web Sales Hub", "priority": "Normal", "payment_status": "Beklemede",
@@ -6482,7 +12226,7 @@ def commit_sales_hub(data: dict) -> dict:
             debit_id = insert_available(conn, "currency_transactions", {
                 "customer_id": customer_id, "transaction_type": "DEBIT", "amount": total,
                 "currency": currency, "exchange_rate": selected_rate, "try_equivalent": total_try,
-                "description": f"Servis borç kaydı: {service_no}", "tracking_no": service_no,
+                "description": f"Servis bor\u00e7 kayd\u0131: {service_no}", "tracking_no": service_no,
                 "created_at": now.isoformat(timespec="seconds"), "current_balance": debit_balance,
             })
             _set_customer_balance(conn, customer_id, currency, debit_balance, now)
@@ -6670,7 +12414,21 @@ def update_technician_job(data: dict) -> dict:
         finance_id = currency_transaction_id = None
         payment = max(0.0, float(data.get("payment_amount") or 0)) if data.get("collect_payment") else 0.0
         payment_currency = str(data.get("payment_currency") or "TRY").upper()
+        bank_account_id = int(data.get("bank_account_id") or 0)
         if payment:
+            if bank_account_id:
+                bank_columns = set(table_columns(conn, "bank_accounts"))
+                bank_filters = ["id=?"]
+                if "is_deleted" in bank_columns:
+                    bank_filters.append("COALESCE(is_deleted,0)=0")
+                if "is_active" in bank_columns:
+                    bank_filters.append("COALESCE(is_active,1)=1")
+                bank_account = conn.execute(
+                    "SELECT id FROM bank_accounts WHERE " + " AND ".join(bank_filters),
+                    (bank_account_id,),
+                ).fetchone()
+                if not bank_account:
+                    raise ValueError("Selected bank account is unavailable for collection")
             if not int(device.get("customer_id") or 0):
                 raise ValueError(
                     "Tahsilat i\u00e7in servis m\u00fc\u015fterisi bulunamad\u0131"
@@ -6686,6 +12444,7 @@ def update_technician_job(data: dict) -> dict:
                 "date": now.strftime("%Y-%m-%d"), "created_at": now.isoformat(timespec="seconds"),
                 "customer_id": customer_id or None, "customer_name": customer_name,
                 "payment_method": str(data.get("payment_method") or "Nakit"),
+                "bank_account_id": bank_account_id or None,
                 "tracking_no": tracking_no, "ref_no": tracking_no, "is_deleted": 0,
             })
             if customer_id:
@@ -6749,6 +12508,12 @@ def record_customer_payment(data: dict) -> dict:
             "Tahsilat tutar\u0131 s\u0131f\u0131rdan b\u00fcy\u00fck olmal\u0131d\u0131r"
         )
     now = datetime.now()
+    date_value = str(data.get("date") or now.strftime("%Y-%m-%d"))
+    try:
+        datetime.strptime(date_value, "%Y-%m-%d")
+    except ValueError as error:
+        raise ValueError("Tahsilat tarihi ge\u00e7ersiz") from error
+    created_at = f"{date_value} {now.strftime('%H:%M:%S')}"
     with closing(db_connect()) as conn:
         conn.execute("BEGIN IMMEDIATE")
         if not customer_id and customer_name_hint:
@@ -6837,7 +12602,7 @@ def record_customer_payment(data: dict) -> dict:
             "type": "Gelir", "category": "Tahsilat", "amount": round(amount * rate, 4),
             "original_amount": amount, "try_equivalent": round(amount * rate, 4),
             "currency": currency, "exchange_rate": rate, "description": description,
-            "date": now.strftime("%Y-%m-%d"), "created_at": now.isoformat(timespec="seconds"),
+            "date": date_value, "created_at": created_at,
             "customer_id": customer_id, "customer_name": customer_name,
             "payment_method": method, "tracking_no": reference, "ref_no": reference, "is_deleted": 0,
         })
@@ -6845,7 +12610,7 @@ def record_customer_payment(data: dict) -> dict:
             "customer_id": customer_id, "transaction_type": "CREDIT", "amount": amount,
             "currency": currency, "exchange_rate": rate, "try_equivalent": round(amount * rate, 4),
             "description": description, "tracking_no": reference,
-            "created_at": now.isoformat(timespec="seconds"), "current_balance": updated,
+            "created_at": created_at, "current_balance": updated,
         })
         remaining_payment = amount
         allocations = []
@@ -6859,7 +12624,7 @@ def record_customer_payment(data: dict) -> dict:
             conn.execute(
                 "INSERT INTO payment_debt_links "
                 "(payment_txn_id,debt_txn_id,amount,created_at) VALUES (?,?,?,?)",
-                (transaction_id, debt["id"], paid, now.isoformat(timespec="seconds")),
+                (transaction_id, debt["id"], paid, created_at),
             )
             conn.execute(
                 "UPDATE currency_transactions SET current_balance=? WHERE id=?",
@@ -6881,6 +12646,7 @@ def record_customer_payment(data: dict) -> dict:
         "amount": amount, "open_debt_before": open_debt, "open_debt_after": max(0.0, -updated),
         "exchange_rate": rate, "try_equivalent": round(amount * rate, 4),
         "payment_method": method, "reference": reference,
+        "date": date_value,
         "payment_status": payment_status,
         "selected_debt_ids": selected_debt_ids,
         "allocations": allocations,
@@ -6936,7 +12702,7 @@ def build_offer_pdf(offer_id: int, requested_template: str | None = None) -> tup
     with closing(db_connect()) as conn:
         offer_row = conn.execute("SELECT * FROM offers WHERE id=?", (offer_id,)).fetchone()
         if not offer_row:
-            raise ValueError("Teklif kaydı bulunamadı")
+            raise ValueError("Teklif kayd\u0131 bulunamad\u0131")
         offer = dict(offer_row)
         item_rows = rows(conn, "SELECT * FROM offer_items WHERE offer_id=? ORDER BY id", (offer_id,))
         settings = {row["key"]: row["value"] for row in rows(conn, "SELECT key,value FROM settings")}
@@ -6988,8 +12754,8 @@ def build_offer_pdf(offer_id: int, requested_template: str | None = None) -> tup
         except (TypeError, ValueError):
             payload = {}
         cart_items.append({
-            "service": item.get("service") or payload.get("name") or "Ürün / Hizmet",
-            "name": item.get("service") or payload.get("name") or "Ürün / Hizmet",
+            "service": item.get("service") or payload.get("name") or "\u00dcr\u00fcn / Hizmet",
+            "name": item.get("service") or payload.get("name") or "\u00dcr\u00fcn / Hizmet",
             "description": clean_offer_line_description(
                 item.get("description") or payload.get("description"),
                 service=item.get("service") or payload.get("name") or "",
@@ -7046,13 +12812,13 @@ def build_offer_pdf(offer_id: int, requested_template: str | None = None) -> tup
     handle.close()
     manager = PDFManagerQt(_PDFSettingsAdapter(settings))
     manager._open_file = lambda _filename: None
-    currency = offer.get("currency_symbol") or {"TRY": "₺", "USD": "$", "EUR": "€"}.get(offer.get("currency_code"), "₺")
+    currency = offer.get("currency_symbol") or {"TRY": "\u20ba", "USD": "$", "EUR": "\u20ac"}.get(offer.get("currency_code"), "\u20ba")
     success, result = manager.create_proforma(
         template_type=template,
         cart_items=cart_items,
         totals=totals,
         company_name=issuer_company,
-        customer_name=offer.get("customer_name") or "Sayın İlgili",
+        customer_name=offer.get("customer_name") or "Say\u0131n \u0130lgili",
         project_name=offer.get("project_name") or "",
         contact_name=offer.get("contact_name") or offer.get("customer_name") or "",
         reference_no=offer.get("offer_no") or f"PRF-{offer_id}",
@@ -7078,14 +12844,14 @@ def delete_stock_with_reversal(part_id: int) -> dict:
             (part_id,),
         ).fetchone()
         if not part_row:
-            raise LookupError("Stok kartı bulunamadı veya daha önce silinmiş")
+            raise LookupError("Stok kart\u0131 bulunamad\u0131 veya daha \u00f6nce silinmi\u015f")
         part = dict(part_row)
         stock = float(part.get("stock") or 0)
         purchase_price = float(part.get("purchase_price") or 0)
         currency = str(part.get("currency") or "TRY").upper()
         movement_id = insert_available(conn, "stock_movements", {
             "part_id": part_id,
-            "movement_type": "Çıkış (Silindi)",
+            "movement_type": "\u00c7\u0131k\u0131\u015f (Silindi)",
             "amount": -stock,
             "new_stock": 0,
             "description": f"Kart Silindi: {part.get('name') or ''}",
@@ -7098,13 +12864,13 @@ def delete_stock_with_reversal(part_id: int) -> dict:
         if refund > 0:
             finance_id = insert_available(conn, "accounting", {
                 "type": "Gelir",
-                "category": "Stok İptali / Silinme",
+                "category": "Stok \u0130ptali / Silinme",
                 "amount": refund,
                 "try_equivalent": round(refund * rate, 4),
                 "currency": currency,
                 "exchange_rate": rate,
                 "original_amount": refund,
-                "description": f"Stok Kartı Silinme İadesi: {stock:g} x {part.get('name') or ''}",
+                "description": f"Stok Kart\u0131 Silinme \u0130adesi: {stock:g} x {part.get('name') or ''}",
                 "date": now.strftime("%Y-%m-%d"),
                 "created_at": now.isoformat(timespec="seconds"),
                 "payment_method": "Mahsup",
@@ -7135,20 +12901,23 @@ def delete_stock_with_reversal(part_id: int) -> dict:
 
 
 def desktop_bootstrap() -> dict:
+    archive_mode = bool(active_fiscal_archive_id())
+    if not archive_mode:
+        with closing(db_connect()) as conn:
+            stock_part_ids = [
+                int(row[0])
+                for row in conn.execute(
+                    "SELECT id FROM parts WHERE COALESCE(is_deleted,0)=0"
+                ).fetchall()
+            ]
+        if stock_part_ids:
+            reconcile_stock_finance(stock_part_ids)
     with closing(db_connect()) as conn:
-        stock_part_ids = [
-            int(row[0])
-            for row in conn.execute(
-                "SELECT id FROM parts WHERE COALESCE(is_deleted,0)=0"
-            ).fetchall()
-        ]
-    if stock_part_ids:
-        reconcile_stock_finance(stock_part_ids)
-    with closing(db_connect()) as conn:
-        repair_explicit_stock_accounting_currency(conn)
-        _reconcile_service_debits(conn)
+        if not archive_mode:
+            repair_explicit_stock_accounting_currency(conn)
+            _reconcile_service_debits(conn)
         accounting_columns = set(table_columns(conn, "accounting"))
-        if {"amount", "original_amount", "try_equivalent", "currency", "exchange_rate"}.issubset(accounting_columns):
+        if not archive_mode and {"amount", "original_amount", "try_equivalent", "currency", "exchange_rate"}.issubset(accounting_columns):
             conn.execute(
                 """
                 UPDATE accounting
@@ -7170,6 +12939,25 @@ def desktop_bootstrap() -> dict:
             customer["balances"] = balance_map.get(customer["id"], {"TRY": 0, "USD": 0, "EUR": 0})
             customer["services"] = []
             customer["quotes"] = []
+        current_sector = scalar(
+            conn,
+            "SELECT value FROM internal_settings WHERE key='current_sector'",
+            default="teknik_servis",
+        ) or "teknik_servis"
+        extension_table = {
+            "teknik_servis": "customer_technical_service_extension",
+            "otomotiv": "customer_automotive_extension",
+        }.get(str(current_sector))
+        if extension_table and scalar(
+            conn,
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?",
+            (extension_table,),
+            default=0,
+        ):
+            for extension in rows(conn, f'SELECT * FROM "{extension_table}"'):
+                customer = next((item for item in customers if item.get("id") == extension.get("customer_id")), None)
+                if customer:
+                    customer.update({key: value for key, value in extension.items() if key not in {"id", "customer_id", "created_at", "updated_at"}})
         by_id = {customer["id"]: customer for customer in customers}
         devices = rows(conn, "SELECT * FROM devices WHERE COALESCE(is_deleted,0)=0 ORDER BY id DESC")
         customer_vehicles = rows(
@@ -7227,6 +13015,12 @@ def desktop_bootstrap() -> dict:
                     "labor_cost": device.get("labor_cost") or 0,
                     "cargo_fee": device.get("cargo_fee") or 0,
                     "delivery_type": device.get("delivery_type") or "",
+                    "delivery_method": device.get("delivery_method") or device.get("delivery_type") or "",
+                    "service_location": device.get("service_location") or "",
+                    "other_info": device.get("other_info") or "",
+                    "delivered_by_name": device.get("delivered_by_name") or "",
+                    "delivered_by_phone": device.get("delivered_by_phone") or "",
+                    "price": device.get("price") or 0,
                     "warranty_status": device.get("warranty_status") or "Yok",
                     "warranty_end_date": device.get("warranty_end_date") or "",
                     "accessories": device.get("accessories") or "",
@@ -7248,7 +13042,7 @@ def desktop_bootstrap() -> dict:
                 payload = {}
             normalized = dict(item)
             normalized.update({key: value for key, value in payload.items() if key not in normalized or normalized.get(key) in (None, "")})
-            normalized["name"] = normalized.get("service") or normalized.get("description") or "Ürün / Hizmet"
+            normalized["name"] = normalized.get("service") or normalized.get("description") or "\u00dcr\u00fcn / Hizmet"
             normalized["price"] = normalized.get("unit_price") or 0
             items_by_offer.setdefault(item.get("offer_id"), []).append(normalized)
         for offer in offers:
@@ -7321,7 +13115,8 @@ def desktop_bootstrap() -> dict:
                 SELECT b.part_id,l.id AS location_id,l.name AS location_name,
                        l.location_type,l.vehicle_plate,p.name AS product_name,
                        p.code AS product_code,p.barcode,p.category,
-                       p.currency,b.quantity,b.reserved_quantity,b.min_quantity
+                       p.currency,COALESCE(p.unit,'Adet') AS unit,
+                       b.quantity,b.reserved_quantity,b.min_quantity
                 FROM stock_location_balances b
                 JOIN stock_locations l ON l.id=b.location_id
                 JOIN parts p ON p.id=b.part_id
@@ -7402,6 +13197,28 @@ def desktop_bootstrap() -> dict:
                     GROUP BY kit.id,kit.name,kit.active ORDER BY kit.name LIMIT 250
                     """,
                 )
+                kit_lines = rows(
+                    conn,
+                    """
+                    SELECT line.kit_id,line.part_id,part.name,
+                           COALESCE(part.unit,'Adet') AS unit,line.quantity
+                    FROM stock_kit_lines line
+                    JOIN parts part ON part.id=line.part_id
+                    ORDER BY line.kit_id,part.name
+                    """,
+                )
+                kit_lines_by_id: dict[int, list[dict]] = {}
+                for line in kit_lines:
+                    kit_lines_by_id.setdefault(int(line["kit_id"]), []).append(
+                        {
+                            "part_id": int(line["part_id"]),
+                            "name": line["name"],
+                            "unit": line["unit"],
+                            "quantity": float(line["quantity"] or 0),
+                        }
+                    )
+                for kit in stock_kits:
+                    kit["lines"] = kit_lines_by_id.get(int(kit["id"]), [])
 
         movements = rows(conn, "SELECT sm.*,p.name product FROM stock_movements sm LEFT JOIN parts p ON p.id=sm.part_id WHERE COALESCE(sm.is_deleted,0)=0 ORDER BY sm.id DESC LIMIT 500")
         finance = rows(conn, "SELECT * FROM accounting WHERE COALESCE(is_deleted,0)=0 ORDER BY date DESC,id DESC LIMIT 1000")
@@ -7431,7 +13248,7 @@ def desktop_bootstrap() -> dict:
         scheduled_alerts = rows(conn, "SELECT * FROM scheduled_alerts WHERE COALESCE(is_enabled,1)=1 ORDER BY trigger_time")
         personnel = rows(conn, "SELECT id,name,role,department,active FROM personnel WHERE COALESCE(active,1)=1 ORDER BY name")
         raw_settings = {row["key"]: row["value"] for row in rows(conn, "SELECT key,value FROM settings")}
-        sensitive = re.compile(r"(password|pass$|token|api_key|secret|security_answer_hash)", re.I)
+        sensitive = re.compile(r"(password|pass$|token|api_key|secret|security_answer_hash|twilio_account_sid)", re.I)
         settings = {key: ("" if sensitive.search(key) else value) for key, value in raw_settings.items()}
         settings_configured = [key for key, value in raw_settings.items() if value and sensitive.search(key)]
         internal_settings = {row["key"]: row["value"] for row in rows(conn, "SELECT key,value FROM internal_settings")}
@@ -7555,7 +13372,7 @@ def record_sync_conflict(
 def sync_manifest() -> dict:
     tenant_id = active_tenant_id()
     if not tenant_id:
-        raise PermissionError("Senkronizasyon için firma oturumu gerekiyor.")
+        raise PermissionError("Senkronizasyon i\u00e7in firma oturumu gerekiyor.")
     result = {
         "ok": True,
         "tenant_id": tenant_id,
@@ -7586,7 +13403,7 @@ def sync_pull(body: dict) -> dict:
     validate_sync_epoch(body)
     tables = body.get("tables") or sorted(SYNC_TABLES)
     if not isinstance(tables, list):
-        raise ValueError("Senkronizasyon tablo listesi geçersiz.")
+        raise ValueError("Senkronizasyon tablo listesi ge\u00e7ersiz.")
     since = body.get("since") or {}
     limit = min(max(int(body.get("limit") or 5000), 1), 5000)
     changes: dict[str, list[dict]] = {}
@@ -7662,7 +13479,7 @@ def sync_push(body: dict, source_device_id: str = "") -> dict:
     if isinstance(changes, dict):
         changes = [{"table": table, "row": row, "action": "upsert"} for table, items in changes.items() for row in (items if isinstance(items, list) else [items])]
     if not isinstance(changes, list) or len(changes) > 5000:
-        raise ValueError("Senkronizasyon değişiklik paketi geçersiz veya çok büyük.")
+        raise ValueError("Senkronizasyon de\u011fi\u015fiklik paketi ge\u00e7ersiz veya \u00e7ok b\u00fcy\u00fck.")
     applied = skipped = 0
     errors: list[str] = []
     conflicts: list[dict] = []
@@ -7672,7 +13489,7 @@ def sync_push(body: dict, source_device_id: str = "") -> dict:
         conn.execute("PRAGMA foreign_keys=OFF")
         for change in changes:
             if not isinstance(change, dict) or change.get("table") not in SYNC_TABLES:
-                errors.append("İzin verilmeyen tablo")
+                errors.append("\u0130zin verilmeyen tablo")
                 continue
             table = str(change["table"])
             row = dict(change.get("row") or {})
@@ -7700,7 +13517,7 @@ def sync_push(body: dict, source_device_id: str = "") -> dict:
                 else:
                     clean = {key: value for key, value in row.items() if key in columns}
                     if not clean:
-                        raise ValueError("Boş kayıt")
+                        raise ValueError("Bo\u015f kay\u0131t")
                     if table == "customer_currency_balances" and clean.get("customer_id") is not None and clean.get("currency"):
                         # Composite identity is customer + currency; desktop sync
                         # payloads may omit the server row id.
@@ -7811,6 +13628,473 @@ def sync_push(body: dict, source_device_id: str = "") -> dict:
     }
 
 
+def desktop_save_project_transaction(payload: dict) -> dict:
+    if not isinstance(payload, dict):
+        raise ValueError("A transaction payload is required.")
+    try:
+        project_id = int(payload.get("project_id") or 0)
+    except (TypeError, ValueError):
+        project_id = 0
+    transaction_type = str(payload.get("type") or "").strip()
+    categories = {
+        "Gelir": {"Daire Sat\u00fc\u015f\u0131", "Proje Hakedi\u015fi", "Di\u011fer"},
+        "Gider": {"Malzeme", "\u0130\u015f\u00e7ilik", "Ta\u015feron \u00d6demesi", "Nakliye", "Resmi Gider", "Di\u011fer"},
+    }
+    category = str(payload.get("category") or "").strip()
+    if project_id <= 0 or transaction_type not in categories:
+        raise ValueError("A valid project and transaction type are required.")
+    if category not in categories[transaction_type]:
+        raise ValueError("The selected category is not available for this transaction type.")
+    try:
+        amount = float(payload.get("amount") or 0)
+    except (TypeError, ValueError):
+        amount = 0.0
+    if not math.isfinite(amount) or amount <= 0 or amount > 100000000:
+        raise ValueError("Enter a transaction amount between 0 and 100000000.")
+    transaction_date = str(payload.get("date") or "").strip()
+    try:
+        datetime.strptime(transaction_date, "%Y-%m-%d")
+    except ValueError:
+        raise ValueError("A valid transaction date is required.")
+    try:
+        bank_account_id = int(payload.get("bank_account_id") or 0)
+    except (TypeError, ValueError):
+        raise ValueError("The selected bank account is invalid.")
+    description = str(payload.get("description") or "").strip()
+    if len(description) > 500:
+        raise ValueError("The description cannot exceed 500 characters.")
+    ref_table = str(payload.get("ref_table") or "").strip()
+    try:
+        ref_id = int(payload.get("ref_id") or 0)
+    except (TypeError, ValueError):
+        raise ValueError("The transaction reference is invalid.")
+    if ref_table or ref_id:
+        if ref_table != "subcontractors" or ref_id <= 0 or transaction_type != "Gider" or category != "Ta\u015feron \u00d6demesi":
+            raise ValueError("The subcontractor payment reference is invalid.")
+
+    from src.database import Database
+    from src.utils.currency_helper import CurrencyHelper
+
+    database = Database(str(active_db_path()), init_mode="connection_only")
+    try:
+        project = database.conn.execute(
+            "SELECT id FROM projects WHERE id=?", (project_id,)
+        ).fetchone()
+        if not project:
+            raise LookupError("Project was not found.")
+        if ref_table == "subcontractors":
+            subcontractor = database.conn.execute(
+                "SELECT id FROM subcontractors WHERE id=? AND project_id=?",
+                (ref_id, project_id),
+            ).fetchone()
+            if not subcontractor:
+                raise LookupError("The subcontractor was not found in this project.")
+        currency, exchange_rate = database.get_project_currency(project_id)
+        currency = str(currency or "TRY").upper()
+        if bank_account_id:
+            columns = set(table_columns(database.conn, "bank_accounts"))
+            if not columns:
+                raise LookupError("Bank accounts are unavailable.")
+            clauses = ["id=?"]
+            if "is_active" in columns:
+                clauses.append("COALESCE(is_active,1)=1")
+            if "is_deleted" in columns:
+                clauses.append("COALESCE(is_deleted,0)=0")
+            if "is_archived" in columns:
+                clauses.append("COALESCE(is_archived,0)=0")
+            account = database.conn.execute(
+                "SELECT id FROM bank_accounts WHERE " + " AND ".join(clauses),
+                (bank_account_id,),
+            ).fetchone()
+            if not account:
+                raise LookupError("The selected bank account is unavailable.")
+        amount_try = float(CurrencyHelper.convert_amount(database, amount, currency, "TRY"))
+        if not math.isfinite(amount_try) or amount_try <= 0:
+            raise ValueError("The TRY equivalent could not be calculated.")
+        transaction_id = database.add_project_transaction(
+            {
+                "project_id": project_id,
+                "type": transaction_type,
+                "category": category,
+                "amount": amount_try,
+                "payment_method": "Banka" if bank_account_id else "Nakit",
+                "date": transaction_date,
+                "description": description,
+                "status": "\u00d6dendi",
+                "bank_account_id": bank_account_id or None,
+                "original_amount": amount if currency != "TRY" else None,
+                "original_currency": currency,
+                "exchange_rate": float(exchange_rate or 1.0),
+                "ref_table": ref_table or None,
+                "ref_id": ref_id or None,
+            },
+            commit=False,
+        )
+        if not transaction_id:
+            database.conn.rollback()
+            raise RuntimeError("The project transaction could not be saved.")
+        database.conn.commit()
+        return {
+            "ok": True,
+            "id": int(transaction_id),
+            "currency": currency,
+            "amount": amount,
+            "amount_try": amount_try,
+        }
+    except Exception:
+        database.conn.rollback()
+        raise
+    finally:
+        database.close()
+
+
+def desktop_project_units_export_xlsx(project_id: int) -> bytes:
+    from io import BytesIO
+    from openpyxl import Workbook
+
+    from src.database import Database
+
+    try:
+        project_id = int(project_id)
+    except (TypeError, ValueError):
+        raise ValueError("A valid project is required.")
+    if project_id <= 0:
+        raise ValueError("A valid project is required.")
+    database = Database(str(active_db_path()), init_mode="connection_only")
+    try:
+        project = database.conn.execute(
+            "SELECT id FROM projects WHERE id=?", (project_id,)
+        ).fetchone()
+        if not project:
+            raise LookupError("Project was not found.")
+        units = [dict(row) for row in database.get_project_units(project_id)]
+        products = [dict(row) for row in database.get_project_unit_products(project_id)]
+        products_by_unit: dict[int, list[dict]] = {}
+        product_counts: dict[int, int] = {}
+        for product in products:
+            unit_id = int(product.get("unit_id") or 0)
+            products_by_unit.setdefault(unit_id, []).append(product)
+            product_counts[unit_id] = product_counts.get(unit_id, 0) + 1
+        children: dict[int, list[int]] = {}
+        for unit in units:
+            parent_id = int(unit.get("parent_unit_id") or 0)
+            if parent_id:
+                children.setdefault(parent_id, []).append(int(unit.get("id") or 0))
+
+        def safe_cell(value):
+            if isinstance(value, str) and value.lstrip().startswith(("=", "+", "-", "@")):
+                return "'" + value
+            return value
+
+        workbook = Workbook()
+        summary = workbook.active
+        summary.title = "Oda \u00d6zeti"
+        summary.append(["Blok", "Daire / Oda", "Durum", "Kurulu \u00dcr\u00fcn Say\u0131s\u0131"])
+        for unit in units:
+            unit_id = int(unit.get("id") or 0)
+            installed_count = product_counts.get(unit_id, 0) + sum(
+                product_counts.get(child_id, 0)
+                for child_id in children.get(unit_id, [])
+            )
+            summary.append([
+                safe_cell(unit.get("block_name") or ""),
+                safe_cell(unit.get("unit_no") or ""),
+                safe_cell(unit.get("status") or "Bekliyor"),
+                installed_count,
+            ])
+        details = workbook.create_sheet("\u00dcr\u00fcn Detaylar\u0131")
+        details.append([
+            "Blok", "Daire / Oda", "\u00dcr\u00fcn Ad\u0131", "Kod", "Adet",
+            "Teknik Not", "Eklenme Tarihi",
+        ])
+        unit_lookup = {int(unit.get("id") or 0): unit for unit in units}
+        for product in products:
+            unit = unit_lookup.get(int(product.get("unit_id") or 0), {})
+            details.append([
+                safe_cell(unit.get("block_name") or ""),
+                safe_cell(unit.get("unit_no") or ""),
+                safe_cell(product.get("part_name") or ""),
+                safe_cell(product.get("part_code") or "-"),
+                product.get("quantity") or 1,
+                safe_cell(product.get("notes") or ""),
+                safe_cell(product.get("added_at") or ""),
+            ])
+        for sheet in (summary, details):
+            sheet.freeze_panes = "A2"
+            sheet.auto_filter.ref = sheet.dimensions
+            for column in sheet.columns:
+                width = max(len(str(cell.value or "")) for cell in column)
+                sheet.column_dimensions[column[0].column_letter].width = min(max(width + 2, 12), 48)
+        output = BytesIO()
+        workbook.save(output)
+        return output.getvalue()
+    finally:
+        database.close()
+
+
+def desktop_project_units_export_csv(project_id: int) -> bytes:
+    import csv
+    from io import StringIO
+
+    from src.database import Database
+
+    try:
+        project_id = int(project_id)
+    except (TypeError, ValueError):
+        raise ValueError("A valid project is required.")
+    if project_id <= 0:
+        raise ValueError("A valid project is required.")
+    database = Database(str(active_db_path()), init_mode="connection_only")
+    try:
+        project = database.conn.execute(
+            "SELECT id FROM projects WHERE id=?", (project_id,)
+        ).fetchone()
+        if not project:
+            raise LookupError("Project was not found.")
+        units = {int(row["id"]): dict(row) for row in database.get_project_units(project_id)}
+        products = database.get_project_unit_products(project_id)
+        output = StringIO(newline="")
+        writer = csv.writer(output, delimiter=";")
+        writer.writerow([
+            "Blok", "Daire / Oda", "\u00dcr\u00fcn Ad\u0131", "Kod", "Adet",
+            "Teknik Not", "Eklenme Tarihi",
+        ])
+        for row in products:
+            product = dict(row)
+            unit = units.get(int(product.get("unit_id") or 0), {})
+            values = [
+                unit.get("block_name") or "",
+                unit.get("unit_no") or "",
+                product.get("part_name") or "",
+                product.get("part_code") or "-",
+                product.get("quantity") or 1,
+                product.get("notes") or "",
+                product.get("added_at") or "",
+            ]
+            writer.writerow([
+                "'" + value if isinstance(value, str) and value.lstrip().startswith(("=", "+", "-", "@")) else value
+                for value in values
+            ])
+        return ("\ufeff" + output.getvalue()).encode("utf-8")
+    finally:
+        database.close()
+
+
+def desktop_project_lifecycle_action(payload: dict) -> dict:
+    if not isinstance(payload, dict):
+        raise ValueError("A project action is required.")
+    try:
+        project_id = int(payload.get("project_id") or 0)
+    except (TypeError, ValueError):
+        project_id = 0
+    action = str(payload.get("action") or "").strip().lower()
+    if project_id <= 0 or action not in {"archive", "restore", "complete", "delete"}:
+        raise ValueError("A valid project action is required.")
+    from src.database import Database
+
+    database = Database(str(active_db_path()), init_mode="connection_only")
+    try:
+        project = database.conn.execute(
+            "SELECT id FROM projects WHERE id=?", (project_id,)
+        ).fetchone()
+        if not project:
+            raise LookupError("Project was not found.")
+        if action in {"archive", "restore"}:
+            success = database.archive_project(project_id, archived=action == "archive")
+        elif action == "complete":
+            success = database.update_project_status(project_id, "Tamamland\u0131")
+        else:
+            success = database.delete_project(project_id)
+        if not success:
+            raise RuntimeError("The project action could not be completed.")
+        return {"ok": True, "project_id": project_id, "action": action}
+    finally:
+        database.close()
+
+
+def desktop_create_project_units(payload: dict) -> dict:
+    if not isinstance(payload, dict):
+        raise ValueError("A project unit payload is required.")
+    try:
+        project_id = int(payload.get("project_id") or 0)
+        block_count = int(payload.get("block_count") or 0)
+        unit_count = int(payload.get("unit_count") or 0)
+    except (TypeError, ValueError) as error:
+        raise ValueError("Block and unit counts must be whole numbers.") from error
+    if project_id <= 0 or not 1 <= block_count <= 26 or not 1 <= unit_count <= 200:
+        raise ValueError("Select 1-26 blocks and 1-200 units per block.")
+    naming = str(payload.get("naming") or "letter")
+    if naming not in {"letter", "number", "custom"}:
+        raise ValueError("The block naming mode is invalid.")
+    custom_names = [value.strip()[:80] for value in str(payload.get("custom_names") or "").split(",") if value.strip()]
+    if naming == "custom" and len(custom_names) > 26:
+        raise ValueError("Enter no more than 26 custom block names.")
+    block_names = [
+        (str(index + 1) if naming == "number" else (custom_names[index] if naming == "custom" and index < len(custom_names) else f"Blok{index + 1}") if naming == "custom" else chr(65 + index))
+        for index in range(block_count)
+    ]
+    if any(not name for name in block_names):
+        raise ValueError("Block names cannot be empty.")
+
+    from src.database import Database
+
+    database = Database(str(active_db_path()), init_mode="connection_only")
+    try:
+        if not database.conn.execute("SELECT 1 FROM projects WHERE id=?", (project_id,)).fetchone():
+            raise LookupError("Project was not found.")
+        rows = [
+            (project_id, block, "0", f"{block}-{number}", "Bekliyor", 0, "", 0, 0, 0, "", None, "Daire")
+            for block in block_names
+            for number in range(1, unit_count + 1)
+        ]
+        try:
+            database.conn.execute("BEGIN IMMEDIATE")
+            database.conn.executemany(
+                "INSERT INTO project_units (project_id,block_name,floor_no,unit_no,status,price,unit_type,area,unit_price,total_price,description,parent_unit_id,unit_kind) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                rows,
+            )
+            database.conn.commit()
+        except Exception:
+            database.conn.rollback()
+            raise
+        return {"ok": True, "project_id": project_id, "units_created": len(rows), "blocks": block_names}
+    finally:
+        database.close()
+
+
+def desktop_create_project(payload: dict) -> dict:
+    if not isinstance(payload, dict):
+        raise ValueError("A project payload is required.")
+    name = str(payload.get("name") or "").strip()
+    if not name or len(name) > 200:
+        raise ValueError("A project name is required and must be 200 characters or fewer.")
+    currency = str(payload.get("currency") or "TRY").strip().upper()
+    if currency not in {"TRY", "USD", "EUR", "GBP", "AED", "CAD", "CHF", "JPY"}:
+        raise ValueError("The selected project currency is not supported.")
+    payment_method = str(payload.get("payment_method") or "").strip()
+    if payment_method not in {
+        "Pe\u015fin", "Bor\u00e7lu / Vadeli", "K\u0131smi Pe\u015fin + Vade",
+        "Havale / EFT", "\u00c7ek", "Kredi Kart\u0131", "Di\u011fer",
+    }:
+        raise ValueError("The selected payment method is not available.")
+    dates = {}
+    for field in ("start_date", "end_date"):
+        value = str(payload.get(field) or "").strip()
+        try:
+            datetime.strptime(value, "%Y-%m-%d")
+        except ValueError:
+            raise ValueError("Project start and end dates must be valid dates.")
+        dates[field] = value
+    if dates["end_date"] < dates["start_date"]:
+        raise ValueError("The estimated end date cannot be before the start date.")
+    amounts = {}
+    for field in ("budget", "cost"):
+        try:
+            amounts[field] = float(payload.get(field) or 0)
+        except (TypeError, ValueError):
+            raise ValueError("Project budget and cost must be valid amounts.")
+        if not math.isfinite(amounts[field]) or amounts[field] < 0 or amounts[field] > 1_000_000_000:
+            raise ValueError("Project budget and cost must be between 0 and 1000000000.")
+    try:
+        exchange_rate = float(payload.get("exchange_rate") or 1)
+    except (TypeError, ValueError):
+        raise ValueError("The project exchange rate is invalid.")
+    if not math.isfinite(exchange_rate) or exchange_rate <= 0 or exchange_rate > 99999.9999:
+        raise ValueError("The project exchange rate must be greater than zero.")
+    if currency == "TRY":
+        exchange_rate = 1.0
+    description = str(payload.get("description") or "").strip()
+    if len(description) > 4000:
+        raise ValueError("The project description cannot exceed 4000 characters.")
+    contract_payload = payload.get("contract_pdf")
+    contract_bytes = None
+    contract_filename = ""
+    if contract_payload is not None:
+        if not isinstance(contract_payload, dict):
+            raise ValueError("The project contract file is invalid.")
+        contract_filename = Path(str(contract_payload.get("filename") or "")).name
+        encoded = str(contract_payload.get("data_base64") or "")
+        if not contract_filename.lower().endswith(".pdf") or not encoded or len(encoded) > 12 * 1024 * 1024:
+            raise ValueError("The project contract must be a PDF no larger than 8 MB.")
+        try:
+            contract_bytes = base64.b64decode(encoded, validate=True)
+        except (ValueError, binascii.Error) as error:
+            raise ValueError("The project contract data is invalid.") from error
+        if not contract_bytes or len(contract_bytes) > 8 * 1024 * 1024 or not contract_bytes.startswith(b"%PDF-"):
+            raise ValueError("The project contract must be a valid PDF no larger than 8 MB.")
+    try:
+        customer_id = int(payload.get("customer_id") or 0)
+    except (TypeError, ValueError):
+        raise ValueError("The selected customer is invalid.")
+    contract_root = _contract_attachment_root(create=True) if contract_bytes is not None else None
+
+    from src.database import Database
+
+    database = Database(str(active_db_path()), init_mode="connection_only")
+    try:
+        customer_name = None
+        if customer_id:
+            customer = database.conn.execute(
+                "SELECT id,name FROM customers WHERE id=?", (customer_id,)
+            ).fetchone()
+            if not customer:
+                raise LookupError("The selected customer was not found.")
+            customer_name = str(customer["name"] or "")
+        project_id = database.add_project({
+            "name": name,
+            "start_date": dates["start_date"],
+            "end_date": dates["end_date"],
+            "budget": amounts["budget"],
+            "cost": amounts["cost"],
+            "currency": currency,
+            "exchange_rate": exchange_rate,
+            "payment_method": payment_method,
+            "description": description,
+            "customer_id": customer_id or None,
+            "customer_name": customer_name,
+            "status": "Devam Ediyor",
+        })
+        if not project_id:
+            raise RuntimeError("The project and its financial records could not be created.")
+        if contract_bytes is not None:
+            stored = contract_root / (uuid.uuid4().hex + ".pdf")
+            try:
+                with stored.open("xb") as target:
+                    target.write(contract_bytes)
+                database.conn.execute("UPDATE projects SET contract_path=? WHERE id=?", (str(stored), int(project_id)))
+                database.conn.commit()
+            except Exception:
+                stored.unlink(missing_ok=True)
+                raise
+        return {"ok": True, "project_id": int(project_id), "name": name}
+    finally:
+        database.close()
+
+
+def desktop_project_contract_download(project_id: object) -> tuple[bytes, str]:
+    try:
+        project_id = int(project_id)
+    except (TypeError, ValueError) as error:
+        raise ValueError("A valid project id is required.") from error
+    from src.database import Database
+
+    database = Database(str(active_db_path()), init_mode="connection_only")
+    try:
+        row = database.conn.execute("SELECT contract_path FROM projects WHERE id=?", (project_id,)).fetchone()
+        if not row:
+            raise LookupError("Project was not found.")
+        raw_path = str(row["contract_path"] or "")
+        if not raw_path:
+            raise LookupError("The project has no contract PDF.")
+        target = Path(raw_path).resolve()
+        root = _contract_attachment_root(create=False).resolve()
+        if target.parent != root or target.suffix.lower() != ".pdf" or not target.is_file():
+            raise LookupError("The project contract PDF is unavailable.")
+        return target.read_bytes(), "project-contract-" + str(project_id) + ".pdf"
+    finally:
+        database.close()
+
+
 class AYECRequestHandler(BaseHTTPRequestHandler):
     server_version = "AYECProWeb/2.0"
 
@@ -7831,6 +14115,15 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
     def current_user(self) -> dict | None:
         if not hasattr(self, "_current_user_cache"):
             self._current_user_cache = session_user(self.session_token())
+            archive_text = str(self.headers.get("X-AYEC-Fiscal-Archive") or "").strip()
+            if self._current_user_cache and archive_text:
+                if not archive_text.isdecimal():
+                    self._fiscal_archive_error = "Fiscal archive selection is invalid"
+                else:
+                    try:
+                        activate_fiscal_archive_context(self._current_user_cache, int(archive_text))
+                    except (LookupError, PermissionError, ValueError, OSError, sqlite3.Error):
+                        self._fiscal_archive_error = "Fiscal archive is unavailable or failed validation"
         return self._current_user_cache
 
     def client_ip(self) -> str:
@@ -8007,6 +14300,49 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
             parsed = urlparse(self.path)
             path = unquote(parsed.path)
             query = parse_qs(parsed.query)
+            if path.startswith("/api/") and self.headers.get("X-AYEC-Fiscal-Archive"):
+                self.current_user()
+                if getattr(self, "_fiscal_archive_error", ""):
+                    return self.send_json({"error": self._fiscal_archive_error}, 409)
+            if path == "/api/desktop/backups/google-drive/callback":
+                state = str((query.get("state") or [""])[0])
+                pending = _consume_google_drive_state(state)
+                error_text = str((query.get("error") or [""])[0])
+                user = self.current_user()
+                if not pending:
+                    message = "Google Drive connection request expired or was already used."
+                    status = 400
+                elif not user or int(user.get("id") or 0) != pending["user_id"] or str(user.get("_tenant_id") or "") != pending["tenant_id"] or not role_is_admin(user.get("role")):
+                    message = "Sign in again as the same company administrator to finish connecting Google Drive."
+                    status = 403
+                elif error_text:
+                    message = "Google Drive access was not approved."
+                    status = 400
+                else:
+                    try:
+                        tenant = _tenant_record_required(pending["tenant_id"])
+                        set_tenant_context(tenant)
+                        redirect_uri = _google_drive_redirect_uri()
+                        with closing(db_connect()) as conn:
+                            client_json = _google_drive_setting(conn, "google_drive_client_config")
+                            client_config = validate_google_drive_client_config(json.loads(client_json))
+                            callback_url = redirect_uri + "?" + urlencode({"code": str((query.get("code") or [""])[0]), "state": state})
+                            token_json = exchange_google_drive_authorization(client_config, redirect_uri, callback_url, state)
+                            _google_drive_setting(conn, "google_drive_token", token_json)
+                            conn.commit()
+                        self.send_response(303)
+                        self.send_header("Location", "/#backup")
+                        self.send_header("Cache-Control", "no-store")
+                        self.end_headers()
+                        return
+                    except Exception:
+                        logger.exception("Google Drive OAuth callback failed")
+                        message = "Google Drive could not be connected. Check the Web OAuth client and registered callback URL, then try again."
+                        status = 400
+                payload = ("<!doctype html><meta charset=\"utf-8\"><title>AYEC Pro</title><main><h1>Google Drive connection failed</h1><p>" + html.escape(message) + "</p><a href=\"/#backup\">Return to backups</a></main>").encode("utf-8")
+                self._headers(status, "text/html; charset=utf-8", len(payload))
+                self.wfile.write(payload)
+                return
             if path.startswith("/api/public/service/") or path.startswith("/servis/takip/"):
                 prefix = "/api/public/service/" if path.startswith("/api/public/service/") else "/servis/takip/"
                 token = path[len(prefix):].strip("/")
@@ -8134,7 +14470,77 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
                     return self.send_json({"companies": admin_live_status()})
                 return self.send_json({"error": "Endpoint bulunamadi"}, 404)
             if path.startswith("/api/") and not self.current_user():
-                return self.send_json({"error": "Oturum açmanız gerekiyor.", "code": "AUTH_REQUIRED"}, 401)
+                return self.send_json({"error": "Oturum a\u00e7man\u0131z gerekiyor.", "code": "AUTH_REQUIRED"}, 401)
+            if path == "/api/desktop/product-groups/bootstrap":
+                with closing(db_connect()) as conn:
+                    seeded = ensure_product_groups(conn)
+                    return self.send_json({"ok": True, "seeded": seeded})
+            if path == "/api/desktop/documents/center":
+                with closing(db_connect()) as conn:
+                    return self.send_json({"rows": desktop_documents_center_rows(conn)})
+            project_contract_match = re.fullmatch(r"/api/desktop/projects/(\d+)/contract/download", path)
+            if project_contract_match:
+                try:
+                    payload, filename = desktop_project_contract_download(project_contract_match.group(1))
+                    disposition_name = quote(filename, safe="")
+                    return self.send_bytes(payload, "application/pdf", disposition="attachment; filename*=UTF-8''" + disposition_name)
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+            accounting_receipt_match = re.fullmatch(r"/api/desktop/accounting/(\d+)/receipt/download", path)
+            if accounting_receipt_match:
+                try:
+                    with closing(db_connect()) as conn:
+                        payload, filename, content_type = desktop_download_accounting_receipt(
+                            conn, accounting_receipt_match.group(1)
+                        )
+                    disposition_name = quote(filename, safe="")
+                    disposition = "attachment; filename*=UTF-8''" + disposition_name
+                    return self.send_bytes(payload, content_type, disposition=disposition)
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+            contract_download_match = re.fullmatch(r"/api/desktop/contracts/attachments/(\d+)/download", path)
+            if contract_download_match:
+                try:
+                    with closing(db_connect()) as conn:
+                        payload, filename = desktop_download_contract_attachment(conn, contract_download_match.group(1))
+                    disposition_name = quote(filename, safe="")
+                    disposition = "attachment; filename*=UTF-8''" + disposition_name
+                    return self.send_bytes(payload, mimetypes.guess_type(filename)[0] or "application/octet-stream", disposition=disposition)
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+            contract_detail_match = re.fullmatch(r"/api/desktop/contracts/(\d+)/attachments", path)
+            if contract_detail_match:
+                try:
+                    with closing(db_connect()) as conn:
+                        return self.send_json(desktop_contract_detail(conn, contract_detail_match.group(1)))
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+            if path == "/api/desktop/personnel/daily-wages":
+                try:
+                    with closing(db_connect()) as conn:
+                        return self.send_json(desktop_personnel_daily_wages(
+                            conn, query.get("year", [""])[0], query.get("month", [""])[0]
+                        ))
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+            if path == "/api/desktop/service-sms/status":
+                try:
+                    tracking_no = query.get("tracking_no", [""])[0]
+                    with closing(db_connect()) as conn:
+                        target = desktop_service_sms_target(conn, tracking_no)
+                    return self.send_json(target)
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
             if path == "/api/control/overview":
                 try:
                     return self.send_json(control_overview(self.current_user()))
@@ -8191,6 +14597,155 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
                 return self.send_json(sync_manifest())
             if path == "/api/sync/pull":
                 return self.send_json(sync_pull({"tables": query.get("table") or None, "since": {}}))
+            if path == "/api/desktop/fiscal/archives":
+                user = self.current_user()
+                if not user:
+                    return self.send_json({"error": "Authentication required"}, 401)
+                try:
+                    return self.send_json({"archives": desktop_fiscal_archive_list(user)})
+                except PermissionError as error:
+                    return self.send_json({"error": str(error)}, 403)
+                except (LookupError, ValueError) as error:
+                    return self.send_json({"error": str(error)}, 400)
+            fiscal_archive_match = re.fullmatch(r"/api/desktop/fiscal/archives/(\d+)", path)
+            if fiscal_archive_match:
+                user = self.current_user()
+                if not user:
+                    return self.send_json({"error": "Authentication required"}, 401)
+                try:
+                    return self.send_json(
+                        desktop_fiscal_archive_finance(user, int(fiscal_archive_match.group(1)))
+                    )
+                except PermissionError as error:
+                    return self.send_json({"error": str(error)}, 403)
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 409)
+            if path == "/api/desktop/fiscal/rollover-plan":
+                user = self.current_user()
+                if not user:
+                    return self.send_json({"error": "Authentication required"}, 401)
+                try:
+                    return self.send_json({"plan": desktop_fiscal_rollover_plan(user)})
+                except PermissionError as error:
+                    return self.send_json({"error": str(error)}, 403)
+                except (LookupError, ValueError, RuntimeError) as error:
+                    return self.send_json({"error": str(error)}, 400)
+            if path == "/api/desktop/backups":
+                user = self.current_user()
+                if not user:
+                    return self.send_json({"error": "Authentication required"}, 401)
+                try:
+                    return self.send_json({"backups": desktop_list_backups(user)})
+                except PermissionError as error:
+                    return self.send_json({"error": str(error)}, 403)
+                except (LookupError, ValueError) as error:
+                    return self.send_json({"error": str(error)}, 400)
+            if path == "/api/desktop/backups/google-drive/status":
+                user = self.current_user()
+                if not user:
+                    return self.send_json({"error": "Authentication required"}, 401)
+                try:
+                    _desktop_backup_context(user)
+                    with closing(db_connect()) as conn:
+                        configured = bool(_google_drive_setting(conn, "google_drive_client_config"))
+                        connected = bool(_google_drive_setting(conn, "google_drive_token"))
+                    return self.send_json({
+                        "configured": configured,
+                        "connected": connected,
+                        "redirect_uri": _google_drive_redirect_uri(),
+                    })
+                except PermissionError as error:
+                    return self.send_json({"error": str(error)}, 403)
+                except (LookupError, ValueError) as error:
+                    return self.send_json({"error": str(error)}, 400)
+            if path.startswith("/api/desktop/checks/") and path.endswith("/status-options"):
+                user = self.current_user()
+                if not user:
+                    return self.send_json({"error": "Authentication required"}, 401)
+                check_text = path[len("/api/desktop/checks/"):-len("/status-options")].strip("/")
+                if not check_text.isdecimal():
+                    return self.send_json({"error": "Invalid check or note id"}, 400)
+                try:
+                    return self.send_json(desktop_check_note_status_options(
+                        user,
+                        int(check_text),
+                        str(query.get("status", [""])[0]),
+                    ))
+                except PermissionError as error:
+                    return self.send_json({"error": str(error)}, 403)
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+            if path.startswith("/api/desktop/backups/") and path.endswith("/download"):
+                user = self.current_user()
+                if not user:
+                    return self.send_json({"error": "Authentication required"}, 401)
+                backup_text = path[len("/api/desktop/backups/"):-len("/download")].strip("/")
+                if not backup_text.isdecimal():
+                    return self.send_json({"error": "Invalid backup id"}, 400)
+                try:
+                    payload, _digest, filename = desktop_download_backup(user, int(backup_text))
+                    safe_name = Path(filename).name.replace('"', "") or "backup.db"
+                    return self.send_bytes(
+                        payload,
+                        "application/vnd.sqlite3",
+                        disposition=f'attachment; filename="{safe_name}"',
+                    )
+                except PermissionError as error:
+                    return self.send_json({"error": str(error)}, 403)
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+            if path == "/api/desktop/assistant/status":
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                from src.utils.desktop_web_ai import desktop_assistant_status
+
+                return self.send_json(desktop_assistant_status(active_db_path()))
+            if path == "/api/desktop/field-service/personnel":
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                return self.send_json(desktop_field_service_personnel(self.current_user()))
+            if path.startswith("/api/desktop/field-service/traffic/"):
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                match = re.fullmatch(r"/api/desktop/field-service/traffic/(\d+)/(\d+)/(\d+)", path)
+                if not match:
+                    return self.send_json({"error": "Traffic tile path is invalid"}, 400)
+                try:
+                    tile = desktop_field_service_traffic_tile(*match.groups())
+                    if tile is None:
+                        return self.send_json({"error": "TomTom traffic key is unavailable"}, 404)
+                    return self.send_bytes(tile, "image/png")
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+                except (HTTPError, URLError, TimeoutError, OSError) as error:
+                    return self.send_json({"error": "Traffic service is temporarily unavailable"}, 502)
+            vector_resource_prefix = "/api/desktop/field-service/vector-resource"
+            if path == vector_resource_prefix or path.startswith(vector_resource_prefix + "/"):
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                resource_path = path[len(vector_resource_prefix):]
+                if resource_path:
+                    target_url = "https://api.tomtom.com{}".format(resource_path)
+                    if parsed.query:
+                        target_url += "?" + parsed.query
+                else:
+                    target_url = query.get("url", [""])[0]
+                try:
+                    resource = desktop_field_service_vector_resource(target_url)
+                    if resource is None:
+                        return self.send_json({"error": "TomTom map key is unavailable"}, 404)
+                    payload, content_type = resource
+                    return self.send_bytes(payload, content_type)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+                except (HTTPError, URLError, TimeoutError, OSError) as error:
+                    return self.send_json({"error": "TomTom vector service is temporarily unavailable"}, 502)
             if path == "/api/desktop/bootstrap":
                 payload = desktop_bootstrap()
                 payload["current_user"] = public_user(self.current_user())
@@ -8259,6 +14814,86 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
                     })
                 except ValueError as error:
                     return self.send_json({"error": str(error)}, 400)
+            if path == "/api/desktop/einvoice/settings":
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                from src.database import Database
+
+                database = Database(str(active_db_path()), init_mode="connection_only")
+                try:
+                    return self.send_json(einvoice_settings_payload(database))
+                finally:
+                    database.close()
+            if path == "/api/desktop/services/export/xlsx":
+                if not self.current_user():
+                    return self.send_json({"error": "Oturum a\u00e7man\u0131z gerekiyor.", "code": "AUTH_REQUIRED"}, 401)
+                try:
+                    payload = service_catalog_workbook()
+                    return self.send_bytes(
+                        payload,
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        disposition=f'attachment; filename="Hizmet_Listesi_{datetime.now().strftime("%Y%m%d")}.xlsx"',
+                    )
+                except ImportError as error:
+                    return self.send_json({"error": f"Excel export is unavailable: {error}"}, 503)
+            if path == "/api/desktop/services/export/pdf":
+                if not self.current_user():
+                    return self.send_json({"error": "Oturum a\u00e7man\u0131z gerekiyor.", "code": "AUTH_REQUIRED"}, 401)
+                try:
+                    payload = desktop_stock_pdf(service_catalog_workbook(), "AYEC Pro - Hizmet Listesi")
+                    return self.send_bytes(
+                        payload,
+                        "application/pdf",
+                        disposition=f'attachment; filename="Hizmet_Listesi_{datetime.now().strftime("%Y%m%d")}.pdf"',
+                    )
+                except ImportError as error:
+                    return self.send_json({"error": f"PDF export is unavailable: {error}"}, 503)
+            if path in {"/api/desktop/device-brands/export/xlsx", "/api/desktop/device-brands/export/pdf"}:
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required", "code": "AUTH_REQUIRED"}, 401)
+                search = str(query.get("q", [""])[0]).strip()[:160]
+                group = str(query.get("group", [""])[0]).strip()[:100]
+                status = str(query.get("status", ["active"])[0]).strip().lower()
+                try:
+                    workbook_payload = device_brands_export_workbook(search, group, status)
+                    if path.endswith("/xlsx"):
+                        return self.send_bytes(
+                            workbook_payload,
+                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            disposition=f'attachment; filename="markalar_{datetime.now().strftime("%Y%m%d")}.xlsx"',
+                        )
+                    payload = desktop_stock_pdf(workbook_payload, "Marka Adlari Yonetimi", allow_empty_records=True)
+                    return self.send_bytes(
+                        payload,
+                        "application/pdf",
+                        disposition=f'attachment; filename="markalar_{datetime.now().strftime("%Y%m%d")}.pdf"',
+                    )
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except ImportError as error:
+                    return self.send_json({"error": f"Export is unavailable: {error}"}, 503)
+            if path in {"/api/desktop/product-groups/export/xlsx", "/api/desktop/product-groups/export/pdf"}:
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required", "code": "AUTH_REQUIRED"}, 401)
+                search = str(query.get("q", [""])[0]).strip()[:160]
+                try:
+                    workbook_payload = product_groups_export_workbook(search)
+                    if path.endswith("/xlsx"):
+                        return self.send_bytes(
+                            workbook_payload,
+                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            disposition=f'attachment; filename="urun_gruplari_{datetime.now().strftime("%Y%m%d")}.xlsx"',
+                        )
+                    payload = desktop_stock_pdf(workbook_payload, "Urun Grubu Yonetimi", allow_empty_records=True)
+                    return self.send_bytes(
+                        payload,
+                        "application/pdf",
+                        disposition=f'attachment; filename="urun_gruplari_{datetime.now().strftime("%Y%m%d")}.pdf"',
+                    )
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except ImportError as error:
+                    return self.send_json({"error": f"Export is unavailable: {error}"}, 503)
             if path == "/api/desktop/dialogs":
                 data = json.loads(DIALOGS_MANIFEST.read_text(encoding="utf-8")) if DIALOGS_MANIFEST.exists() else {"summary": {}, "dialogs": []}
                 return self.send_json(data)
@@ -8267,15 +14902,15 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
                     logo_path = scalar(conn, "SELECT value FROM settings WHERE key='logo_path'", default="")
                 logo = resolve_logo_path(logo_path)
                 if not logo:
-                    return self.send_json({"error": "Firma logosu ayarlanmamış"}, 404)
+                    return self.send_json({"error": "Firma logosu ayarlanmam\u0131\u015f"}, 404)
                 content_type = mimetypes.guess_type(logo.name)[0] or "application/octet-stream"
                 if content_type not in {"image/png", "image/jpeg", "image/webp"}:
-                    return self.send_json({"error": "Firma logosu desteklenmeyen biçimde"}, 415)
+                    return self.send_json({"error": "Firma logosu desteklenmeyen bi\u00e7imde"}, 415)
                 return self.send_bytes(logo.read_bytes(), content_type)
             if path.startswith("/api/desktop/proforma/"):
                 offer_text = path.rsplit("/", 1)[-1]
                 if not offer_text.isdigit():
-                    return self.send_json({"error": "Geçersiz teklif numarası"}, 400)
+                    return self.send_json({"error": "Ge\u00e7ersiz teklif numaras\u0131"}, 400)
                 template = query.get("template", [None])[0]
                 target, offer_no = build_offer_pdf(int(offer_text), template)
                 try:
@@ -8285,7 +14920,263 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
                 mode = "attachment" if query.get("download", ["0"])[0] == "1" else "inline"
                 safe_name = re.sub(r"[^A-Za-z0-9_-]+", "-", offer_no).strip("-") or "proforma"
                 return self.send_bytes(payload, "application/pdf", disposition=f'{mode}; filename="{safe_name}.pdf"')
+            if path == "/api/desktop/vehicle-maintenance/cards":
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                return self.send_json(vehicle_maintenance_cards_payload(query.get("q", [""])[0]))
+            if path == "/api/desktop/vehicle-maintenance/export/xlsx":
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                try:
+                    payload = vehicle_maintenance_workbook(query.get("q", [""])[0].strip()[:160])
+                    filename = "arac_bakim_" + datetime.now().strftime("%Y%m%d") + ".xlsx"
+                    return self.send_bytes(
+                        payload,
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        disposition=f'attachment; filename="{filename}"',
+                    )
+                except ImportError as error:
+                    return self.send_json({"error": f"Excel export is unavailable: {error}"}, 503)
+            if path == "/api/desktop/vehicle-maintenance/export/pdf":
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required", "code": "AUTH_REQUIRED"}, 401)
+                try:
+                    payload = vehicle_maintenance_pdf(query.get("q", [""])[0].strip()[:160])
+                    filename = "arac_bakim_" + datetime.now().strftime("%Y%m%d") + ".pdf"
+                    return self.send_bytes(
+                        payload,
+                        "application/pdf",
+                        disposition=f'attachment; filename="{filename}"',
+                    )
+                except ImportError as error:
+                    return self.send_json({"error": f"PDF export is unavailable: {error}"}, 503)
+            if path == "/api/desktop/external-tracking/photos":
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                try:
+                    tracking_no = str((query.get("tracking_no") or [""])[0])
+                    return self.send_json({"rows": external_tracking_photos(tracking_no)})
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+            if path == "/api/desktop/external-tracking/export":
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                try:
+                    raw_ids = str((query.get("ids") or [""])[0]).strip()
+                    record_ids = [int(value) for value in raw_ids.split(",") if value.strip()] if raw_ids else None
+                    payload = external_tracking_workbook(record_ids)
+                    filename = "Dis_Takip_Listesi_" + datetime.now().strftime("%Y%m%d") + ".xlsx"
+                    return self.send_bytes(
+                        payload,
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        disposition=f'attachment; filename="{filename}"',
+                    )
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+            if path.startswith("/api/desktop/stock/photo/"):
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                photo_text = path.rsplit("/", 1)[-1]
+                if not photo_text.isdigit():
+                    return self.send_json({"error": "Invalid stock item"}, 400)
+                try:
+                    payload, content_type = desktop_stock_photo(int(photo_text))
+                    return self.send_bytes(payload, content_type)
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+            if path == "/api/desktop/stock/movements/history":
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                try:
+                    page = int((query.get("page") or ["1"])[0])
+                    result = desktop_stock_movement_page(
+                        page,
+                        (query.get("search") or [""])[0],
+                        (query.get("type") or [""])[0],
+                    )
+                    return self.send_json(result)
+                except (TypeError, ValueError):
+                    return self.send_json({"error": "Invalid page"}, 400)
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+            if path == "/api/desktop/stock/movements/export/xlsx":
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                try:
+                    page = int((query.get("page") or ["1"])[0])
+                    payload = desktop_stock_movement_workbook(
+                        page,
+                        (query.get("search") or [""])[0],
+                        (query.get("type") or [""])[0],
+                    )
+                    filename = "stok_hareketleri_" + datetime.now().strftime("%Y%m%d") + ".xlsx"
+                    return self.send_bytes(
+                        payload,
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        disposition=f'attachment; filename="{filename}"',
+                    )
+                except (TypeError, ValueError):
+                    return self.send_json({"error": "Invalid page"}, 400)
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except ImportError as error:
+                    return self.send_json({"error": "Excel export is unavailable: " + str(error)}, 503)
+            if path == "/api/desktop/stock/movements/export/pdf":
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                try:
+                    page = int((query.get("page") or ["1"])[0])
+                    payload = desktop_stock_movement_pdf(
+                        page,
+                        (query.get("search") or [""])[0],
+                        (query.get("type") or [""])[0],
+                    )
+                    filename = "stok_hareketleri_" + datetime.now().strftime("%Y%m%d") + ".pdf"
+                    return self.send_bytes(
+                        payload,
+                        "application/pdf",
+                        disposition=f'attachment; filename="{filename}"',
+                    )
+                except (TypeError, ValueError):
+                    return self.send_json({"error": "Invalid page"}, 400)
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except ImportError as error:
+                    return self.send_json({"error": "PDF export is unavailable: " + str(error)}, 503)
+            if path == "/api/desktop/stock/export/xlsx":
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                try:
+                    payload = desktop_stock_workbook()
+                    filename = "stok_listesi_" + datetime.now().strftime("%Y%m%d") + ".xlsx"
+                    return self.send_bytes(
+                        payload,
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        disposition=f'attachment; filename="{filename}"',
+                    )
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except ImportError as error:
+                    return self.send_json({"error": "Excel export is unavailable: " + str(error)}, 503)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+            if path == "/api/desktop/stock/export/pdf":
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                try:
+                    payload = desktop_stock_pdf()
+                    filename = "stok_listesi_" + datetime.now().strftime("%Y%m%d") + ".pdf"
+                    return self.send_bytes(
+                        payload,
+                        "application/pdf",
+                        disposition=f'attachment; filename="{filename}"',
+                    )
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except ImportError as error:
+                    return self.send_json({"error": "PDF export is unavailable: " + str(error)}, 503)
+            if path.startswith("/api/desktop/external-tracking/photo/"):
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                photo_text = path.rsplit("/", 1)[-1]
+                if not photo_text.isdigit():
+                    return self.send_json({"error": "Invalid photo"}, 400)
+                try:
+                    payload, content_type = external_tracking_photo(int(photo_text))
+                    return self.send_bytes(payload, content_type)
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+            if path.startswith("/api/desktop/vehicle-maintenance/photos/"):
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                card_text = path.rsplit("/", 1)[-1]
+                if not card_text.isdigit():
+                    return self.send_json({"error": "Invalid maintenance card"}, 400)
+                try:
+                    return self.send_json({"rows": vehicle_maintenance_photos(int(card_text))})
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+            if path.startswith("/api/desktop/vehicle-maintenance/photo/"):
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                photo_text = path.rsplit("/", 1)[-1]
+                if not photo_text.isdigit():
+                    return self.send_json({"error": "Invalid photo"}, 400)
+                try:
+                    payload, content_type = vehicle_maintenance_photo(int(photo_text))
+                    return self.send_bytes(payload, content_type)
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+            if path.startswith("/api/desktop/vehicle-maintenance/history-qr/"):
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                card_text = path.rsplit("/", 1)[-1]
+                if not card_text.isdigit():
+                    return self.send_json({"error": "Ge\u00e7ersiz bak\u0131m kart\u0131"}, 400)
+                try:
+                    return self.send_bytes(
+                        vehicle_maintenance_history_qr(int(card_text)), "image/png"
+                    )
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except ImportError as error:
+                    return self.send_json({"error": f"QR generation is unavailable: {error}"}, 503)
+            if path == "/api/desktop/mobile-guide/qr":
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                target = str((query.get("target") or [""])[0])
+                referer = urlparse(self.headers.get("Referer", ""))
+                destination = urlparse(target)
+                host = self.headers.get("Host", "").lower()
+                expected_query = "page=stock"
+                if (
+                    destination.scheme not in {"http", "https"}
+                    or not destination.netloc
+                    or destination.netloc.lower() != host
+                    or (referer.scheme, referer.netloc.lower()) != (destination.scheme, host)
+                    or destination.path != "/"
+                    or destination.query != expected_query
+                    or destination.fragment
+                ):
+                    return self.send_json({"error": "Invalid mobile guide target"}, 400)
+                try:
+                    import qrcode
+                    image = qrcode.make(target, box_size=8, border=2)
+                    buffer = io.BytesIO()
+                    image.save(buffer, format="PNG")
+                    return self.send_bytes(buffer.getvalue(), "image/png")
+                except ImportError as error:
+                    return self.send_json({"error": f"QR generation is unavailable: {error}"}, 503)
+            if path == "/api/desktop/manual/content":
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                document = str((query.get("document") or [""])[0])
+                filenames = {
+                    "usage": "KULLANIM_KILAVUZU.md",
+                    "setup": "KURULUM_REHBERI.md",
+                }
+                filename = filenames.get(document)
+                if not filename:
+                    return self.send_json({"error": "Invalid manual document"}, 400)
+                manual_path = ROOT.parent / filename
+                try:
+                    content = manual_path.read_text(encoding="utf-8")
+                except OSError:
+                    return self.send_json({"error": "Manual document is unavailable"}, 404)
+                return self.send_json({"document": document, "content": content})
+            if path.startswith("/api/desktop/vehicle-maintenance/history/"):
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                card_text = path.rsplit("/", 1)[-1]
+                if not card_text.isdigit():
+                    return self.send_json({"error": "Ge\u00e7ersiz bak\u0131m kart\u0131"}, 400)
+                try:
+                    return self.send_json(vehicle_maintenance_history(int(card_text)))
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
             if path.startswith("/api/desktop/vehicle-maintenance/detail/"):
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
                 card_text = path.rsplit("/", 1)[-1]
                 if not card_text.isdigit():
                     return self.send_json({"error": "Ge\u00e7ersiz bak\u0131m kart\u0131"}, 400)
@@ -8293,31 +15184,236 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
                     return self.send_json(vehicle_maintenance_detail(int(card_text)))
                 except LookupError as error:
                     return self.send_json({"error": str(error)}, 404)
+            if path == "/api/desktop/contracts/export.csv":
+                user = self.current_user()
+                if not user:
+                    return self.send_json({"error": "Authentication required"}, 401)
+                try:
+                    payload = desktop_contract_report_csv(user, {
+                        "search": query.get("search", [""])[0],
+                        "type": query.get("type", ["all"])[0],
+                        "sla": query.get("sla", ["all"])[0],
+                        "status": query.get("status", ["all"])[0],
+                        "today": query.get("today", [""])[0],
+                    })
+                    return self.send_bytes(
+                        payload,
+                        "text/csv; charset=utf-8",
+                        disposition='attachment; filename="sozlesmeler.csv"',
+                    )
+                except PermissionError as error:
+                    return self.send_json({"error": str(error)}, 403)
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+            if path == "/api/desktop/audit/event-pdf":
+                user = self.current_user()
+                if not user:
+                    return self.send_json({"error": "Authentication is required."}, 401)
+                try:
+                    event_id = int((query.get("id") or [""])[0])
+                    if event_id <= 0:
+                        raise ValueError
+                except (TypeError, ValueError):
+                    return self.send_json({"error": "A valid audit event ID is required."}, 400)
+                temporary_path = None
+                try:
+                    with closing(db_connect()) as conn:
+                        event = conn.execute(
+                            "SELECT id, user_id, table_name, action, details, created_at FROM audit_logs WHERE id=?",
+                            (event_id,),
+                        ).fetchone()
+                    if not event:
+                        return self.send_json({"error": "Audit event was not found."}, 404)
+                    from src.utils.audit_export import export_audit_event_pdf
+
+                    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as temporary:
+                        temporary_path = Path(temporary.name)
+                    export_audit_event_pdf(temporary_path, event)
+                    payload = temporary_path.read_bytes()
+                    return self.send_bytes(
+                        payload,
+                        "application/pdf",
+                        disposition=f'attachment; filename="audit_event_{event_id}.pdf"',
+                    )
+                except Exception:
+                    logger.exception("Audit event PDF export failed")
+                    return self.send_json({"error": "Audit event PDF could not be created."}, 500)
+                finally:
+                    if temporary_path:
+                        temporary_path.unlink(missing_ok=True)
+            partner_document_download = re.fullmatch(r"/api/desktop/partners/documents/(\d+)/download", path)
+            if partner_document_download:
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                try:
+                    with closing(db_connect()) as conn:
+                        payload, filename = desktop_download_partner_document(conn, partner_document_download.group(1))
+                    disposition_name = quote(filename, safe="")
+                    return self.send_bytes(
+                        payload,
+                        mimetypes.guess_type(filename)[0] or "application/octet-stream",
+                        disposition="attachment; filename*=UTF-8''" + disposition_name,
+                    )
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+            if path == "/api/desktop/partners/documents":
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                try:
+                    partner_id = (query.get("partner_id") or [None])[0]
+                    shipment_id = (query.get("shipment_id") or [None])[0]
+                    with closing(db_connect()) as conn:
+                        documents = desktop_partner_documents(conn, partner_id, shipment_id)
+                    return self.send_json({"documents": documents})
+                except PermissionError as error:
+                    return self.send_json({"error": str(error)}, 403)
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+                except sqlite3.Error:
+                    logger.exception("Partner documents load failed")
+                    return self.send_json({"error": "Partner documents could not be loaded."}, 500)
+            if path == "/api/desktop/partners/finance":
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                try:
+                    partner_id = (query.get("partner_id") or [None])[0]
+                    with closing(db_connect()) as conn:
+                        return self.send_json(desktop_partner_finance(conn, partner_id))
+                except PermissionError as error:
+                    return self.send_json({"error": str(error)}, 403)
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+                except sqlite3.Error:
+                    logger.exception("Partner finance load failed")
+                    return self.send_json({"error": "Partner finance could not be loaded."}, 500)
+            if path == "/api/desktop/partners/notes":
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                try:
+                    partner_id = (query.get("partner_id") or [None])[0]
+                    with closing(db_connect()) as conn:
+                        return self.send_json(desktop_partner_notes(conn, partner_id))
+                except PermissionError as error:
+                    return self.send_json({"error": str(error)}, 403)
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+                except sqlite3.Error:
+                    logger.exception("Partner notes load failed")
+                    return self.send_json({"error": "Partner notes could not be loaded."}, 500)
+            if path == "/api/desktop/partners/workspace":
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                partner_id = (query.get("partner_id") or [None])[0]
+                try:
+                    with closing(db_connect()) as conn:
+                        return self.send_json(desktop_partner_workspace(conn, partner_id))
+                except sqlite3.Error:
+                    logger.exception("Partner workspace load failed")
+                    return self.send_json({"error": "Partner workspace could not be loaded."}, 500)
+            if path.startswith("/api/desktop/projects/") and path.endswith(("/units/export.xlsx", "/units/export.csv")):
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                parts = path.strip("/").split("/")
+                if len(parts) != 6 or parts[:3] != ["api", "desktop", "projects"] or not parts[3].isdecimal():
+                    return self.send_json({"error": "Invalid project export path"}, 400)
+                project_id = int(parts[3])
+                export_format = "csv" if path.endswith(".csv") else "xlsx"
+                try:
+                    payload = (
+                        desktop_project_units_export_csv(project_id)
+                        if export_format == "csv"
+                        else desktop_project_units_export_xlsx(project_id)
+                    )
+                    return self.send_bytes(
+                        payload,
+                        "text/csv; charset=utf-8" if export_format == "csv" else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        disposition=f'attachment; filename="project-units-{project_id}.{export_format}"',
+                    )
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+                except Exception:
+                    logger.exception("Project unit export failed")
+                    return self.send_json({"error": "Project unit report could not be generated."}, 500)
             if path.startswith("/api/desktop/table/"):
                 table = path.rsplit("/", 1)[-1]
                 if table not in TABLES:
-                    return self.send_json({"error": "Tablo izinli değil"}, 404)
+                    return self.send_json({"error": "Tablo izinli de\u011fil"}, 404)
                 request_user = self.current_user()
                 if table == "users" and not role_is_admin(request_user.get("role")):
-                    return self.send_json({"error": "Kullanıcı yönetimi için yönetici yetkisi gerekiyor."}, 403)
+                    return self.send_json({"error": "Kullan\u0131c\u0131 y\u00f6netimi i\u00e7in y\u00f6netici yetkisi gerekiyor."}, 403)
                 limit = min(max(int(query.get("limit", [100])[0]), 1), 1000)
+                offset = max(0, min(int(query.get("offset", [0])[0]), 10000000))
                 q = query.get("q", [""])[0].strip()
                 with closing(db_connect()) as conn:
                     if not scalar(conn, "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?", (table,)):
                         return self.send_json({"table": table, "columns": [], "rows": [], "count": 0, "available": False})
                     columns = table_columns(conn, table)
+                    if table == "audit_logs":
+                        data, count, limit, offset = desktop_audit_page(
+                            conn,
+                            limit=limit,
+                            offset=query.get("offset", [0])[0],
+                            query=q,
+                            hours=query.get("hours", ["24"])[0],
+                            severity=query.get("severity", ["Tumu"])[0],
+                            module=query.get("module", [""])[0],
+                        )
+                        return self.send_json({
+                            "table": table,
+                            "columns": columns,
+                            "rows": data,
+                            "count": count,
+                            "limit": limit,
+                            "offset": offset,
+                        })
                     where, params = "", []
                     if "is_deleted" in columns:
                         where = " WHERE COALESCE(is_deleted,0)=0"
                     if q:
                         searchable = [c for c in columns if c not in {"id", "is_deleted"}][:12]
-                        prefix = " AND " if where else " WHERE "
-                        where += prefix + "(" + " OR ".join(f'CAST("{c}" AS TEXT) LIKE ?' for c in searchable) + ")"
-                        params.extend([f"%{q}%"] * len(searchable))
+                        if searchable:
+                            prefix = " AND " if where else " WHERE "
+                            where += prefix + "(" + " OR ".join(f'CAST("{c}" AS TEXT) LIKE ?' for c in searchable) + ")"
+                            params.extend([f"%{q}%"] * len(searchable))
                     order = " ORDER BY id DESC" if "id" in columns else ""
-                    data = rows(conn, f'SELECT * FROM "{table}"{where}{order} LIMIT ?', (*params, limit))
+                    count = int(scalar(conn, f'SELECT COUNT(*) FROM "{table}"{where}', params) or 0)
+                    data = rows(conn, f'SELECT * FROM "{table}"{where}{order} LIMIT ? OFFSET ?', (*params, limit, offset))
+                    if table == "contracts" and "customer_id" in columns and scalar(
+                        conn, "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='customers'"
+                    ):
+                        customer_columns = table_columns(conn, "customers")
+                        customer_ids = list(dict.fromkeys(
+                            item.get("customer_id") for item in data if item.get("customer_id") is not None
+                        ))
+                        customer_names = {}
+                        deleted_filter = " AND COALESCE(is_deleted,0)=0" if "is_deleted" in customer_columns else ""
+                        for index in range(0, len(customer_ids), 900):
+                            batch = customer_ids[index:index + 900]
+                            placeholders = ",".join("?" for _ in batch)
+                            customer_names.update({
+                                str(item["id"]): item.get("name") or ""
+                                for item in rows(
+                                    conn,
+                                    f'SELECT id,name FROM customers WHERE id IN ({placeholders}){deleted_filter}',
+                                    batch,
+                                )
+                            })
+                        for item in data:
+                            item["customer_name"] = customer_names.get(str(item.get("customer_id")), "")
                     if table == "settings":
-                        sensitive = re.compile(r"(password|pass$|token|api_key|secret|security_answer_hash)", re.I)
+                        sensitive = re.compile(r"(password|pass$|token|api_key|secret|security_answer_hash|twilio_account_sid)", re.I)
                         for item in data:
                             if sensitive.search(str(item.get("key", ""))):
                                 item["value"] = ""
@@ -8331,7 +15427,10 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
                             {key: value for key, value in item.items() if key not in private_columns}
                             for item in data
                         ]
-                    return self.send_json({"table": table, "columns": columns, "rows": data, "count": len(data)})
+                    return self.send_json({
+                        "table": table, "columns": columns, "rows": data,
+                        "count": count, "limit": limit, "offset": offset,
+                    })
             requested = path
             target = (WEB_ROOT / requested.lstrip("/")).resolve()
             if requested == "/" or not target.exists() or (target != WEB_ROOT and WEB_ROOT not in target.parents):
@@ -8350,6 +15449,19 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
         try:
             clear_tenant_context()
             path = unquote(urlparse(self.path).path)
+            archive_header = bool(self.headers.get("X-AYEC-Fiscal-Archive"))
+            archive_auth_exempt = path in {"/api/auth/login", "/api/auth/logout"}
+            archive_read_only_export = path in {
+                "/api/desktop/accounting/ledger/export/xlsx",
+                "/api/desktop/accounting/ledger/page",
+                "/api/desktop/income-expense/export/csv",
+            }
+            if archive_header and not archive_auth_exempt and not archive_read_only_export and not path.startswith("/api/license/"):
+                user = self.current_user()
+                if user and getattr(self, "_fiscal_archive_error", ""):
+                    return self.send_json({"error": self._fiscal_archive_error}, 409)
+                if user and active_fiscal_archive_id():
+                    return self.send_json({"error": "Ge\u00e7mi\u015f mali y\u0131l ar\u015fivi salt okunurdur."}, 403)
             if path == "/api/sync/provision":
                 try:
                     payload = self.read_json()
@@ -8507,7 +15619,7 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
             if path == "/api/auth/login":
                 client_key = self.client_ip()
                 if auth_rate_limited(client_key):
-                    return self.send_json({"error": "Çok fazla başarısız deneme. 15 dakika sonra tekrar deneyin."}, 429)
+                    return self.send_json({"error": "\u00c7ok fazla ba\u015far\u0131s\u0131z deneme. 15 dakika sonra tekrar deneyin."}, 429)
                 body = self.read_json()
                 user = authenticate_account(
                     str(body.get("identifier") or ""),
@@ -8516,7 +15628,7 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
                 )
                 if not user:
                     record_auth_failure(client_key)
-                    return self.send_json({"error": "Kullanıcı adı/e-posta veya parola hatalı."}, 401)
+                    return self.send_json({"error": "Kullan\u0131c\u0131 ad\u0131/e-posta veya parola hatal\u0131."}, 401)
                 if bool(user.get("must_change_password")):
                     clear_auth_failures(client_key)
                     return self.send_json({
@@ -8537,9 +15649,24 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
                     headers={"Set-Cookie": self.session_cookie_header(token, max_age, remember)},
                 )
             if path == "/api/auth/logout":
+                if not self.same_origin():
+                    return self.send_json({"error": "Invalid request origin"}, 403)
+                user = self.current_user()
+                backup = None
+                backup_error = ""
+                try:
+                    backup = desktop_create_logout_backup(user)
+                except Exception as error:
+                    backup_error = str(error)
+                    logging.getLogger(__name__).exception("Backup on web logout failed")
                 delete_session(self.session_token())
+                response = {"ok": True}
+                if backup:
+                    response["backup"] = backup
+                if backup_error:
+                    response["backup_error"] = backup_error
                 return self.send_json(
-                    {"ok": True}, headers={"Set-Cookie": self.session_cookie_header("")}
+                    response, headers={"Set-Cookie": self.session_cookie_header("")}
                 )
             if path == "/api/auth/profile":
                 user = self.require_user()
@@ -8656,7 +15783,163 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
             if not user:
                 return self.send_json({"error": "Oturum açmanız gerekiyor.", "code": "AUTH_REQUIRED"}, 401)
             if not self.same_origin():
-                return self.send_json({"error": "İstek kaynağı doğrulanamadı."}, 403)
+                return self.send_json({"error": "\u0130stek kayna\u011f\u0131 do\u011frulanamad\u0131."}, 403)
+            if getattr(self, "_fiscal_archive_error", ""):
+                return self.send_json({"error": self._fiscal_archive_error}, 409)
+            if active_fiscal_archive_id() and not archive_read_only_export:
+                return self.send_json({"error": "Ge\u00e7mi\u015f mali y\u0131l ar\u015fivi salt okunurdur."}, 403)
+            check_status_match = re.fullmatch(r"/api/desktop/checks/(\d+)/status", path)
+            if check_status_match:
+                try:
+                    body = self.read_json()
+                    bank_id = body.get("bank_account_id")
+                    result = desktop_update_check_note_status(
+                        user,
+                        int(check_status_match.group(1)),
+                        str(body.get("status") or ""),
+                        int(bank_id) if bank_id not in (None, "", 0, "0", -1, "-1") else None,
+                    )
+                    return self.send_json(result)
+                except PermissionError as error:
+                    return self.send_json({"error": str(error)}, 403)
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except (TypeError, ValueError) as error:
+                    return self.send_json({"error": str(error)}, 400)
+                except Exception as error:
+                    logger.exception("Check or note status update failed")
+                    return self.send_json({"error": str(error)}, 500)
+            if path == "/api/desktop/check-notes":
+                try:
+                    result = desktop_add_check_note(user, self.read_json())
+                    return self.send_json(result, 201)
+                except PermissionError as error:
+                    return self.send_json({"error": str(error)}, 403)
+                except (TypeError, ValueError) as error:
+                    return self.send_json({"error": str(error)}, 400)
+                except Exception as error:
+                    logger.exception("Check or note creation failed")
+                    return self.send_json({"error": str(error)}, 500)
+            if path == "/api/desktop/backups/google-drive/connect":
+                try:
+                    _desktop_backup_context(user)
+                    if int(self.headers.get("Content-Length", "0")) > 512 * 1024:
+                        return self.send_json({"error": "Google OAuth client JSON exceeds the 512 KB limit."}, 413)
+                    body = self.read_json()
+                    client_config = validate_google_drive_client_config(body.get("client_config"))
+                    state = secrets.token_urlsafe(32)
+                    tenant_id = str(user.get("_tenant_id") or active_tenant_id() or "")
+                    redirect_uri = _google_drive_redirect_uri()
+                    authorization_url = new_google_drive_authorization(client_config, redirect_uri, state)
+                    with closing(db_connect()) as conn:
+                        _google_drive_setting(conn, "google_drive_client_config", json.dumps(client_config))
+                        _google_drive_setting(conn, "google_drive_token", "")
+                        conn.commit()
+                    with closing(registry_connect()) as conn:
+                        conn.execute("DELETE FROM google_drive_oauth_states WHERE created_at<?", ((utc_now() - timedelta(minutes=10)).isoformat(),))
+                        import hashlib as google_drive_hashlib
+                        conn.execute(
+                            "INSERT INTO google_drive_oauth_states(state_hash,tenant_id,user_id,created_at) VALUES(?,?,?,?)",
+                            (google_drive_hashlib.sha256(state.encode("utf-8")).hexdigest(), tenant_id, int(user.get("id") or 0), utc_now().isoformat()),
+                        )
+                        conn.commit()
+                    return self.send_json({"authorization_url": authorization_url})
+                except PermissionError as error:
+                    return self.send_json({"error": str(error)}, 403)
+                except (LookupError, ValueError) as error:
+                    return self.send_json({"error": str(error)}, 400)
+                except ImportError:
+                    return self.send_json({"error": "Google Drive support is not installed on the server."}, 503)
+            if path == "/api/desktop/backups/google-drive/disconnect":
+                try:
+                    _desktop_backup_context(user)
+                    with closing(db_connect()) as conn:
+                        _google_drive_setting(conn, "google_drive_client_config", "")
+                        _google_drive_setting(conn, "google_drive_token", "")
+                        conn.commit()
+                    return self.send_json({"ok": True})
+                except PermissionError as error:
+                    return self.send_json({"error": str(error)}, 403)
+                except (LookupError, ValueError) as error:
+                    return self.send_json({"error": str(error)}, 400)
+            if path == "/api/desktop/backups/google-drive":
+                try:
+                    _desktop_backup_context(user)
+                    with closing(db_connect()) as conn:
+                        token_json = _google_drive_setting(conn, "google_drive_token")
+                    if not token_json:
+                        return self.send_json({"error": "Connect a Google Drive account before uploading a backup."}, 409)
+                    backup = desktop_create_backup(user, source="web-google-drive")
+                    payload, _digest, filename = desktop_download_backup(user, int(backup["backup_id"]))
+                    file_id, refreshed_token = upload_google_drive_backup(token_json, filename, payload)
+                    if refreshed_token != token_json:
+                        with closing(db_connect()) as conn:
+                            _google_drive_setting(conn, "google_drive_token", refreshed_token)
+                            conn.commit()
+                    return self.send_json({"ok": True, "backup_id": backup["backup_id"], "file_id": file_id, "filename": filename}, 201)
+                except PermissionError as error:
+                    return self.send_json({"error": str(error)}, 403)
+                except (LookupError, ValueError) as error:
+                    return self.send_json({"error": str(error)}, 400)
+                except ImportError:
+                    return self.send_json({"error": "Google Drive support is not installed on the server."}, 503)
+                except Exception:
+                    logger.exception("Google Drive backup upload failed")
+                    return self.send_json({"error": "The backup was archived centrally, but Google Drive upload failed. Check the connection and retry."}, 502)
+            if path == "/api/desktop/security-settings/verify-tech-lock":
+                client_key = self.client_ip()
+                if auth_rate_limited(client_key):
+                    return self.send_json({"error": "Too many failed attempts. Try again later."}, 429)
+                body = self.read_json()
+                password = str(body.get("password") or "")
+                with closing(db_connect()) as conn:
+                    if setting_value(conn, "tech_lock_active") != "1":
+                        clear_auth_failures(client_key)
+                        return self.send_json({"ok": True, "required": False})
+                    stored_password = setting_value(conn, "tech_password")
+                    if not stored_password:
+                        return self.send_json({"error": "Technician lock is enabled without a configured password."}, 409)
+                    try:
+                        from src.utils.password_security import verify_password
+                        valid, upgraded = verify_password(password, stored_password)
+                    except Exception:
+                        logger.exception("Technician lock password verification failed")
+                        return self.send_json({"error": "Technician lock password could not be verified."}, 500)
+                    if not valid:
+                        record_auth_failure(client_key)
+                        return self.send_json({"error": "Technician lock password is incorrect."}, 401)
+                    if upgraded:
+                        upsert_setting(conn, "settings", "tech_password", upgraded)
+                        conn.commit()
+                clear_auth_failures(client_key)
+                return self.send_json({"ok": True, "required": True})
+            if path == "/api/desktop/security-settings/verify-app-lock":
+                client_key = self.client_ip()
+                if auth_rate_limited(client_key):
+                    return self.send_json({"error": "Too many failed attempts. Try again later."}, 429)
+                body = self.read_json()
+                password = str(body.get("password") or "")
+                with closing(db_connect()) as conn:
+                    if setting_value(conn, "app_lock_active") != "1":
+                        clear_auth_failures(client_key)
+                        return self.send_json({"ok": True, "required": False})
+                    stored_password = setting_value(conn, "app_password")
+                    if not stored_password:
+                        return self.send_json({"error": "Application lock is enabled without a configured password."}, 409)
+                    try:
+                        from src.utils.password_security import verify_password
+                        valid, upgraded = verify_password(password, stored_password)
+                    except Exception:
+                        logger.exception("Application lock password verification failed")
+                        return self.send_json({"error": "Application lock password could not be verified."}, 500)
+                    if not valid:
+                        record_auth_failure(client_key)
+                        return self.send_json({"error": "Application lock password is incorrect."}, 401)
+                    if upgraded:
+                        upsert_setting(conn, "settings", "app_password", upgraded)
+                        conn.commit()
+                clear_auth_failures(client_key)
+                return self.send_json({"ok": True, "required": True})
             if path == "/api/desktop/security-settings":
                 if not role_is_admin(user.get("role")):
                     return self.send_json({"error": "Administrator access required"}, 403)
@@ -8707,6 +15990,47 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
                     return self.send_json({"ok": True})
                 except Exception as error:
                     return self.send_json({"error": str(error)}, 400)
+            if path == "/api/desktop/backups":
+                try:
+                    result = desktop_create_backup(user)
+                    return self.send_json(result, 201)
+                except PermissionError as error:
+                    return self.send_json({"error": str(error)}, 403)
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+            if path == "/api/desktop/backups/import":
+                size = int(self.headers.get("Content-Length", "0"))
+                if size <= 0 or size > 1024 * 1024 * 1024:
+                    return self.send_json({"error": "Backup size is invalid"}, 413)
+                try:
+                    result = desktop_stage_restore_backup(
+                        user,
+                        self.headers.get("X-AYEC-Backup-Name", "desktop.db"),
+                        self.rfile.read(size),
+                    )
+                    return self.send_json(result, 201)
+                except PermissionError as error:
+                    return self.send_json({"error": str(error)}, 403)
+                except (LookupError, ValueError, RuntimeError) as error:
+                    return self.send_json({"error": str(error)}, 400)
+            if path == "/api/desktop/fiscal/archives/import":
+                try:
+                    result = desktop_import_legacy_fiscal_archives(user)
+                    return self.send_json(result)
+                except PermissionError as error:
+                    return self.send_json({"error": str(error)}, 403)
+                except (LookupError, ValueError, RuntimeError) as error:
+                    return self.send_json({"error": str(error)}, 400)
+            if path == "/api/desktop/fiscal/rollover":
+                try:
+                    result = desktop_fiscal_rollover(user, self.read_json())
+                    return self.send_json(result, 200 if result.get("ok") else 409)
+                except PermissionError as error:
+                    return self.send_json({"error": str(error)}, 403)
+                except (LookupError, ValueError, RuntimeError) as error:
+                    return self.send_json({"error": str(error)}, 400)
             if path == "/api/desktop/stock/location-management":
                 location_db = None
                 try:
@@ -8720,12 +16044,43 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
                         name = str(payload.get("name") or "").strip()[:120]
                         location_type = str(payload.get("location_type") or "warehouse").strip()
                         vehicle_plate = str(payload.get("vehicle_plate") or "").strip()[:30]
-                        if not name or location_type not in {"warehouse", "vehicle", "site"}:
+                        if not name or location_type not in {
+                            "warehouse", "vehicle", "personnel", "project", "site"
+                        }:
                             return self.send_json({"error": "Depo adi ve gecerli bir konum turu girin."}, 400)
                         location_id = location_db.create_stock_location(
                             name, location_type, vehicle_plate or None
                         )
                         return self.send_json({"ok": True, "location_id": location_id})
+                    if action == "use-part":
+                        part_id = int(payload.get("part_id") or 0)
+                        location_id = int(payload.get("location_id") or 0)
+                        tracking_no = str(payload.get("tracking_no") or "").strip()[:120]
+                        quantity = float(payload.get("quantity") or 0)
+                        note = str(payload.get("note") or "").strip()[:500]
+                        if part_id <= 0 or location_id <= 0 or not tracking_no or not 0 < quantity < 1_000_000_000:
+                            return self.send_json({"error": "Servis kaydi, konum, urun ve gecerli miktar gerekli."}, 400)
+                        location_ids = {int(item.get("id") or 0) for item in location_db.get_stock_locations()}
+                        if location_id not in location_ids:
+                            return self.send_json({"error": "Aktif stok konumu bulunamadi."}, 404)
+                        location_db.cursor.execute(
+                            "SELECT 1 FROM devices WHERE tracking_no=? AND COALESCE(is_archived,0)=0 AND COALESCE(is_deleted,0)=0 LIMIT 1",
+                            (tracking_no,),
+                        )
+                        if not location_db.cursor.fetchone():
+                            return self.send_json({"error": "Aktif servis cihazi bulunamadi."}, 404)
+                        location_db.cursor.execute(
+                            "SELECT 1 FROM parts WHERE id=? AND COALESCE(is_deleted,0)=0 LIMIT 1",
+                            (part_id,),
+                        )
+                        if not location_db.cursor.fetchone():
+                            return self.send_json({"error": "Aktif urun kaydi bulunamadi."}, 404)
+                        if not location_db.use_part(
+                            part_id=part_id, quantity=quantity, tracking_no=tracking_no,
+                            commit=True, location_id=location_id, note=note,
+                        ):
+                            return self.send_json({"error": "Stok dusulemedi; konum bakiyesini kontrol edin."}, 409)
+                        return self.send_json({"ok": True, "tracking_no": tracking_no, "part_id": part_id})
                     if action == "transfer-stock":
                         source_id = int(payload.get("source_location_id") or 0)
                         target_id = int(payload.get("target_location_id") or 0)
@@ -8823,44 +16178,130 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
                 finally:
                     if location_db:
                         location_db.close()
-            if path == "/api/desktop/bank-transfer":
-                transfer_db = None
+            if path == "/api/desktop/appointments/bootstrap":
+                appointment_db = None
                 try:
-                    payload = self.read_json()
-                    source_id = int(payload.get("from_account_id") or 0)
-                    target_id = int(payload.get("to_account_id") or 0)
-                    amount = float(payload.get("amount") or 0)
-                    description = str(payload.get("description") or "")[:200]
-                    if (
-                        source_id <= 0 or target_id <= 0 or source_id == target_id
-                        or not 0 < amount <= 1_000_000_000
-                    ):
-                        return self.send_json({"error": "Transfer bilgileri gecersiz."}, 400)
                     from src.database import Database
-                    transfer_db = Database(
+                    appointment_db = Database(
                         db_name=str(active_db_path()), init_mode="connection_only"
                     )
-                    transfer_db.cursor.execute(
-                        "SELECT id, is_active FROM bank_accounts WHERE id IN (?, ?)",
-                        (source_id, target_id),
-                    )
-                    active = {
-                        int(row[0]) for row in transfer_db.cursor.fetchall()
-                        if int(row[1] or 0) == 1
-                    }
-                    if active != {source_id, target_id}:
-                        return self.send_json({"error": "Iki aktif hesap secin."}, 400)
-                    ok, message = transfer_db.transfer_between_accounts(
-                        source_id, target_id, amount, description
-                    )
-                    if not ok:
-                        return self.send_json({"error": message}, 400)
+                    appointment_db.ensure_appointment_montage_schema()
                     return self.send_json({"ok": True})
-                except (TypeError, ValueError) as error:
+                except Exception as error:
                     return self.send_json({"error": str(error)}, 400)
                 finally:
-                    if transfer_db:
-                        transfer_db.close()
+                    if appointment_db:
+                        appointment_db.close()
+            if path == "/api/desktop/appointments/montage-plan":
+                plan_db = None
+                try:
+                    payload = self.read_json()
+                    action = str(payload.get("action") or "").strip()
+                    appointment_id = int(payload.get("appointment_id") or 0)
+                    if appointment_id <= 0 or action not in {"prepare", "load", "complete"}:
+                        return self.send_json({"error": "A valid appointment and montage action are required."}, 400)
+                    from src.database import Database
+                    plan_db = Database(
+                        db_name=str(active_db_path()), init_mode="connection_only"
+                    )
+                    plan_db.ensure_appointment_montage_schema()
+                    row = plan_db.cursor.execute(
+                        "SELECT workflow, offer_id FROM appointments WHERE id=?",
+                        (appointment_id,),
+                    ).fetchone()
+                    if not row:
+                        return self.send_json({"error": "Appointment not found."}, 404)
+                    workflow, offer_id = row
+                    if str(workflow or "") != "teklif_montaj":
+                        return self.send_json({"error": "This action requires an offer installation appointment."}, 409)
+                    if action == "prepare":
+                        if hasattr(plan_db, "reconcile_appointment_vehicle_stock"):
+                            plan_db.reconcile_appointment_vehicle_stock(appointment_id)
+                        material_count = int(plan_db.cursor.execute(
+                            "SELECT COUNT(*) FROM appointment_plan_items WHERE appointment_id=? AND item_role='material'",
+                            (appointment_id,),
+                        ).fetchone()[0] or 0)
+                        offer_items_exists = scalar(
+                            plan_db.conn,
+                            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='offer_items'",
+                            default=0,
+                        )
+                        linked_count = int(scalar(
+                            plan_db.conn,
+                            "SELECT COUNT(*) FROM offer_items WHERE offer_id=? AND item_id IS NOT NULL",
+                            (offer_id,),
+                            default=0,
+                        ) or 0) if offer_id and offer_items_exists else 0
+                        if material_count == 0 and linked_count > 0:
+                            plan_db.create_appointment_offer_plan(appointment_id, offer_id, replace=True)
+                        return self.send_json({
+                            "ok": True,
+                            "plans": plan_db.get_appointment_offer_plan(appointment_id),
+                            "locations": plan_db.get_stock_locations(),
+                        })
+                    if action == "load":
+                        source_id = int(payload.get("source_location_id") or 0)
+                        vehicle_id = int(payload.get("vehicle_location_id") or 0)
+                        lines = payload.get("lines") or []
+                        if not isinstance(lines, list) or not lines or len(lines) > 100:
+                            return self.send_json({"error": "Provide 1 to 100 material lines to load."}, 400)
+                        locations = {int(item.get("id") or 0): item for item in plan_db.get_stock_locations()}
+                        source = locations.get(source_id)
+                        vehicle = locations.get(vehicle_id)
+                        if not source or source.get("location_type") == "vehicle":
+                            return self.send_json({"error": "Choose an active warehouse or site as the source."}, 400)
+                        if not vehicle or vehicle.get("location_type") != "vehicle":
+                            return self.send_json({"error": "Choose an active service vehicle as the target."}, 400)
+                        clean_lines = []
+                        for line in lines:
+                            if not isinstance(line, dict):
+                                return self.send_json({"error": "Invalid montage material line."}, 400)
+                            plan_id = int(line.get("plan_id") or 0)
+                            quantity = float(line.get("quantity") or 0)
+                            if plan_id <= 0 or not 0 < quantity < 1_000_000_000:
+                                return self.send_json({"error": "Choose a plan line and a positive quantity."}, 400)
+                            clean_lines.append({"plan_id": plan_id, "quantity": quantity})
+                        reference = plan_db.load_appointment_offer_plan(
+                            appointment_id, source_id, vehicle_id, clean_lines
+                        )
+                        return self.send_json({
+                            "ok": True,
+                            "reference": reference,
+                            "plans": plan_db.get_appointment_offer_plan(appointment_id),
+                        })
+                    lines = payload.get("lines") or []
+                    if not isinstance(lines, list) or len(lines) > 100:
+                        return self.send_json({"error": "Provide up to 100 loaded material lines to complete."}, 400)
+                    clean_lines = []
+                    for line in lines:
+                        if not isinstance(line, dict):
+                            return self.send_json({"error": "Invalid montage completion line."}, 400)
+                        plan_id = int(line.get("plan_id") or 0)
+                        used_qty = float(line.get("used_qty") or 0)
+                        if plan_id <= 0 or not 0 <= used_qty < 1_000_000_000:
+                            return self.send_json({"error": "Choose a plan line and a valid used quantity."}, 400)
+                        clean_lines.append({"plan_id": plan_id, "used_qty": used_qty})
+                    plan_db.complete_appointment_offer_plan(appointment_id, clean_lines)
+                    return self.send_json({
+                        "ok": True,
+                        "plans": plan_db.get_appointment_offer_plan(appointment_id),
+                    })
+                except (TypeError, ValueError) as error:
+                    return self.send_json({"error": str(error)}, 400)
+                except Exception as error:
+                    return self.send_json({"error": str(error)}, 409)
+                finally:
+                    if plan_db:
+                        plan_db.close()
+            if path == "/api/desktop/bank-transfer":
+                try:
+                    return self.send_json(
+                        desktop_bank_account_transfer(user, self.read_json())
+                    )
+                except PermissionError as error:
+                    return self.send_json({"error": str(error)}, 403)
+                except (TypeError, ValueError) as error:
+                    return self.send_json({"error": str(error)}, 400)
             if path == "/api/desktop/accounting/quick-expense":
                 expense_db = None
                 try:
@@ -9213,7 +16654,7 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
                     return self.send_json({"error": str(error)}, 400)
             if path == "/api/desktop/company-logo":
                 if not role_is_admin(user.get("role")):
-                    return self.send_json({"error": "Firma ayarları için yönetici yetkisi gerekiyor."}, 403)
+                    return self.send_json({"error": "Firma ayarlar\u0131 i\u00e7in y\u00f6netici yetkisi gerekiyor."}, 403)
                 body = self.read_json()
                 if body.get("remove"):
                     with closing(db_connect()) as conn:
@@ -9222,7 +16663,7 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
                     return self.send_json({"ok": True, "path": "", "url": ""})
                 payload = base64.b64decode(body.get("data", ""), validate=True)
                 if not payload or len(payload) > 5 * 1024 * 1024:
-                    return self.send_json({"error": "Logo boş veya 5 MB sınırını aşıyor"}, 413)
+                    return self.send_json({"error": "Logo bo\u015f veya 5 MB s\u0131n\u0131r\u0131n\u0131 a\u015f\u0131yor"}, 413)
                 if payload.startswith(b"\x89PNG\r\n\x1a\n"):
                     extension = ".png"
                 elif payload.startswith(b"\xff\xd8\xff"):
@@ -9230,7 +16671,7 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
                 elif payload.startswith(b"RIFF") and payload[8:12] == b"WEBP":
                     extension = ".webp"
                 else:
-                    return self.send_json({"error": "Yalnızca PNG, JPG veya WEBP logo yüklenebilir"}, 415)
+                    return self.send_json({"error": "Yaln\u0131zca PNG, JPG veya WEBP logo y\u00fcklenebilir"}, 415)
                 upload_dir = WEB_ROOT / "uploads"
                 upload_dir.mkdir(parents=True, exist_ok=True)
                 target = upload_dir / f"company-logo-{datetime.now().strftime('%Y%m%d%H%M%S%f')}{extension}"
@@ -9278,6 +16719,89 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
                     return self.send_json({"error": "Unknown system action"}, 400)
                 except (OSError, ImportError, RuntimeError, ValueError) as error:
                     return self.send_json({"error": str(error)}, 400)
+            if path == "/api/desktop/einvoice/proforma.pdf":
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                try:
+                    content_length = int(self.headers.get("Content-Length", "0"))
+                    if content_length < 0 or content_length > 1024 * 1024:
+                        return self.send_json({"error": "Invoice payload is too large"}, 413)
+                    payload = einvoice_proforma_pdf(self.read_json())
+                    filename = "proforma_" + datetime.now().strftime("%Y%m%d") + ".pdf"
+                    return self.send_bytes(
+                        payload,
+                        "application/pdf",
+                        disposition=f'attachment; filename="{filename}"',
+                    )
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+                except ImportError as error:
+                    return self.send_json({"error": f"PDF export is unavailable: {error}"}, 503)
+            if path == "/api/desktop/einvoice/send":
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                from src.database import Database
+
+                try:
+                    content_length = int(self.headers.get("Content-Length", "0"))
+                    if content_length < 0 or content_length > 1024 * 1024:
+                        return self.send_json({"error": "Invoice payload is too large"}, 413)
+                    payload = self.read_json()
+                    database = Database(str(active_db_path()), init_mode="connection_only")
+                    try:
+                        return self.send_json(send_einvoice_invoice(database, payload))
+                    finally:
+                        database.close()
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+                except RuntimeError as error:
+                    return self.send_json({"error": str(error)}, 502)
+            if path == "/api/desktop/einvoice/settings":
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                from src.database import Database
+
+                try:
+                    content_length = int(self.headers.get("Content-Length", "0"))
+                    if content_length < 0 or content_length > 16 * 1024:
+                        return self.send_json({"error": "Invalid e-invoice settings payload size"}, 413)
+                    payload = self.read_json()
+                    if not isinstance(payload, dict):
+                        return self.send_json({"error": "Invalid e-invoice settings"}, 400)
+                    database = Database(str(active_db_path()), init_mode="connection_only")
+                    try:
+                        action = str(payload.get("action") or "save")
+                        if action == "test":
+                            from src.api.einvoice_client import EInvoiceClient
+                            from src.utils.secure_setting_store import SecureSettingStore
+
+                            provider = str(payload.get("provider") or "custom").strip()
+                            environment = str(payload.get("environment") or "sandbox").strip()
+                            api_url = str(payload.get("api_url") or "").strip()
+                            api_key = str(payload.get("api_key") or "").strip()
+                            if bool(payload.get("clear_api_key")):
+                                api_key = ""
+                            elif not api_key:
+                                api_key = SecureSettingStore.get(database, "einvoice_api_key")
+                            if provider not in {"custom", "uyumsoft", "logo", "efinans", "foriba"}:
+                                raise ValueError("Invalid e-invoice provider")
+                            if environment not in {"sandbox", "live"} or len(api_url) > 2048 or len(api_key) > 4096:
+                                raise ValueError("Invalid e-invoice configuration")
+                            client = EInvoiceClient(
+                                api_key=api_key,
+                                is_sandbox=environment == "sandbox",
+                                base_url=api_url,
+                            )
+                            ok, result = client.test_connection()
+                            return self.send_json({"ok": bool(ok), "detail": str(result.get("detail") or "")})
+                        if action != "save":
+                            return self.send_json({"error": "Unknown e-invoice settings action"}, 400)
+                        settings = save_einvoice_settings(database, payload)
+                        return self.send_json({"ok": True, "settings": settings})
+                    finally:
+                        database.close()
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
             if path == "/api/desktop/customer/payment":
                 exchange_rates(refresh=True)
                 try:
@@ -9286,15 +16810,362 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
                     return self.send_json({"error": str(error)}, 404)
                 except ValueError as error:
                     return self.send_json({"error": str(error)}, 400)
-            if path == "/api/desktop/stock/delete":
-                body = self.read_json()
-                part_id = int(body.get("id") or 0)
-                if not part_id:
-                    return self.send_json({"error": "Geçersiz stok kartı"}, 400)
+            if path == "/api/desktop/customer/history/export/xlsx":
+                if not self.current_user():
+                    return self.send_json({"error": "Oturum a\u00e7man\u0131z gerekiyor.", "code": "AUTH_REQUIRED"}, 401)
                 try:
-                    return self.send_json(delete_stock_with_reversal(part_id))
+                    content_length = int(self.headers.get("Content-Length", "0"))
+                    if content_length < 0:
+                        return self.send_json({"error": "Invalid export payload size"}, 400)
+                    if content_length > 4 * 1024 * 1024:
+                        return self.send_json({"error": "Export payload is too large"}, 413)
+                    data = self.read_json()
+                    if not isinstance(data, dict):
+                        return self.send_json({"error": "Invalid export payload"}, 400)
+                    payload = customer_history_workbook(
+                        str(data.get("customer_name") or "")[:120],
+                        data.get("service_rows") or [],
+                        data.get("finance_rows") or [],
+                    )
+                    filename = "musteri_gecmisi_" + datetime.now().strftime("%Y%m%d") + ".xlsx"
+                    return self.send_bytes(
+                        payload,
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        disposition=f'attachment; filename="{filename}"',
+                    )
+                except ImportError as error:
+                    return self.send_json({"error": f"Excel export is unavailable: {error}"}, 503)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+            if path == "/api/desktop/customer/delete":
+                if not self.current_user():
+                    return self.send_json({"error": "Oturum a\u00e7man\u0131z gerekiyor.", "code": "AUTH_REQUIRED"}, 401)
+                try:
+                    data = self.read_json()
+                    customer_id = int(data.get("id") or 0) if isinstance(data, dict) else 0
+                    if customer_id <= 0:
+                        return self.send_json({"error": "Invalid customer ID"}, 400)
+                    from src.database import Database
+
+                    database = Database(str(active_db_path()), init_mode="connection_only")
+                    try:
+                        if not database.delete_customer(customer_id):
+                            return self.send_json({"error": "Customer could not be deleted"}, 409)
+                    finally:
+                        database.close()
+                    return self.send_json({"ok": True, "id": customer_id, "action": "delete"})
+                except (TypeError, ValueError) as error:
+                    return self.send_json({"error": str(error)}, 400)
+            if path == "/api/desktop/service-definition/delete":
+                if not self.current_user():
+                    return self.send_json({"error": "Oturum a\u00e7man\u0131z gerekiyor.", "code": "AUTH_REQUIRED"}, 401)
+                try:
+                    data = self.read_json()
+                    service_id = int(data.get("id") or 0) if isinstance(data, dict) else 0
+                    if service_id <= 0:
+                        return self.send_json({"error": "Invalid service ID"}, 400)
+                    from src.database import Database
+
+                    database = Database(str(active_db_path()), init_mode="connection_only")
+                    try:
+                        if not database.delete_service(service_id):
+                            return self.send_json({"error": "Service could not be deleted"}, 409)
+                    finally:
+                        database.close()
+                    return self.send_json({"ok": True, "id": service_id, "action": "delete"})
+                except (TypeError, ValueError) as error:
+                    return self.send_json({"error": str(error)}, 400)
+            if path == "/api/desktop/service-definition/import":
+                if not self.current_user():
+                    return self.send_json({"error": "Oturum a\u00e7man\u0131z gerekiyor.", "code": "AUTH_REQUIRED"}, 401)
+                if int(self.headers.get("Content-Length", "0")) > 4 * 1024 * 1024:
+                    return self.send_json({"error": "Service import payload exceeds the request limit"}, 413)
+                try:
+                    data = self.read_json()
+                    if not isinstance(data, dict):
+                        return self.send_json({"error": "Invalid service import payload"}, 400)
+                    result = service_catalog_import(
+                        data.get("rows"), is_automotive=bool(data.get("is_automotive"))
+                    )
+                    return self.send_json(result)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+                except Exception as error:
+                    logger.exception("Service catalog import failed")
+                    return self.send_json({"error": "Service import failed"}, 500)
+            if path == "/api/desktop/customers/export/pdf":
+                if not self.current_user():
+                    return self.send_json({"error": "Oturum a\u00e7man\u0131z gerekiyor.", "code": "AUTH_REQUIRED"}, 401)
+                try:
+                    content_length = int(self.headers.get("Content-Length", "0"))
+                    if content_length < 0 or content_length > 4 * 1024 * 1024:
+                        return self.send_json({"error": "Invalid export payload size"}, 413)
+                    data = self.read_json()
+                    if not isinstance(data, dict):
+                        return self.send_json({"error": "Invalid export payload"}, 400)
+                    payload = customer_list_pdf(data.get("rows") or [])
+                    filename = "musteri_listesi_" + datetime.now().strftime("%Y%m%d") + ".pdf"
+                    return self.send_bytes(payload, "application/pdf", disposition=f'attachment; filename="{filename}"')
+                except ImportError as error:
+                    return self.send_json({"error": f"PDF export is unavailable: {error}"}, 503)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+            if path == "/api/desktop/customers/export/xlsx":
+                if not self.current_user():
+                    return self.send_json({"error": "Oturum a\u00e7man\u0131z gerekiyor.", "code": "AUTH_REQUIRED"}, 401)
+                try:
+                    content_length = int(self.headers.get("Content-Length", "0"))
+                    if content_length < 0:
+                        return self.send_json({"error": "Invalid export payload size"}, 400)
+                    if content_length > 4 * 1024 * 1024:
+                        return self.send_json({"error": "Export payload is too large"}, 413)
+                    data = self.read_json()
+                    if not isinstance(data, dict):
+                        return self.send_json({"error": "Invalid export payload"}, 400)
+                    payload = customer_list_workbook(data.get("rows") or [])
+                    filename = "musteriler_" + datetime.now().strftime("%Y%m%d") + ".xlsx"
+                    return self.send_bytes(
+                        payload,
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        disposition=f'attachment; filename="{filename}"',
+                    )
+                except ImportError as error:
+                    return self.send_json({"error": f"Excel export is unavailable: {error}"}, 503)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+            if path == "/api/desktop/income-expense/export/csv":
+                try:
+                    content_length = int(self.headers.get("Content-Length", "0"))
+                    if content_length < 0 or content_length > 16 * 1024:
+                        return self.send_json({"error": "Invalid report export options size"}, 413)
+                    options = self.read_json()
+                    if not isinstance(options, dict):
+                        return self.send_json({"error": "Invalid report export options"}, 400)
+                    payload = desktop_income_expense_export_csv(user, options)
+                    filename = "gelir_gider_" + datetime.now().strftime("%Y%m%d") + ".csv"
+                    return self.send_bytes(
+                        payload,
+                        "text/csv; charset=utf-8",
+                        disposition=f'attachment; filename="{filename}"',
+                    )
+                except PermissionError as error:
+                    return self.send_json({"error": str(error)}, 403)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+            if path == "/api/desktop/accounting/ledger/page":
+                try:
+                    content_length = int(self.headers.get("Content-Length", "0"))
+                    if content_length < 0 or content_length > 16 * 1024:
+                        return self.send_json({"error": "Invalid ledger page options size"}, 413)
+                    options = self.read_json()
+                    if not isinstance(options, dict):
+                        return self.send_json({"error": "Invalid ledger page options"}, 400)
+                    return self.send_json(desktop_accounting_ledger_page(user, options))
+                except PermissionError as error:
+                    return self.send_json({"error": str(error)}, 403)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+            if path == "/api/desktop/accounting/ledger/export/xlsx":
+                try:
+                    content_length = int(self.headers.get("Content-Length", "0"))
+                    if content_length < 0 or content_length > 16 * 1024:
+                        return self.send_json({"error": "Invalid ledger export options size"}, 413)
+                    options = self.read_json()
+                    if not isinstance(options, dict):
+                        return self.send_json({"error": "Invalid ledger export options"}, 400)
+                    export_rows = desktop_accounting_ledger_export_rows(user, options)
+                    if not export_rows:
+                        return self.send_json({"error": "No accounting ledger rows matched the export options"}, 404)
+                    payload = desktop_accounting_ledger_workbook(export_rows)
+                    filename = "cari_hareketler_" + datetime.now().strftime("%Y%m%d") + ".xlsx"
+                    return self.send_bytes(
+                        payload,
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        disposition=f'attachment; filename="{filename}"',
+                    )
+                except ImportError as error:
+                    return self.send_json({"error": f"Excel export is unavailable: {error}"}, 503)
+                except PermissionError as error:
+                    return self.send_json({"error": str(error)}, 403)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+            if path == "/api/desktop/accounting/ledger/export/pdf":
+                try:
+                    content_length = int(self.headers.get("Content-Length", "0"))
+                    if content_length < 0 or content_length > 16 * 1024:
+                        return self.send_json({"error": "Invalid ledger export options size"}, 413)
+                    options = self.read_json()
+                    if not isinstance(options, dict):
+                        return self.send_json({"error": "Invalid ledger export options"}, 400)
+                    export_rows = desktop_accounting_ledger_export_rows(user, options)
+                    if not export_rows:
+                        return self.send_json({"error": "No accounting ledger rows matched the export options"}, 404)
+                    workbook_payload = desktop_accounting_ledger_workbook(export_rows)
+                    payload = desktop_stock_pdf(workbook_payload, "AYEC Pro - Cari Hareketler")
+                    filename = "cari_hareketler_" + datetime.now().strftime("%Y%m%d") + ".pdf"
+                    return self.send_bytes(
+                        payload,
+                        "application/pdf",
+                        disposition=f'attachment; filename="{filename}"',
+                    )
+                except ImportError as error:
+                    return self.send_json({"error": f"PDF export is unavailable: {error}"}, 503)
+                except PermissionError as error:
+                    return self.send_json({"error": str(error)}, 403)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+            if path == "/api/desktop/stock/delete":
+                user = self.current_user()
+                if not user:
+                    return self.send_json({"error": "Authentication required"}, 401)
+                body = self.read_json()
+                part_text = str(body.get("id") or "")
+                if not part_text.isdigit():
+                    return self.send_json({"error": "Invalid stock item"}, 400)
+                try:
+                    return self.send_json(desktop_delete_stock_part(
+                        int(part_text), body.get("password"), int(user.get("id") or 0)
+                    ))
+                except PermissionError as error:
+                    return self.send_json({"error": str(error)}, 403)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
                 except LookupError as error:
                     return self.send_json({"error": str(error)}, 404)
+            if path == "/api/desktop/stock/movements/delete":
+                body = self.read_json()
+                try:
+                    movement_id = int(body.get("id") or 0)
+                except (TypeError, ValueError):
+                    movement_id = 0
+                user = self.current_user()
+                if not user or not movement_id or not str(body.get("password") or ""):
+                    return self.send_json({"error": "A valid movement ID and password are required."}, 400)
+                with closing(db_connect()) as conn:
+                    account = conn.execute("SELECT password FROM users WHERE id=?", (int(user["id"]),)).fetchone()
+                    if not account or not password_matches(str(body.get("password") or ""), account["password"]):
+                        return self.send_json({"error": "The password is incorrect."}, 403)
+                    columns = set(table_columns(conn, "stock_movements")) if scalar(conn, "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='stock_movements'") else set()
+                    if "id" not in columns or "is_deleted" not in columns:
+                        return self.send_json({"error": "Stock movement history is unavailable."}, 404)
+                    values = {"is_deleted": 1}
+                    if "deleted_at" in columns:
+                        values["deleted_at"] = datetime.now().isoformat(timespec="seconds")
+                    assignments = ",".join(f'"{column}"=?' for column in values)
+                    cursor = conn.execute(f'UPDATE stock_movements SET {assignments} WHERE id=? AND COALESCE(is_deleted,0)=0', (*values.values(), movement_id))
+                    if cursor.rowcount != 1:
+                        return self.send_json({"error": "Stock movement was not found."}, 404)
+                    conn.commit()
+                return self.send_json({"ok": True, "id": movement_id})
+            if path == "/api/desktop/field-service/finish":
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                body = self.read_json()
+                try:
+                    personnel_id = int(body.get("id") or 0)
+                    return self.send_json(desktop_finish_field_service_duty(personnel_id))
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+            if path == "/api/desktop/field-service/assign":
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                try:
+                    body = self.read_json()
+                    return self.send_json(desktop_field_service_assign_location(
+                        body.get("id"), body.get("lat"), body.get("lng")
+                    ))
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+            if path == "/api/desktop/field-service/location":
+                user = self.current_user()
+                if not user:
+                    return self.send_json({"error": "Authentication required"}, 401)
+                try:
+                    body = self.read_json()
+                    return self.send_json(desktop_field_service_update_own_location(
+                        user, body.get("lat"), body.get("lng")
+                    ))
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except PermissionError as error:
+                    return self.send_json({"error": str(error)}, 403)
+            if path == "/api/desktop/field-service/geocode":
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                try:
+                    body = self.read_json()
+                    return self.send_json(desktop_field_service_geocode(body.get("query", "")))
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+                except (HTTPError, URLError, TimeoutError, OSError) as error:
+                    return self.send_json({"error": "Address search is temporarily unavailable"}, 502)
+            if path == "/api/desktop/field-service/reverse-geocode":
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                try:
+                    body = self.read_json()
+                    return self.send_json(desktop_customer_reverse_geocode(body.get("lat"), body.get("lon")))
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+                except (HTTPError, URLError, TimeoutError, OSError) as error:
+                    return self.send_json({"error": "Address lookup is temporarily unavailable"}, 502)
+            if path == "/api/desktop/field-service/route":
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                try:
+                    body = self.read_json()
+                    return self.send_json(desktop_field_service_road_route(body.get("points")))
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+                except (HTTPError, URLError, TimeoutError, OSError) as error:
+                    return self.send_json({"error": "Road route service is temporarily unavailable"}, 502)
+            if path == "/api/desktop/stock/price-increase":
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                try:
+                    result, status = desktop_apply_stock_price_increase(self.read_json())
+                    return self.send_json(result, status)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+                except sqlite3.Error as error:
+                    logger.exception("Desktop stock price update failed")
+                    return self.send_json({"error": str(error)}, 500)
+            if path == "/api/desktop/stock/adjust":
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                body = self.read_json()
+                try:
+                    part_id = int(body.get("id") or 0)
+                    delta = float(body.get("delta"))
+                    result = desktop_adjust_stock(part_id, delta, body.get("reference", ""))
+                    return self.send_json(result)
+                except PermissionError as error:
+                    return self.send_json({"error": str(error)}, 403)
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+                except TypeError as error:
+                    return self.send_json({"error": str(error)}, 400)
+                except Exception as error:
+                    logger.exception("Desktop stock adjustment failed")
+                    return self.send_json({"error": str(error)}, 500)
+            if path == "/api/desktop/pc-builder/deduct-stock":
+                try:
+                    return self.send_json(deduct_pc_builder_stock(self.read_json()))
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except (TypeError, ValueError) as error:
+                    return self.send_json({"error": str(error)}, 400)
+                except Exception as error:
+                    logger.exception("PC Builder stock deduction failed")
+                    return self.send_json({"error": str(error)}, 500)
             if path == "/api/desktop/stock/save":
                 exchange_rates(refresh=True)
                 try:
@@ -9311,6 +17182,25 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
                     return self.send_json({"error": str(error)}, 404)
                 except ValueError as error:
                     return self.send_json({"error": str(error)}, 400)
+            if path == "/api/desktop/assistant/query":
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                try:
+                    if int(self.headers.get("Content-Length", "0")) > 16384:
+                        return self.send_json({"error": "Question is too long."}, 413)
+                    payload = self.read_json()
+                    if not isinstance(payload, dict):
+                        return self.send_json({"error": "Question payload is invalid."}, 400)
+                    from src.utils.desktop_web_ai import query_desktop_assistant
+
+                    return self.send_json(
+                        query_desktop_assistant(active_db_path(), payload.get("question", ""))
+                    )
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+                except Exception:
+                    logger.exception("Desktop assistant query failed")
+                    return self.send_json({"error": "Assistant service is unavailable."}, 503)
             if path == "/api/desktop/technician/update":
                 exchange_rates(refresh=True)
                 try:
@@ -9326,20 +17216,296 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
                     return self.send_json({"error": str(error)}, 404)
                 except ValueError as error:
                     return self.send_json({"error": str(error)}, 400)
+            if path == "/api/desktop/vehicle-maintenance/photo/add":
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                try:
+                    if int(self.headers.get("Content-Length", "0")) > 12 * 1024 * 1024:
+                        return self.send_json({"error": "Photo request exceeds the size limit"}, 413)
+                    body = self.read_json()
+                    if len(json.dumps(body)) > 12 * 1024 * 1024:
+                        return self.send_json({"error": "Photo request exceeds the size limit"}, 413)
+                    result = vehicle_maintenance_add_photo(
+                        int(body.get("card_id")), str(body.get("name") or ""),
+                        str(body.get("data") or ""), str(body.get("label") or ""),
+                    )
+                    return self.send_json(result, 201)
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except (ValueError, TypeError) as error:
+                    return self.send_json({"error": str(error)}, 400)
+            if path == "/api/desktop/vehicle-maintenance/photo/delete":
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                try:
+                    body = self.read_json()
+                    vehicle_maintenance_delete_photo(int(body.get("photo_id")))
+                    return self.send_json({"ok": True})
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except (ValueError, TypeError) as error:
+                    return self.send_json({"error": str(error)}, 400)
             if path == "/api/desktop/smart-import":
                 try:
                     body = self.read_json()
                     payload = base64.b64decode(body.get("data", ""), validate=True)
                     if not payload:
-                        return self.send_json({"error": "İçe aktarılacak dosya boş"}, 400)
+                        return self.send_json({"error": "\u0130\u00e7e aktar\u0131lacak dosya bo\u015f"}, 400)
                     if len(payload) > 25 * 1024 * 1024:
-                        return self.send_json({"error": "Dosya 25 MB sınırını aşıyor"}, 413)
+                        return self.send_json({"error": "Dosya 25 MB s\u0131n\u0131r\u0131n\u0131 a\u015f\u0131yor"}, 413)
                     return self.send_json(smart_import(body.get("name", "belge"), payload))
                 except (ValueError, json.JSONDecodeError) as error:
-                    return self.send_json({"error": f"İçe aktarma verisi geçersiz: {error}"}, 400)
+                    return self.send_json({"error": f"\u0130\u00e7e aktarma verisi ge\u00e7ersiz: {error}"}, 400)
                 except Exception as error:
                     (ROOT / ".ayec-import-error.log").write_text(traceback.format_exc(), encoding="utf-8")
-                    return self.send_json({"error": f"Akıllı içe aktarma başarısız: {error}"}, 500)
+                    return self.send_json({"error": f"Ak\u0131ll\u0131 i\u00e7e aktarma ba\u015far\u0131s\u0131z: {error}"}, 500)
+            contract_upload_match = re.fullmatch(r"/api/desktop/contracts/(\d+)/attachments", path)
+            if contract_upload_match:
+                try:
+                    if int(self.headers.get("Content-Length", "0")) > 36 * 1024 * 1024:
+                        return self.send_json({"error": "Upload request exceeds the 25 MB file limit"}, 413)
+                    body = self.read_json()
+                    with closing(db_connect()) as conn:
+                        result = desktop_upload_contract_attachment(conn, contract_upload_match.group(1), body)
+                    return self.send_json(result, 201)
+                except PermissionError as error:
+                    return self.send_json({"error": str(error)}, 403)
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+            if path == "/api/desktop/personnel/daily-wages":
+                try:
+                    if not role_is_admin(user.get("role")):
+                        return self.send_json({"error": "Administrator permission is required"}, 403)
+                    body = self.read_json()
+                    with closing(db_connect()) as conn:
+                        result = desktop_save_personnel_daily_wage(conn, body)
+                    return self.send_json(result, 200 if "id" in body else 201)
+                except PermissionError as error:
+                    return self.send_json({"error": str(error)}, 403)
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+                except Exception as error:
+                    logger.exception("Daily wage save failed")
+                    return self.send_json({"error": str(error)}, 500)
+            if path == "/api/desktop/personnel/delete":
+                try:
+                    if not role_is_admin(user.get("role")):
+                        return self.send_json({"error": "Administrator permission is required"}, 403)
+                    body = self.read_json()
+                    try:
+                        personnel_id = int(body.get("id"))
+                    except (TypeError, ValueError):
+                        return self.send_json({"error": "A valid personnel ID is required"}, 400)
+                    password = str(body.get("admin_password") or "")
+                    with closing(db_connect()) as conn:
+                        stored_password = setting_value(conn, "admin_pass")
+                        if not stored_password:
+                            return self.send_json({"error": "Administrator password is not configured"}, 403)
+                        if not password_matches(password, stored_password):
+                            return self.send_json({"error": "Administrator password is incorrect"}, 403)
+                        if conn.execute("SELECT 1 FROM personnel WHERE id=?", (personnel_id,)).fetchone() is None:
+                            return self.send_json({"error": "Personnel record not found"}, 404)
+                        _ensure_personnel_daily_wage_schema(conn)
+                        conn.execute("BEGIN IMMEDIATE")
+                        try:
+                            wage_rows = conn.execute(
+                                "SELECT accounting_id FROM personnel_daily_wages WHERE personnel_id=?",
+                                (personnel_id,),
+                            ).fetchall()
+                            accounting_ids = [row[0] for row in wage_rows if row[0]]
+                            conn.execute("DELETE FROM personnel_daily_wages WHERE personnel_id=?", (personnel_id,))
+                            if accounting_ids:
+                                placeholders = ",".join("?" for _ in accounting_ids)
+                                conn.execute(f"DELETE FROM accounting WHERE id IN ({placeholders})", accounting_ids)
+                            conn.execute("DELETE FROM personnel WHERE id=?", (personnel_id,))
+                            conn.commit()
+                        except Exception:
+                            conn.rollback()
+                            raise
+                    return self.send_json({"ok": True, "id": personnel_id})
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+                except Exception as error:
+                    logger.exception("Personnel delete failed")
+                    return self.send_json({"error": str(error)}, 500)
+            if path == "/api/desktop/loaners/return":
+                try:
+                    body = self.read_json()
+                    try:
+                        transaction_id = int(body.get("transaction_id"))
+                    except (TypeError, ValueError):
+                        return self.send_json({"error": "A valid loan transaction ID is required"}, 400)
+                    try:
+                        penalty = float(body.get("penalty_applied") or 0)
+                    except (TypeError, ValueError):
+                        penalty = 0.0
+                    condition = str(body.get("condition_in") or "")[:2000]
+                    with closing(db_connect()) as conn:
+                        transaction = conn.execute(
+                            "SELECT device_id FROM loaner_transactions WHERE id=?", (transaction_id,)
+                        ).fetchone()
+                        if transaction is None:
+                            return self.send_json({"error": "Loan transaction was not found"}, 404)
+                        conn.execute("BEGIN IMMEDIATE")
+                        try:
+                            returned_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                            conn.execute(
+                                "UPDATE loaner_transactions SET date_returned=?, condition_in=?, penalty_applied=?, status=? WHERE id=?",
+                                (returned_at, condition, penalty, "Tamamland\u0131", transaction_id),
+                            )
+                            conn.execute(
+                                "UPDATE loaner_devices SET status=? WHERE id=?",
+                                ("Depoda", transaction["device_id"]),
+                            )
+                            conn.commit()
+                        except Exception:
+                            conn.rollback()
+                            raise
+                    return self.send_json({"ok": True, "id": transaction_id, "device_id": transaction["device_id"]})
+                except Exception as error:
+                    logger.exception("Loaner return failed")
+                    return self.send_json({"error": str(error)}, 500)
+            if path == "/api/desktop/loaners/assign":
+                try:
+                    body = self.read_json()
+                    try:
+                        device_id = int(body.get("device_id"))
+                    except (TypeError, ValueError):
+                        return self.send_json({"error": "A valid loan device ID is required"}, 400)
+                    customer_name = str(body.get("customer_name") or "").strip()[:200]
+                    if not customer_name:
+                        return self.send_json({"error": "Customer name is required"}, 400)
+                    expected_return = str(body.get("expected_return") or "").strip()[:32]
+                    if not expected_return:
+                        return self.send_json({"error": "Expected return date is required"}, 400)
+                    expected_return = expected_return.replace("T", " ")
+                    if len(expected_return) == 16:
+                        expected_return += ":00"
+                    try:
+                        datetime.strptime(expected_return, "%Y-%m-%d %H:%M:%S")
+                    except ValueError:
+                        return self.send_json({"error": "A valid expected return date is required"}, 400)
+                    values = (
+                        device_id,
+                        customer_name,
+                        str(body.get("customer_phone") or "")[:80],
+                        str(body.get("tracking_no") or "")[:120],
+                        str(body.get("condition_out") or "")[:2000],
+                        expected_return,
+                    )
+                    with closing(db_connect()) as conn:
+                        conn.execute("BEGIN IMMEDIATE")
+                        try:
+                            device = conn.execute(
+                                "SELECT status FROM loaner_devices WHERE id=?", (device_id,)
+                            ).fetchone()
+                            if device is None:
+                                conn.rollback()
+                                return self.send_json({"error": "Loan device was not found"}, 404)
+                            active = conn.execute(
+                                "SELECT 1 FROM loaner_transactions WHERE device_id=? AND status='Aktif' LIMIT 1",
+                                (device_id,),
+                            ).fetchone()
+                            if str(device["status"] or "") != "Depoda" or active:
+                                conn.rollback()
+                                return self.send_json({"error": "Loan device is not available"}, 409)
+                            cursor = conn.execute(
+                                "INSERT INTO loaner_transactions (device_id, customer_name, customer_phone, tracking_no, condition_out, expected_return) VALUES (?, ?, ?, ?, ?, ?)",
+                                values,
+                            )
+                            conn.execute(
+                                "UPDATE loaner_devices SET status=? WHERE id=?", ("M\u00fc\u015fteride", device_id)
+                            )
+                            conn.commit()
+                        except Exception:
+                            conn.rollback()
+                            raise
+                    return self.send_json({"ok": True, "id": cursor.lastrowid, "device_id": device_id})
+                except sqlite3.Error as error:
+                    logger.exception("Loaner assignment failed")
+                    return self.send_json({"error": str(error)}, 500)
+            if path == "/api/desktop/personnel/daily-wages/delete":
+                try:
+                    if not role_is_admin(user.get("role")):
+                        return self.send_json({"error": "Administrator permission is required"}, 403)
+                    body = self.read_json()
+                    with closing(db_connect()) as conn:
+                        result = desktop_delete_personnel_daily_wage(conn, body.get("id"))
+                    return self.send_json(result)
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+            if path == "/api/desktop/contracts/attachments/delete":
+                try:
+                    body = self.read_json()
+                    with closing(db_connect()) as conn:
+                        result = desktop_delete_contract_attachment(conn, body.get("attachment_id"))
+                    return self.send_json(result)
+                except PermissionError as error:
+                    return self.send_json({"error": str(error)}, 403)
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+            if path == "/api/desktop/external-tracking/photos":
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                if int(self.headers.get("Content-Length", "0")) > 12 * 1024 * 1024:
+                    return self.send_json({"error": "Photo upload exceeds the request limit"}, 413)
+                try:
+                    body = self.read_json()
+                    if body.get("_action") == "delete":
+                        external_tracking_delete_photo(int(body.get("id") or 0))
+                        return self.send_json({"ok": True})
+                    result = external_tracking_add_photo(
+                        str(body.get("tracking_no") or ""),
+                        str(body.get("data") or ""),
+                        str(body.get("label") or ""),
+                        str(body.get("stage") or "\u0130\u015flem"),
+                    )
+                    return self.send_json(result, 201)
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except (TypeError, ValueError) as error:
+                    return self.send_json({"error": str(error)}, 400)
+            if path == "/api/desktop/external-tracking/import":
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                if int(self.headers.get("Content-Length", "0")) > 17 * 1024 * 1024:
+                    return self.send_json({"error": "Import upload exceeds the request limit"}, 413)
+                try:
+                    body = self.read_json()
+                    result = external_tracking_import(
+                        str(body.get("data") or ""),
+                        str(body.get("filename") or ""),
+                    )
+                    return self.send_json(result)
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except (TypeError, ValueError, UnicodeDecodeError) as error:
+                    return self.send_json({"error": str(error)}, 400)
+            if path == "/api/desktop/service-sms/test":
+                try:
+                    with closing(db_connect()) as conn:
+                        result = desktop_test_service_sms(conn)
+                    return self.send_json(result)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+            if path == "/api/desktop/service-sms":
+                try:
+                    body = self.read_json()
+                    with closing(db_connect()) as conn:
+                        result = desktop_send_service_sms(conn, body)
+                    return self.send_json(result)
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
             if path == "/api/desktop/smtp/test":
                 user = self.current_user()
                 if not user or not role_is_admin(user.get("role")):
@@ -9373,11 +17539,244 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
                     return self.send_json(update_telegram_bot_webhook(self.read_json()))
                 except ValueError as error:
                     return self.send_json({"error": str(error)}, 400)
+            if path == "/api/desktop/audit/suspend-user":
+                user = self.current_user()
+                if not user:
+                    return self.send_json({"error": "Authentication is required."}, 401)
+                try:
+                    body = self.read_json()
+                    with closing(db_connect()) as conn:
+                        result = desktop_suspend_audit_account(conn, user, body.get("user_id"))
+                    return self.send_json(result)
+                except PermissionError as error:
+                    return self.send_json({"error": str(error)}, 403)
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except (TypeError, ValueError) as error:
+                    return self.send_json({"error": str(error)}, 400)
+            if path == "/api/desktop/users/bulk-passwords":
+                user = self.current_user()
+                if not user:
+                    return self.send_json({"error": "Authentication is required."}, 401)
+                if not role_is_admin(user.get("role")):
+                    return self.send_json({"error": "Administrator permission is required."}, 403)
+                try:
+                    with closing(db_connect()) as conn:
+                        result = desktop_bulk_change_user_passwords(conn, user, self.read_json())
+                    return self.send_json(result)
+                except PermissionError as error:
+                    return self.send_json({"error": str(error)}, 403)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+                except RuntimeError as error:
+                    return self.send_json({"error": str(error)}, 409)
+            if path == "/api/desktop/users":
+                user = self.current_user()
+                if not user:
+                    return self.send_json({"error": "Authentication is required."}, 401)
+                if not role_is_admin(user.get("role")):
+                    return self.send_json({"error": "Administrator permission is required."}, 403)
+                try:
+                    payload = self.read_json()
+                    with closing(db_connect()) as conn:
+                        result = desktop_create_managed_user(conn, user, payload)
+                    return self.send_json(result, 201)
+                except PermissionError as error:
+                    return self.send_json({"error": str(error)}, 403)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+                except sqlite3.IntegrityError:
+                    return self.send_json({"error": "Username or email is already in use."}, 409)
+            if path == "/api/desktop/users/update":
+                user = self.current_user()
+                if not user:
+                    return self.send_json({"error": "Authentication is required."}, 401)
+                if not role_is_admin(user.get("role")):
+                    return self.send_json({"error": "Administrator permission is required."}, 403)
+                try:
+                    with closing(db_connect()) as conn:
+                        result = desktop_update_managed_user(conn, user, self.read_json())
+                    return self.send_json(result)
+                except PermissionError as error:
+                    return self.send_json({"error": str(error)}, 403)
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+                except sqlite3.IntegrityError:
+                    return self.send_json({"error": "Username or email is already in use."}, 409)
+            if path == "/api/desktop/users/delete":
+                user = self.current_user()
+                if not user:
+                    return self.send_json({"error": "Authentication is required."}, 401)
+                if not role_is_admin(user.get("role")):
+                    return self.send_json({"error": "Administrator permission is required."}, 403)
+                try:
+                    payload = self.read_json()
+                    if not isinstance(payload, dict):
+                        return self.send_json({"error": "A user ID is required."}, 400)
+                    with closing(db_connect()) as conn:
+                        result = desktop_delete_managed_user(conn, user, payload.get("user_id"))
+                    return self.send_json(result)
+                except PermissionError as error:
+                    return self.send_json({"error": str(error)}, 403)
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+            if path == "/api/desktop/partners/finance":
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication is required."}, 401)
+                try:
+                    payload = self.read_json()
+                    with closing(db_connect()) as conn:
+                        result = desktop_save_partner_payment(conn, payload)
+                    return self.send_json(result, 201)
+                except PermissionError as error:
+                    return self.send_json({"error": str(error)}, 403)
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+                except sqlite3.Error:
+                    logger.exception("Partner payment save failed")
+                    return self.send_json({"error": "Partner payment could not be saved."}, 500)
+            if path == "/api/desktop/partners/notes":
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication is required."}, 401)
+                try:
+                    with closing(db_connect()) as conn:
+                        result = desktop_save_partner_note(conn, self.read_json())
+                    return self.send_json(result, 200 if result["action"] != "insert" else 201)
+                except PermissionError as error:
+                    return self.send_json({"error": str(error)}, 403)
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+                except sqlite3.Error:
+                    logger.exception("Partner note save failed")
+                    return self.send_json({"error": "Partner note could not be saved."}, 500)
+            if path == "/api/desktop/partners/profile":
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication is required."}, 401)
+                try:
+                    with closing(db_connect()) as conn:
+                        result = desktop_save_partner_profile(conn, self.read_json())
+                    return self.send_json(result, 200 if result["action"] == "update" else 201)
+                except PermissionError as error:
+                    return self.send_json({"error": str(error)}, 403)
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+                except sqlite3.Error:
+                    logger.exception("Partner profile save failed")
+                    return self.send_json({"error": "Partner profile could not be saved."}, 500)
+            if path == "/api/desktop/partners/documents":
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication is required."}, 401)
+                if int(self.headers.get("Content-Length", "0")) > 36 * 1024 * 1024:
+                    return self.send_json({"error": "Upload request exceeds the 25 MB file limit."}, 413)
+                try:
+                    payload = self.read_json()
+                    action = str(payload.get("action") or "upload").strip().lower()
+                    with closing(db_connect()) as conn:
+                        if action == "delete":
+                            result = desktop_delete_partner_document(conn, payload)
+                            status = 200
+                        elif action == "upload":
+                            result = desktop_upload_partner_document(conn, payload)
+                            status = 201
+                        else:
+                            raise ValueError("Unsupported document action.")
+                    return self.send_json(result, status)
+                except PermissionError as error:
+                    return self.send_json({"error": str(error)}, 403)
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+                except sqlite3.Error:
+                    logger.exception("Partner document save failed")
+                    return self.send_json({"error": "Partner document could not be saved."}, 500)
+            if path == "/api/desktop/partners/shipments":
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication is required."}, 401)
+                try:
+                    payload = self.read_json()
+                    is_update = bool(payload.get("id")) if isinstance(payload, dict) else False
+                    with closing(db_connect()) as conn:
+                        result = desktop_save_partner_shipment(conn, payload)
+                    return self.send_json(result, 200 if is_update else 201)
+                except PermissionError as error:
+                    return self.send_json({"error": str(error)}, 403)
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+                except sqlite3.Error:
+                    logger.exception("Partner shipment save failed")
+                    return self.send_json({"error": "Partner shipment could not be saved."}, 500)
+            if path == "/api/desktop/projects/create":
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                try:
+                    if int(self.headers.get("Content-Length", "0")) > 12 * 1024 * 1024:
+                        return self.send_json({"error": "Project request exceeds the 12 MB limit."}, 413)
+                    return self.send_json(desktop_create_project(self.read_json()), 201)
+                except PermissionError as error:
+                    return self.send_json({"error": str(error)}, 403)
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+                except Exception:
+                    logger.exception("Project creation failed")
+                    return self.send_json({"error": "Project could not be created."}, 500)
+            if path == "/api/desktop/projects/units/bulk-create":
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                try:
+                    return self.send_json(desktop_create_project_units(self.read_json()), 201)
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+                except sqlite3.Error:
+                    logger.exception("Project unit bulk creation failed")
+                    return self.send_json({"error": "Project units could not be created."}, 500)
+            if path == "/api/desktop/projects/lifecycle":
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                try:
+                    return self.send_json(desktop_project_lifecycle_action(self.read_json()))
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+                except Exception:
+                    logger.exception("Project lifecycle action failed")
+                    return self.send_json({"error": "Project action could not be completed."}, 500)
+            if path == "/api/desktop/projects/transactions":
+                if not self.current_user():
+                    return self.send_json({"error": "Authentication required"}, 401)
+                try:
+                    return self.send_json(desktop_save_project_transaction(self.read_json()), 201)
+                except PermissionError as error:
+                    return self.send_json({"error": str(error)}, 403)
+                except LookupError as error:
+                    return self.send_json({"error": str(error)}, 404)
+                except ValueError as error:
+                    return self.send_json({"error": str(error)}, 400)
+                except Exception:
+                    logger.exception("Project transaction save failed")
+                    return self.send_json({"error": "Project transaction could not be saved."}, 500)
             if not path.startswith("/api/desktop/table/"):
                 return self.send_json({"error": "Endpoint bulunamadı"}, 404)
             table = path.rsplit("/", 1)[-1]
             if table not in TABLES:
-                return self.send_json({"error": "Tablo izinli değil"}, 404)
+                return self.send_json({"error": "Tablo izinli de\u011fil"}, 404)
             if table in {"users", "settings", "internal_settings", "product_bank_mappings"} and not role_is_admin(user.get("role")):
                 return self.send_json({"error": "Bu ayarı değiştirmek için yönetici yetkisi gerekiyor."}, 403)
             body = self.read_json()
@@ -9391,9 +17790,29 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
                 )
             action = body.pop("_action", "insert")
             row_id = body.pop("id", None)
+            if table == "bank_accounts":
+                try:
+                    _bank_manager_required(user)
+                except PermissionError as error:
+                    return self.send_json({"error": str(error)}, 403)
+            if table == "checks_notes" and action == "insert":
+                try:
+                    result = desktop_add_check_note(user, body)
+                    return self.send_json(result, 201)
+                except PermissionError as error:
+                    return self.send_json({"error": str(error)}, 403)
+                except (TypeError, ValueError) as error:
+                    return self.send_json({"error": str(error)}, 400)
+                except Exception as error:
+                    logger.exception("Check or note creation failed")
+                    return self.send_json({"error": str(error)}, 500)
             with closing(db_connect()) as conn:
                 if not scalar(conn, "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?", (table,)):
                     return self.send_json({"error": "Masaüstü veritabanında bu modül tablosu henüz oluşturulmamış"}, 404)
+                if table == "checks_notes" and action == "update" and row_id is not None and "status" in body:
+                    current_status = scalar(conn, "SELECT status FROM checks_notes WHERE id=?", (row_id,))
+                    if current_status is not None and str(current_status) != str(body.get("status") or ""):
+                        return self.send_json({"error": "Use the check or note status workflow"}, 409)
                 if table == "subcontractors":
                     existing_columns = set(table_columns(conn, table))
                     for column, ddl in (
@@ -9431,6 +17850,8 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
                     setting_text = str(body.get("value", ""))
                     if table == "settings" and str(body.get("key") or "") == "telegram_bot_token":
                         setting_text = protect_telegram_bot_token(setting_text)
+                    if table == "settings" and str(body.get("key") or "") == "twilio_auth_token":
+                        setting_text = protect_sms_auth_token(setting_text)
                     conn.execute(
                         f'INSERT INTO "{table}" (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',
                         (body["key"], setting_text),
@@ -9456,6 +17877,9 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
                         row_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
                         action = "insert"
                 elif action == "delete" and row_id is not None:
+                    if table == "contracts":
+                        result = desktop_delete_contract(conn, row_id)
+                        return self.send_json({**result, "action": "delete"})
                     if "is_deleted" in columns:
                         if "updated_at" in columns:
                             conn.execute(
@@ -9481,6 +17905,14 @@ class AYECRequestHandler(BaseHTTPRequestHandler):
                         link_web_automotive_service(conn, int(row_id), clean, body)
                 if table == "customers" and row_id is not None:
                     save_web_customer_balances(conn, int(row_id), body.get("balances"))
+                    sector = scalar(
+                        conn,
+                        "SELECT value FROM internal_settings WHERE key='current_sector'",
+                        default="teknik_servis",
+                    ) or "teknik_servis"
+                    save_web_customer_sector_extension(
+                        conn, int(row_id), str(sector), body.get("sector_extension")
+                    )
                 conn.commit()
             return self.send_json({"ok": True, "id": row_id, "action": action})
         except Exception as exc:
@@ -9500,12 +17932,15 @@ def main() -> None:
     TENANT_ROOT = Path(args.tenant_dir).expanduser().resolve()
     mimetypes.add_type("application/javascript", ".js")
     server = ThreadingHTTPServer((args.host, args.port), AYECRequestHandler)
+    backup_scheduler = TenantBackupScheduler()
+    backup_scheduler.start()
     print(f"AYEC Pro hazır: http://127.0.0.1:{args.port} | Veritabanı: {DB_PATH}", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         pass
     finally:
+        backup_scheduler.stop()
         server.server_close()
 
 

@@ -193,6 +193,108 @@ def test_settings_page_is_parented_during_construction(tmp_path):
         app.processEvents()
 
 
+def test_whatsapp_settings_keeps_the_shared_settings_navigation(tmp_path):
+    from src.database import Database
+    from src.ui.pages.settings_page import SettingsPage
+
+    app = QApplication.instance() or QApplication([])
+    parent = QWidget()
+    db = Database(str(tmp_path / "settings_whatsapp_navigation.db"))
+    page = SettingsPage(db, parent)
+    try:
+        page.change_page(20)
+        widget = page.content_area.currentWidget()
+        assert widget._settings_page_selector is None
+        assert not page.sidebar.isHidden()
+        assert not page.settings_navigation_row.isHidden()
+        assert page.settings_page_selector.isHidden()
+
+        page.change_page(4)
+        assert widget._settings_page_selector is None
+        assert not page.sidebar.isHidden()
+        assert page.settings_page_selector.isHidden()
+    finally:
+        page.deleteLater()
+        parent.deleteLater()
+        db.close()
+        app.processEvents()
+
+
+def test_integration_hub_uses_its_own_horizontal_navigation(tmp_path):
+    from src.database import Database
+    from src.ui.pages.settings_page import SettingsPage
+    from src.utils.reference_typography import apply_reference_font
+
+    app = QApplication.instance() or QApplication([])
+    apply_reference_font(app)
+    parent = QWidget()
+    db = Database(str(tmp_path / "settings_integration_hub_navigation.db"))
+    page = SettingsPage(db, parent)
+    try:
+        page.change_page(21)
+        widget = page.content_area.currentWidget()
+        assert widget.tabs.count() >= 9
+        assert not page.sidebar.isHidden()
+        assert page.settings_navigation_row.isHidden()
+        assert page.settings_page_selector.isHidden()
+        for index, (tab_key, _, _) in enumerate(widget._tab_keys):
+            assert widget.open_tab_by_key(tab_key)
+            assert widget.tabs.currentIndex() == index
+            assert tab_key in widget._pages
+            assert not page.sidebar.isHidden()
+        sms_widget = widget._pages["sms"].widget()
+        assert sms_widget.loop_title.text() == "SMS G\u00d6NDER\u0130M D\u00d6NG\u00dc AYARLARI"
+        assert widget.open_tab_by_key("smtp")
+        assert widget.tabs.currentIndex() == 7
+
+        page.change_page(4)
+        assert not page.sidebar.isHidden()
+        assert page.settings_page_selector.isHidden()
+
+        page.change_page(16)
+        assert not page.sidebar.isHidden()
+        assert not page.settings_navigation_row.isHidden()
+        assert page.settings_page_selector.isHidden()
+        telegram_page = page.pages[16]
+        telegram_page.main_window = type("MainWindow", (), {"settings_page": page})()
+        for page_id in (1, 3, 2, 16):
+            telegram_page.settings_tab_buttons[page_id].click()
+            assert page.content_area.currentIndex() == page_id
+            assert page.sidebar.list_widget.currentItem().data(Qt.ItemDataRole.UserRole) == page_id
+    finally:
+        page.deleteLater()
+        parent.deleteLater()
+        db.close()
+        app.processEvents()
+
+
+def test_every_settings_sidebar_route_loads_and_keeps_navigation(tmp_path):
+    from src.database import Database
+    from src.ui.pages.settings_page import SettingsPage
+
+    app = QApplication.instance() or QApplication([])
+    parent = QWidget()
+    db = Database(str(tmp_path / "settings_all_routes.db"))
+    page = SettingsPage(db, parent)
+    try:
+        route_ids = [entry["page_id"] for entry in page.sidebar.iter_items()]
+        assert route_ids
+        for page_id in route_ids:
+            page.change_page(page_id)
+            assert page.content_area.currentIndex() == page_id
+            assert type(page.content_area.currentWidget()).__name__ != "PlaceholderWidget"
+            assert not page.sidebar.isHidden()
+            assert page.settings_navigation_row.isHidden() == (page_id == 21)
+            selected = page.sidebar.list_widget.currentItem()
+            assert selected is not None
+            assert selected.data(Qt.ItemDataRole.UserRole) == page_id
+    finally:
+        page.deleteLater()
+        parent.deleteLater()
+        db.close()
+        app.processEvents()
+
+
 def test_settings_icons_refresh_with_theme_without_changing_routes():
     app = QApplication.instance() or QApplication([])
     previous = ThemeManager._current_theme

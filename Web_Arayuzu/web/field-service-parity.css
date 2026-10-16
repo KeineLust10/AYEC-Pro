@@ -1,0 +1,45 @@
+body[data-page="field-service"] .field-personnel-map-wrap{min-height:300px;overflow:hidden;background:var(--surface-alt,#e8edf3)}
+body[data-page="field-service"] #fieldPersonnelMap{display:block;width:100%;height:100%;min-height:300px}
+body[data-page="field-service"] #fieldPersonnelMap.leaflet-container{background:#e8edf3}
+body[data-page="field-service"] .field-personnel-marker{display:grid;place-items:center;border:0;background:transparent}
+body[data-page="field-service"] .field-personnel-marker span{display:block;width:16px;height:16px;border:2px solid #fff;border-radius:50%;background:#10b981;box-shadow:0 2px 5px #0f172a66}
+body[data-page="field-service"] .field-map-online{color:var(--success,#18a874)}
+body[data-page="field-service"] #fieldPersonnelMap{position:relative}
+body[data-page="field-service"] .field-vector-map-frame{position:absolute;inset:0;width:100%;height:100%;min-height:240px;border:0;border-radius:inherit;background:#080d18;z-index:900}
+body[data-page="field-service"] .field-vector-toggle[aria-pressed="true"]{border-color:#23c7ff;color:#23c7ff}
+body[data-page="field-service"] .field-map-canvas>header{flex-wrap:wrap}
+body[data-page="field-service"] .field-map-actions{display:flex;flex:1 1 440px;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:6px;min-width:0;max-width:100%;box-sizing:border-box}
+body[data-page="field-service"] .field-route-optimize{flex:none;min-height:30px;padding:0 9px;white-space:nowrap}
+body[data-page="field-service"] .field-traffic-toggle{flex:none;min-height:30px;padding:0 9px;white-space:nowrap}
+body[data-page="field-service"] .field-location-share{flex:none;min-height:30px;padding:0 9px;white-space:nowrap}
+body[data-page="field-service"] .field-location-search{position:relative;display:grid;flex:1 1 280px;grid-template-columns:minmax(140px,1fr) auto;gap:6px;min-width:280px}
+body[data-page="field-service"] #fieldLocationResults{position:absolute;z-index:1000;top:calc(100% + 4px);left:0;right:0;display:grid;max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:7px;background:var(--surface);box-shadow:0 8px 24px #0004;color:var(--ink);font-size:11px}
+body[data-page="field-service"] #fieldLocationResults:empty{display:none}
+body[data-page="field-service"] .field-location-result{padding:8px 10px;border:0;border-bottom:1px solid var(--line);background:transparent;color:var(--ink);text-align:left;cursor:pointer}
+body[data-page="field-service"] .field-location-result:hover,body[data-page="field-service"] .field-location-result:focus{background:var(--surface-alt)}
+body[data-page="field-service"] .field-personnel-queue{margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
+body[data-page="field-service"] .field-personnel-queue>header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+body[data-page="field-service"] .field-personnel-queue h3{margin:0;font-size:13px}
+body[data-page="field-service"] #fieldPersonnelRows{display:grid;gap:7px;max-height:340px;overflow:auto}
+body[data-page="field-service"] .field-personnel-card{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;padding:9px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+body[data-page="field-service"] .field-personnel-card:focus-within,body[data-page="field-service"] .field-personnel-card:hover{border-color:var(--brand,#3478f6)}
+body[data-page="field-service"] .field-personnel-card.selected{border-color:var(--brand,#3478f6);box-shadow:0 0 0 2px color-mix(in srgb,var(--brand,#3478f6) 22%,transparent)}
+body[data-page="field-service"] .field-personnel-focus{display:grid;justify-items:start;gap:4px;min-width:0;padding:0;border:0;background:transparent;color:var(--ink);text-align:left;cursor:pointer}
+body[data-page="field-service"] .field-personnel-focus strong{font-size:12px}
+body[data-page="field-service"] .field-personnel-focus>span:not(.badge),body[data-page="field-service"] .field-personnel-focus small{overflow:hidden;max-width:100%;color:var(--muted);font-size:10px;text-overflow:ellipsis;white-space:nowrap}
+body[data-page="field-service"] .field-personnel-card .badge{font-size:9px}
+body[data-page="field-service"] .field-personnel-finish{white-space:nowrap}
+@media(max-width:600px){body[data-page="field-service"] .field-personnel-map-wrap,body[data-page="field-service"] #fieldPersonnelMap{min-height:240px}body[data-page="field-service"] .field-personnel-card{grid-template-columns:minmax(0,1fr)}body[data-page="field-service"] .field-personnel-finish{justify-self:start}body[data-page="field-service"] .field-map-canvas>header{flex-wrap:nowrap}body[data-page="field-service"] .field-map-actions{display:grid;flex-basis:auto;grid-template-columns:minmax(0,1fr) minmax(0,1fr);width:100%;justify-content:start}body[data-page="field-service"] .field-route-optimize,body[data-page="field-service"] .field-traffic-toggle,body[data-page="field-service"] .field-vector-toggle{width:100%;min-width:0;white-space:normal}body[data-page="field-service"] .field-location-share{grid-column:1/-1;width:100%;min-width:0;white-space:normal}body[data-page="field-service"] .field-location-search{grid-column:1/-1;flex-basis:auto;grid-template-columns:minmax(0,1fr) auto;min-width:0;width:100%;box-sizing:border-box}}
+body[data-page="field-service"] .field-mode-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:3px;margin:8px 0;padding:2px;border-radius:7px;background:var(--surface-alt)}
+body[data-page="field-service"] .field-mode-tabs button,body[data-page="field-service"] .field-radar-filters button{min-width:0;padding:6px 4px;border:0;border-radius:5px;background:transparent;color:var(--muted);font-family:inherit;font-size:11px;font-weight:700;cursor:pointer}
+body[data-page="field-service"] .field-mode-tabs button.active,body[data-page="field-service"] .field-radar-filters button.active{background:var(--surface);color:var(--brand,#3478f6);box-shadow:0 1px 3px #0002}
+body[data-page="field-service"] .field-radar-filters{display:flex;gap:4px;margin:0 0 8px}
+body[data-page="field-service"] .field-radar-filters button{flex:1;border:1px solid var(--line);background:var(--surface)}
+body[data-page="field-service"] .field-location-tools{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--surface-alt)}
+body[data-page="field-service"] .field-location-tools[hidden]{display:none}
+body[data-page="field-service"] .field-location-tools-toggle{min-height:30px;padding:0 8px;white-space:nowrap}
+body[data-page="field-service"] .field-location-tools button{min-width:0;min-height:32px;padding:5px 7px;white-space:normal}
+body[data-page="field-service"] .field-manual-location,body[data-page="field-service"] .field-whatsapp-paste{display:grid;gap:12px}
+body[data-page="field-service"] .field-manual-location label,body[data-page="field-service"] .field-whatsapp-paste label{display:grid;gap:5px}
+body[data-page="field-service"] .field-manual-location input,body[data-page="field-service"] .field-whatsapp-paste textarea{width:100%;box-sizing:border-box}
+@media(max-width:600px){body[data-page="field-service"] .field-location-tools{grid-template-columns:repeat(2,minmax(0,1fr))}}

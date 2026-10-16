@@ -208,7 +208,7 @@ class KanbanCard(QFrame):
             lbl_price.setFont(QFont(DesignTokens.MONO_FONT_NAME))
             lbl_price.setMinimumWidth(92)
             lbl_price.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            lbl_price.setStyleSheet(theme_qss("color: @selection_text; font-size: 12px; font-weight: 900; background: @surface_alt; border: 1px solid @border; border-radius: 10px; padding: 3px 10px;"))
+            lbl_price.setStyleSheet(theme_qss("color: @finance_text; font-size: 12px; font-weight: 900; background: @surface_alt; border: 1px solid @border; border-radius: 10px; padding: 3px 10px;"))
             lbl_price.setFont(QFont(DesignTokens.MONO_FONT_NAME))
             QTimer.singleShot(0, lambda label=lbl_price: label.setFont(QFont(DesignTokens.MONO_FONT_NAME)))
             price_row.addWidget(lbl_price)
@@ -404,17 +404,17 @@ class KanbanCard(QFrame):
         self._accent = accent
         if _is_classic_appearance():
             self.setMinimumHeight(196)
-            self.setStyleSheet("""
+            self.setStyleSheet(theme_qss("""
                 #KanbanCard {
-                    background-color: #FFFFFF;
-                    border-radius: 12px;
-                    border: 1px solid #D5DDE8;
+                    background-color: @finance_surface;
+                    border-radius: 8px;
+                    border: 1px solid @finance_outline;
                 }
                 #KanbanCard:hover {
-                    border: 1px solid #8FA3BD;
-                    background-color: #FFFFFF;
+                    border: 1px solid @finance_primary;
+                    background-color: @finance_surface_high;
                 }
-            """)
+            """))
             if self._bar is not None:
                 self._bar.setStyleSheet(f"background-color: {accent}; border-radius: 2px;")
             if self._status_pill is not None:
@@ -454,12 +454,12 @@ class KanbanCard(QFrame):
 
     def _apply_classic_modern_child_styles(self, accent):
         styles = {
-            "KanbanTitle": "color: #111827; font-size: 13px; font-weight: 800; background: transparent; border: none;",
-            "KanbanCustomer": "color: #5B677A; font-size: 12px; font-weight: 600; background: transparent; border: none;",
-            "KanbanDevice": "color: #111827; font-size: 12px; font-weight: 700; background: transparent; border: none;",
-            "KanbanTrack": "color: #41536B; font-size: 12px; font-weight: 800; background: transparent; border: none;",
-            "KanbanDate": "color: #64748B; font-size: 11px; font-weight: 700; background: transparent; border: none;",
-            "KanbanInfoText": "color: #111827; font-size: 11px; font-weight: 700; background: transparent; border: none;",
+            "KanbanTitle": theme_qss("color: @finance_text; font-size: 13px; font-weight: 800; background: transparent; border: none;"),
+            "KanbanCustomer": theme_qss("color: @finance_text_muted; font-size: 12px; font-weight: 600; background: transparent; border: none;"),
+            "KanbanDevice": theme_qss("color: @finance_text; font-size: 12px; font-weight: 700; background: transparent; border: none;"),
+            "KanbanTrack": theme_qss("color: @finance_text_muted; font-size: 12px; font-weight: 800; background: transparent; border: none;"),
+            "KanbanDate": theme_qss("color: @finance_text_muted; font-size: 11px; font-weight: 700; background: transparent; border: none;"),
+            "KanbanInfoText": theme_qss("color: @finance_text; font-size: 11px; font-weight: 700; background: transparent; border: none;"),
         }
         for label in self.findChildren(QLabel):
             name = label.objectName()
@@ -467,18 +467,18 @@ class KanbanCard(QFrame):
                 label.setStyleSheet(styles[name])
         for badge_name in ("KanbanTypeBadge", "KanbanCategoryBadge"):
             for badge in self.findChildren(QLabel, badge_name):
-                badge.setStyleSheet("background: #F4F7FB; color: #2563EB; border: 1px solid #C7D7F5; border-radius: 10px; padding: 3px 9px; font-size: 10px; font-weight: 900;")
+                badge.setStyleSheet(theme_qss("background: @surface_alt; color: @accent; border: 1px solid @border; border-radius: 10px; padding: 3px 9px; font-size: 10px; font-weight: 900;"))
         for badge in self.findChildren(QLabel, "KanbanUrgencyBadge"):
             if self.urgency in ["Kritik", "Yüksek", "Yüksek", "Acil"]:
-                badge.setStyleSheet("background: #FFF1F2; color: #DC2626; border: 1px solid #FDA4AF; border-radius: 10px; padding: 3px 9px; font-size: 10px; font-weight: 900;")
+                badge.setStyleSheet(theme_qss("background: @surface_alt; color: @danger; border: 1px solid @danger; border-radius: 10px; padding: 3px 9px; font-size: 10px; font-weight: 900;"))
             else:
-                badge.setStyleSheet("background: #ECFDF5; color: #059669; border: 1px solid #A7F3D0; border-radius: 10px; padding: 3px 9px; font-size: 10px; font-weight: 900;")
+                badge.setStyleSheet(theme_qss("background: @surface_alt; color: @success; border: 1px solid @success; border-radius: 10px; padding: 3px 9px; font-size: 10px; font-weight: 900;"))
         for price in self.findChildren(QLabel, "KanbanPrice"):
-            price.setStyleSheet("background: #EDF3FA; color: #111827; border: 1px solid #D5DDE8; border-radius: 10px; padding: 3px 9px; font-size: 12px; font-weight: 900;")
+            price.setStyleSheet(theme_qss("background: @surface_alt; color: @finance_text; border: 1px solid @border; border-radius: 10px; padding: 3px 9px; font-size: 12px; font-weight: 900;"))
         for avatar in self.findChildren(QLabel, "KanbanAvatar"):
-            avatar.setStyleSheet(f"background: {_status_surface(accent)}; color: {accent}; border: 1px solid {_status_outline(accent)}; border-radius: 14px; font-size: 11px; font-weight: 800;")
+            avatar.setStyleSheet(theme_qss(f"background: {_status_surface(accent)}; color: {accent}; border: 1px solid {_status_outline(accent)}; border-radius: 14px; font-size: 11px; font-weight: 800;"))
         for frame in self.findChildren(QFrame, "KanbanInfo"):
-            frame.setStyleSheet("background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px;")
+            frame.setStyleSheet(theme_qss("background: @surface_alt; border: 1px solid @border; border-radius: 10px;"))
 
     def _apply_modern_child_styles(self):
         styles = {
@@ -503,7 +503,7 @@ class KanbanCard(QFrame):
         for badge in self.findChildren(QLabel, "KanbanCategoryBadge"):
             badge.setStyleSheet(theme_qss("border-radius: 4px; padding: 2px 8px; font-size: 10px; font-weight: 800; background-color: @surface_alt; color: @warning; border: 1px solid rgba(180, 83, 9, 0.22);"))
         for price in self.findChildren(QLabel, "KanbanPrice"):
-            price.setStyleSheet(theme_qss("color: @selection_text; font-size: 12px; font-weight: 900; background: @surface_alt; border: 1px solid @border; border-radius: 4px; padding: 2px 8px;"))
+            price.setStyleSheet(theme_qss("color: @finance_text; font-size: 12px; font-weight: 900; background: @surface_alt; border: 1px solid @border; border-radius: 4px; padding: 2px 8px;"))
         for avatar in self.findChildren(QLabel, "KanbanAvatar"):
             avatar.setStyleSheet(theme_qss("background-color: @selection_bg; color: @accent; border-radius: 14px; font-size: 11px; font-weight: 700;"))
         for frame in self.findChildren(QFrame, "KanbanInfo"):

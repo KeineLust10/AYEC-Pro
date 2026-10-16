@@ -226,7 +226,7 @@ class AuditLogger:
             logger.error(f"Get recent activity error: {str(e)}")
             return []
     
-    def get_recent_activity_page(self, limit=25, offset=0, query="", scope_prefixes=None, severity="Tumu"):
+    def get_recent_activity_page(self, limit=25, offset=0, query="", scope_prefixes=None, severity="Tumu", hours=None):
         """Read a deterministic audit page with filters covering all saved records."""
         self.db.conn.create_function("ayec_audit_lower", 1, lambda value: str(value or "").lower())
         clauses = []
@@ -247,12 +247,22 @@ class AuditLogger:
         if scope_prefixes:
             clauses.append("(" + " OR ".join("ayec_audit_lower(a.table_name) LIKE ?" for _prefix in scope_prefixes) + ")")
             params.extend(str(prefix).lower() + "%" for prefix in scope_prefixes)
+        if hours is not None:
+            from datetime import timedelta
+            now = datetime.now()
+            cutoff = (now - timedelta(hours=max(1, int(hours)))).strftime("%Y-%m-%d %H:%M:%S")
+            clauses.append("a.created_at >= ? AND a.created_at <= ?")
+            params.extend((cutoff, now.strftime("%Y-%m-%d %H:%M:%S")))
         if severity != "Tumu":
-            clauses.append(
+            severity_expression = (
                 "UPPER(CASE WHEN json_valid(a.details) THEN COALESCE(json_extract(a.details, '$.severity'), "
-                "json_extract(a.details, '$.level'), '-') ELSE '-' END)=?"
+                "json_extract(a.details, '$.level'), '-') ELSE '-' END)"
             )
-            params.append(str(severity).upper())
+            if str(severity).upper() == "WARN":
+                clauses.append(f"{severity_expression} IN ('WARN','WARNING')")
+            else:
+                clauses.append(f"{severity_expression}=?")
+                params.append(str(severity).upper())
         where = " WHERE " + " AND ".join(clauses) if clauses else ""
         count = int(self.db.conn.execute("SELECT COUNT(*) FROM audit_logs a" + where, params).fetchone()[0])
         rows = self.db.conn.execute(

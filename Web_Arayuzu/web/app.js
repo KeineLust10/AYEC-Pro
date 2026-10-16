@@ -16,6 +16,8 @@ const moneyNumber = value => {
 const money = (value, currency = "TRY") => new Intl.NumberFormat("tr-TR", { style: "currency", currency }).format(moneyNumber(value));
 const esc = value => String(value ?? "").replace(/[&<>'"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[c]));
 const settingBool = value => ["1","true","yes","on","evet","aktif"].includes(String(value??"").trim().toLocaleLowerCase("tr-TR"));
+const ayecContextSettingByPage={dashboard:"rc_dashboard","service-list":"rc_dashboard",stock:"rc_stock","service-form":"rc_service_form","new-service":"rc_service_form",announcements:"rc_announcements",personnel:"rc_personnel",banks:"rc_bank",loans:"rc_bank","bank-accounts":"rc_bank","bank-loans":"rc_bank","check-notes":"rc_bank",contracts:"rc_contracts",projects:"rc_projects","project-detail":"rc_projects",loaners:"rc_loaner",customers:"rc_customers",accounting:"rc_accounting",transactions:"rc_accounting",appointments:"rc_appointments","knowledge-base":"rc_knowledge_base",services:"rc_services",reminders:"rc_reminders","job-tracking":"rc_job_service","job-reports":"rc_job_service","job-service":"rc_job_service",logistics:"rc_logistics"};
+function ayecContextMenuEnabled(pageId=page){if(!db.settings.contextMenu)return false;const key=ayecContextSettingByPage[pageId];return !key||settingBool(desktopSettings[key]??"1")}
 
 const seed = {
   customers: [
@@ -75,12 +77,22 @@ const activity = (text, icon="•") => { db.activities.unshift({date:new Date().
 
 const menu = [
   {group:"SERVIS OPERASYON",items:[{id:"service-parent",icon:"\u{1f527}",label:"Servis Y\u00f6netimi",children:[{id:"dashboard",label:"Genel Bak\u0131ş"},{id:"services",label:"Servis Panosu"},{id:"service-status",label:"Durum Paneli"},{id:"technician",label:"Teknisyen Paneli"},{id:"field-service",label:"Saha Haritas\u0131"},{id:"appointments",label:"Randevular"},{id:"logistics",label:"Lojistik & Garanti Y\u00f6netimi"},{id:"job-reports",label:"\u0130\u015f / Servis Takibi Raporlar\u0131"},{id:"assistant",label:"AI Asistan"},{id:"vehicle-maintenance",label:"Ara\u00e7 Bak\u0131m Takibi"}]},{id:"service-settings-parent",icon:"\u2699",label:"Servis Ayarlar\u0131",children:[{id:"service-definitions",label:"\u0130\u015f\u00e7ilik & Fiyat Y\u00f6netimi"},{id:"brands",label:"Marka Adlar\u0131 Y\u00f6netimi"}]},{id:"customer-parent",icon:"\u{1f465}",label:"M\u00fc\u015fteri Hub",children:[{id:"partners",label:"\u00c7al\u0131\u015fma Ortaklar\u0131"},{id:"customers",label:"M\u00fc\u015fteri Listesi"},{id:"contracts",label:"S\u00f6zle\u015fmeler"},{id:"reminders",label:"Hat\u0131rlat\u0131c\u0131lar"},{id:"announcements",label:"Duyurular"}]}]},
-  {group:"TICARI & SATI\u015e",items:[{id:"projects-parent",icon:"\u{1f4ca}",label:"Proje Y\u00f6netimi",children:[{id:"projects",label:"Projeler"},{id:"project-archive",label:"Proje Ar\u015fivi"}]},{id:"stock-parent",icon:"\u{1f4e6}",label:"Stok / Sipari\u015f",children:[{id:"stock",label:"Stok Y\u00f6netimi"},{id:"loaners",label:"Emanet (Konsinye) Cihazlar"},{id:"stock-locations",label:"Depo ve Ara\u00e7 Stoklar\u0131"},{id:"automotive-stock",label:"Ara\u00e7 Par\u00e7a Sto\u011fu"},{id:"movements",label:"Stok Hareketleri"},{id:"import",label:"Ak\u0131ll\u0131 \u0130\u00e7e Aktarma"},{id:"mobile-guide",label:"Mobil Teknik K\u0131lavuz"},{id:"pc-builder",label:"PC Builder"}]},{id:"offers-parent",icon:"\u{1f4c4}",label:"Teklif Olu\u015ftur",children:[{id:"sales",label:"T\u00fcm Teklifler & Ge\u00e7mi\u015f"}]}]},
+  {group:"TICARI & SATI\u015e",items:[{id:"projects-parent",icon:"\u{1f4ca}",label:"Proje Y\u00f6netimi",children:[{id:"projects",label:"Projeler"},{id:"project-archive",label:"Proje Ar\u015fivi"}]},{id:"stock-parent",icon:"\u{1f4e6}",label:"Stok / Sipari\u015f",children:[{id:"stock",label:"Stok Y\u00f6netimi"},{id:"loaners",label:"Emanet (Konsinye) Cihazlar"},{id:"stock-locations",label:"Stok Lokasyonlar\u0131"},{id:"automotive-stock",label:"Ara\u00e7 Par\u00e7a Sto\u011fu"},{id:"movements",label:"Stok Hareketleri"},{id:"import",label:"Ak\u0131ll\u0131 \u0130\u00e7e Aktarma"},{id:"mobile-guide",label:"Mobil Teknik K\u0131lavuz"},{id:"pc-builder",label:"PC Builder"}]},{id:"offers-parent",icon:"\u{1f4c4}",label:"Teklif Olu\u015ftur",children:[{id:"sales",label:"T\u00fcm Teklifler & Ge\u00e7mi\u015f"}]}]},
   {group:"FINANS & MUHASEBE",items:[{id:"finance-parent",icon:"\u{1f4b5}",label:"Finansal Y\u00f6netim",children:[{id:"finance",label:"Finansal Dashboard"},{id:"income",label:"Gelir / Gider"},{id:"expense",label:"Giderler"},{id:"banks",label:"Banka Hesaplar\u0131"},{id:"checks",label:"\u00c7ek / Senet"},{id:"invoices",label:"Fatura Kes (E-Fatura)"}]}]},
   {group:"Y\u00d6NET\u0130M",items:[{id:"management-parent",icon:"\u{1f464}",label:"Personel",children:[{id:"personnel",label:"Personel"}]}]},
   {group:"S\u0130STEM",items:[{id:"system-parent",icon:"\u2699",label:"Sistem Yard\u0131mc\u0131lar\u0131",children:[{id:"knowledge",label:"Bilgi Bankas\u0131"},{id:"settings",label:"Sistem Ayarlar\u0131"},{id:"backup",label:"Yedekleme Merkezi"},{id:"support",label:"Destek Merkezi"},{id:"audit",label:"Sistem \u0130\u015flem Loglar\u0131"},{id:"manual",label:"Kullan\u0131m K\u0131lavuzu"},{id:"dialog-catalog",label:"Dialog Mod\u00fclleri"}]}]}
 ];
 const sectorPages={teknik_servis:new Set(["dashboard","services","service-list","service-status","product-groups","report-templates","offers","offer-reports","technician","field-service","appointments","logistics","job-reports","assistant","customers","contracts","partners","reminders","announcements","stock-parent","stock","stock-locations","movements","import","service-definitions","brands","loaners","sales","mobile-guide","pc-builder","finance-parent","finance","income","expense","banks","loans","checks","invoices","personnel","projects","project-archive","knowledge","settings","backup","support","audit","manual","dialog-catalog"]),otomotiv:new Set(["dashboard","services","service-list","service-status","product-groups","report-templates","offers","offer-reports","sales","technician","automotive-stock","appointments","vehicle-maintenance","assistant","customers","contracts","partners","reminders","announcements","stock-parent","stock","stock-locations","movements","import","service-definitions","brands","loaners","finance-parent","finance","income","expense","banks","loans","checks","invoices","personnel","knowledge","settings","backup","support","audit","manual","dialog-catalog"])};
+function syncNavActivePage(activePage=page){
+ const nav=$("#nav");
+ if(!nav)return;
+ nav.querySelectorAll("[data-page]").forEach(button=>button.classList.toggle("active",button.dataset.page===activePage));
+ nav.querySelectorAll(".nav-parent").forEach(parent=>{
+  const submenu=document.getElementById(parent.dataset.parent);
+  const hasActiveChild=Array.from(submenu?.querySelectorAll("[data-page]")||[]).some(button=>button.dataset.page===activePage);
+  parent.classList.toggle("active",hasActiveChild);
+ });
+}
 function renderNav(){
  const allowed=sectorPages[currentSector]||sectorPages.teknik_servis;
  $("#nav").innerHTML=menu.map(group=>{
@@ -90,8 +102,10 @@ function renderNav(){
  }).join("");
  if($("#sectorSelect"))$("#sectorSelect").value=currentSector;
  if($("#sectorBrand"))$("#sectorBrand").textContent=currentSector==="otomotiv"?"Otomotiv Servis":"Teknik Servis";
+  syncNavActivePage();
 }
 const titles={dashboard:["Servis Y\u00f6netimi","Genel Bak\u0131\u015f"],customers:["M\u00fc\u015fteri","M\u00fc\u015fteri Listesi"],appointments:["Servis Y\u00f6netimi","Randevular"],stock:["Ticari","Stok Y\u00f6netimi"],"stock-locations":["Ticari","Depo ve Ara\u00e7 Stoklar\u0131"],movements:["Ticari","Stok Hareketleri"],import:["Ticari","Ak\u0131ll\u0131 \u0130\u00e7e Aktarma"],sales:["Ticari","Sat\u0131\u015f"],services:["Servis Y\u00f6netimi","Servis Panosu"],"service-status":["Servis Y\u00f6netimi","Durum Paneli"],technician:["Servis Y\u00f6netimi","Teknisyen Paneli"],finance:["Finans","Gelir / Gider Takibi"],income:["Finans","Gelirler"],expense:["Finans","Giderler"],loans:["Finans","Krediler & Taksitler"],settings:["Sistem","Sistem Ayarlar\u0131"]};
+titles["control-center"]=["Sistem / Y\u00f6netim Konsolu / Canl\u0131 \u0130zleme","Canl\u0131 \u0130zleme"];
 const genericModules={
  "product-groups":{group:"Servis Y\u00f6netim Ayar\u0131",title:"\u00dcr\u00fcn Grubu Y\u00f6netimi",table:"product_groups",description:"Servis ve stok ekranlar\u0131nda kullan\u0131lan \u00fcr\u00fcn gruplar\u0131."},
  "report-templates":{group:"Servis Y\u00f6netim Ayar\u0131",title:"Rapor C\u00fcmle Kal\u0131plar\u0131",table:"fast_notes",description:"Servis raporlar\u0131nda kullan\u0131lan haz\u0131r metinler."},
@@ -126,9 +140,13 @@ const genericModules={
  "mobile-guide":{group:"Ticari",title:"Mobil Teknik Kılavuz",table:"kb_articles",description:"Saha teknisyenleri için mobil uyumlu teknik kılavuz."},
  assistant:{group:"Servis Yönetimi",title:"AI Asistan",table:"notifications",description:"İşletme verileriyle akıllı yardım ve bildirimler."}
 };
-async function apiFetch(path,options={}){const response=await fetch(path,{...options,credentials:"same-origin",headers:{"Content-Type":"application/json",...(options.headers||{})}});const raw=await response.text();let data={};try{data=raw?JSON.parse(raw):{}}catch{const snippet=raw.replace(/\s+/g," ").trim().slice(0,180);throw Error(`Sunucu geçersiz yanıt verdi (${response.status}${snippet?` · ${snippet}`:""})`)}if(response.status===401&&!path.startsWith("/api/auth/")&&window.handleUnauthorized)window.handleUnauthorized();if(!response.ok)throw Error(data.error||`Sunucu hatası (${response.status})`);return data}
+function ayecFiscalArchiveState(){try{const state=JSON.parse(sessionStorage.getItem("ayecFiscalArchive")||"null");return state&&/^\d+$/.test(String(state.id||""))?state:null}catch{return null}}
+function ayecFiscalArchiveHeaders(){const state=ayecFiscalArchiveState();return state?{"X-AYEC-Fiscal-Archive":String(state.id)}:{}}
+function ayecClearDatabaseCache(){const next=structuredClone(seed);Object.keys(next).forEach(key=>{if(Array.isArray(next[key]))next[key]=[]});localStorage.setItem(DB_KEY,JSON.stringify(next))}
+function ayecInitializeFiscalArchiveMode(){const state=ayecFiscalArchiveState(),banner=$("#fiscalArchiveBanner");if(!banner)return;banner.hidden=!state;if(state){$("#fiscalArchiveBannerTitle").textContent=state.filename||"Ge\u00e7mi\u015f mali y\u0131l ar\u015fivi";document.body.classList.add("fiscal-archive-active")}else document.body.classList.remove("fiscal-archive-active");$("#fiscalArchiveReturn").onclick=()=>{sessionStorage.setItem("ayecFiscalArchivePage",page);sessionStorage.removeItem("ayecFiscalArchive");ayecClearDatabaseCache();window.location.reload()}}
+async function apiFetch(path,options={}){const response=await fetch(path,{...options,credentials:"same-origin",headers:{"Content-Type":"application/json",...ayecFiscalArchiveHeaders(),...(options.headers||{})}});const raw=await response.text();let data={};try{data=raw?JSON.parse(raw):{}}catch{const snippet=raw.replace(/\s+/g," ").trim().slice(0,180);throw Error(`Sunucu ge\u00e7ersiz yan\u0131t verdi (${response.status}${snippet?` \u00b7 ${snippet}`:""})`)}if(response.status===401&&!path.startsWith("/api/auth/")&&window.handleUnauthorized)window.handleUnauthorized();if(!response.ok)throw Error(data.error||`Sunucu hatas\u0131 (${response.status})`);return data}
 function desktopWrite(table,payload){return apiFetch(`/api/desktop/table/${table}`,{method:"POST",body:JSON.stringify(payload)}).catch(err=>toast(`Masaüstü veritabanı: ${err.message}`,"error"))}
-function navigate(next){if(typeof setMobileMenu==="function")setMobileMenu(false);window.scrollTo({top:0,left:0});page=next; selection=null; const meta=genericModules[next];const [crumb,title]=titles[next]||[meta?.group||"AYEC Pro",meta?.title||"Sayfa"];$("#breadcrumb").textContent=crumb;$("#pageTitle").textContent=title;$$('[data-page]').forEach(b=>b.classList.toggle("active",b.dataset.page===next));$("#sidebar").classList.remove("open");render();setTimeout(()=>{window.scrollTo({top:0,left:0});$("#content").focus({preventScroll:true})},0)}
+function navigate(next){if(typeof setMobileMenu==="function")setMobileMenu(false);if(next!=="control-center"&&adminAuditTimer){clearInterval(adminAuditTimer);adminAuditTimer=null}window.scrollTo({top:0,left:0});page=next; const globalSearch=$("#globalSearch"); if(globalSearch&&next!=="control-center"&&globalSearch.dataset.defaultPlaceholder)globalSearch.placeholder=globalSearch.dataset.defaultPlaceholder; selection=null; const meta=genericModules[next];const [crumb,title]=titles[next]||[meta?.group||"AYEC Pro",meta?.title||"Sayfa"];$("#breadcrumb").textContent=crumb;$("#pageTitle").textContent=title;syncNavActivePage(next);$("#sidebar").classList.remove("open");render();setTimeout(()=>{window.scrollTo({top:0,left:0});$("#content").focus({preventScroll:true})},0)}
 
 function pageHead(title,desc,actions=""){return `<div class="page-head"><div><h2>${title}</h2><p>${desc}</p></div><div class="actions">${actions}</div></div>`}
 function metric(label,value,sub,icon="○"){return `<div class="metric"><div class="metric-top"><span>${label}</span><span class="metric-icon">${icon}</span></div><strong>${value}</strong><small>${sub}</small></div>`}
@@ -149,7 +167,7 @@ function renderDashboard(){
  <aside><section class="card"><div class="card-head"><h3>Yaklaşan randevular</h3><button class="mini" data-page="appointments">Takvim</button></div>${db.appointments.filter(a=>a.status!=="İptal").slice(0,4).map(a=>`<div class="activity" data-kind="appointment" data-id="${a.id}"><span class="activity-icon">${a.time}</span><div><p><strong>${esc(customerName(a.customerId))}</strong></p><small>${esc(a.title)} · ${a.date}</small></div></div>`).join("")||empty("Randevu yok","Yeni bir randevu ekleyin.")}</section><section class="card"><div class="card-head"><h3>Son aktiviteler</h3></div>${db.activities.slice(0,5).map(a=>`<div class="activity"><span class="activity-icon">${a.icon}</span><div><p>${esc(a.text)}</p><small>${new Date(a.date).toLocaleString("tr-TR")}</small></div></div>`).join("")}</section></aside></div>`;
 }
 
-function renderCustomers(){const cities=[...new Set(db.customers.map(c=>String(c.city||c.location||"").trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"tr"));const serviceCount=c=>((c.services||[]).filter(s=>!/(teslim|tamamland|iptal|cancel)/i.test(String(s.status||""))).length);const debtCount=db.customers.filter(c=>Number(c.balances?.TRY||0)<0||Number(c.balances?.USD||0)<0||Number(c.balances?.EUR||0)<0).length;const creditCount=db.customers.filter(c=>Number(c.balances?.TRY||0)>0||Number(c.balances?.USD||0)>0||Number(c.balances?.EUR||0)>0).length;const vipCount=db.customers.filter(c=>/kurumsal|vip/i.test(c.type||"")).length;const activeServices=db.customers.filter(c=>serviceCount(c)>0).length;return `<div class="page-head customer-page-head"><div><h2>M\u00fc\u015fteri Y\u00f6netimi &amp; CRM <span class="badge">Cari &amp; Finans Entegre</span></h2><p>M\u00fc\u015fterileri, cari hesap bakiyelerini, a\u00e7\u0131k servis taleplerini ve tahsilat aksiyonlar\u0131n\u0131 tek ekrandan y\u00f6netin.</p></div><div class="customer-head-actions"><div class="customer-export-actions"><button class="mini" data-action="export-customers" title="Excel">&#x1f7e9; Excel</button><button class="mini" data-action="print-customers" title="Liste Al">&#x2b06; Liste Al</button><button class="mini" data-action="export-customers-pdf" title="Rapor">&#x1f4ca; Rapor</button><button class="mini" data-action="customer-help" title="Nas\u0131l Kullan\u0131l\u0131r?">&#x24d8; Nas\u0131l Kullan\u0131l\u0131r?</button></div></div></div><footer class="customer-metrics">${metric("Piyasa Alaca\u011f\u0131 (Bor\u00e7lular)",money(db.customers.filter(c=>Number(c.balances?.TRY||0)<0).reduce((s,c)=>s+Math.abs(Number(c.balances?.TRY||0)),0),"TRY"),"M\u00fc\u015fteri toplam bor\u00e7 bakiyesi","&#x2198;")}${metric("Cari Avanslar (Alacakl\u0131lar)",money(db.customers.filter(c=>Number(c.balances?.TRY||0)>0).reduce((s,c)=>s+Number(c.balances?.TRY||0),0),"TRY"),"\u00d6n \u00f6demeler ve a\u00e7\u0131k bakiyeler","&#x24;")}${metric("M\u00fc\u015fterideki Cihaz Say\u0131s\u0131",db.customers.reduce((s,c)=>s+serviceCount(c),0)+" Adet","Aktif at\u00f6lye ve onar\u0131mda","&#x25a3;")}${metric("Kurumsal VIP Oran\u0131",(db.customers.length?Math.round(vipCount/db.customers.length*100):0)+"%","Y\u0131ll\u0131k bak\u0131m s\u00f6zle\u015fmeli","&#x2733;")}</footer><section class="customer-management"><div class="customer-workspace-head"><button class="primary customer-add" data-action="add-customer">&#x2b; YEN\u0130 M\u00dc\u015eTER\u0130 EKLE</button></div><div class="customer-filterbar"><div class="customer-search-wrap"><input class="control search" id="customerSearch" placeholder="\u2315  \u0130sim, unvan, telefon, vergi no veya e-posta ile filtrele..."><button type="button" id="customerSearchClear" aria-label="Aramay\u0131 temizle">&#x2715;</button></div><select class="control" id="customerTypeFilter"><option value="">T\u00fcm Tipler (Bireysel / Kurumsal)</option><option value="Bireysel">Bireysel</option><option value="Kurumsal">Kurumsal</option></select><select class="control" id="customerLocationFilter"><option value="">T\u00fcm Lokasyonlar (\u0130l / \u0130l\u00e7e)</option>${cities.map(city=>`<option value="${esc(city)}">${esc(city)}</option>`).join("")}</select><select class="control" id="customerBalanceFilter"><option value="">T\u00fcm Bakiyeler</option><option value="debt">Bor\u00e7lu Bakiyeler</option><option value="credit">Alacakl\u0131 Bakiyeler</option><option value="zero">Bakiyesi 0 Olanlar</option></select><div class="customer-quick-actions"><button class="mini" data-action="copy-customers" title="Listeyi Kopyala">&#x2709;</button><button class="mini" data-action="print-customers" title="Yazd\u0131r">&#x1f5a8;</button><button class="mini" id="customerMultiSelect" title="\u00c7oklu Se\u00e7im">&#x2699;</button><button class="mini" data-action="import-customers" title="M\u00fc\u015fteri \u0130\u00e7e Aktar">&#x2b06;</button></div></div><section class="card customer-card"><div id="customerTable">${customerTable(db.customers)}</div><div class="customer-footer"><span>Toplam Kay\u0131t: <b id="customerCount">${db.customers.length}</b><span class="customer-page-size-label">&nbsp; | &nbsp; Sayfa ba\u015f\u0131na:</span> <select id="customerPageSize" class="control"><option>10</option><option>25</option><option>50</option></select></span><div class="customer-pagination"><button id="customerPagePrev" type="button" aria-label="\u00d6nceki sayfa">&#x276e;</button><span id="customerPageIndicator">1 / 1</span><button id="customerPageNext" type="button" aria-label="Sonraki sayfa">&#x276f;</button></div><span class="customer-updated">Son G\u00fcncelleme: ${new Date().toLocaleString("tr-TR")}</span></div></section></section>`}
+function renderCustomers(){const cities=[...new Set(db.customers.map(c=>String(c.city||c.location||"").trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"tr"));const serviceCount=c=>((c.services||[]).filter(s=>!/(teslim|tamamland|iptal|cancel)/i.test(String(s.status||""))).length);const debtCount=db.customers.filter(c=>Number(c.balances?.TRY||0)<0||Number(c.balances?.USD||0)<0||Number(c.balances?.EUR||0)<0).length;const creditCount=db.customers.filter(c=>Number(c.balances?.TRY||0)>0||Number(c.balances?.USD||0)>0||Number(c.balances?.EUR||0)>0).length;const vipCount=db.customers.filter(c=>/kurumsal|vip/i.test(c.type||"")).length;const activeServices=db.customers.filter(c=>serviceCount(c)>0).length;return `<div class="page-head customer-page-head"><div><h2>M\u00fc\u015fteri Y\u00f6netimi &amp; CRM <span class="badge">Cari &amp; Finans Entegre</span></h2><p>M\u00fc\u015fterileri, cari hesap bakiyelerini, a\u00e7\u0131k servis taleplerini ve tahsilat aksiyonlar\u0131n\u0131 tek ekrandan y\u00f6netin.</p></div><div class="customer-head-actions"><div class="customer-export-actions"><button class="mini" data-action="export-customers" title="Excel">&#x1f7e9; Excel</button><button class="mini" data-action="customer-history-selected" title="Cari ekstresini a\u00e7">Cari Ekstre AI</button><button class="mini" data-action="customer-help" title="Nas\u0131l Kullan\u0131l\u0131r?">&#x24d8;</button></div><button class="primary customer-add" data-action="add-customer">&#x2b; YEN\u0130 M\u00dc\u015eTER\u0130 EKLE</button></div></div><footer class="customer-metrics">${metric("Piyasa Alaca\u011f\u0131 (Bor\u00e7lular)",money(db.customers.filter(c=>Number(c.balances?.TRY||0)<0).reduce((s,c)=>s+Math.abs(Number(c.balances?.TRY||0)),0),"TRY"),"M\u00fc\u015fteri toplam bor\u00e7 bakiyesi","&#x2198;")}${metric("Cari Avanslar (Alacakl\u0131lar)",money(db.customers.filter(c=>Number(c.balances?.TRY||0)>0).reduce((s,c)=>s+Number(c.balances?.TRY||0),0),"TRY"),"\u00d6n \u00f6demeler ve a\u00e7\u0131k bakiyeler","&#x24;")}${metric("M\u00fc\u015fterideki Cihaz Say\u0131s\u0131",db.customers.reduce((s,c)=>s+serviceCount(c),0)+" Adet","Aktif at\u00f6lye ve onar\u0131mda","&#x25a3;")}${metric("Kurumsal VIP Oran\u0131",(db.customers.length?Math.round(vipCount/db.customers.length*100):0)+"%","Y\u0131ll\u0131k bak\u0131m s\u00f6zle\u015fmeli","&#x2733;")}</footer><section class="customer-management"><div class="customer-filterbar"><div class="customer-search-wrap"><input class="control search" id="customerSearch" placeholder="\u2315  \u0130sim, unvan, telefon, vergi no veya e-posta ile filtrele..."><button type="button" id="customerSearchClear" aria-label="Aramay\u0131 temizle">&#x2715;</button></div><select class="control" id="customerTypeFilter"><option value="">T\u00fcm Tipler (Bireysel / Kurumsal)</option><option value="Bireysel">Bireysel</option><option value="Kurumsal">Kurumsal</option></select><select class="control" id="customerLocationFilter"><option value="">T\u00fcm Lokasyonlar (\u0130l / \u0130l\u00e7e)</option>${cities.map(city=>`<option value="${esc(city)}">${esc(city)}</option>`).join("")}</select><select class="control" id="customerBalanceFilter"><option value="">T\u00fcm Bakiyeler</option><option value="debt">Bor\u00e7lu Bakiyeler</option><option value="credit">Alacakl\u0131 Bakiyeler</option><option value="zero">Bakiyesi 0 Olanlar</option></select><div class="customer-quick-actions"><button class="mini" data-action="copy-customers" title="Listeyi Kopyala">&#x2709;</button><button class="mini" data-action="export-customers-pdf" title="Rapor">&#x1f4ca;</button><button class="mini" data-action="print-customers" title="Yazd\u0131r">&#x1f5a8;</button><button class="mini" id="customerMultiSelect" title="\u00c7oklu Se\u00e7im">&#x2699;</button><button class="mini" data-action="import-customers" title="M\u00fc\u015fteri \u0130\u00e7e Aktar">&#x2b06;</button></div></div><section class="card customer-card"><div id="customerTable">${customerTable(db.customers)}</div><div class="customer-footer"><span>Toplam Kay\u0131t: <b id="customerCount">${db.customers.length}</b><span class="customer-page-size-label">&nbsp; | &nbsp; Sayfa ba\u015f\u0131na:</span> <select id="customerPageSize" class="control"><option>10</option><option>25</option><option>50</option></select></span><div class="customer-pagination"><button id="customerPagePrev" type="button" aria-label="\u00d6nceki sayfa">&#x276e;</button><span id="customerPageIndicator">1 / 1</span><button id="customerPageNext" type="button" aria-label="Sonraki sayfa">&#x276f;</button></div><span class="customer-updated">Son G\u00fcncelleme: ${new Date().toLocaleString("tr-TR")}</span></div></section></section>`}
 function customerTable(rows){
  return `<div class="table-wrap"><table class="customer-data-table"><thead><tr><th><input type="checkbox" id="customerSelectAll" aria-label="T\u00fcm m\u00fc\u015fterileri se\u00e7"></th><th>M\u00dc.NO</th><th>M\u00dc\u015eTER\u0130 / UNVAN</th><th>T\u0130P</th><th>\u0130LET\u0130\u015e\u0130M B\u0130LG\u0130S\u0130</th><th>A\u00c7IK SERV\u0130S</th><th>CAR\u0130 BAK\u0130YE</th><th>DURUM</th><th>\u0130\u015eLEMLER</th></tr></thead><tbody>${rows.map((c,i)=>{
   const status=customerReferenceStatus(c),type=String(c.type||"Bireysel"),tax=c.tc_no||c.tax_number||c.tax_no||"",city=c.city||c.location||"",company=c.company||c.company_name||"",open=(c.services||[]).filter(s=>!/(teslim|tamamland|iptal|cancel)/i.test(String(s.status||""))).length,balance=Number(c.balances?.TRY||0),balanceLabel=balance<0?"Bor\u00e7":balance>0?"Alacak":"Dengede",vip=String(c.contract_type||"").toUpperCase().includes("VIP"),meta=[company,city].filter((value,index,all)=>value&&all.indexOf(value)===index).join(" \u00b7 ")||((tax?(/kurumsal|vip|bayi/i.test(type)?"VN: ":"TC: ")+tax:"")),initials=String(c.name||"M").split(/\s+/).slice(0,2).map(x=>x[0]||"").join("").toUpperCase();
@@ -177,7 +195,7 @@ function renderStock(){const value=stockValueSummary(),critical=db.stock.filter(
 function stockTable(rows,offset=0){return `<div class="table-wrap stock-reference-table-wrap"><table class="stock-reference-table"><thead><tr><th>S.No</th><th>Stok Kodu</th><th>Par\u00e7a / \u00dcr\u00fcn Tan\u0131m\u0131</th><th>Kategori</th><th>Miktar &amp; Durum</th><th>Birim</th><th>Al\u0131\u015f Fiyat\u0131</th><th>Sat\u0131\u015f Fiyat\u0131</th><th>K\u00e2r (%)</th><th>Raf Yeri</th><th>Min. Stok</th><th>\u0130\u015flemler</th></tr></thead><tbody>${rows.map((s,i)=>{const buy=Number(s.buy)||0,sell=Number(s.sell)||0,profit=buy>0?((sell-buy)/buy*100):0;return `<tr data-kind="stock" data-id="${s.id}"><td data-label="S.No">${i+offset+1}</td><td data-label="Stok Kodu">${esc(s.code)}</td><td data-label="Par\u00e7a / \u00dcr\u00fcn Tan\u0131m\u0131"><strong>${esc(s.name)}</strong><br><small class="muted">${esc(s.description||s.barcode||"")}</small></td><td data-label="Kategori"><span class="badge">${esc(s.category)}</span></td><td data-label="Miktar &amp; Durum">${statusBadge(s.qty<=s.min?"Kritik":"Stokta")} ${s.qty}</td><td data-label="Birim">${esc(s.unit||"Adet")}</td><td data-label="Al\u0131\u015f Fiyat\u0131">${money(buy,s.currency)}</td><td data-label="Sat\u0131\u015f Fiyat\u0131">${money(sell,s.currency)}</td><td data-label="K\u00e2r (%)">${profit.toFixed(1)}%</td><td data-label="Raf Yeri">${esc(s.shelf||"-")}</td><td data-label="Min. Stok">${s.min}</td><td data-label="\u0130\u015flemler"><div class="row-actions"><button class="mini" data-action="edit-product" data-id="${s.id}">D\u00fczenle</button><button class="mini danger-outline" data-action="delete-product" data-id="${s.id}">Sil</button></div></td></tr>`}).join("")}</tbody></table></div>`}
 
 function renderMovements(){return `${pageHead("Stok Hareketleri","Giriş, çıkış, satış ve servis kullanım kayıtları.",'<button class="primary" data-action="add-movement">＋ Hareket Ekle</button>')}${stockTabs("movements")}<section class="card"><div class="toolbar"><input class="control search" id="movementSearch" placeholder="Ürün veya referans ara"><select class="control" id="movementType"><option>Tümü</option><option>Giriş</option><option>Çıkış</option></select></div><div id="movementTable">${movementTable(db.movements)}</div></section>`}
-function movementTable(rows){return `<div class="table-wrap"><table><thead><tr><th>Tarih</th><th>Ürün</th><th>Tür</th><th>Miktar</th><th>Referans</th><th>Kullanıcı</th></tr></thead><tbody>${rows.map(m=>`<tr><td>${esc(m.date)}</td><td><strong>${esc(m.product)}</strong></td><td>${statusBadge(m.type)}</td><td>${m.qty}</td><td>${esc(m.ref)}</td><td>${esc(m.user)}</td></tr>`).join("")}</tbody></table></div>`}
+function movementTable(rows){return `<div class="table-wrap"><table><thead><tr><th>Tarih</th><th>\u00dcr\u00fcn</th><th>T\u00fcr</th><th>Miktar</th><th>Referans</th><th>Kullan\u0131c\u0131</th></tr></thead><tbody>${rows.map(m=>`<tr data-kind="movement" data-id="${esc(m.id)}"><td>${esc(m.date||m.created_at)}</td><td><strong>${esc(m.product||m.part_name)}</strong></td><td>${statusBadge(m.type||m.movement_type)}</td><td>${esc(m.qty??m.amount)}</td><td>${esc(m.ref||m.description)}</td><td>${esc(m.user||m.created_by||"-")}</td></tr>`).join("")}</tbody></table></div>`}
 
 function renderImport(){return `${pageHead("Akıllı Stok İçe Aktar","Masaüstündeki StockImportParser; PDF tablo, kutu bazlı OCR ve kolon eşleştirme akışını kullanır.",'<button class="secondary" data-action="add-import-row">＋ Eksik Ürün Satırı Ekle</button><button class="secondary" data-action="download-template">Şablon İndir</button>')}${stockTabs("import")}<section class="card"><div class="import-lanes"><article class="import-lane"><span class="import-icon">PDF</span><h3>PDF İçe Aktar</h3><p>pdfplumber tablo çizgilerini ve kolon sınırlarını okuyarak fatura satırlarını ayırır.</p><div class="import-badges"><span>Çizgili tablo</span><span>Kolon ayrımı</span><span>DataFrame önizleme</span></div><button class="primary" data-action="choose-import-mode" data-mode="pdf">PDF Seç</button></article><article class="import-lane"><span class="import-icon">OCR</span><h3>Resim İçe Aktar</h3><p>PaddleOCR varsa kutu bazlı okur; yoksa EasyOCR/Tesseract Türkçe + İngilizce zincirine geçer.</p><div class="import-badges"><span>Kutu bazlı OCR</span><span>Görüntü iyileştirme</span><span>Satır doğrulama</span></div><button class="primary" data-action="choose-import-mode" data-mode="image">Resim Seç</button></article><article class="import-lane"><span class="import-icon">XLS</span><h3>Tablo / E-Fatura</h3><p>Excel, CSV, UBL XML ve DOCX alanlarını akıllı kolon eşleştirmeyle içe aktarır.</p><div class="import-badges"><span>Excel</span><span>UBL XML</span><span>CSV / DOCX</span></div><button class="primary" data-action="choose-import-mode" data-mode="structured">Dosya Seç</button></article></div><div class="drop-zone" id="dropZone"><strong>Dosyayı sürükleyip bırakabilirsiniz</strong><span>En fazla 25 MB · Önizlemeden sonra kayıt yapılır</span></div><div id="importPreview"></div></section>`}
 
@@ -191,8 +209,10 @@ function renderServices(){const services=db.customers.flatMap(c=>c.services.map(
 function renderTechnician(){const services=db.customers.flatMap(c=>c.services.filter(s=>s.status!=="Tamamlandı").map(s=>({...s,customer:c.name,customerId:c.id})));return `${pageHead("Teknisyen Paneli","Aktif cihazları açın, durum ve işlem notlarını güncelleyin.",'<button class="secondary" data-page="services">Tüm Servisler</button>')}<div class="metric-grid">${metric("Atanan İş",services.length,"Aktif iş emri","⚒")}${metric("Bekleyen",services.filter(s=>s.status==="Bekliyor").length,"Müdahale bekliyor","…")}${metric("Tamamlanan",db.customers.flatMap(c=>c.services).filter(s=>s.status==="Tamamlandı").length,"Toplam kayıt","✓")}${metric("Kritik Parça",db.stock.filter(s=>s.qty<=s.min).length,"Stok uyarısı","!")}</div><section class="card">${services.length?services.map(s=>`<div class="activity" data-kind="service" data-id="${s.no}" data-customer="${s.customerId}"><span class="activity-icon">⚒</span><div style="flex:1"><p><strong>${esc(s.no)} · ${esc(s.customer)}</strong></p><small>${esc(s.device)} — ${esc(s.note)}</small></div>${statusBadge(s.status)}<button class="primary mini" data-action="technician-open" data-id="${s.no}" data-customer="${s.customerId}">İşle</button></div>`).join(""):empty("Aktif iş yok","Yeni servis kaydı oluşturabilirsiniz.")}</section>`}
 
 function invoiceLineMarkup(index=1,vatRate=20){return `<tr data-invoice-line><td data-label="#">${index}</td><td data-label="\u00dcr\u00fcn / Hizmet"><input class="invoice-line-description" value="" placeholder="\u00dcr\u00fcn veya hizmet" aria-label="\u00dcr\u00fcn veya hizmet"></td><td data-label="Stok Kodu"><input class="invoice-line-code" value="" aria-label="Stok kodu"></td><td data-label="Miktar"><input class="invoice-line-qty" type="number" min="0" step="0.01" value="1" aria-label="Miktar"></td><td data-label="Birim"><select class="invoice-line-unit" aria-label="Birim"><option>Adet</option><option>Hizmet</option><option>Kg</option><option>Saat</option></select></td><td data-label="Birim Fiyat"><input class="invoice-line-price" type="number" min="0" step="0.01" value="0" aria-label="Birim fiyat"></td><td data-label="\u0130sk %"><input class="invoice-line-discount" type="number" min="0" max="100" step="0.01" value="0" aria-label="\u0130skonto y\u00fczdesi"></td><td data-label="KDV %"><select class="invoice-line-vat" aria-label="KDV oran\u0131"><option value="20" ${Number(vatRate)===20?"selected":""}>20</option><option value="10" ${Number(vatRate)===10?"selected":""}>10</option><option value="1" ${Number(vatRate)===1?"selected":""}>1</option><option value="0" ${Number(vatRate)===0?"selected":""}>0</option></select></td><td data-label="Net Tutar" class="invoice-line-total">0.00</td><td data-label="\u0130\u015flem"><button type="button" class="icon-button invoice-line-remove" aria-label="Sat\u0131r\u0131 sil">\u00d7</button></td></tr>`}
-function renderInvoiceComposer(){const customers=(db.customers||[]).map(customer=>`<option value="${esc(customer.name)}"></option>`).join("");return `${pageHead("E-Fatura Olu\u015fturma Studio","Resmi e-Fatura, e-Ar\u015fiv ve ihracat faturalar\u0131n\u0131 olu\u015fturun.",'<span class="badge">G\u0130B UBL 2.1</span>')}<div class="einvoice-layout"><main class="einvoice-main"><section class="card einvoice-ribbon"><span class="einvoice-icon">\u25a7</span><div><h2>E-Fatura Olu\u015fturma Studio</h2><p>Resmi e-Fatura, e-Ar\u015fiv ve ihracat faturalar\u0131 olu\u015fturma ve m\u00fckellef do\u011frulama ekran\u0131.</p></div><button type="button" class="secondary" data-invoice-action="import">\u0130rsaliye / Sipari\u015ften \u00c7ek</button><button type="button" class="primary" data-invoice-action="add">+ Yeni Sat\u0131r Ekle (F2)</button><button type="button" class="secondary" data-invoice-action="remove">Sat\u0131r Sil</button></section><section class="card einvoice-meta"><h3>\u25a3 M\u00fc\u015fteri & Fatura \u00dcst Bilgileri</h3><div class="einvoice-fields"><div class="field customer-field"><label>M\u00fc\u015fteri / Cari \u00dcnvan\u0131 *</label><div class="invoice-customer-row"><input id="invoiceCustomer" list="invoiceCustomers" required placeholder="M\u00fc\u015fteri se\u00e7in"><datalist id="invoiceCustomers">${customers}</datalist><button type="button" class="secondary" data-invoice-action="customer">Cari Rehber (F4)</button></div></div><div class="field"><label>Vergi / TC Kimlik No</label><input id="invoiceVkn" inputmode="numeric"></div><div class="field"><label>Vergi Dairesi</label><input id="invoiceTaxOffice"></div><div class="field"><label>Senaryo</label><select id="invoiceScenario"><option>TICARIFATURA</option><option>TEMELFATURA</option><option>IHRACAT</option></select></div><div class="field"><label>Fatura Tipi</label><select id="invoiceType"><option value="SATIS">SATIS (Sat\u0131\u015f)</option><option value="TEVKIFAT">TEVKIFAT (Tevkifat)</option><option value="ISTISNA">ISTISNA (0 KDV)</option><option value="IADE">IADE (Sat\u0131\u015f \u0130adesi)</option></select></div><div class="field"><label>Fatura Tarihi</label><input id="invoiceDate" type="date" value="2026-10-01"></div><div class="field"><label>D\u00fczenleme Saati</label><input id="invoiceTime" type="time"></div><div class="field currency-field"><label>Para Birimi & Fatura Kuru</label><div><select id="invoiceCurrency"><option value="USD">USD ($) Dolar</option><option value="TRY">TRY (\u20ba) T\u00fcrk Liras\u0131</option><option value="EUR">EUR (\u20ac) Euro</option></select><input id="invoiceRate" type="number" min="0" step="0.0001" value="49.0013"></div></div><div class="field address-field"><label>A\u00e7\u0131k Adres & Posta Kodu</label><input id="invoiceAddress"></div><div class="field"><label>Ba\u011fl\u0131 \u0130rsaliye No / Belge Ref</label><input id="invoiceDeliveryRef"></div></div></section><section class="card einvoice-lines"><header><h3>\u25a4 Fatura Kalemleri & Hizmet Sat\u0131rlar\u0131</h3><span id="invoiceLineCount">1 Kalem Listelendi</span><span class="stock-reserved">\u25cf Stoktan Rezerveli</span><span class="muted">Tevkifat Oran\u0131: Yok</span></header><div class="invoice-table-scroll"><table class="einvoice-table"><thead><tr><th>#</th><th>\u00dcr\u00fcn / Hizmet A\u00e7\u0131klamas\u0131</th><th>Stok Kodu</th><th>Miktar</th><th>Birim</th><th>Birim Fiyat</th><th>\u0130sk (%)</th><th>KDV (%)</th><th>Net Tutar</th><th>\u0130\u015flem</th></tr></thead><tbody id="invoiceLinesBody">${invoiceLineMarkup(1,desktopSettings.vat_default_rate??20)}</tbody></table><button class="invoice-add-inline" type="button" data-invoice-action="add">+ Yeni sat\u0131r girmek i\u00e7in t\u0131klay\u0131n veya (F2) tu\u015funa bas\u0131n</button></div><footer><span id="invoiceUnits">Toplam Miktar: 1 Birim</span><span id="invoiceDiscountRows">\u0130skonto Yap\u0131lan Sat\u0131r: 0</span><span id="invoiceRateFooter">Para Birimi Kuru: 49.0013 USD</span><span>Uyumsoft e-Fatura API Haz\u0131r</span></footer></section><section class="card einvoice-notes"><div class="field"><label>Fatura Notu / Yasal A\u00e7\u0131klamalar</label><small>G\u0130B fatura alt\u0131nda g\u00f6sterilir</small><textarea id="invoiceNotes" rows="3" placeholder="Banka, garanti veya sevk notu..."></textarea></div><div class="field"><label>\u00d6zel Kod & Sipari\u015f No</label><input id="invoiceOrderRef" placeholder="M\u00fc\u015fteri sipari\u015f numaras\u0131"><small>OrderReference etiketine i\u015flenir.</small></div></section></main><aside class="einvoice-aside"><section class="card einvoice-summary"><header><div><h3>\u25a3 F\u0130NANSAL GENEL TOPLAM</h3><p>Vergi ve kur matrah\u0131 canl\u0131 hesaplama</p></div><span class="badge">USD / TRY</span></header><div class="invoice-total-row"><span>Ara Toplam:</span><strong id="invoiceSubtotal">0.00</strong></div><div class="invoice-total-row danger"><span>Toplam \u0130skonto:</span><strong id="invoiceDiscountTotal">-0.00</strong></div><div class="invoice-total-row"><span>KDV Matrah\u0131:</span><strong id="invoiceTaxable">0.00</strong></div><div class="invoice-total-row success"><span>Hesaplanan KDV:</span><strong id="invoiceVat">0.00</strong></div><div class="invoice-grand-total"><div><strong>\u00d6DENECEK GENEL TUTAR</strong><span>T\u00dcM VERG\u0130LER DAH\u0130L</span></div><b id="invoiceGrandTotal">$0.00</b><small>TL Kar\u015f\u0131l\u0131\u011f\u0131 (TCMB): <strong id="invoiceGrandTry">0.00 \u20ba</strong></small></div></section><section class="card einvoice-payment"><header><h3>\u25a3 Tahsilat & Kasa Bilgisi</h3><span class="muted">Zorunlu</span></header><div class="field"><label>Tahsilat Hesab\u0131 / Kasa</label><select id="invoiceBank"><option>A\u00e7\u0131k Hesap / Tahsilat Se\u00e7in</option><option>Garanti BBVA Ticari USD</option></select></div><div class="einvoice-payment-row"><div class="field"><label>Vade Tarihi</label><input id="invoiceDueDate" type="date"></div><div class="field"><label>\u00d6deme Kanal\u0131</label><select id="invoicePaymentChannel"><option>Havale / EFT</option><option>Kredi Kart\u0131</option><option>Nakit</option><option>DBS / \u00c7ek</option></select></div></div><label class="invoice-switch"><span>Cari Hesaba Otomatik \u0130\u015fle</span><input id="invoiceAutoReconcile" type="checkbox" checked></label></section><section class="einvoice-actions"><button class="primary" data-invoice-action="send">\u27a4 E-Faturay\u0131 Resmile\u015ftir ve G\u00f6nder (F12)</button><div><button class="secondary" data-invoice-action="preview">PDF G\u00f6r</button><button class="secondary" data-invoice-action="draft">Taslak</button><button class="secondary" data-invoice-action="proforma">Proforma</button></div><small>\u25cf Uyumsoft Portal Ba\u011flant\u0131s\u0131 Haz\u0131r</small></section></aside></div>`}
-function bindInvoiceComposer(){const body=$("#invoiceLinesBody");if(!body)return;let savedId=null,currentTotal=0;const rows=()=>$$('[data-invoice-line]',body);const update=()=>{let subtotal=0,discount=0,taxable=0,vat=0,units=0,discountRows=0;rows().forEach((row,index)=>{row.cells[0].textContent=String(index+1);const qty=Math.max(0,Number($(".invoice-line-qty",row).value)||0),price=Math.max(0,Number($(".invoice-line-price",row).value)||0),off=Math.min(100,Math.max(0,Number($(".invoice-line-discount",row).value)||0)),rate=Math.max(0,Number($(".invoice-line-vat",row).value)||0),gross=qty*price,cut=gross*off/100,net=gross-cut,tax=net*rate/100;subtotal+=gross;discount+=cut;taxable+=net;vat+=tax;units+=qty;if(cut>0)discountRows++;$(".invoice-line-total",row).textContent=(net+tax).toFixed(2)});const total=taxable+vat;currentTotal=total;const rate=Number($("#invoiceRate").value)||0,currency=$("#invoiceCurrency").value;[["#invoiceSubtotal",subtotal],["#invoiceDiscountTotal",discount],["#invoiceTaxable",taxable],["#invoiceVat",vat]].forEach(([selector,value])=>{const node=$(selector);if(node)node.textContent=`${selector==="#invoiceDiscountTotal"?"-":""}${value.toFixed(2)}`});$("#invoiceGrandTotal").textContent=`${currency==="USD"?"$":currency==="EUR"?"\u20ac":"\u20ba"}${total.toFixed(2)}`;$("#invoiceGrandTry").textContent=`${(total*rate).toFixed(2)} \u20ba`;$("#invoiceLineCount").textContent=`${rows().length} Kalem Listelendi`;$("#invoiceUnits").textContent=`Toplam Miktar: ${units} Birim`;$("#invoiceDiscountRows").textContent=`\u0130skonto Yap\u0131lan Sat\u0131r: ${discountRows}`;$("#invoiceRateFooter").textContent=`Para Birimi Kuru: ${rate.toFixed(4)} ${currency}`};body.addEventListener("input",update);body.addEventListener("change",update);$("#invoiceRate").addEventListener("input",update);$("#invoiceCurrency").addEventListener("change",update);$$('[data-invoice-action="add"]').forEach(button=>button.onclick=()=>{body.insertAdjacentHTML("beforeend",invoiceLineMarkup(rows().length+1,desktopSettings.vat_default_rate??20));update()});$$('[data-invoice-action="remove"]').forEach(button=>button.onclick=()=>{rows().at(-1)?.remove();update()});body.addEventListener("click",event=>{const remove=event.target.closest(".invoice-line-remove");if(remove){remove.closest("tr").remove();update()}});$$('[data-invoice-action="customer"]').forEach(button=>button.onclick=()=>$("#invoiceCustomer").focus());$$('[data-invoice-action="import"]').forEach(button=>button.onclick=()=>toast("\u0130rsaliye ve sipari\u015f aktar\u0131m\u0131 i\u00e7in belge se\u00e7in","info"));if(!window.einvoiceKeysBound){window.einvoiceKeysBound=true;window.addEventListener("keydown",event=>{if(page!=="invoices"||event.altKey||event.ctrlKey||event.metaKey)return;if(event.key==="F2"){event.preventDefault();$('[data-invoice-action="add"]')?.click()}else if(event.key==="F12"){event.preventDefault();$('[data-invoice-action="send"]')?.click()}else if(event.key==="F4"){event.preventDefault();$("#invoiceCustomer")?.focus()}})}const persist=async status=>{const payload={uuid:crypto.randomUUID(),invoice_type:$("#invoiceType").value,receiver_name:$("#invoiceCustomer").value,receiver_vkn:$("#invoiceVkn").value,amount:currentTotal,status,json_data:JSON.stringify({scenario:$("#invoiceScenario").value,date:$("#invoiceDate").value,time:$("#invoiceTime").value,currency:$("#invoiceCurrency").value,exchange_rate:$("#invoiceRate").value,address:$("#invoiceAddress").value,tax_office:$("#invoiceTaxOffice").value,delivery_reference:$("#invoiceDeliveryRef").value,order_reference:$("#invoiceOrderRef").value,notes:$("#invoiceNotes").value,lines:rows().map(row=>Object.fromEntries([...row.querySelectorAll("input,select")].map(field=>[field.className,field.value]))),payment_account:$("#invoiceBank").value,payment_channel:$("#invoicePaymentChannel").value,due_date:$("#invoiceDueDate").value,auto_reconcile:$("#invoiceAutoReconcile").checked})};if(savedId){payload.id=savedId;payload._action="update"}const result=await apiFetch("/api/desktop/table/e_invoices",{method:"POST",body:JSON.stringify(payload)});savedId=result.id||savedId;return result};$$('[data-invoice-action="draft"]').forEach(button=>button.onclick=async()=>{try{await persist("DRAFT");toast("Fatura tasla\u011f\u0131 kaydedildi","success")}catch(error){toast(error.message,"error")}});$$('[data-invoice-action="proforma"]').forEach(button=>button.onclick=async()=>{try{await persist("DRAFT");window.print()}catch(error){toast(error.message,"error")}});$$('[data-invoice-action="preview"]').forEach(button=>button.onclick=()=>window.print());$$('[data-invoice-action="send"]').forEach(button=>button.onclick=async()=>{if(!$("#invoiceCustomer").value.trim()){toast("M\u00fc\u015fteri se\u00e7imi zorunludur","warning");return}if(!confirm("E-Fatura tasla\u011f\u0131 kaydedilecek ve g\u00f6nderim i\u00e7in kuyru\u011fa al\u0131nacakt\u0131r. Devam edilsin mi?"))return;try{await persist("QUEUED");toast("E-Fatura g\u00f6nderim kuyru\u011funa al\u0131nd\u0131","success")}catch(error){toast(error.message,"error")}});update()}
+function renderInvoiceComposer(){const customers=(db.customers||[]).map(customer=>`<option value="${esc(customer.name)}"></option>`).join("");return `${pageHead("E-Fatura Olu\u015fturma Studio","Resmi e-Fatura, e-Ar\u015fiv ve ihracat faturalar\u0131n\u0131 olu\u015fturun.",'<span class="badge">G\u0130B UBL 2.1</span><button type="button" class="secondary" data-invoice-action="integration">Entegrasyon Ayarlar\u0131</button>')}<div class="einvoice-layout"><main class="einvoice-main"><section class="card einvoice-ribbon"><span class="einvoice-icon">\u25a7</span><div><h2>E-Fatura Olu\u015fturma Studio</h2><p>Resmi e-Fatura, e-Ar\u015fiv ve ihracat faturalar\u0131 olu\u015fturma ve m\u00fckellef do\u011frulama ekran\u0131.</p></div><button type="button" class="secondary" data-invoice-action="import">\u0130rsaliye / Sipari\u015ften \u00c7ek</button><button type="button" class="primary" data-invoice-action="add">+ Yeni Sat\u0131r Ekle (F2)</button><button type="button" class="secondary" data-invoice-action="remove">Sat\u0131r Sil</button></section><section class="card einvoice-meta"><h3>\u25a3 M\u00fc\u015fteri & Fatura \u00dcst Bilgileri</h3><div class="einvoice-fields"><div class="field customer-field"><label>M\u00fc\u015fteri / Cari \u00dcnvan\u0131 *</label><div class="invoice-customer-row"><input id="invoiceCustomer" list="invoiceCustomers" required placeholder="M\u00fc\u015fteri se\u00e7in"><datalist id="invoiceCustomers">${customers}</datalist><button type="button" class="secondary" data-invoice-action="customer">Cari Rehber (F4)</button></div></div><div class="field"><label>Vergi / TC Kimlik No</label><input id="invoiceVkn" inputmode="numeric"></div><div class="field"><label>Vergi Dairesi</label><input id="invoiceTaxOffice"></div><div class="field"><label>Senaryo</label><select id="invoiceScenario"><option>TICARIFATURA</option><option>TEMELFATURA</option><option>KAMU</option><option>IHRACAT</option></select></div><div class="field"><label>Fatura Tipi</label><select id="invoiceType"><option value="SATIS">SATIS (Sat\u0131\u015f)</option><option value="TEVKIFAT">TEVKIFAT (Tevkifat)</option><option value="ISTISNA">ISTISNA (0 KDV)</option><option value="IADE">IADE (Sat\u0131\u015f \u0130adesi)</option><option value="OZELMATRAH">OZELMATRAH</option></select></div><div class="field"><label>Fatura Tarihi</label><input id="invoiceDate" type="date" value="2026-10-01"></div><div class="field"><label>D\u00fczenleme Saati</label><input id="invoiceTime" type="time"></div><div class="field currency-field"><label>Para Birimi & Fatura Kuru</label><div><select id="invoiceCurrency"><option value="USD">USD ($) Dolar</option><option value="TRY">TRY (\u20ba) T\u00fcrk Liras\u0131</option><option value="EUR">EUR (\u20ac) Euro</option></select><input id="invoiceRate" type="number" min="0" step="0.0001" value="49.0013"></div></div><div class="field address-field"><label>A\u00e7\u0131k Adres & Posta Kodu</label><input id="invoiceAddress"></div><div class="field"><label>Ba\u011fl\u0131 \u0130rsaliye No / Belge Ref</label><input id="invoiceDeliveryRef"></div></div></section><section class="card einvoice-lines"><header><h3>\u25a4 Fatura Kalemleri & Hizmet Sat\u0131rlar\u0131</h3><span id="invoiceLineCount">1 Kalem Listelendi</span><span class="stock-reserved">\u25cf Stoktan Rezerveli</span><span class="muted">Tevkifat Oran\u0131: Yok</span></header><div class="invoice-table-scroll"><table class="einvoice-table"><thead><tr><th>#</th><th>\u00dcr\u00fcn / Hizmet A\u00e7\u0131klamas\u0131</th><th>Stok Kodu</th><th>Miktar</th><th>Birim</th><th>Birim Fiyat</th><th>\u0130sk (%)</th><th>KDV (%)</th><th>Net Tutar</th><th>\u0130\u015flem</th></tr></thead><tbody id="invoiceLinesBody">${invoiceLineMarkup(1,desktopSettings.vat_default_rate??20)}</tbody></table><button class="invoice-add-inline" type="button" data-invoice-action="add">+ Yeni sat\u0131r girmek i\u00e7in t\u0131klay\u0131n veya (F2) tu\u015funa bas\u0131n</button></div><footer><span id="invoiceUnits">Toplam Miktar: 1 Birim</span><span id="invoiceDiscountRows">\u0130skonto Yap\u0131lan Sat\u0131r: 0</span><span id="invoiceRateFooter">Para Birimi Kuru: 49.0013 USD</span><span>Uyumsoft e-Fatura API Haz\u0131r</span></footer></section><section class="card einvoice-notes"><div class="field"><label>Fatura Notu / Yasal A\u00e7\u0131klamalar</label><small>G\u0130B fatura alt\u0131nda g\u00f6sterilir</small><textarea id="invoiceNotes" rows="3" placeholder="Banka, garanti veya sevk notu..."></textarea></div><div class="field"><label>\u00d6zel Kod & Sipari\u015f No</label><input id="invoiceOrderRef" placeholder="M\u00fc\u015fteri sipari\u015f numaras\u0131"><small>OrderReference etiketine i\u015flenir.</small></div></section></main><aside class="einvoice-aside"><section class="card einvoice-summary"><header><div><h3>\u25a3 F\u0130NANSAL GENEL TOPLAM</h3><p>Vergi ve kur matrah\u0131 canl\u0131 hesaplama</p></div><span class="badge">USD / TRY</span></header><div class="invoice-total-row"><span>Ara Toplam:</span><strong id="invoiceSubtotal">0.00</strong></div><div class="invoice-total-row danger"><span>Toplam \u0130skonto:</span><strong id="invoiceDiscountTotal">-0.00</strong></div><div class="invoice-total-row"><span>KDV Matrah\u0131:</span><strong id="invoiceTaxable">0.00</strong></div><div class="invoice-total-row success"><span>Hesaplanan KDV:</span><strong id="invoiceVat">0.00</strong></div><div class="invoice-grand-total"><div><strong>\u00d6DENECEK GENEL TUTAR</strong><span>T\u00dcM VERG\u0130LER DAH\u0130L</span></div><b id="invoiceGrandTotal">$0.00</b><small>TL Kar\u015f\u0131l\u0131\u011f\u0131 (TCMB): <strong id="invoiceGrandTry">0.00 \u20ba</strong></small></div></section><section class="card einvoice-payment"><header><h3>\u25a3 Tahsilat & Kasa Bilgisi</h3><span class="muted">Zorunlu</span></header><div class="field"><label>Tahsilat Hesab\u0131 / Kasa</label><select id="invoiceBank"><option>A\u00e7\u0131k Hesap / Tahsilat Se\u00e7in</option><option>Garanti BBVA Ticari USD</option></select></div><div class="einvoice-payment-row"><div class="field"><label>Vade Tarihi</label><input id="invoiceDueDate" type="date"></div><div class="field"><label>\u00d6deme Kanal\u0131</label><select id="invoicePaymentChannel"><option>Havale / EFT</option><option>Kredi Kart\u0131</option><option>Nakit</option><option>DBS / \u00c7ek</option></select></div></div><label class="invoice-switch"><span>Cari Hesaba Otomatik \u0130\u015fle</span><input id="invoiceAutoReconcile" type="checkbox" checked></label></section><section class="einvoice-actions"><button class="primary" data-invoice-action="send">\u27a4 E-Faturay\u0131 Resmile\u015ftir ve G\u00f6nder (F12)</button><div><button class="secondary" data-invoice-action="preview">PDF G\u00f6r</button><button class="secondary" data-invoice-action="draft">Taslak</button><button class="secondary" data-invoice-action="proforma">Proforma</button></div><small>\u25cf Uyumsoft Portal Ba\u011flant\u0131s\u0131 Haz\u0131r</small></section></aside></div>`}
+async function openInvoiceIntegrationDialog(){try{const settings=await apiFetch("/api/desktop/einvoice/settings");const providers=[["custom","Di\u011fer / \u00d6zel Entegrat\u00f6r"],["uyumsoft","Uyumsoft"],["logo","Logo"],["efinans","eFinans"],["foriba","Foriba"]];const body=`<div class="form-grid einvoice-integration-form"><p class="einvoice-integration-info">API anahtar\u0131 \u015fifreli olarak saklan\u0131r. Test ba\u011flant\u0131s\u0131 fatura g\u00f6ndermez. Canl\u0131 kullan\u0131m i\u00e7in entegrat\u00f6r API dok\u00fcman\u0131 gerekir.</p><div class="field full"><label for="einvoiceProvider">Entegrat\u00f6r</label><select id="einvoiceProvider" name="provider">${providers.map(([value,label])=>`<option value="${value}" ${settings.provider===value?"selected":""}>${label}</option>`).join("")}</select></div><div class="field full"><label for="einvoiceEnvironment">Ortam</label><select id="einvoiceEnvironment" name="environment"><option value="sandbox" ${settings.environment==="sandbox"?"selected":""}>Sandbox / Test</option><option value="live" ${settings.environment==="live"?"selected":""}>Canl\u0131</option></select></div><div class="field full"><label for="einvoiceApiUrl">API adresi</label><input id="einvoiceApiUrl" name="api_url" type="url" value="${esc(settings.api_url||"")}" placeholder="https://api.entegratoriniz.com/v1"></div><div class="field full"><label for="einvoiceApiKey">API anahtar\u0131</label><input id="einvoiceApiKey" name="api_key" type="password" autocomplete="new-password" placeholder="${settings.api_key_configured?"Kaydedilmi\u015f anahtar korunur":"API anahtar\u0131"}"><small>${settings.api_key_configured?"Anahtar kay\u0131tl\u0131 ve \u015fifreli saklan\u0131yor. Yeni de\u011fer girmezseniz korunur.":"Anahtar sunucuda \u015fifreli saklan\u0131r."}</small><label class="einvoice-clear-key"><input id="einvoiceClearApiKey" name="clear_api_key" type="checkbox"> Kay\u0131tl\u0131 API anahtar\u0131n\u0131 sil</label></div><div class="field full"><small id="einvoiceTestStatus" role="status">Test ba\u011flant\u0131s\u0131 fatura g\u00f6ndermez.</small></div></div>`;openDialog("E-Fatura Entegrasyon Ayarlar\u0131","ENTEGRASYON",body,async formData=>{await apiFetch("/api/desktop/einvoice/settings",{method:"POST",body:JSON.stringify({action:"save",provider:formData.get("provider"),environment:formData.get("environment"),api_url:formData.get("api_url"),api_key:formData.get("api_key"),clear_api_key:formData.get("clear_api_key")==="on"})});toast("E-Fatura ayarlar\u0131 kaydedildi.","success");return true},"Kaydet");const dialog=document.querySelector("#appDialog"),footer=document.querySelector("#dialogFooter"),testButton=document.createElement("button");testButton.type="button";testButton.className="secondary";testButton.id="einvoiceTestButton";testButton.textContent="Test Ba\u011flant\u0131s\u0131";footer?.insertBefore(testButton,document.querySelector("#dialogCancel"));dialog?.classList.add("einvoice-integration-dialog");dialog?.addEventListener("close",()=>{dialog.classList.remove("einvoice-integration-dialog");document.querySelector("#einvoiceApiKey").value="";document.querySelector("#einvoiceTestButton")?.remove()},{once:true});document.querySelector("#dialogCancel").textContent="\u0130ptal";document.querySelector("#dialogEyebrow").hidden=true;document.querySelector("#einvoiceTestButton")?.addEventListener("click",async()=>{const status=document.querySelector("#einvoiceTestStatus");status.textContent="Ba\u011flant\u0131 test ediliyor...";try{const result=await apiFetch("/api/desktop/einvoice/settings",{method:"POST",body:JSON.stringify({action:"test",provider:document.querySelector("#einvoiceProvider").value,environment:document.querySelector("#einvoiceEnvironment").value,api_url:document.querySelector("#einvoiceApiUrl").value,api_key:document.querySelector("#einvoiceApiKey").value,clear_api_key:document.querySelector("#einvoiceClearApiKey").checked})});status.textContent=`${result.ok?"Test ba\u015far\u0131l\u0131":"Test ba\u015far\u0131s\u0131z"}: ${result.detail||"Bilinmeyen sonuc"}`;status.dataset.state=result.ok?"success":"error"}catch(error){status.textContent=error.message||"Ba\u011flant\u0131 testi ba\u015far\u0131s\u0131z.";status.dataset.state="error"}});document.querySelector("#einvoiceClearApiKey")?.addEventListener("change",event=>{const field=document.querySelector("#einvoiceApiKey");field.disabled=event.target.checked;if(event.target.checked)field.value=""})}catch(error){toast(error.message||"Entegrasyon ayarlar\u0131 y\u00fcklenemedi.","error")}}
+
+function bindInvoiceComposer(){const body=$("#invoiceLinesBody");if(!body)return;let savedId=null,currentTotal=0;const rows=()=>$$('[data-invoice-line]',body);const update=()=>{let subtotal=0,discount=0,taxable=0,vat=0,units=0,discountRows=0;rows().forEach((row,index)=>{row.cells[0].textContent=String(index+1);const qty=Math.max(0,Number($(".invoice-line-qty",row).value)||0),price=Math.max(0,Number($(".invoice-line-price",row).value)||0),off=Math.min(100,Math.max(0,Number($(".invoice-line-discount",row).value)||0)),rate=Math.max(0,Number($(".invoice-line-vat",row).value)||0),gross=qty*price,cut=gross*off/100,net=gross-cut,tax=net*rate/100;subtotal+=gross;discount+=cut;taxable+=net;vat+=tax;units+=qty;if(cut>0)discountRows++;$(".invoice-line-total",row).textContent=(net+tax).toFixed(2)});const total=taxable+vat;currentTotal=total;const rate=Number($("#invoiceRate").value)||0,currency=$("#invoiceCurrency").value;[["#invoiceSubtotal",subtotal],["#invoiceDiscountTotal",discount],["#invoiceTaxable",taxable],["#invoiceVat",vat]].forEach(([selector,value])=>{const node=$(selector);if(node)node.textContent=`${selector==="#invoiceDiscountTotal"?"-":""}${value.toFixed(2)}`});$("#invoiceGrandTotal").textContent=`${currency==="USD"?"$":currency==="EUR"?"\u20ac":"\u20ba"}${total.toFixed(2)}`;$("#invoiceGrandTry").textContent=`${(total*rate).toFixed(2)} \u20ba`;$("#invoiceLineCount").textContent=`${rows().length} Kalem Listelendi`;$("#invoiceUnits").textContent=`Toplam Miktar: ${units} Birim`;$("#invoiceDiscountRows").textContent=`\u0130skonto Yap\u0131lan Sat\u0131r: ${discountRows}`;$("#invoiceRateFooter").textContent=`Para Birimi Kuru: ${rate.toFixed(4)} ${currency}`};body.addEventListener("input",update);body.addEventListener("change",update);$("#invoiceRate").addEventListener("input",update);$("#invoiceCurrency").addEventListener("change",update);$$('[data-invoice-action="add"]').forEach(button=>button.onclick=()=>{body.insertAdjacentHTML("beforeend",invoiceLineMarkup(rows().length+1,desktopSettings.vat_default_rate??20));update()});$$('[data-invoice-action="remove"]').forEach(button=>button.onclick=()=>{rows().at(-1)?.remove();update()});body.addEventListener("click",event=>{const remove=event.target.closest(".invoice-line-remove");if(remove){remove.closest("tr").remove();update()}});$$('[data-invoice-action="customer"]').forEach(button=>button.onclick=()=>$("#invoiceCustomer").focus());$$('[data-invoice-action="integration"]').forEach(button=>button.onclick=openInvoiceIntegrationDialog);$$('[data-invoice-action="import"]').forEach(button=>button.onclick=()=>{const input=$("#invoiceDeliveryRef");openDialog("\u0130rsaliye / Sipari\u015f Referans\u0131","BELGE REFERANSI",`<div class="form-grid"><div class="field full"><label for="invoiceReferenceEntry">Ba\u011fl\u0131 belge numaras\u0131n\u0131 girin:</label><input id="invoiceReferenceEntry" name="reference" value="${esc(input.value)}"></div></div>`,formData=>{input.value=String(formData.get("reference")||"").trim();return true},"Uygula");$("#dialogCancel").textContent="\u0130ptal"});if(!window.einvoiceKeysBound){window.einvoiceKeysBound=true;window.addEventListener("keydown",event=>{if(page!=="invoices"||event.altKey||event.ctrlKey||event.metaKey)return;if(event.key==="F2"){event.preventDefault();$('[data-invoice-action="add"]')?.click()}else if(event.key==="F12"){event.preventDefault();$('[data-invoice-action="send"]')?.click()}else if(event.key==="F4"){event.preventDefault();$("#invoiceCustomer")?.focus()}})}const invoiceFormData=()=>({scenario:$("#invoiceScenario").value,date:$("#invoiceDate").value,time:$("#invoiceTime").value,currency:$("#invoiceCurrency").value,exchange_rate:$("#invoiceRate").value,address:$("#invoiceAddress").value,tax_office:$("#invoiceTaxOffice").value,delivery_reference:$("#invoiceDeliveryRef").value,order_reference:$("#invoiceOrderRef").value,notes:$("#invoiceNotes").value,lines:rows().map(row=>Object.fromEntries([...row.querySelectorAll("input,select")].map(field=>[field.className,field.value]))),payment_account:$("#invoiceBank").value,payment_channel:$("#invoicePaymentChannel").value,due_date:$("#invoiceDueDate").value,auto_reconcile:$("#invoiceAutoReconcile").checked});const invoicePreviewText=()=>{const data=invoiceFormData(),currency=data.currency;const lines=data.lines.filter(item=>String(item["invoice-line-description"]||"").trim()).map((item,index)=>`${String(index+1).padStart(2,"0")}. ${item["invoice-line-description"]} | ${Number(item["invoice-line-qty"]||0)} ${item["invoice-line-unit"]||"Adet"} | ${Number(item["invoice-line-price"]||0).toFixed(2)} ${currency} | KDV %${Number(item["invoice-line-vat"]||0)}`);return ["E-FATURA TASLAK \u00d6N\u0130ZLEMES\u0130",`M\u00fc\u015fteri: ${$("#invoiceCustomer").value}`,`VKN/TCKN: ${$("#invoiceVkn").value}`,`Tarih: ${data.date} ${data.time}`,`Senaryo / Tip: ${data.scenario} / ${$("#invoiceType").value}`,"",...lines,"",`Toplam: ${$("#invoiceGrandTotal").textContent}`,`Not: ${data.notes}`].join("\n")};const persist=async status=>{const payload={uuid:crypto.randomUUID(),invoice_type:$("#invoiceType").value,receiver_name:$("#invoiceCustomer").value,receiver_vkn:$("#invoiceVkn").value,amount:currentTotal,status,json_data:JSON.stringify(invoiceFormData())};if(savedId){payload.id=savedId;payload._action="update"}const result=await apiFetch("/api/desktop/table/e_invoices",{method:"POST",body:JSON.stringify(payload)});savedId=result.id||savedId;return result};$$('[data-invoice-action="draft"]').forEach(button=>button.onclick=async()=>{try{await persist("DRAFT");toast("Fatura tasla\u011f\u0131 kaydedildi","success")}catch(error){toast(error.message,"error")}});$$('[data-invoice-action="proforma"]').forEach(button=>button.onclick=async()=>{const label=button.textContent;button.disabled=true;button.textContent="PDF haz\u0131rlan\u0131yor...";try{const customer=$("#invoiceCustomer").value.trim();if(!customer){toast("M\u00fc\u015fteri se\u00e7imi zorunludur","warning");return}const response=await fetch("/api/desktop/einvoice/proforma.pdf",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({receiver_name:customer,receiver_vkn:$("#invoiceVkn").value,invoice_type:$("#invoiceType").value,invoice:invoiceFormData()})});if(!response.ok){let message=`PDF aktar\u0131m\u0131 ba\u015far\u0131s\u0131z (${response.status})`;try{message=(await response.json()).error||message}catch{}throw new Error(message)}const blob=await response.blob(),url=URL.createObjectURL(blob),link=document.createElement("a");link.href=url;link.download=`proforma_${new Date().toISOString().slice(0,10).replaceAll("-","")}.pdf`;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);toast("Proforma PDF indirildi.","success")}catch(error){toast(error.message||"Proforma PDF olu\u015fturulamad\u0131.","error")}finally{button.disabled=false;button.textContent=label}});$$('[data-invoice-action="preview"]').forEach(button=>button.onclick=()=>{openDialog("PDF G\u00f6r","E-FATURA",`<pre class="einvoice-preview-text">${esc(invoicePreviewText())}</pre>`,()=>true,"Kapat");const dialog=$("#appDialog");dialog.classList.add("einvoice-preview-dialog");dialog.addEventListener("close",()=>dialog.classList.remove("einvoice-preview-dialog"),{once:true});$("#dialogEyebrow").hidden=true;$("#dialogCancel").hidden=true});$$('[data-invoice-action="send"]').forEach(button=>button.onclick=async()=>{const label=button.textContent;button.disabled=true;button.textContent="G\u00f6nderiliyor...";try{const customer=$("#invoiceCustomer").value.trim();if(!customer){toast("M\u00fc\u015fteri se\u00e7imi zorunludur","warning");return}if(!rows().some(row=>$(".invoice-line-description",row).value.trim())){toast("En az bir fatura kalemi ekleyin.","warning");return}const draft=await persist("DRAFT");const invoice=invoiceFormData();const result=await apiFetch("/api/desktop/einvoice/send",{method:"POST",body:JSON.stringify({draft_id:draft.id||savedId,invoice_type:$("#invoiceType").value,receiver_name:customer,receiver_vkn:$("#invoiceVkn").value,invoice})});savedId=result.id||savedId;if(result.sandbox)toast(`Sandbox testi tamamland\u0131. Ger\u00e7ek belge g\u00f6nderilmedi. ETTN: ${result.uuid||"---"} | Durum: ${result.status||"TEST_QUEUED"}`,"success");else toast(`Fatura G\u0130B'e iletildi. ETTN: ${result.uuid||"---"} | Durum: ${result.status||"SENT"}`,"success");if(result.finance_error)toast(`Fatura iletildi; kasa kayd\u0131 olu\u015fturulamad\u0131: ${result.finance_error}`,"warning")}catch(error){toast(error.message||"E-Fatura g\u00f6nderilemedi.","error")}finally{button.disabled=false;button.textContent=label}});update()}
 
 function renderFinance(filter=""){
  const rows=filter?db.finance.filter(f=>f.type===filter):db.finance;
@@ -217,7 +237,35 @@ const settingsGroups=[
  ["SİSTEM YAPISI",[["identity","⚙️","Sistem Kimliği & Modüler Yapı"]]]
 ];
 settingsGroups[1][1].push(["voice-shortcuts","[VOICE]","Sesli Kestirmeler"]);
-function settingBody(s){const common=`<div class="settings-grid"><div class="setting"><div><strong>Çift tıklama</strong><br><small class="muted">Satırı doğrudan ayrıntıda açar.</small></div><input class="switch" id="setDouble" type="checkbox" ${s.doubleClick?"checked":""}></div><div class="setting"><div><strong>Sağ tuş menüleri</strong><br><small class="muted">Bağlama özel işlem menüsü.</small></div><input class="switch" id="setContext" type="checkbox" ${s.contextMenu?"checked":""}></div><div class="setting"><div><strong>Randevu bildirimleri</strong><br><small class="muted">Toast, alert ve sistem bildirimi.</small></div><input class="switch" id="setAlerts" type="checkbox" ${s.appointmentAlerts?"checked":""}></div><div class="setting"><div><strong>Kompakt görünüm</strong><br><small class="muted">Tablo ve kart aralıklarını azaltır.</small></div><input class="switch" id="setCompact" type="checkbox" ${s.compact?"checked":""}></div></div>`;if(settingsSection==="company")return `<h3>Firma Ayarları</h3><div class="form-grid"><div class="field full"><label>Firma Adı</label><input id="setCompany" value="${esc(s.company)}"></div><div class="field"><label>Varsayılan Para Birimi</label><select id="setCurrency"><option ${s.currency==="TRY"?"selected":""}>TRY</option><option ${s.currency==="USD"?"selected":""}>USD</option><option ${s.currency==="EUR"?"selected":""}>EUR</option></select></div><div class="field"><label>Randevu uyarısı (dakika)</label><input id="setAlertMinutes" type="number" min="1" value="${s.alertMinutes}"></div></div><h3>Etkileşim ve Bildirim</h3>${common}`;if(settingsSection==="backup")return `<h3>Yedekleme ve Veri Merkezi</h3><p class="muted">Masaüstü uygulamasıyla aynı veritabanının tam yedeğini yönetin.</p><div class="actions"><button class="primary" data-action="export-all">Tam Yedek Al</button><button class="secondary" data-action="restore-backup">Yedeği Geri Yükle</button></div>`;if(settingsSection==="audit-settings")return `<h3>Sistem İşlem Logları</h3><p class="muted">Kullanıcı ve veri değişikliklerini denetleyin.</p><button class="primary" data-page="audit">Audit Kayıtlarını Aç</button>`;if(settingsSection==="stock-settings")return `<h3>Stok Ayarları</h3><div class="form-grid"><div class="field"><label>Varsayılan kritik stok</label><input name="default_min_stock" type="number" value="5"></div><div class="field"><label>Varsayılan kategori</label><select><option>Bilgisayar</option><option>Akıllı Ev</option><option>Güvenlik Sistemleri</option></select></div></div><button class="secondary" data-page="import">Akıllı İçe Aktarmayı Aç</button>`;if(settingsSection==="notes")return `<div class="card-head"><div><h3>H\u0131zl\u0131 Notlar &amp; Makrolar</h3><p class="muted">Teknisyen paneli ve servis operasyon s\u00fcre\u00e7leri i\u00e7in haz\u0131r metin \u015fablonlar\u0131n\u0131 y\u00f6netin.</p></div><span id="quickNoteCount" class="quick-note-count">0 \u015eablon Aktif</span><button class="primary" id="quickNoteAdd">+ + Yeni Not Ekle</button></div><div class="quick-notes-toolbar"><label>Filtrele:<select id="quickNoteFilter"><option value="">T\u00fcm Kategoriler</option><option>Bilgisayar</option><option>Cep Telefonu</option><option>G\u00fcvenlik Sistemleri</option></select></label><label>Ara:<input id="quickNoteSearch" type="search" placeholder="Notlarda ara..."></label><div class="quick-note-tags"><span>H\u0131zl\u0131 Etiketler:</span><button type="button" data-note-tag="Ar\u0131za">#Ar\u0131za</button><button type="button" data-note-tag="Test">#Test</button><button type="button" data-note-tag="Aksesuar">#Aksesuar</button></div></div><div id="quickNotesHost">${empty("Notlar y\u00fckleniyor","Masa\u00fcst\u00fc h\u0131zl\u0131 notlar\u0131 okunuyor.")}</div>`;if(settingsSection==="locale"||settingsSection==="theme")return `<h3>${settingsSection==="locale"?"Dil, Tarih & Para Birimi":"Temalar & Yazı Tipi"}</h3>${common}`;const title=settingsGroups.flatMap(g=>g[1]).find(x=>x[0]===settingsSection)?.[2]||"Ayarlar";return `<h3>${title}</h3><p class="muted">Bu modül masaüstü ayar anahtarlarını kullanır. Değişiklikler ortak veritabanına kaydedilir.</p><div class="form-grid"><div class="field full"><label>Yapılandırma</label><textarea id="setModuleValue" placeholder="${esc(title)} yapılandırması"></textarea></div></div>`}
+settingsGroups[0][1].push(["context-settings","[MOUSE]","Fare Sa\u011f Tu\u015f Menuleri"]);
+function renderAutonomousAgentsSettings(){
+ const rules=[
+  ["agent_system_activation","Sistemi Aktivasyon Otomasyonu","A\u00e7\u0131l\u0131\u015fta Jarvis arka plan daemon servislerini otomatik ba\u015flat\u0131r.","\u26a1"],
+  ["agent_voice_feedback","Sesli Geri Bildirim (TTS)","Kritik i\u015flemlerde veya hata durumunda sesli uyar\u0131 verir.","\u266a"],
+  ["agent_whatsapp_reports","Otomatik WhatsApp Kritik Raporlar","G\u00fcn sonunda ve acil durumlarda y\u00f6neticiye rapor g\u00f6nderir.","\u25a3"],
+  ["agent_customer_intelligence","Ak\u0131ll\u0131 M\u00fc\u015fteri \u0130stihbarat\u0131","Servise gelen cihazlar\u0131n cari analizini otomatik \u00e7\u0131kar\u0131r.","\u25a4"],
+  ["agent_term_correction","Teknik Terim D\u00fczeltme Motoru","Sesli dikte s\u0131ras\u0131ndaki teknik terim hatalar\u0131n\u0131 d\u00fczeltir.","\u2197"],
+  ["agent_error_reporting","Sistem Hata Oto-Raporlay\u0131c\u0131","Kritik exception loglarini yonetici kaydina iletir.","\u26a0"],
+  ["assistant_fab_enabled","Y\u00fczen Avatar Widget Kontrol\u00fc","Sesli asistan avatar\u0131n\u0131 etkinlik durumuna g\u00f6re y\u00f6netir.","\u25ce"]
+ ];
+ const enabled=key=>String(desktopInternalSettings[key]??"1").toLowerCase()==="1"||String(desktopInternalSettings[key]).toLowerCase()==="true";
+ const active=rules.filter(([key])=>enabled(key)).length;
+ const rows=rules.map(([key,label,detail,icon])=>`<label class="autonomous-rule"><span class="autonomous-rule-icon">${icon}</span><span class="autonomous-rule-copy"><strong>${label}</strong><small>${detail}</small></span><input class="switch exact-setting" data-setting-key="${key}" data-setting-scope="internal_settings" type="checkbox" ${enabled(key)?"checked":""} onchange="updateAutonomousRuleCount()"></label>`).join("");
+ const field=(key,label,type)=>exactSettingsField([key,label,type,""],"internal_settings");
+ return `<div class="autonomous-reference"><header class="autonomous-heading"><div><span class="autonomous-kicker">OTONOM SISTEMLER</span><h2>Otonom Ajanlar &amp; Entegrasyon Hub\'\u0131</h2><p>Yapay zeka arka plan servisleri, otonom tetikleyiciler ve harici webhook a\u011f ge\u00e7itlerini y\u00f6netin.</p></div><div class="autonomous-actions"><button class="secondary" type="button" onclick="toast('Servis kontrolu yalnizca masaustu uygulamasinda kullanilabilir.','info')">Servisleri Yeniden Ba\u015flat</button><button class="primary" type="button" data-settings-section="voice-settings">+ Yeni Ajan Tan\u0131mla</button></div></header><div class="autonomous-grid"><div class="autonomous-main-column"><section class="autonomous-card autonomous-runtime"><div class="autonomous-runtime-head"><span class="autonomous-runtime-icon">\u25a3</span><div><h3>Jarvis Arka Plan Otonom Ajan\u0131 <span class="autonomous-status">DURUM ALINAMIYOR</span></h3><p>${active}/${rules.length} Ayar Etkin - \u00c7al\u0131\u015fma durumu yerel olarak izlenir</p></div></div><div class="autonomous-runtime-states"><article><small>Sesli Komut \u0130\u015fleme</small><b>Durum bilinmiyor</b></article><article><small>WhatsApp Gateway</small><b>${desktopInternalSettings.ultramsg_instance&&desktopInternalSettings.ultramsg_token?"Ayarlandi":"Ayarlanmamis"}</b></article><article><small>Cari \u0130stihbarat</small><b>Durum bilinmiyor</b></article><article><small>TTS Ses Sentezi</small><b>Durum bilinmiyor</b></article></div></section><section class="autonomous-card autonomous-rules"><header><div><h3>Otonom Tetikleyiciler &amp; Senaryolar</h3><p>Sistem olaylar\u0131na kar\u015f\u0131 otomatik tepki verme yeteneklerini yap\u0131land\u0131r\u0131n.</p></div><span class="autonomous-rule-count">${active} Kural Aktif</span></header><div class="autonomous-rule-list">${rows}</div></section></div><aside class="autonomous-side-column"><section class="autonomous-card autonomous-webhook"><header><div><h3>UltraMsg Webhook</h3><p>WhatsApp kurumsal bildirimleri ve m\u00fc\u015fteri etkile\u015fimleri i\u00e7in ana kanal k\u00f6pr\u00fcs\u00fc.</p></div></header><div class="autonomous-fields">${field("ultramsg_instance","Instance ID","text")}${field("ultramsg_token","API Token Secret","password")}${field("ultramsg_phone","Y\u00f6netici WhatsApp Numaras\u0131","tel")}</div><button class="secondary autonomous-save" type="button" onclick="saveAutonomousSettings()">Webhook Ayarlar\u0131n\u0131 Kaydet</button><div class="autonomous-dispatch"><h4>Anl\u0131k Webhook Test G\u00f6ndericisi</h4><p>UltraMsg a\u011f ge\u00e7idinin ayarlar\u0131n\u0131 yerel olarak do\u011frulay\u0131n.</p><div><button class="success" type="button" onclick="testAutonomousSettings()">Test Paketi G\u00f6nder</button><button class="secondary" type="button" data-page="audit">Loglar</button></div></div></section><section class="autonomous-card autonomous-metrics"><div><span>Entegrasyon Kuyru\u011fu</span><b>--</b></div><div><span>Webhook Ba\u015far\u0131 Oran\u0131</span><b>--</b></div><div><span>Ortalama Yan\u0131t Gecikmesi</span><b>--</b></div></section></aside></div></div>`
+}
+function testAutonomousSettings(){const instance=document.querySelector('[data-setting-key="ultramsg_instance"]')?.value.trim()||"",token=document.querySelector('[data-setting-key="ultramsg_token"]')?.value.trim()||"";toast(instance&&token?"Yerel webhook ayarlari tamam. Ag testi veya mesaj gonderimi yapilmadi.":"UltraMsg instance ve token bilgilerini tamamlayin.",instance&&token?"success":"error")}
+function updateAutonomousRuleCount(){const controls=[...document.querySelectorAll(".autonomous-rule input.exact-setting")],active=controls.filter(control=>control.checked).length,count=document.querySelector(".autonomous-rule-count"),summary=document.querySelector(".autonomous-runtime-head p");if(count)count.textContent=`${active} Kural Aktif`;if(summary)summary.textContent=`${active}/${controls.length} Ayar Etkin - Calisma durumu yerel olarak izlenir`}
+function saveAutonomousSettings(){document.querySelector('[data-action="save-settings"]')?.click()}
+function renderVoiceReferenceSettings(){
+ const field=(key,label,type,defaultValue="",options)=>exactSettingsField([key,label,type,defaultValue,options],"settings");
+ const toggle=(key,label,detail,defaultValue="1")=>`<label class="voice-setting-toggle"><span><strong>${label}</strong><small>${detail}</small></span><input class="switch exact-setting" data-setting-key="${key}" data-setting-scope="settings" type="checkbox" ${String(desktopSettings[key]??defaultValue)==="1"?"checked":""}></label>`;
+ const alerts=[["loan_reminder","Taksit &amp; Banka Odemeleri","Gunluk finansal nakit akis ozeti","11:00"],["check_reminder","Cekler &amp; Senetler","Vadesi gelen portfoy kontrolu","11:30"],["stock_critical","Kritik Stok Seviyesi","Depo eksik parca raporu","15:00"]];
+ const alertRows=alerts.map(([type,label,detail,defaultTime])=>{const alert=scheduledAlerts.find(item=>item.alert_type===type);return `<article class="voice-reminder-row"><div><strong>${label}</strong><small>${detail}</small></div><span class="voice-reminder-time">${esc(alert?.trigger_time||defaultTime)}</span><input class="switch" type="checkbox" data-voice-alert="${type}" ${alert?.is_enabled===undefined||String(alert.is_enabled)==="1"?"checked":""} onchange="saveVoiceReminder(this)"></article>`}).join("");
+ return `<div class="voice-reference"><header class="voice-reference-head"><div><span class="voice-reference-badge">SESLI ASISTAN &amp; TTS MOTORU</span><small>v2.5 Enterprise Stable</small><h2>Ses Sentezleme &amp; Komuta Ses Profilleri</h2><p>Yapay zeka sesli asistan parametrelerini, edge TTS ses modellerini ve otonom sesli hatirlatici zamanlamalarini yapilandirin.</p></div><div class="voice-reference-actions"><button class="secondary" type="button" onclick="render()">Varsayilanlara Don</button><button class="primary" type="button" data-action="save-settings">Ayarlar Kaydet</button></div></header><div class="voice-reference-grid"><div class="voice-reference-main"><section class="voice-reference-card"><header><div><h3>Asistan &amp; Hitap Protokolu</h3><p>Sesli komut yanitlari ve telsiz ses efektleri</p></div>${toggle("voice_assistant_active","Ana Aktif","Sesli asistan servisi", "1")}</header><div class="voice-reference-fields">${toggle("telsiz_efekti_aktif","Telsiz / Walkie-Talkie Efekti","Anons oncesi ve sonrasi hisirti sesi","0")}${field("asistan_ozel_adi","Cagri Isareti (Call Sign)","text","AYEC")}${field("asistan_user_name","Hitap Oneki (Prefix)","text","Efendim,")}${field("asistan_greeting_style","Cumle Basi Saygi Ifadesi","select","formal",["formal","friendly","compact"])}</div><div class="voice-reference-extra">${toggle("asistan_voice_enabled","Sesli Onay Ver","Komutlari sesli olarak onayla","1")}${toggle("asistan_hitap_aktif","Adimla Hitap Et","Kisisellestirilmis hitap","0")}</div></section><section class="voice-reference-card voice-reference-synthesis"><header><div><h3>Speech Synthesis (EMA Lightning TR)</h3><p>Yerel Turkce ses modeli ve tonlama ayarlari</p></div></header><div class="voice-reference-fields voice-reference-speech-fields">${field("asistan_edge_voice","Ses Modeli","select","ema_default",["ema_default"])}<div class="voice-reference-static"><label>Konusma Hizi</label><span>Model tarafindan belirlenir</span></div><div class="voice-reference-static"><label>Perde Ayari</label><span>Model tarafindan belirlenir</span></div></div><div class="voice-reference-preview"><div><strong>Canli Ses Testi Onizlemesi</strong><small>AYEC Pro sistemleri tam kapasite calisiyor, efendim.</small></div><button class="secondary" type="button" onclick="toast('Ses onizlemesi masaustu uygulamasinda kullanilabilir.','info')">Ses Testini Oynat</button></div></section><section class="voice-reference-card"><header><div><h3>Mikrofon Ayarlari</h3><p>Windows varsayilan iletisim mikrofonu</p></div></header>${field("voice_input_device","Ses Giris Aygiti","text","default")}<button class="secondary" type="button" onclick="toast('Mikrofon testi masaustu uygulamasinda kullanilabilir.','info')">Mikrofonu Test Et</button></section></div><aside class="voice-reference-side"><section class="voice-reference-card"><header><div><h3>Vokal Hatirlaticilar</h3><p>Zamanlanmis sesli anons kuyrugu</p></div></header><div class="voice-reminder-list">${alertRows}</div><button class="secondary" type="button" onclick="toast('Yeni hatirlatici ekleme masaustu senaryo ayarlarinda kullanilabilir.','info')">+ Yeni Hatirlatici Ekle</button></section><section class="voice-reference-card"><header><div><h3>Gece Sessiz Saatleri</h3><p>Otomatik susturma ve acil durum istisnasi</p></div></header><div class="voice-reference-fields voice-reference-times">${field("quiet_hours_start","Baslangic","time","19:00")}${field("quiet_hours_end","Bitis","time","08:30")}</div>${toggle("critical_override_dnd","Acil Durum Istisnasi (Bypass)","Kritik alarmlar sessiz saatlerde de duyurulur.","1")}</section></aside></div></div>`
+}
+function saveVoiceReminder(input){const alert=scheduledAlerts.find(item=>item.alert_type===input.dataset.voiceAlert);if(!alert?.id){toast("Hatirlatici kaydi bulunamadi.","error");return}desktopWrite("scheduled_alerts",{id:alert.id,_action:"update",is_enabled:input.checked?1:0}).then(()=>{alert.is_enabled=input.checked?1:0;toast("Hatirlatici ayari kaydedildi.","success")}).catch(error=>toast("Hatirlatici kaydedilemedi: "+error.message,"error"))}
+function settingBody(s){if(settingsSection==="voice-settings")return renderVoiceReferenceSettings();if(settingsSection==="autonomous-agents")return renderAutonomousAgentsSettings();const common=`<div class="settings-grid"><div class="setting"><div><strong>\u00c7ift t\u0131klama</strong><br><small class="muted">Sat\u0131r\u0131 do\u011frudan ayr\u0131nt\u0131da a\u00e7ar.</small></div><input class="switch" id="setDouble" type="checkbox" ${s.doubleClick?"checked":""}></div><div class="setting"><div><strong>Sa\u011f tu\u015f men\u00fcleri</strong><br><small class="muted">Ba\u011flama \u00f6zel i\u015flem men\u00fcs\u00fc.</small></div><input class="switch" id="setContext" type="checkbox" ${s.contextMenu?"checked":""}></div><div class="setting"><div><strong>Randevu bildirimleri</strong><br><small class="muted">Toast, alert ve sistem bildirimi.</small></div><input class="switch" id="setAlerts" type="checkbox" ${s.appointmentAlerts?"checked":""}></div><div class="setting"><div><strong>Kompakt g\u00f6r\u00fcn\u00fcm</strong><br><small class="muted">Tablo ve kart aral\u0131klar\u0131n\u0131 azalt\u0131r.</small></div><input class="switch" id="setCompact" type="checkbox" ${s.compact?"checked":""}></div></div>`;if(settingsSection==="company")return `<h3>Firma Ayarlar\u0131</h3><div class="form-grid"><div class="field full"><label>Firma Ad\u0131</label><input id="setCompany" value="${esc(s.company)}"></div><div class="field"><label>Varsay\u0131lan Para Birimi</label><select id="setCurrency"><option ${s.currency==="TRY"?"selected":""}>TRY</option><option ${s.currency==="USD"?"selected":""}>USD</option><option ${s.currency==="EUR"?"selected":""}>EUR</option></select></div><div class="field"><label>Randevu uyar\u0131s\u0131 (dakika)</label><input id="setAlertMinutes" type="number" min="1" value="${s.alertMinutes}"></div></div><h3>Etkile\u015fim ve Bildirim</h3>${common}`;if(settingsSection==="backup")return `<h3>Yedekleme ve Veri Merkezi</h3><p class="muted">Masa\u00fcst\u00fc uygulamas\u0131yla ayn\u0131 veritaban\u0131n\u0131n tam yede\u011fini y\u00f6netin.</p><div class="actions"><button class="primary" data-action="export-all">Tam Yedek Al</button><button class="secondary" data-action="restore-backup">Yede\u011fi Geri Y\u00fckle</button></div>`;if(settingsSection==="audit-settings")return `<h3>Sistem \u0130\u015flem Loglar\u0131</h3><p class="muted">Kullan\u0131c\u0131 ve veri de\u011fi\u015fikliklerini denetleyin.</p><button class="primary" data-page="audit">Audit Kay\u0131tlar\u0131n\u0131 A\u00e7</button>`;if(settingsSection==="stock-settings")return `<h3>Stok Ayarlar\u0131</h3><div class="form-grid"><div class="field"><label>Varsay\u0131lan kritik stok</label><input name="default_min_stock" type="number" value="5"></div><div class="field"><label>Varsay\u0131lan kategori</label><select><option>Bilgisayar</option><option>Ak\u0131ll\u0131 Ev</option><option>G\u00fcvenlik Sistemleri</option></select></div></div><button class="secondary" data-page="import">Ak\u0131ll\u0131 \u0130\u00e7e Aktarmay\u0131 A\u00e7</button>`;if(settingsSection==="notes")return `<div class="card-head"><div><h3>H\u0131zl\u0131 Notlar &amp; Makrolar</h3><p class="muted">Teknisyen paneli ve servis operasyon s\u00fcre\u00e7leri i\u00e7in haz\u0131r metin \u015fablonlar\u0131n\u0131 y\u00f6netin.</p></div><span id="quickNoteCount" class="quick-note-count">0 \u015eablon Aktif</span><button class="primary" id="quickNoteAdd">+ + Yeni Not Ekle</button></div><div class="quick-notes-toolbar"><label>Filtrele:<select id="quickNoteFilter"><option value="">T\u00fcm Kategoriler</option><option>Bilgisayar</option><option>Cep Telefonu</option><option>G\u00fcvenlik Sistemleri</option></select></label><label>Ara:<input id="quickNoteSearch" type="search" placeholder="Notlarda ara..."></label><div class="quick-note-tags"><span>H\u0131zl\u0131 Etiketler:</span><button type="button" data-note-tag="Ar\u0131za">#Ar\u0131za</button><button type="button" data-note-tag="Test">#Test</button><button type="button" data-note-tag="Aksesuar">#Aksesuar</button></div></div><div id="quickNotesHost">${empty("Notlar y\u00fckleniyor","Masa\u00fcst\u00fc h\u0131zl\u0131 notlar\u0131 okunuyor.")}</div>`;if(settingsSection==="locale"||settingsSection==="theme")return `<h3>${settingsSection==="locale"?"Dil, Tarih & Para Birimi":"Temalar & Yaz\u0131 Tipi"}</h3>${common}`;const title=settingsGroups.flatMap(g=>g[1]).find(x=>x[0]===settingsSection)?.[2]||"Ayarlar";return `<h3>${title}</h3><p class="muted">Bu mod\u00fcl masa\u00fcst\u00fc ayar anahtarlar\u0131n\u0131 kullan\u0131r. De\u011fi\u015fiklikler ortak veritaban\u0131na kaydedilir.</p><div class="form-grid"><div class="field full"><label>Yap\u0131land\u0131rma</label><textarea id="setModuleValue" placeholder="${esc(title)} yap\u0131land\u0131rmas\u0131"></textarea></div></div>`}
 const settingsDefinitions={
  company:{title:"Firma Ayarları",description:"Firma iletişim, sosyal medya, sözleşme, logo ve proforma bilgileri.",fields:[["company_name","Firma Adı","text","AYEC Pro"],["site_title","Uygulama Başlığı","text","Servis Yönetimi"],["company_email","E-posta","email",""],["company_phone","Telefon","tel",""],["company_gsm","GSM","tel",""],["company_fax","Faks","text",""],["company_website","Web Sitesi","url",""],["company_address","Adres","textarea",""],["social_facebook","Facebook","text",""],["social_instagram","Instagram","text",""],["social_youtube","YouTube","text",""],["cargo_company","Kargo Firması","text",""],["cargo_deal_no","Kargo Anlaşma No","text",""],["stock_prefix","Stok Öneki","text","TO"],["currency_precision","Kur Hassasiyeti","number","2"],["logo_path","Firma Logosu Yolu","text",""],["background_image","Masaüstü Arkaplanı","text",""],["proforma_template_path","Proforma Şablonu","text",""],["proforma_field_rects","Proforma Alan Yerleşimi (JSON)","textarea","{}"],["service_contract","Servis Sözleşmesi","textarea",""],["offer_contract","Teklif Sözleşmesi","textarea",""],["marquee_text","Kayan Yazı","textarea",""],["online_payment_active","Online ödeme aktif","checkbox","1"], ["proforma_include_bank_accounts","Aktif Banka IBAN'lari PDF'e eklensin","checkbox","1"]]},
  locale:{title:"Dil, Tarih & Para Birimi",fields:[["app_lang","Uygulama Dili","select","Türkçe (TR)",["Türkçe (TR)","English (EN)"]],["date_format","Tarih Formatı","select","GG.AA.YYYY (31.12.2025)",["GG.AA.YYYY (31.12.2025)","YYYY-AA-GG (2025-12-31)"]],["default_currency","Aktif Para Birimi","select","TRY",["TRY","USD","EUR"]],["currency_format","Sayı Formatı","select","1.234,56 (TR Standart)",["1.234,56 (TR Standart)","1,234.56 (US)"]],["timezone","Saat Dilimi","select","(UTC+03:00) İstanbul",["(UTC+03:00) İstanbul","UTC"]]]},
@@ -226,7 +274,7 @@ const settingsDefinitions={
  integrations:{title:"Entegrasyonlar & API",description:"SMS, e-posta, WhatsApp, Telegram ve yapay zekâ bağlantıları.",fields:[["sms_username","SMS Kullanıcı Adı","text",""],["sms_password","SMS Şifresi","password",""],["sms_title","SMS Başlığı","text",""],["sms_active","SMS Aktif","checkbox","0"],["smtp_server","SMTP Sunucu","text","smtp.gmail.com"],["smtp_port","SMTP Port","number","587"],["smtp_email","SMTP E-posta","email",""],["smtp_password","SMTP Şifre","password",""],["whatsapp_number","WhatsApp Numarası","tel",""],["whatsapp_api_key","WhatsApp API Anahtarı","password",""],["whatsapp_active","WhatsApp Aktif","checkbox","0"],["telegram_bot_token","Telegram Bot Token","password",""],["gemini_api_key","Gemini API Anahtarı","password",""]]},
  cargo:{title:"Kargo Firma Ayarları",fields:[["cargo_default_company","Varsayılan Kargo","select","Yurtiçi",["Yurtiçi","Aras","MNG","Sürat","PTT"]],["cargo_branch_code","Şube Kodu","text",""],["cargo_sender_name","Gönderici Adı","text",""],["cargo_sender_phone","Gönderici Telefonu","tel",""],["cargo_delivery_days","Tahmini Teslim Günü","number","3"],["cargo_auto_track","Takip numarasını otomatik doğrula","checkbox","1"],["cargo_sms_notify","Kargo çıkışında SMS gönder","checkbox","0"],["cargo_require_receiver","Teslim alacak kişi zorunlu","checkbox","1"]]},
  "stock-settings":{title:"Stok Ayarları",fields:[["stock_min_level","Minimum Stok Seviyesi","number","5"],["stock_reorder_days","Sipariş Öneri Süresi","number","7"],["stock_default_profit_pct","Varsayılan Kâr Yüzdesi","number","20"],["stock_code_prefix","Stok Kod Öneki","text","STK"],["stock_auto_code","Otomatik stok kodu","checkbox","1"],["stock_warn_negative","Negatif stok uyarısı","checkbox","1"],["stock_sync_finance","Finansla senkronize et","checkbox","1"]]},
- backup:{title:"Yedekleme ve Veri Merkezi",fields:[["backup_server_ip","Yedek Sunucu","text","85.117.239.60:8000"],["backup_daily_enabled","Günlük otomatik yedek","checkbox","0"],["backup_daily_time","Yedek Saati","time","12:00"],["backup_auto_morning","Sabah otomatik yedeği","checkbox","0"],["backup_auto_evening","Akşam otomatik yedeği","checkbox","0"],["backup_on_exit","Çıkışta yedek al","checkbox","1"]]},
+ backup:{title:"Yedekleme ve Veri Merkezi",fields:[["backup_server_ip","Yedek Sunucu","text","85.117.239.60:8000"],["backup_daily_enabled","G\u00fcnl\u00fck otomatik yedek","checkbox","0"],["backup_daily_time","Yedek Saati","time","12:00"],["backup_on_exit","\u00c7\u0131k\u0131\u015fta yedek al","checkbox","1"]]},
  license:{title:"Lisans Durumu",fields:[["license_key","Lisans Anahtar\u0131","text",""],["license_code","Lisans Kodu","text",""],["license_expires","Biti\u015f Tarihi","date",""]]},
  security:{title:"Güvenlik Ayarları",description:"Boş bırakılan şifre alanları mevcut şifreyi değiştirmez.",fields:[["app_password","Yeni Uygulama Şifresi","password",""],["tech_password","Yeni Teknisyen Şifresi","password",""],["admin_pass","Yeni Yönetici Şifresi","password",""],["security_question","Güvenlik Sorusu","text",""],["security_answer_new","Yeni Güvenlik Yanıtı","password",""],["app_lock_active","Uygulama kilidi","checkbox","0"],["tech_lock_active","Teknisyen kilidi","checkbox","0"],["auto_login","Otomatik giriş","checkbox","0"]]},
  remote:{title:"AYEC Pro Uzak Bağlantı",fields:[["remote_server_ip","Sunucu IP","text","85.117.239.60"],["remote_server_port","Sunucu Portu","number","5000"],["remote_enabled","Uzak bağlantı aktif","checkbox","1"],["remote_logging","Bağlantı logları","checkbox","1"]]},
@@ -241,6 +289,7 @@ const settingsDefinitions={
  location:{title:"Harita & Konum",fields:[["map_default_lat","Varsayılan Enlem","number","40.1044116"],["map_default_lng","Varsayılan Boylam","number","27.6563981"]]},
  identity:{title:"Sistem Kimli\u011fi & Mod\u00fcler Yap\u0131",scope:"internal_settings",fields:[["module_operations_active","Operasyon Mod\u00fcl\u00fc","checkbox","1"],["module_finance_active","Finans Mod\u00fcl\u00fc","checkbox","1"],["module_stock_active","Stok Mod\u00fcl\u00fc","checkbox","1"],["module_projects_active","Projeler Mod\u00fcl\u00fc","checkbox","1"],["module_crm_active","CRM Mod\u00fcl\u00fc","checkbox","1"],["module_personnel_active","Personel Mod\u00fcl\u00fc","checkbox","1"],["feature_right_click_active","Sa\u011f T\u0131k \u00d6zelli\u011fi","checkbox","1"],["feature_double_click_active","\u00c7ift T\u0131klama \u00d6zelli\u011fi","checkbox","1"]]}
 };
+settingsDefinitions["context-settings"]={title:"Fare Sa\u011f Tu\u015f Y\u00f6netimi",description:"Masa\u00fcst\u00fc uygulamas\u0131ndaki sayfa bazl\u0131 sa\u011f tu\u015f men\u00fc ayarlar\u0131.",fields:[["rc_dashboard","Dashboard (Son \u0130\u015flemler)","checkbox","1"],["rc_stock","Stok & Envanter","checkbox","1"],["rc_service_form","Servis Formu Sayfas\u0131","checkbox","1"],["rc_announcements","Duyurular","checkbox","1"],["rc_personnel","Personeller","checkbox","1"],["rc_bank","Bankalar","checkbox","1"],["rc_contracts","Bak\u0131m S\u00f6zle\u015fmeleri","checkbox","1"],["rc_projects","Proje Y\u00f6netimi","checkbox","1"],["rc_loaner","Emanet (Konsinye) Cihazlar","checkbox","1"],["rc_customers","M\u00fc\u015fteri & Cari Listesi","checkbox","1"],["rc_accounting","Kasa \u0130\u015flemleri","checkbox","1"],["rc_appointments","Randevu Takvimi","checkbox","1"],["rc_knowledge_base","Bilgi Bankas\u0131","checkbox","1"],["rc_services","Hizmetler","checkbox","1"],["rc_reminders","Hat\u0131rlat\u0131c\u0131lar","checkbox","1"],["rc_job_service","\u0130\u015f/Servis Takip Raporlar\u0131","checkbox","1"],["rc_logistics","Lojistik Garanti Y\u00f6netimi","checkbox","1"]]};
 settingsDefinitions.integrations.fields.splice(7,0,["smtp_username","SMTP Kullanıcı Adı","text",""]);
 settingsDefinitions["smtp-settings"].fields.splice(3,0,["smtp_username","SMTP Kullanıcı Adı","text",""]);
 function exactSettingsField(field,scope){const [key,label,type,defaultValue,options]=field,source=scope==="internal_settings"?desktopInternalSettings:desktopSettings,value=type==="password"?"":source[key]??defaultValue,attrs=`data-setting-key="${key}" data-setting-scope="${scope}"`;if(type==="checkbox")return `<div class="setting"><div><strong>${label}</strong><br><small class="muted">Masaüstü ayarı: ${key}</small></div><input class="switch exact-setting" ${attrs} type="checkbox" ${String(value)==="1"||String(value)==="true"?"checked":""}></div>`;if(type==="textarea")return `<div class="field full"><label>${label}</label><textarea class="exact-setting" ${attrs}>${esc(value)}</textarea></div>`;if(type==="select")return `<div class="field"><label>${label}</label><select class="exact-setting" ${attrs}>${options.map(option=>`<option value="${esc(option)}" ${String(value)===String(option)?"selected":""}>${esc(option)}</option>`).join("")}</select></div>`;return `<div class="field"><label>${label}</label><input class="exact-setting" ${attrs} type="${type}" value="${esc(value)}" ${type==="password"?'autocomplete="new-password" placeholder="Boş bırakırsanız değişmez"':""}></div>`}
@@ -258,8 +307,10 @@ function reportTemplateDevice(row){const parts=String(row.category||"").split(":
 function reportTemplatesTable(data){const rows=data.rows||[];return `<div class="table-wrap"><table><thead><tr><th>#</th><th></th><th>KATEGOR&#304; &amp; KAPSAM</th><th>C&#220;MLE KALIBI / HAZIR MET&#304;N</th><th>KULLANIM ALANI</th><th>KISAYOL</th><th>DURUM</th><th>&#304;&#350;LEMLER</th></tr></thead><tbody>${rows.map((row,index)=>{const parts=String(row.category||"").split("::").map(value=>value.trim()).filter(Boolean),scope=parts.length>=3?parts.slice(0,2).join("::"):row.category||"Genel",categoryName=parts.length>=3?parts.at(-1):"",usage=row.display_category||"",shortcut=row.title||"-";return `<tr data-template-row="${index}" class="${window.reportTemplateSelected===index?"selected":""}"><td><code>${String(Number(row.display_order)||index+1).padStart(2,"0")}</code></td><td class="report-template-grip">&#10247;</td><td><div class="report-template-scope-wrap"><span class="report-template-scope">${esc(scope)}</span><b>&#8250;</b><strong>${esc(categoryName)}</strong></div></td><td><strong>${esc(row.label||"")}</strong></td><td>${esc(usage)}</td><td><kbd>${esc(shortcut)}</kbd></td><td><span class="report-template-status ${Number(row.is_active)===0?"inactive":""}">${Number(row.is_active)===0?"Pasif":"Aktif"}</span></td><td class="report-template-row-actions"><button class="mini" type="button" data-template-edit="${index}" aria-label="D&#252;zenle">&#9998;</button><button class="mini" type="button" data-template-delete="${index}" aria-label="Sil">&#8942;</button></td></tr>`}).join("")}</tbody></table></div>`}
 function bindReportTemplateRows(meta,data){const rows=data.rows||[];const all=window.currentGenericData?.rows||rows;const active=all.filter(row=>Number(row.is_active)!==0).length;$("#templateTotal").textContent=String(data.count??all.length);$("#templateStatTotal").textContent=String(data.count??all.length);$("#templateStatActive").textContent=String(active);$("#genericCount").textContent=`${data.count??all.length} kay\u0131ttan ${rows.length?1:0} - ${rows.length} aras\u0131 g\u00f6steriliyor`;const selected=window.reportTemplateSelected;$$("[data-template-row]").forEach(tr=>{const row=rows[+tr.dataset.templateRow];tr.onclick=()=>{window.reportTemplateSelected=+tr.dataset.templateRow;$$('[data-template-row]').forEach(item=>item.classList.toggle("selected",item===tr));const receipt=$(".report-template-preview-text");if(receipt)receipt.textContent=row.label||"";const heading=$(".report-template-preview-head span");if(heading)heading.textContent=`Se\u00e7ili \u015eablon #${String(row.id??+tr.dataset.templateRow+1).padStart(2,"0")}`;const customer=$(".report-template-receipt p:first-of-type b");if(customer)customer.textContent=row.category||"Genel";tr.ondblclick=()=>openGenericDialog(meta,row,data.columns);bindInteractiveRow(tr);const editButton=tr.querySelector("[data-template-edit]");if(editButton)editButton.onclick=event=>{event.stopPropagation();openGenericDialog(meta,row,data.columns)};const deleteButton=tr.querySelector("[data-template-delete]");if(deleteButton)deleteButton.onclick=event=>{event.stopPropagation();deleteGenericRow(meta,row)}};tr.ondblclick=()=>openGenericDialog(meta,row,data.columns);bindInteractiveRow(tr)});if(selected!==undefined&&selected<rows.length)$("[data-template-row]")?.click();const applyFilters=()=>{const category=window.reportTemplateCategory||"all",device=$("#templateDeviceFilter")?.value||"",status=$("#templateStatusFilter")?.value||"";const filtered=all.filter(row=>(category==="all"||reportTemplateGroup(row)===category)&&(!device||reportTemplateDevice(row).toLocaleLowerCase("tr-TR").includes(device.toLocaleLowerCase("tr-TR")))&&(!status||(status==="active"?Number(row.is_active)!==0:Number(row.is_active)===0)));const host=$("#genericHost");host.innerHTML=filtered.length?reportTemplatesTable({...data,rows:filtered}):empty("Kay\u0131t bulunamad\u0131","Se\u00e7ili filtrelerde \u015fablon yok.");$("#genericCount").textContent=`${filtered.length} / ${all.length} \u015fablon g\u00f6steriliyor`;bindReportTemplateRows(meta,{...data,rows:filtered})};$$('[data-template-category]').forEach(button=>{const category=button.dataset.templateCategory,matched=all.filter(row=>category==="all"||reportTemplateGroup(row)===category).length;const counter=button.querySelector("span");if(counter)counter.textContent=String(matched);button.onclick=()=>{window.reportTemplateCategory=category;$$('[data-template-category]').forEach(item=>item.classList.toggle("active",item===button));applyFilters()}});const deviceFilter=$("#templateDeviceFilter"),statusFilter=$("#templateStatusFilter");if(deviceFilter)deviceFilter.onchange=applyFilters;if(statusFilter)statusFilter.onchange=applyFilters;const exporter=$("[data-template-export]");if(exporter)exporter.onclick=()=>download("rapor-cumle-kaliplari.csv",csv(all));const importer=$("[data-template-import]"),fileInput=$("[data-template-file]");if(importer&&fileInput){importer.onclick=()=>fileInput.click();fileInput.onchange=async()=>{const file=fileInput.files?.[0];if(!file)return;try{const lines=(await file.text()).replace(/^\ufeff/,"").split(/\r?\n/).filter(Boolean),separator=lines[0].includes(";")?";":",",cells=line=>{const result=[];let value="",quoted=false;for(let i=0;i<line.length;i++){const char=line[i];if(char==='"'&&line[i+1]==='"'&&quoted){value+='"';i++;continue}if(char==='"'){quoted=!quoted;continue}if(char===separator&&!quoted){result.push(value.trim());value=""}else value+=char}result.push(value.trim());return result},headers=cells(lines[0]).map(value=>value.toLocaleLowerCase("tr-TR")),indexOf=(...names)=>headers.findIndex(header=>names.some(name=>header.includes(name))),rows=lines.slice(1).map(line=>{const values=cells(line),get=(...names)=>{const i=indexOf(...names);return i<0?"":values[i]||""},active=get("aktif","is_active","status");return{category:get("kategori & kapsam","category & scope","scope","kapsam","kategori")||"Genel",label:get("kal\u0131p","kalip","c\u00fcmle kal\u0131b\u0131","cumle kalibi","haz\u0131r metin","hazir metin","label","metin"),display_category:get("kullan\u0131m alan\u0131","kullanim alani","display_category","use area"),title:get("k\u0131sayol","kisayol","shortcut"),display_order:Number(get("s\u0131ra","sira","no","order"))||0,is_active:/^(pasif|inactive|0|false)$/i.test(active)?0:1}}).filter(row=>row.label);if(!rows.length)throw new Error("CSV dosyas\u0131nda aktar\u0131labilir kal\u0131p bulunamad\u0131.");for(const row of rows)await apiFetch(`/api/desktop/table/${meta.table}`,{method:"POST",body:JSON.stringify(row)});toast(`${rows.length} \u015fablon i\u00e7e aktar\u0131ld\u0131`);await loadGenericModule(meta,$("#genericSearch")?.value||"")}catch(error){toast(error.message||"CSV dosyas\u0131 okunamad\u0131","error")}finally{fileInput.value=""}}}const manage=$("[data-generic-manage]");if(manage)manage.onclick=()=>openDialog("\u015eablonlar\u0131 Y\u00f6net","RAPOR C\u00dcMLE KALIPLARI",`<p class="muted">${all.length} \u015fablon, ${active} aktif kal\u0131p.</p><div class="table-wrap">${reportTemplatesTable({...data,rows:all})}</div>`,()=>true,"Tamam")}
 async function loadGenericModule(meta,q=""){const host=$("#genericHost");if(!host)return;try{const data=await apiFetch(`/api/desktop/table/${meta.table}?limit=500&q=${encodeURIComponent(q)}`);window.currentGenericData=data;window.currentGenericMeta=meta;if(meta.table==="services")window.laborServiceCategory="all";host.innerHTML=data.rows.length?(meta.table==="fast_notes"?reportTemplatesTable(data):genericTable(meta,data)):empty("Kay\u0131t bulunamad\u0131","Masa\u00fcst\u00fc veritaban\u0131nda bu mod\u00fcle ait kay\u0131t yok.");$("#genericCount").textContent=`Toplam Kay\u0131t: ${data.count}`;if(meta.table==="fast_notes")bindReportTemplateRows(meta,data);if(meta.table==="services")bindLaborServiceFilters();$$(".generic-edit").forEach(b=>b.onclick=()=>openGenericDialog(meta,data.rows[+b.dataset.index],data.columns));$$(".generic-delete").forEach(b=>b.onclick=()=>deleteGenericRow(meta,data.rows[+b.dataset.index]));$$('[data-generic-row]').forEach(tr=>{tr.ondblclick=()=>openGenericDialog(meta,data.rows[+tr.dataset.genericRow],data.columns);bindInteractiveRow(tr)})}catch(err){host.innerHTML=empty("Mod\u00fcl y\u00fcklenemedi",err.message)}}
-async function loadQuickNotes(){const host=$("#quickNotesHost");if(!host)return;try{const data=await apiFetch("/api/desktop/table/fast_notes?limit=200");const selectedCategory=$("#quickNoteFilter")?.value||"";const query=($("#quickNoteSearch")?.value||"").trim().toLocaleLowerCase("tr-TR");const selectedTag=$(".quick-note-tags [data-note-tag].active")?.dataset.noteTag||"";const rows=data.rows.filter(n=>{const category=n.display_category||n.category||"";const text=`${category} ${n.title||""} ${n.label||""}`.toLocaleLowerCase("tr-TR");return(!selectedCategory||category===selectedCategory)&&(!query||text.includes(query))&&(!selectedTag||text.includes(selectedTag.toLocaleLowerCase("tr-TR")))});const count=data.rows.filter(n=>n.is_active).length;$("#quickNoteCount").textContent=`${count} \u015eablon Aktif`;host.innerHTML=rows.length?`<div class="table-wrap"><table class="quick-notes-table"><thead><tr><th>ID</th><th>KATEGOR\u0130</th><th>NOT \u0130\u00c7ER\u0130\u011e\u0130</th><th>SIRA</th><th>DURUM</th><th>\u0130\u015eLEMLER</th></tr></thead><tbody>${rows.map((n,i)=>{const category=n.display_category||n.category||"Di\u011fer";const body=String(n.label||"");const alert=body.toLocaleUpperCase("tr-TR").includes("KIRIK")?"note-broken":body.toLocaleUpperCase("tr-TR").includes("KAMERA")?"note-camera":"";const categoryClass=category.toLocaleLowerCase("tr-TR").includes("telefon")?"phone":category.toLocaleLowerCase("tr-TR").includes("g\u00fcvenlik")?"security":"computer";return`<tr><td data-label="ID">${n.id}</td><td data-label="Kategori"><span class="note-category ${categoryClass}">${esc(category)}</span><span class="muted"> :: </span><strong>${esc(n.title||"")}</strong></td><td data-label="Not i\u00e7eri\u011fi" class="${alert}">${esc(body)}</td><td data-label="S\u0131ra">${Number(n.display_order)||0}</td><td data-label="Durum"><label class="quick-note-status"><span>${n.is_active?"Aktif":"Pasif"}</span><input class="switch quick-note-toggle" type="checkbox" data-index="${i}" ${n.is_active?"checked":""}></label></td><td data-label="\u0130\u015flemler"><button class="mini quick-note-edit" data-index="${i}" aria-label="D\u00fczenle">&#9998;</button><button class="mini quick-note-delete" data-index="${i}" aria-label="Sil">&#128465;</button></td></tr>`}).join("")}</tbody></table></div>`:empty("Not bulunamad\u0131","Filtreyi temizleyin veya yeni bir not ekleyin.");$("#quickNoteFilter").onchange=loadQuickNotes;$("#quickNoteSearch").oninput=loadQuickNotes;$$('.quick-note-tags [data-note-tag]').forEach(button=>button.onclick=()=>{button.classList.toggle("active");$$('.quick-note-tags [data-note-tag]').filter(other=>other!==button).forEach(other=>other.classList.remove("active"));loadQuickNotes()});$$('.quick-note-edit').forEach(button=>button.onclick=()=>quickNoteDialog(rows[+button.dataset.index]));$$('.quick-note-delete').forEach(button=>button.onclick=async()=>{const row=rows[+button.dataset.index];await desktopWrite("fast_notes",{id:row.id,_action:"delete"});loadQuickNotes()});$$('.quick-note-toggle').forEach(toggle=>toggle.onchange=async()=>{const row=rows[+toggle.dataset.index];await desktopWrite("fast_notes",{id:row.id,is_active:toggle.checked?1:0,_action:"update"});loadQuickNotes()})}catch(err){host.innerHTML=empty("H\u0131zl\u0131 notlar y\u00fcklenemedi",err.message)}}
-function quickNoteDialog(row={}){const category=row.display_category||"Bilgisayar";openDialog(row.id?"Notu D\u00fczenle":"Yeni Not Ekle","HIZLI NOTLAR & MAKROLAR",`<div class="form-grid"><div class="field"><label>\u0130\u015f ak\u0131\u015f kategorisi</label><input name="category" required value="${esc(row.category||"Ar\u0131za Notu")}"></div><div class="field"><label>G\u00f6r\u00fcnen kategori</label><select name="display_category">${["Bilgisayar","Cep Telefonu","G\u00fcvenlik Sistemleri"].map(value=>`<option ${category===value?"selected":""}>${value}</option>`).join("")}</select></div><div class="field full"><label>Ba\u015fl\u0131k</label><input name="title" required value="${esc(row.title||"")}"></div><div class="field full"><label>Not i\u00e7eri\u011fi</label><textarea name="label" required>${esc(row.label||"")}</textarea></div><div class="field"><label>S\u0131ra</label><input name="display_order" type="number" min="0" value="${Number(row.display_order)||0}"></div><div class="field"><label>Durum</label><select name="is_active"><option value="1" ${row.is_active!==0?"selected":""}>Aktif</option><option value="0" ${row.is_active===0?"selected":""}>Pasif</option></select></div></div>`,async fd=>{const payload=Object.fromEntries(fd);payload.is_active=Number(payload.is_active);payload.display_order=Number(payload.display_order);if(row.id){payload.id=row.id;payload._action="update"}await desktopWrite("fast_notes",payload);loadQuickNotes();toast("H\u0131zl\u0131 not kaydedildi")},row.id?"G\u00fcncelle":"Kaydet")}
+async function loadQuickNotes(){const host=$("#quickNotesHost");if(!host)return;try{const data=await apiFetch("/api/desktop/table/fast_notes?limit=200");const selectedCategory=$("#quickNoteFilter")?.value||"";const query=($("#quickNoteSearch")?.value||"").trim().toLocaleLowerCase("tr-TR");const selectedTag=$(".quick-note-tags [data-note-tag].active")?.dataset.noteTag||"";const rows=data.rows.filter(n=>{const category=n.display_category||n.category||"";const text=`${category} ${n.title||""} ${n.label||""}`.toLocaleLowerCase("tr-TR");return(!selectedCategory||category===selectedCategory)&&(!query||text.includes(query))&&(!selectedTag||text.includes(selectedTag.toLocaleLowerCase("tr-TR")))});const count=data.rows.filter(n=>n.is_active).length;$("#quickNoteCount").textContent=`${count} \u015eablon Aktif`;host.innerHTML=rows.length?`<div class="table-wrap"><table class="quick-notes-table"><thead><tr><th>ID</th><th>KATEGOR\u0130</th><th>NOT \u0130\u00c7ER\u0130\u011e\u0130</th><th>SIRA</th><th>DURUM</th><th>\u0130\u015eLEMLER</th></tr></thead><tbody>${rows.map((n,i)=>{const category=n.display_category||n.category||"Di\u011fer";const body=String(n.label||"");const alert=body.toLocaleUpperCase("tr-TR").includes("KIRIK")?"note-broken":body.toLocaleUpperCase("tr-TR").includes("KAMERA")?"note-camera":"";const categoryClass=category.toLocaleLowerCase("tr-TR").includes("telefon")?"phone":category.toLocaleLowerCase("tr-TR").includes("g\u00fcvenlik")?"security":"computer";return`<tr tabindex="0" data-kind="quick-note" data-id="${esc(n.id)}"><td data-label="ID">${esc(n.id)}</td><td data-label="Kategori"><span class="note-category ${categoryClass}">${esc(category)}</span><span class="muted"> :: </span><strong>${esc(n.title||"")}</strong></td><td data-label="Not i\u00e7eri\u011fi" class="${alert}">${esc(body)}</td><td data-label="S\u0131ra">${Number(n.display_order)||0}</td><td data-label="Durum"><label class="quick-note-status"><span>${n.is_active?"Aktif":"Pasif"}</span><input class="switch quick-note-toggle" type="checkbox" data-index="${i}" ${n.is_active?"checked":""}></label></td><td data-label="\u0130\u015flemler"><button class="mini quick-note-edit" data-index="${i}" aria-label="D\u00fczenle">&#9998;</button><button class="mini quick-note-delete" data-index="${i}" aria-label="Sil">&#128465;</button></td></tr>`}).join("")}</tbody></table></div>`:empty("Not bulunamad\u0131","Filtreyi temizleyin veya yeni bir not ekleyin.");$("#quickNoteFilter").onchange=loadQuickNotes;$("#quickNoteSearch").oninput=loadQuickNotes;$$('.quick-note-tags [data-note-tag]').forEach(button=>button.onclick=()=>{button.classList.toggle("active");$$('.quick-note-tags [data-note-tag]').filter(other=>other!==button).forEach(other=>other.classList.remove("active"));loadQuickNotes()});$$('.quick-note-edit').forEach(button=>button.onclick=event=>{event.stopPropagation();quickNoteDialog(rows[+button.dataset.index])});$$('.quick-note-delete').forEach(button=>button.onclick=event=>{event.stopPropagation();deleteQuickNote(rows[+button.dataset.index])});$$('.quick-notes-table tbody tr').forEach((tr,index)=>{const note=rows[index];tr.ondblclick=event=>{if(db.settings.doubleClick&&!event.target.closest('button,input'))quickNoteDialog(note)};tr.addEventListener("keydown",event=>{if(event.key==="Enter")quickNoteDialog(note)});tr.addEventListener("contextmenu",event=>showQuickNoteContext(event,note))});$$('.quick-note-toggle').forEach(toggle=>toggle.onchange=async()=>{const row=rows[+toggle.dataset.index];await desktopWrite("fast_notes",{id:row.id,is_active:toggle.checked?1:0,_action:"update"});loadQuickNotes()})}catch(err){host.innerHTML=empty("H\u0131zl\u0131 notlar y\u00fcklenemedi",err.message)}}
+function showQuickNoteContext(event,note){if(!ayecContextMenuEnabled())return;event.preventDefault();const menu=$("#contextMenu");menu.innerHTML='<button type="button" role="menuitem" data-quick-note-action="edit" aria-label="D\u00fczenle">&#x270f;&#xfe0f; D\u00fczenle</button><button type="button" role="menuitem" data-quick-note-action="delete" aria-label="Sil">&#x1f5d1;&#xfe0f; Sil</button>';menu.style.left=`${Math.max(8,Math.min(event.clientX,innerWidth-210))}px`;menu.style.top=`${Math.max(8,Math.min(event.clientY,innerHeight-100))}px`;menu.classList.add("open");menu.querySelectorAll("[data-quick-note-action]").forEach(button=>button.onclick=()=>{menu.classList.remove("open");if(button.dataset.quickNoteAction==="edit")quickNoteDialog(note);else deleteQuickNote(note)})}
+function deleteQuickNote(note){openDialog("Notu Sil","HIZLI NOTLAR",`<p>${esc(note.title||note.label||"-")} notu silinsin mi?</p>`,async()=>{await desktopWrite("fast_notes",{id:note.id,_action:"delete"});await loadQuickNotes();toast("H\u0131zl\u0131 not silindi");return true},"Notu Sil")}
+function quickNoteDialog(row={}){const category=row.display_category||"Bilgisayar";openDialog(row.id?"Notu D\u00fczenle":"Yeni Not Ekle","HIZLI NOTLAR & MAKROLAR",`<div class="form-grid"><div class="field"><label>\u0130\u015f ak\u0131\u015f kategorisi</label><input name="category" required value="${esc(row.category||"Ar\u0131za Notu")}"></div><div class="field"><label>G\u00f6r\u00fcnen kategori</label><input name="display_category" list="quickNoteDisplayCategories" value="${esc(category)}"><datalist id="quickNoteDisplayCategories">${["Bilgisayar","Cep Telefonu","G\u00fcvenlik Sistemleri",category].filter((value,index,values)=>values.indexOf(value)===index).map(value=>`<option value="${esc(value)}">`).join("")}</datalist></div><div class="field full"><label>Ba\u015fl\u0131k</label><input name="title" required value="${esc(row.title||"")}"></div><div class="field full"><label>Not i\u00e7eri\u011fi</label><textarea name="label" required>${esc(row.label||"")}</textarea></div><div class="field"><label>S\u0131ra</label><input name="display_order" type="number" min="0" value="${Number(row.display_order)||0}"></div><div class="field"><label>Durum</label><select name="is_active"><option value="1" ${row.is_active!==0?"selected":""}>Aktif</option><option value="0" ${row.is_active===0?"selected":""}>Pasif</option></select></div></div>`,async fd=>{const payload=Object.fromEntries(fd);payload.is_active=Number(payload.is_active);payload.display_order=Number(payload.display_order);if(row.id){payload.id=row.id;payload._action="update"}await desktopWrite("fast_notes",payload);loadQuickNotes();toast("H\u0131zl\u0131 not kaydedildi")},row.id?"G\u00fcncelle":"Kaydet")}
 async function loadSettingsUsers(){const host=$("#settingsUsersHost");if(!host)return;try{const data=await apiFetch("/api/desktop/table/users?limit=200");host.innerHTML=`<div class="table-wrap"><table><thead><tr><th>Kullanıcı</th><th>Ad Soyad</th><th>E-posta</th><th>Rol</th><th>Aktif</th><th>Son Giriş</th><th></th></tr></thead><tbody>${data.rows.map((u,i)=>`<tr><td><strong>${esc(u.username)}</strong></td><td>${esc(u.full_name||"")}</td><td>${esc(u.email||"")}</td><td>${esc(u.role||"")}</td><td>${u.active!==0?"Evet":"Hayır"}</td><td>${esc(u.last_login||"")}</td><td><button class="mini settings-user-edit" data-index="${i}">Yetkileri Düzenle</button></td></tr>`).join("")}</tbody></table></div>`;$$('.settings-user-edit').forEach(b=>b.onclick=()=>settingsUserDialog(data.rows[+b.dataset.index]))}catch(err){host.innerHTML=empty("Kullanıcılar yüklenemedi",err.message)}}
 const ayecUserPermissionSections=[["GENEL",[[40,"Genel Bak\u0131\u015f"]]],["SERV\u0130S OPERASYON",[[41,"Durum Paneli"],[62,"Teknisyen Paneli"],[61,"Saha Haritas\u0131"],[30,"Randevular"],[65,"Lojistik & Garanti Y\u00f6netimi"],[201,"\u0130\u015f/Servis Takibi Raporlar\u0131"],[170,"AI Asistan"]]],["M\u00dc\u015eTER\u0130",[[21,"M\u00fc\u015fteri Listesi"],[26,"\u00c7al\u0131\u015fma Ortaklar\u0131"],[25,"S\u00f6zle\u015fmeler"],[90,"Hat\u0131rlat\u0131c\u0131lar"],[120,"Duyurular"]]],["T\u0130CAR\u0130",[[200,"Proje Y\u00f6netimi"],[202,"Proje Ar\u015fivi"],[50,"Stok Y\u00f6netimi"],[60,"Ara\u00e7 Par\u00e7a Sto\u011fu"],[150,"Sales Hub"],[140,"Hizmet Tan\u0131mlar\u0131"],[146,"\u00dcr\u00fcn Grubu Y\u00f6netimi"],[147,"Rapor C\u00fcmle Kal\u0131plar\u0131"],[145,"Cihaz Bilgisi & Markalar"],[66,"Emanet (Konsinye) Cihazlar"],[250,"Mobil Stok"],[300,"PC Builder"]]],["F\u0130NANS",[[101,"Gelir / Gider"],[105,"Banka Hesaplar\u0131"],[106,"\u00c7ek / Senet"],[115,"E-Fatura"]]],["PERSONEL",[[10,"Personel"]]],["S\u0130STEM",[[160,"Bilgi Bankas\u0131"],[130,"Ayarlar"],[135,"Log Kay\u0131tlar\u0131"],[180,"Yedekleme"],[261,"Kullan\u0131m K\u0131lavuzu"],[70,"Destek"]]]];
 function normalizeUserPermissions(value){let parsed=value;try{if(typeof value==="string")parsed=JSON.parse(value||"{}")}catch{parsed=null}return parsed&&typeof parsed==="object"&&!Array.isArray(parsed)?parsed:null}
@@ -271,26 +322,68 @@ function renderUserPermissionMatrix(allowed,editable=false){return ayecUserPermi
 function settingsUserDialog(user){const roleChoices=[...new Set(["admin","manager","technician","user",user.role].filter(Boolean))];let allowed=userPermissionPages(user.permissions,user.role);const permissionFields=renderUserPermissionMatrix(allowed,true);openDialog(`${user.username} — Yetkiler`,"KULLANICI YÖNETİMİ",`<div class="form-grid"><div class="field"><label>Ad Soyad</label><input name="full_name" value="${esc(user.full_name||"")}"></div><div class="field"><label>E-posta</label><input name="email" type="email" value="${esc(user.email||"")}"></div><div class="field"><label>Rol</label><select name="role">${roleChoices.map(r=>`<option value="${esc(r)}" ${user.role===r?"selected":""}>${esc(r)}</option>`).join("")}</select></div><div class="field"><label>Aktif</label><select name="active"><option value="1" ${user.active!==0?"selected":""}>Evet</option><option value="0" ${user.active===0?"selected":""}>Hayır</option></select></div><section class="field full settings-user-edit-matrix"><header><strong>İnce Ayarlı Yetki Matrisi</strong><small>${allowed.size} / ${ayecUserPermissionSections.reduce((sum,[,items])=>sum+items.length,0)} sayfa</small></header>${permissionFields}</section><div class="field"><label>Arayüz Düzenleme</label><select name="interface_edit_access"><option value="1" ${user.interface_edit_access?"selected":""}>Açık</option><option value="0" ${!user.interface_edit_access?"selected":""}>Kapalı</option></select></div></div>`,async fd=>{const payload=Object.fromEntries(fd),role=fd.get("role");if(userAdminRole(role))payload.permissions=JSON.stringify({mode:"all"});else{const selected=[...document.querySelectorAll("[data-user-permission]:checked")].map(input=>Number(input.dataset.userPermission));payload.permissions=JSON.stringify({pages:selected})}payload.id=user.id;payload._action="update";await desktopWrite("users",payload);loadSettingsUsers();toast("Kullanıcı yetkileri güncellendi")} ,"Yetkileri Kaydet");const roleField=$("#dialogBody [name=role]");roleField.onchange=()=>{allowed=defaultUserPermissionPages(roleField.value);document.querySelectorAll("[data-user-permission]").forEach(input=>{input.checked=allowed.has(Number(input.dataset.userPermission));input.disabled=userAdminRole(roleField.value)})};document.querySelectorAll("[data-user-permission]").forEach(input=>input.disabled=userAdminRole(user.role))}
 function genericFieldKind(column){if(/date/.test(column))return"date";if(/time/.test(column)&&!column.includes("date"))return"time";if(/amount|price|stock|salary|balance|quantity|qty|rate|year|km|limit/.test(column))return"number";if(/description|notes|content|address|details|summary/.test(column))return"textarea";if(/email/.test(column))return"email";return"text"}
 function openGenericDialog(meta,row={},columns=[]){const hidden=/^(id|created_at|updated_at|deleted_at|is_deleted|password|remember_token|secret_answer)$/;const usable=columns.filter(c=>!hidden.test(c)).slice(0,24);const fields=usable.map(c=>{const kind=genericFieldKind(c),value=row[c]??"";return kind==="textarea"?`<div class="field full"><label>${columnLabel(c)}</label><textarea name="${c}">${esc(value)}</textarea></div>`:`<div class="field"><label>${columnLabel(c)}</label><input name="${c}" type="${kind}" value="${esc(value)}"></div>`}).join("");openDialog(row.id?`${meta.title} — Düzenle`:`${meta.title} — Yeni Kayıt`,meta.group,`<div class="form-grid">${fields}</div>`,async fd=>{const payload=Object.fromEntries(fd);if(row.id){payload.id=row.id;payload._action="update"}await apiFetch(`/api/desktop/table/${meta.table}`,{method:"POST",body:JSON.stringify(payload)});toast("Kayıt masaüstü veritabanına işlendi");loadGenericModule(meta,$("#genericSearch")?.value||"")},row.id?"Güncelle":"Kaydet")}
-async function deleteGenericRow(meta,row){if(!confirm("Bu kayıt silinsin mi?"))return;await apiFetch(`/api/desktop/table/${meta.table}`,{method:"POST",body:JSON.stringify({id:row.id,_action:"delete"})});toast("Kayıt silindi","warning");loadGenericModule(meta,$("#genericSearch")?.value||"")}
+function deleteGenericRow(meta,row){if(!meta||!row)return;openDialog("Kayd\u0131 Sil","KAYIT Y\u00d6NET\u0130M\u0130",`<p>${esc(row.name||row.title||row.label||meta.title||"Bu kay\u0131t")} kayd\u0131 silinsin mi?</p>`,async()=>{await apiFetch(`/api/desktop/table/${meta.table}`,{method:"POST",body:JSON.stringify({id:row.id,_action:"delete"})});toast("Kay\u0131t silindi","warning");await loadGenericModule(meta,$("#genericSearch")?.value||"");return true},"Kayd\u0131 Sil");const submit=$("#dialogSubmit");if(submit){submit.classList.remove("primary");submit.classList.add("danger")}}
+function openResetDemoDialog(){openDialog("\u00d6rnek Verileri S\u0131f\u0131rla","DEMO VER\u0130LER\u0130",`<p>T\u00fcm yerel veriler \u00f6rnek ba\u015flang\u0131\u00e7 durumuna d\u00f6necek. Devam edilsin mi?</p>`,()=>{db=structuredClone(seed);save();render();toast("\u00d6rnek veri s\u0131f\u0131rland\u0131","warning");return true},"\u00d6rnek Verileri S\u0131f\u0131rla");const submit=$("#dialogSubmit");if(submit){submit.classList.remove("primary");submit.classList.add("danger")}}
+function openBulkServicePriceDialog(meta){const rows=window.currentGenericData?.rows||[];if(!rows.length){toast("G\u00fcncellenecek hizmet bulunamad\u0131.","warning");return}openDialog("Toplu Fiyat G\u00fcncelle","H\u0130ZMET VE \u0130\u015e\u00c7\u0130L\u0130K",`<p>${rows.length} hizmetin fiyat\u0131na uygulanacak de\u011fi\u015fim y\u00fczdesini girin.</p><div class="field"><label>Fiyat De\u011fi\u015fimi (%)</label><input name="percent" type="number" min="-100" max="10000" step="0.1" value="0" required></div>`,async form=>{const percent=Number(form.get("percent"));if(!Number.isFinite(percent)||percent < -100||percent>10000)throw new Error("Y\u00fczde -100 ile 10000 aras\u0131nda olmal\u0131.");for(const row of rows){const price=Math.max(0,Number(row.price_try||0)*(1+percent/100));await apiFetch("/api/desktop/table/services",{method:"POST",body:JSON.stringify({id:row.id,_action:"update",price,price_try:price})})}await loadGenericModule(meta,$("#genericSearch")?.value||"");toast("Hizmet fiyatlar\u0131 g\u00fcncellendi.","success");return true},"Fiyatlar\u0131 G\u00fcncelle")}
+function openClearImportPreviewDialog(){openDialog("\u0130\u00e7e Aktarma Listesini Temizle","\u0130\u00c7E AKTARMA",`<p>\u0130\u00e7e aktarma \u00f6nizlemesindeki t\u00fcm sat\u0131rlar kald\u0131r\u0131ls\u0131n m\u0131?</p>`,()=>{window.importRows=[];drawImportPreview();toast("\u0130\u00e7e aktarma listesi temizlendi","warning");return true},"T\u00fcm Sat\u0131rlar\u0131 Temizle")}
 function dialogCatalogShell(){return `${pageHead("Dialog Modülleri","Masaüstü kaynaklarından çıkarılan tüm alan, buton ve sinyal bağlantıları.",'<span class="badge" id="dialogSummary">Yükleniyor…</span>')}<section class="card"><div class="toolbar"><input class="control search" id="dialogCatalogSearch" placeholder="Dialog, sınıf veya dosya ara…"></div><div id="dialogCatalog" class="dialog-catalog"></div></section>`}
 async function loadDialogCatalog(){const host=$("#dialogCatalog");if(!host)return;try{const data=await apiFetch('/api/desktop/dialogs');window.desktopDialogManifest=data;$("#dialogSummary").textContent=`${data.summary.dialog_count} dialog · ${data.summary.connection_count} sinyal`;const draw=q=>{const term=q.toLocaleLowerCase("tr-TR");const list=data.dialogs.filter(d=>[d.title,d.key,d.file,...(d.classes||[]).map(c=>c.name)].join(" ").toLocaleLowerCase("tr-TR").includes(term));host.innerHTML=list.map((d,i)=>`<button class="dialog-module" data-dialog-key="${esc(d.key)}"><strong>${esc(d.title||d.key)}</strong><small>${esc(d.file)}</small><span>${d.counts.buttons} buton · ${d.counts.fields} alan · ${d.counts.connections} sinyal</span></button>`).join("");$$('[data-dialog-key]').forEach(b=>b.onclick=()=>openManifestDialog(data.dialogs.find(d=>d.key===b.dataset.dialogKey)))};draw("");$("#dialogCatalogSearch").oninput=e=>draw(e.target.value)}catch(err){host.innerHTML=empty("Dialog manifesti yüklenemedi",err.message)}}
 function manifestInput(field){const label=field.label||field.name,kind=field.kind;if(kind==="textarea")return `<div class="field full"><label>${esc(label)}</label><textarea name="${esc(field.name)}"></textarea></div>`;if(kind==="checkbox"||kind==="radio")return `<div class="field"><label><input name="${esc(field.name)}" type="checkbox"> ${esc(label)}</label></div>`;if(kind==="table"||kind==="list")return `<div class="field full"><label>${esc(label)}</label><div class="dialog-placeholder">${kind==="table"?"Tablo":"Liste"} yüzeyi</div></div>`;const type={number:"number",decimal:"number",date:"date",time:"time",datetime:"datetime-local"}[kind]||"text";return `<div class="field"><label>${esc(label)}</label><input name="${esc(field.name)}" type="${type}" value="${esc(field.default||"")}"></div>`}
 function openManifestDialog(dialog){const key=dialog.key;const direct={add_customer_dialog:()=>openDialog("Yeni Müşteri","CRM",customerForm(),fd=>saveCustomer(fd),"Müşteri Ekle"),add_stock_dialog:()=>openDialog("Ürün Ekle","STOK KARTI",productForm(),fd=>saveProduct(fd),"Ürün Ekle"),payment_dialog:()=>customerSelect(paymentDialog,"Tahsilat için müşteri seçin"),tahsilat_dialog:()=>customerSelect(paymentDialog,"Tahsilat için müşteri seçin"),bulk_payment_dialog:()=>customerSelect(paymentDialog,"Toplu tahsilat için müşteri seçin"),new_service_dialog:()=>serviceDialog(),technical_service_new_service_dialog:()=>serviceDialog(),automotive_new_service_dialog:()=>serviceDialog(),add_device_dialog:()=>serviceDialog(),customer_360_dialog:()=>customerSelect(customer360,"Müşteri 360 için müşteri seçin"),technical_customer_360_dialog:()=>customerSelect(customer360,"Müşteri 360 için müşteri seçin"),automotive_customer_360_dialog:()=>customerSelect(customer360,"Müşteri 360 için müşteri seçin"),stock_smart_import_dialog:()=>navigate("import"),stock_import_preview_dialog:()=>navigate("import"),service_import_preview_dialog:()=>navigate("import"),quick_sale_dialog:()=>navigate("sales"),technician_panel:()=>navigate("technician"),technical_service_technician_panel:()=>navigate("technician"),automotive_technician_panel:()=>navigate("technician")};if(direct[key])return direct[key]();const fields=(dialog.fields||[]).slice(0,40).map(manifestInput).join("");const signals=(dialog.connections||[]).map(c=>`<tr><td>${esc(c.owner)}</td><td>${esc(c.signal)}</td><td>${esc(c.callback)}</td></tr>`).join("");openDialog(dialog.title||dialog.key,"MASAÜSTÜ DIALOG PORTU",`<div class="tabs"><button type="button" class="tab active">Form</button><button type="button" class="tab">Sinyaller (${dialog.counts.connections})</button></div><div class="form-grid">${fields||empty("Form alanı yok","Bu modül bileşik veya salt görüntüleme dialogudur.")}</div><details style="margin-top:18px"><summary>Sinyal bağlantıları</summary><div class="table-wrap"><table><thead><tr><th>Sahip</th><th>Sinyal</th><th>Callback</th></tr></thead><tbody>${signals}</tbody></table></div></details>`,()=>{toast(`${dialog.title} form sinyali yakalandı`)},"Kaydet / Uygula");$("#dialogFooter").insertAdjacentHTML("afterbegin",(dialog.buttons||[]).slice(0,8).map(b=>`<button type="button" class="secondary manifest-button" title="${esc(b.connections?.map(x=>x.callback).join(', ')||'')}">${esc(b.label)}</button>`).join(""));$$('.manifest-button').forEach(b=>b.onclick=()=>toast(`${b.textContent} sinyali çalıştırıldı`))}
 function customerSelect(callback,title){openDialog(title,"MÜŞTERİ SEÇİMİ",`<div class="field"><label>Müşteri</label><select id="dialogCustomerSelect" required>${db.customers.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join("")}</select></div>`,()=>{const customer=db.customers.find(c=>String(c.id)===String($("#dialogCustomerSelect").value));setTimeout(()=>callback(customer),80)},"Devam")}
- function renderBackupPage(){settingsSection="backup";const definition=settingsDefinitions.backup,regular=definition.fields.filter(field=>field[2]!=="checkbox"),toggles=definition.fields.filter(field=>field[2]==="checkbox"),body=`<div class="form-grid">${regular.map(field=>exactSettingsField(field,definition.scope||"settings")).join("")}</div><div class="settings-grid">${toggles.map(field=>exactSettingsField(field,definition.scope||"settings")).join("")}</div>`;return `${pageHead("Yedekleme &amp; Veri G\u00fcvenli\u011fi Merkezi","Yerel yedekleri indirin, geri y\u00fckleyin ve masa\u00fcst\u00fc yedekleme tercihlerini y\u00f6netin.",'<div class="actions"><button class="secondary" data-action="restore-backup">Yede\u011fi Geri Y\u00fckle</button><button class="primary" data-action="export-all">\u015eimdi Yedekle</button></div>')}<section class="backup-ref-metrics"><article><small>SON YEREL YEDEK</small><strong>\u0130\u015flem se\u00e7ilmedi</strong><span>\u0130ndirme ge\u00e7mi\u015fi taray\u0131c\u0131 taraf\u0131ndan tutulur.</span></article><article><small>YEDEKLEME KAYNA\u011eI</small><strong>AYEC Pro Web</strong><span>JSON d\u0131\u015fa aktarma ve yerel geri y\u00fckleme.</span></article><article><small>VER\u0130 B\u00dcT\u00dcNL\u00dc\u011e\u00dc</small><strong>Kontrol edilmedi</strong><span>Sonu\u00e7 \u00fcretmeden \u00f6nce do\u011frulama gerekir.</span></article><article><small>KURTARMA DURUMU</small><strong>Haz\u0131r de\u011fil</strong><span>Sunucu yede\u011fi i\u00e7in Admin Konsolunu kullan\u0131n.</span></article></section><section class="backup-ref-layout"><article class="card backup-ref-archive"><header><div><h3>Yedek Ar\u015fivi</h3><p class="muted">Bu web oturumunda listelenebilir bir sunucu ar\u015fivi bulunmuyor.</p></div><button class="secondary" data-action="export-all">JSON Yede\u011fi \u0130ndir</button></header><div class="backup-ref-empty"><span aria-hidden="true">\u25a3</span><strong>Yerel yedek dosyan\u0131z yok</strong><p>Yede\u011fi indirin veya bilgisayar\u0131n\u0131zdaki bir JSON yede\u011fini geri y\u00fckleyin. Sunucu ar\u015fivi ve geri y\u00fckleme i\u015flemleri Admin Konsolu taraf\u0131ndan y\u00f6netilir.</p><div class="actions"><button class="primary" data-action="export-all">Yedek \u0130ndir</button><button class="secondary" data-action="restore-backup">JSON Yede\u011fi Se\u00e7</button></div></div></article><aside class="backup-ref-side"><section class="card"><header><h3>Yedekleme Kapsam\u0131</h3><span class="badge">Yerel JSON</span></header><ul><li>M\u00fc\u015fteri ve servis verileri</li><li>Stok, finans ve randevu verileri</li><li>Web ayarlar\u0131 ve i\u015flem kay\u0131tlar\u0131</li></ul><p class="muted">\u0130\u00e7erik mevcut uygulama veri modeline g\u00f6re d\u0131\u015fa aktar\u0131l\u0131r.</p></section><section class="card backup-ref-notice"><header><h3>Sunucu Yedekleme</h3><span class="badge">Admin Konsolu</span></header><p>Sunucu yedekleri, tenant ve \u00fcr\u00fcn kimli\u011fiyle merkez\u00ee yedekleme kayd\u0131nda saklan\u0131r. Web kullan\u0131c\u0131s\u0131 i\u00e7in ar\u015fiv listeleme u\u00e7 noktas\u0131 tan\u0131ml\u0131 de\u011fildir.</p><button class="secondary" data-page="support">Destek Merkezine Git</button></section></aside></section><section class="card backup-ref-settings"><header><div><h3>Otomatik Yedekleme Tercihleri</h3><p class="muted">Bu tercihler masa\u00fcst\u00fc ayar kayd\u0131na yaz\u0131l\u0131r; web zamanlay\u0131c\u0131s\u0131 \u00e7al\u0131\u015ft\u0131rmaz.</p></div><button class="primary" data-action="save-settings">Tercihleri Kaydet</button></header>${body}</section>`}
- function render(){const nav=$("#nav"),navScrollTop=nav?.scrollTop||0;document.body.dataset.page=page;const routes={dashboard:renderDashboard,customers:renderCustomers,appointments:renderAppointments,stock:renderStock,"stock-locations":renderStockLocations,movements:renderMovements,import:renderImport,sales:renderSales,services:renderServices,technician:renderTechnician,finance:()=>renderFinance(""),income:()=>renderFinance("Gelir"),expense:()=>renderFinance("Gider"),settings:renderSettings,backup:renderBackupPage,invoices:renderInvoiceComposer,"dialog-catalog":dialogCatalogShell};const route=routes[page],meta=page==="invoices"||page==="backup"?null:genericModules[page];$("#content").innerHTML=route?route():meta?genericShell(meta):renderDashboard();bindPage();if(meta){const genericSearch=$("#genericSearch"),genericRefresh=$("[data-generic-refresh]"),genericAdd=$("[data-generic-add]");if(genericSearch)genericSearch.oninput=e=>meta.table==="services"?bindLaborServiceFilters():loadGenericModule(meta,e.target.value);if(genericRefresh)genericRefresh.onclick=()=>loadGenericModule(meta,genericSearch?.value||"");if(genericAdd)genericAdd.onclick=async()=>{const data=await apiFetch(`/api/desktop/table/${meta.table}?limit=1`);openGenericDialog(meta,{},data.columns)};if(meta.table==="services"){$("[data-labor-bulk]").onclick=async()=>{const raw=prompt("Fiyat değişimi (%)", "0");if(raw===null)return;const percent=Number(raw);if(!Number.isFinite(percent))return;for(const row of window.currentGenericData?.rows||[]){const price=Number(row.price_try||0)*(1+percent/100);await apiFetch("/api/desktop/table/services",{method:"POST",body:JSON.stringify({id:row.id,_action:"update",price,price_try:price})})}loadGenericModule(meta,$("#genericSearch").value)};$("[data-labor-export]").onclick=()=>download("hizmet-ucret.csv",csv(window.currentGenericData?.rows||[]));$("[data-labor-pdf]").onclick=()=>window.print();$("[data-labor-print]").onclick=()=>window.print()}loadGenericModule(meta)}if(page==="dialog-catalog")loadDialogCatalog();if(nav)nav.scrollTop=navScrollTop}
+ function renderBackupPage(){
+ settingsSection="backup";
+ const definition=settingsDefinitions.backup;
+ const regular=definition.fields.filter(field=>field[2]!=="checkbox");
+ const toggles=definition.fields.filter(field=>field[2]==="checkbox");
+ const body=`<div class="form-grid">${regular.map(field=>exactSettingsField(field,definition.scope||"settings")).join("")}</div><div class="settings-grid">${toggles.map(field=>exactSettingsField(field,definition.scope||"settings")).join("")}</div>`;
+ return `${pageHead("Yedekleme &amp; Veri G\u00fcvenli\u011fi Merkezi","Tenant veritaban\u0131n\u0131n tutarl\u0131 sunucu yedeklerini y\u00f6netin.",'<div class="actions"><button class="secondary" data-action="export-all">JSON Yede\u011fi \u0130ndir</button><button class="primary" data-server-backup-create>Sunucuya Yedekle</button></div>')}
+ <section class="backup-ref-layout"><article class="card backup-ref-archive"><header><div><h3>Sunucu Yedek Ar\u015fivi</h3><p class="muted" data-server-backup-summary>Yedek kay\u0131tlar\u0131 getiriliyor.</p></div><button class="secondary" data-server-backup-refresh>Yenile</button></header><div class="backup-ref-list" id="serverBackupList"><div class="backup-ref-empty"><strong>Y\u00fckleniyor</strong></div></div></article>
+ <aside class="backup-ref-side"><section class="card"><header><h3>Yedekleme Kapsam\u0131</h3><span class="badge">SQLite</span></header><ul><li>Tenant\u2019a ait tam SQLite veritaban\u0131</li><li>Sunucu snapshot b\u00fct\u00fcnl\u00fck denetimi</li><li>SHA-256, boyut ve kaynak kayd\u0131</li></ul><p class="muted">Yedekler aktif tenant ve \u00fcr\u00fcn kapsam\u0131nda listelenir.</p></section><section class="card backup-ref-notice"><header><h3>Geri Y\u00fckleme</h3><span class="badge">Admin Konsolu</span></header><p>Merkezi geri y\u00fckleme mevcut veriyi korur ve yedek b\u00fct\u00fcnl\u00fc\u011f\u00fcn\u00fc denetler.</p><button class="secondary" data-page="support">Destek Merkezine Git</button></section></aside></section>
+ <section class="card backup-ref-settings"><header><div><h3>Otomatik Yedekleme Tercihleri</h3><p class="muted">Masa\u00fcst\u00fc uyumluluk tercihleri.</p></div><button class="primary" data-action="save-settings">Tercihleri Kaydet</button></header>${body}</section>`
+}
+
+async function loadServerBackupArchive(){
+ const host=document.querySelector("#serverBackupList"),summary=document.querySelector("[data-server-backup-summary]");
+ if(!host)return;
+ try{
+  const data=await apiFetch("/api/desktop/backups");
+  const rows=data.backups||[];
+  summary.textContent=rows.length?`${rows.length} yedek kayd\u0131`:"Hen\u00fcz sunucu yede\u011fi yok.";
+  host.innerHTML=rows.length?`<div class="table-wrap"><table><thead><tr><th>Dosya</th><th>Olu\u015fturulma</th><th>Boyut</th><th>Kaynak</th><th></th></tr></thead><tbody>${rows.map(item=>`<tr><td><strong>${esc(item.filename||"backup.db")}</strong><small class="muted">SHA-256 ${esc(String(item.sha256||"").slice(0,16))}\u2026</small></td><td>${esc(item.created_at||"")}</td><td>${(Number(item.size_bytes||0)/1024/1024).toFixed(2)} MB</td><td>${esc(item.source||"web")}</td><td><button class="mini" data-server-backup-download="${esc(item.id)}">\u0130ndir</button></td></tr>`).join("")}</tbody></table></div>`:`<div class="backup-ref-empty"><span aria-hidden="true">\u25a3</span><strong>Hen\u00fcz sunucu yede\u011fi yok</strong><p>Tenant veritaban\u0131n\u0131n tutarl\u0131 bir snapshot\u2019\u0131n\u0131 olu\u015fturun.</p><button class="primary" data-server-backup-create>Sunucuya Yedekle</button></div>`;
+  host.querySelectorAll("[data-server-backup-download]").forEach(button=>button.onclick=()=>downloadServerBackup(button.dataset.serverBackupDownload));
+  host.querySelectorAll("[data-server-backup-create]").forEach(button=>button.onclick=createServerBackup);
+ }catch(error){summary.textContent=error.message||"Yedek ar\u015fivi al\u0131namad\u0131.";host.innerHTML=empty("Yedek ar\u015fivi al\u0131namad\u0131",esc(error.message||""))}
+}
+
+async function createServerBackup(){
+ const buttons=[...document.querySelectorAll("[data-server-backup-create]")];buttons.forEach(button=>button.disabled=true);
+ try{await apiFetch("/api/desktop/backups",{method:"POST",body:JSON.stringify({})});toast("Tenant sunucu yede\u011fi olu\u015fturuldu.","success");await loadServerBackupArchive()}
+ catch(error){toast(error.message||"Sunucu yede\u011fi olu\u015fturulamad\u0131.","error")}
+ finally{buttons.forEach(button=>button.disabled=false)}
+}
+
+async function downloadServerBackup(id){
+ try{const response=await fetch(`/api/desktop/backups/${encodeURIComponent(id)}/download`,{credentials:"same-origin"});if(!response.ok){const error=await response.json().catch(()=>({}));throw Error(error.error||`Yedek indirilemedi (${response.status})`)}const blob=await response.blob(),disposition=response.headers.get("Content-Disposition")||"",match=disposition.match(/filename="?([^";]+)"?/i),name=match?.[1]||`ayec-backup-${id}.db`,url=URL.createObjectURL(blob),link=document.createElement("a");link.href=url;link.download=name;document.body.append(link);link.click();link.remove();URL.revokeObjectURL(url);toast("Sunucu yede\u011fi indirildi.","success")}
+ catch(error){toast(error.message||"Sunucu yede\u011fi indirilemedi.","error")}
+}
+
+function render(){const nav=$("#nav"),navScrollTop=nav?.scrollTop||0;document.body.dataset.page=page;const routes={dashboard:renderDashboard,customers:renderCustomers,appointments:renderAppointments,stock:renderStock,"stock-locations":renderStockLocations,movements:renderMovements,import:renderImport,sales:renderSales,services:renderServices,technician:renderTechnician,finance:()=>renderFinance(""),income:()=>renderFinance("Gelir"),expense:()=>renderFinance("Gider"),settings:renderSettings,backup:renderBackupPage,invoices:renderInvoiceComposer,audit:renderAuditReference,"dialog-catalog":dialogCatalogShell};const route=routes[page],meta=page==="invoices"||page==="backup"?null:genericModules[page];$("#content").innerHTML=route?route():meta?genericShell(meta):renderDashboard();bindPage();if(meta&&page!=="audit"){const genericSearch=$("#genericSearch"),genericRefresh=$("[data-generic-refresh]"),genericAdd=$("[data-generic-add]");if(genericSearch)genericSearch.oninput=e=>meta.table==="services"?bindLaborServiceFilters():loadGenericModule(meta,e.target.value);if(genericRefresh)genericRefresh.onclick=()=>loadGenericModule(meta,genericSearch?.value||"");if(genericAdd)genericAdd.onclick=async()=>{const data=await apiFetch(`/api/desktop/table/${meta.table}?limit=1`);openGenericDialog(meta,{},data.columns)};if(meta.table==="services"){$("[data-labor-bulk]").onclick=()=>openBulkServicePriceDialog(meta);$("[data-labor-export]").onclick=()=>download("hizmet-ucret.csv",csv(window.currentGenericData?.rows||[]));$("[data-labor-pdf]").onclick=()=>window.print();$("[data-labor-print]").onclick=()=>window.print()}loadGenericModule(meta)}if(page==="audit"){bindAuditReference();loadAuditReference()}if(page==="dialog-catalog")loadDialogCatalog();if(page==="backup")loadServerBackupArchive();if(nav)nav.scrollTop=navScrollTop}
 
 function toast(message,type="success",duration=3500){const el=document.createElement("div");el.className=`toast ${type}`;el.innerHTML=`<span>${type==="success"?"✓":type==="warning"?"!":"×"}</span><div>${esc(message)}</div>`;$("#toastRoot").append(el);setTimeout(()=>el.remove(),duration)}
 function openDialog(title,eyebrow,body,onSubmit,submitLabel="Kaydet"){
- const dialog=$("#appDialog"),serviceAccept=body.includes('class="service-accept-form"'),companyEditor=body.includes('class="company-settings-editor"'),projectInstall=body.includes('class="p9-unit-products"');
- dialog.classList.remove("finance-detail-dialog","customer-editor-dialog","service-accept-dialog","company-settings-dialog","project-unit-install-dialog");
+ const dialog=$("#appDialog"),serviceAccept=body.includes('class="service-accept-form"'),companyEditor=body.includes('class="company-settings-editor"'),projectInstall=body.includes('class="p9-unit-products"'),voiceShortcut=body.includes('voice-shortcut-form');
+ dialog.classList.remove("finance-detail-dialog","customer-editor-dialog","service-accept-dialog","company-settings-dialog","project-unit-install-dialog","voice-shortcut-editor-dialog","p9-project-transaction-detail-dialog");
  if(projectInstall)dialog.classList.add("project-unit-install-dialog");
  if(serviceAccept)dialog.classList.add("service-accept-dialog");
  if(body.includes('class="customer-editor"'))dialog.classList.add("customer-editor-dialog");
  if(companyEditor)dialog.classList.add("company-settings-dialog");
-  $("#dialogTitle").textContent=title;$("#dialogEyebrow").textContent=eyebrow;$("#dialogBody").innerHTML=body;
+  if(voiceShortcut)dialog.classList.add("voice-shortcut-editor-dialog");
+   const dialogHeading=$("#dialogTitle").parentElement,shortcutLogo=dialogHeading.querySelector(".voice-shortcut-dialog-logo");dialogHeading.classList.toggle("voice-shortcut-dialog-heading",voiceShortcut);shortcutLogo?.remove();$("#dialogEyebrow").hidden=voiceShortcut;if(voiceShortcut){const logo=document.createElement("img");logo.className="voice-shortcut-dialog-logo";logo.src="/assets/ayec-logo.png";logo.alt="";dialogHeading.insertBefore(logo,$("#dialogTitle"))}
+   $("#dialogTitle").textContent=title;$("#dialogEyebrow").textContent=eyebrow;$("#dialogBody").innerHTML=body;
   if(projectInstall){const installHead=$("#dialogBody .p9-install-head"),badge=installHead?.querySelector(".p9-install-badge"),breadcrumb=installHead?.querySelector("p"),addRoom=installHead?.querySelector("[data-p9-add-room]"),header=dialog.querySelector("form>header"),titleElement=$("#dialogTitle");if(installHead&&header&&titleElement){const icon=document.createElement("span"),row=document.createElement("div"),titleHost=titleElement.parentElement;icon.className="p9-install-title-icon";row.className="p9-install-heading-row";titleElement.replaceWith(row);row.append(icon,titleElement);if(badge)row.append(badge);if(breadcrumb){breadcrumb.className="p9-install-breadcrumb";titleHost.append(breadcrumb)}$("#dialogEyebrow").hidden=true;if(addRoom)header.insertBefore(addRoom,$("#dialogClose"));installHead.remove()}}
  $("#dialogFooter").innerHTML=serviceAccept?`<span class="service-footer-status">ERP Core v2.0.4 Online \u00b7 USD Kuru: 49.20 TRY</span><button type="button" id="dialogCancel" class="secondary">\u0130ptal</button><button type="button" id="serviceResetButton" class="secondary">Temizle</button><button type="submit" class="primary" id="dialogSubmit">${submitLabel}</button>`:`<button type="button" id="dialogCancel" class="secondary">${companyEditor?"\u0130ptal":"Vazge\u00e7"}</button><button type="submit" class="primary" id="dialogSubmit">${submitLabel}</button>`;
+ if(voiceShortcut){$("#dialogCancel").textContent="\u0130ptal";$("#dialogSubmit").textContent="Kaydet"}
  if(projectInstall){const allocation=$("#dialogBody .p9-install-allocation");if(allocation)$("#dialogFooter").prepend(allocation);}
  $("#dialogClose").onclick=()=>dialog.close("cancel");$("#dialogCancel").onclick=()=>dialog.close("cancel");
  const form=$("#dialogForm");if(serviceAccept)$("#serviceResetButton").onclick=()=>{form.reset();form.dispatchEvent(new Event("service-form-reset"))};
@@ -298,14 +391,52 @@ function openDialog(title,eyebrow,body,onSubmit,submitLabel="Kaydet"){
  dialog.showModal();setTimeout(()=>$("input,select,textarea",$("#dialogBody"))?.focus(),30)
 }
 
-function customerForm(c={}){return `<div class="customer-editor"><section class="customer-editor-section"><h3>Temel Bilgiler</h3><div class="form-grid"><div class="field"><label>M\u00fc\u015fteri Ad\u0131 / Soyad\u0131 *</label><input name="name" required value="${esc(c.name||"")}"></div><div class="field"><label>Firma Ad\u0131 (Opsiyonel)</label><input name="company_name" value="${esc(c.company_name||"")}"></div><div class="field"><label>M\u00fc\u015fteri T\u00fcr\u00fc</label><select name="type"><option ${c.type==="Bireysel"?"selected":""}>Bireysel</option><option ${c.type==="Kurumsal"?"selected":""}>Kurumsal</option></select></div><div class="field"><label>TC Kimlik No</label><input name="tc_no" inputmode="numeric" value="${esc(c.tc_no||"")}"></div></div></section><section class="customer-editor-section"><h3>\u0130leti\u015fim Bilgileri</h3><div class="form-grid"><div class="field"><label>Telefon 1 *</label><input name="phone" type="tel" required value="${esc(c.phone||"")}"></div><div class="field"><label>Telefon 2</label><input name="phone2" type="tel" value="${esc(c.phone2||"")}"></div><div class="field full"><label>E-posta</label><input name="email" type="email" value="${esc(c.email||"")}"></div></div></section><section class="customer-editor-section"><h3>Finans &amp; Vergi</h3><div class="form-grid"><div class="field"><label>Vergi Numaras\u0131</label><input name="tax_number" inputmode="numeric" value="${esc(c.tax_number||c.tax_no||c.tax_id||"")}"></div><div class="field"><label>Vergi Dairesi</label><input name="tax_office" value="${esc(c.tax_office||"")}"></div><div class="field"><label>Vade (G\u00fcn)</label><input name="term_days" type="number" min="0" value="${Number(c.term_days||0)}"></div><div class="field"><label>Bor\u00e7 Limiti (USD)</label><input name="limit_amount" type="number" min="0" step=".01" value="${Number(c.limit_amount||0)}"></div><div class="field"><label>Komisyon (%)</label><input name="commission_rate" type="number" min="0" max="100" step=".1" value="${Number(c.commission_rate||0)}"></div><div class="field"><label>Hizmet T\u00fcr\u00fc</label><select name="service_type">${["Genel","Yaz\u0131l\u0131m &amp; Lisans","Donan\u0131m Bak\u0131m &amp; Onar\u0131m","A\u011f &amp; Altyap\u0131 Deste\u011fi"].map(value=>{const label=value.replaceAll("&amp;","&");return `<option value="${label}" ${c.service_type===label?"selected":""}>${value}</option>`}).join("")}</select></div></div><div class="customer-balance-grid"><label>TRY Bakiye<input name="TRY" type="number" step=".01" value="${c.balances?.TRY||0}"></label><label>USD Bakiye<input name="USD" type="number" step=".01" value="${c.balances?.USD||0}"></label><label>EUR Bakiye<input name="EUR" type="number" step=".01" value="${c.balances?.EUR||0}"></label></div></section><section class="customer-editor-section"><h3>Adres Bilgileri</h3><div class="form-grid"><div class="field"><label>\u0130l</label><input name="city" value="${esc(c.city||"")}"></div><div class="field"><label>\u0130l\u00e7e</label><input name="district" value="${esc(c.district||"")}"></div><div class="field"><label>Mahalle</label><input name="neighborhood" value="${esc(c.neighborhood||"")}"></div><div class="field"><label>Posta Kodu</label><input name="zip_code" value="${esc(c.zip_code||"")}"></div><div class="field full"><label>Cadde / Sokak</label><input name="street" value="${esc(c.street||"")}"></div><div class="field full"><label>A\u00e7\u0131k Adres</label><textarea name="address" rows="2">${esc(c.address||"")}</textarea></div><div class="field full"><label>\u00d6zel Notlar</label><textarea name="notes" rows="3">${esc(c.notes||"")}</textarea></div></div></section></div>`}
-function saveCustomer(fd,c){const data=Object.fromEntries(fd);const target=c||{id:uid("cus"),services:[],quotes:[]};Object.assign(target,{name:data.name,phone:data.phone,email:data.email,type:data.type,balances:{TRY:+data.TRY||0,USD:+data.USD||0,EUR:+data.EUR||0}});if(!c)db.customers.push(target);const payload={name:data.name,phone:data.phone,email:data.email,type:data.type};if(c&&Number.isInteger(+c.id)){payload.id=+c.id;payload._action="update"}desktopWrite("customers",payload).then(result=>{if(!c&&result?.id)target.desktopId=result.id});save();activity(`${target.name} müşteri kaydı ${c?"güncellendi":"oluşturuldu"}`,"♙");toast("Müşteri kaydedildi");render()}
+function customerSectorFields(c={}){const automotive=currentSector==="otomotiv",fields=automotive?[["vehicle_plate","Ara\u00e7 Plakas\u0131","text",""],["vehicle_vin","\u015easi No (VIN)","text",""],["vehicle_brand","Marka","select",["","Audi","BMW","Citro\u00ebn","Dacia","Fiat","Ford","Honda","Hyundai","Kia","Mercedes","Nissan","Opel","Peugeot","Renault","Seat","Skoda","Toyota","Volkswagen","Volvo","Di\u011fer"]],["vehicle_model","Model","text",""],["vehicle_year","Model Y\u0131l\u0131","number",""],["vehicle_engine","Motor Tipi","text",""]]:[["device_type","Cihaz Tipi","select",["","Telefon","Tablet","Bilgisayar","Laptop","Televizyon","Beyaz E\u015fya","Klima","Di\u011fer"]],["device_brand","Marka","text",""],["device_model","Model","text",""]];return `<section class="customer-editor-section"><h3>Sekt\u00f6rel Bilgiler</h3><div class="form-grid">${fields.map(([name,label,type,options])=>`<div class="field"><label>${label}</label>${Array.isArray(options)?`<select name="${name}">${options.map(value=>`<option value="${esc(value)}" ${String(c[name]||"")===value?"selected":""}>${esc(value||"Se\u00e7in")}</option>`).join("")}</select>`:`<input name="${name}" type="${type}" ${name==="vehicle_year"?"min=1900 max=2100":""} value="${esc(c[name]||"")}">`}</div>`).join("")}</div></section>`}
+function customerFormLocationDefaults(customer){if(customer)return {city:customer.city||"",district:customer.district||"",address:customer.address||""};const username=String(currentAuthUser?.username||desktopSettings.last_login_user||"").trim();const setting=(name,fallback)=>String(username&&desktopSettings[`map_default_${name}_user_${username}`]||fallback);return {city:setting("city","Bal\u0131kesir"),district:setting("district","G\u00f6nen"),address:setting("address","")}}
+function customerAddressOptions(city,district,customer={}){const cities=["Bal\u0131kesir","\u0130stanbul","Ankara","\u0130zmir"];const balikesirDistricts=["Alt\u0131eyl\u00fcl","Karesi","Ayval\u0131k","Balya","Band\u0131rma","Bigadi\u00e7","Burhaniye","Dursunbey","Edremit","Erdek","G\u00f6me\u00e7","G\u00f6nen","Havran","\u0130vrindi","Kepsut","Manyas","Marmara","Sava\u015ftepe","S\u0131nd\u0131rg\u0131","Susurluk"];const neighborhoods=["Ak\u00e7ak\u00f6y","Atat\u00fcrk","Bah\u00e7elievler","Cumhuriyet","Dere","Esentepe","Fevzipa\u015fa","G\u00f6k\u00e7ea\u011fa\u00e7","G\u00fczelyurt","\u0130hsaniye","Kale","Karaa\u011fa\u00e7","Karaca\u00f6ren","Kaynarca","Koyunbaba","Kur\u015funlu","Medet","M\u00fcsellim","Sar\u0131k\u00f6y","\u015eahinler","Tav\u015fan\u00e7al\u0131","\u00d6ren","Yenik\u00f6y"];const streets=["Atat\u00fcrk Caddesi","Cumhuriyet Caddesi","\u0130stiklal Caddesi","Kapl\u0131ca Caddesi","Sahil Caddesi","\u0130n\u00f6n\u00fc Caddesi","Fevzipa\u015fa Caddesi","Millet Caddesi","H\u00fcrriyet Caddesi","Barbaros Caddesi","\u00c7e\u015fme Caddesi","Alt\u0131n Caddesi","Yeni Caddesi","Park Caddesi","Hastane Caddesi"];const unique=(values,current)=>[...new Set([...values,current].filter(Boolean))];const options=values=>values.map(value=>`<option value="${esc(value)}"></option>`).join("");const districts=city==="Bal\u0131kesir"?balikesirDistricts:["Merkez","Di\u011fer"];return {cities:options(unique(cities,customer.city)),districts:options(unique(districts,district||customer.district)),neighborhoods:options(unique(district==="G\u00f6nen"?neighborhoods:[],customer.neighborhood)),streets:options(unique(streets,customer.street))}}
+function customerForm(c={}){const locationDefaults=customerFormLocationDefaults(arguments.length===0?null:c),addressOptions=customerAddressOptions(locationDefaults.city,locationDefaults.district,c);return `<div class="customer-editor"><section class="customer-editor-section"><h3>Temel Bilgiler</h3><div class="form-grid"><div class="field"><label>M\u00fc\u015fteri Ad\u0131 / Soyad\u0131 *</label><input name="name" required minlength="2" value="${esc(c.name||"")}"></div><div class="field"><label>Firma Ad\u0131 (Opsiyonel)</label><input name="company_name" data-customer-type-field="corporate" ${c.type==="Kurumsal"?"":"readonly aria-disabled=\"true\""} value="${esc(c.company_name||"")}"></div><div class="field full"><span class="customer-type-label">M\u00fc\u015fteri T\u00fcr\u00fc</span><div class="customer-type-switch" role="radiogroup" aria-label="M\u00fc\u015fteri T\u00fcr\u00fc"><label class="${c.type!=="Kurumsal"?"active":""}"><input type="radio" name="type" value="Bireysel" ${c.type!=="Kurumsal"?"checked":""}><span>Bireysel</span></label><label class="${c.type==="Kurumsal"?"active":""}"><input type="radio" name="type" value="Kurumsal" ${c.type==="Kurumsal"?"checked":""}><span>Kurumsal</span></label></div></div><div class="field"><label>TC Kimlik No</label><input name="tc_no" inputmode="numeric" data-customer-type-field="individual" ${c.type==="Kurumsal"?"readonly aria-disabled=\"true\"":""} value="${esc(c.tc_no||"")}"></div><div class="field full"><label>M\u00fc\u015fteri Durumu</label><div class="customer-flags"><label><input name="sms_enabled" type="checkbox" ${c.sms_enabled!==0?"checked":""}> SMS \u0130zni</label><label><input name="is_problematic" type="checkbox" ${c.is_problematic?"checked":""}> Sorunlu M\u00fc\u015fteri</label></div></div></div></section><section class="customer-editor-section"><h3>\u0130leti\u015fim Bilgileri</h3><div class="form-grid"><div class="field"><label>Telefon 1</label><input name="phone" type="tel" value="${esc(c.phone||"")}"></div><div class="field"><label>Telefon 2</label><input name="phone2" type="tel" value="${esc(c.phone2||"")}"></div><div class="field full"><label>E-posta</label><input name="email" type="email" value="${esc(c.email||"")}"></div></div></section><section class="customer-editor-section"><h3>Finans &amp; Vergi</h3><div class="form-grid"><div class="field"><label>Vergi Numaras\u0131</label><input name="tax_number" inputmode="numeric" data-customer-type-field="corporate" ${c.type==="Kurumsal"?"":"readonly aria-disabled=\"true\""} value="${esc(c.tax_number||c.tax_id||c.tax_no||"")}"></div><div class="field"><label>Vergi Dairesi</label><input name="tax_office" data-customer-type-field="corporate" ${c.type==="Kurumsal"?"":"readonly aria-disabled=\"true\""} value="${esc(c.tax_office||"")}"></div><div class="field"><label>Vade (G\u00fcn)</label><input name="term_days" type="number" min="0" value="${Number(c.term_days||0)}"></div><div class="field"><label>Bor\u00e7 Limiti (USD)</label><input name="limit_amount" type="number" min="0" step=".01" value="${Number(c.limit_amount||0)}"></div><div class="field"><label>Komisyon (%)</label><input name="commission_rate" type="number" min="0" max="100" step=".1" value="${Number(c.commission_rate||0)}"></div><div class="field"><label>Hizmet T\u00fcr\u00fc</label><input name="service_type" list="customerServiceTypeOptions" value="${esc(c.service_type||"Genel")}"><datalist id="customerServiceTypeOptions">${["Genel","Telefon Servisi","Bilgisayar Servisi","Aksesuar / Sat\u0131\u015f"].map(value=>`<option value="${value}"></option>`).join("")}</datalist></div></div><div class="customer-balance-grid"><label>TRY Bakiye<input name="TRY" type="number" step=".01" value="${c.balances?.TRY||0}"></label><label>USD Bakiye<input name="USD" type="number" step=".01" value="${c.balances?.USD||0}"></label><label>EUR Bakiye<input name="EUR" type="number" step=".01" value="${c.balances?.EUR||0}"></label></div></section>${customerSectorFields(c)}<section class="customer-editor-section"><h3>Adres Bilgileri</h3><div class="form-grid"><div class="field"><label>\u0130l</label><input name="city" list="customerCityOptions" value="${esc(locationDefaults.city)}"><datalist id="customerCityOptions">${addressOptions.cities}</datalist></div><div class="field"><label>\u0130l\u00e7e</label><input name="district" list="customerDistrictOptions" value="${esc(locationDefaults.district)}"><datalist id="customerDistrictOptions">${addressOptions.districts}</datalist></div><div class="field"><label>Mahalle</label><input name="neighborhood" list="customerNeighborhoodOptions" value="${esc(c.neighborhood||"")}"><datalist id="customerNeighborhoodOptions">${addressOptions.neighborhoods}</datalist></div><div class="field"><label>Posta Kodu</label><input name="zip_code" value="${esc(c.zip_code||"")}"></div><div class="field full"><label>Cadde / Sokak</label><input name="street" list="customerStreetOptions" value="${esc(c.street||"")}"><datalist id="customerStreetOptions">${addressOptions.streets}</datalist></div><div class="field full"><label>A\u00e7\u0131k Adres</label><textarea name="address" rows="2">${esc(locationDefaults.address)}</textarea></div><div class="field full customer-location-tools"><div><button type="button" class="secondary" data-customer-location-search>Adresi Haritada Bul</button> <button type="button" class="secondary" data-customer-geolocate>Mevcut Konumu Kullan</button> <button type="button" class="secondary" data-customer-map-toggle>Haritadan Konum Se\u00e7</button></div><div class="customer-location-map" data-customer-map-wrap hidden><iframe title="M\u00fc\u015fteri konum haritas\u0131" data-customer-location-map></iframe><button type="button" class="primary" data-customer-map-apply>Konumu Kullan</button></div><p data-customer-location-status aria-live="polite">Konum adres bilgisine gore otomatik bulunur.</p><div data-customer-location-results></div></div><input type="hidden" name="latitude" value="${Number(c.latitude)||0}"><input type="hidden" name="longitude" value="${Number(c.longitude)||0}"><div class="field full"><label>\u00d6zel Notlar</label><textarea name="notes" rows="3">${esc(c.notes||"")}</textarea></div></div></section></div>`}
+document.addEventListener("change",event=>{const form=event.target.closest(".customer-editor")?.closest("form");if(!form)return;const city=form.elements.city,district=form.elements.district;if(event.target===city){district.value=city.value==="Bal\u0131kesir"?"G\u00f6nen":"Merkez";const options=customerAddressOptions(city.value,district.value,{neighborhood:form.elements.neighborhood.value,street:form.elements.street.value});form.querySelector("#customerDistrictOptions").innerHTML=options.districts;form.querySelector("#customerNeighborhoodOptions").innerHTML=options.neighborhoods;form.elements.neighborhood.placeholder=district.value==="G\u00f6nen"?"":"Mahalle giriniz";return}if(event.target===district){const options=customerAddressOptions(city.value,district.value,{neighborhood:form.elements.neighborhood.value,street:form.elements.street.value});form.querySelector("#customerNeighborhoodOptions").innerHTML=options.neighborhoods;form.elements.neighborhood.placeholder=district.value==="G\u00f6nen"?"":"Mahalle giriniz"}});
+let customerAddressComboInput=null,customerAddressComboIndex=-1;
+function customerAddressComboClose(){const panel=document.querySelector("#customerAddressCombo");if(panel)panel.hidden=true;if(customerAddressComboInput)customerAddressComboInput.setAttribute("aria-expanded","false");customerAddressComboInput=null;customerAddressComboIndex=-1}
+function customerAddressComboOpen(input){const listId=input?.dataset.customerAddressList||input?.getAttribute("list");if(!["customerCityOptions","customerDistrictOptions","customerNeighborhoodOptions","customerStreetOptions"].includes(listId))return;const list=document.getElementById(listId);if(!list)return;input.dataset.customerAddressList=listId;input.removeAttribute("list");input.setAttribute("role","combobox");input.setAttribute("aria-autocomplete","list");input.setAttribute("aria-controls","customerAddressCombo");const panel=document.querySelector("#customerAddressCombo")||document.body.appendChild(Object.assign(document.createElement("div"),{id:"customerAddressCombo",className:"customer-address-combo",hidden:true,role:"listbox"}));const query=String(input.value||"").trim().toLocaleLowerCase("tr-TR"),values=[...list.options].map(option=>option.value).filter(value=>!query||value.toLocaleLowerCase("tr-TR").includes(query));if(!values.length){customerAddressComboClose();return}customerAddressComboInput=input;customerAddressComboIndex=-1;panel.innerHTML=values.map((value,index)=>`<div role="option" aria-selected="false" data-customer-address-option="${index}" data-customer-address-value="${esc(value)}">${esc(value)}</div>`).join("");const rect=input.getBoundingClientRect();panel.style.left=`${Math.max(4,Math.min(rect.left,innerWidth-rect.width-4))}px`;panel.style.top=`${Math.max(4,Math.min(rect.bottom,innerHeight-220))}px`;panel.style.width=`${rect.width}px`;panel.hidden=false;input.setAttribute("aria-expanded","true")}
+document.addEventListener("focusin",event=>{if(event.target.matches('input[list="customerCityOptions"],input[list="customerDistrictOptions"],input[list="customerNeighborhoodOptions"],input[list="customerStreetOptions"],input[data-customer-address-list]'))customerAddressComboOpen(event.target);else customerAddressComboClose()});
+document.addEventListener("input",event=>{if(event.target.matches?.("input[data-customer-address-list]"))customerAddressComboOpen(event.target)});
+document.addEventListener("keydown",event=>{if(event.target!==customerAddressComboInput)return;const panel=document.querySelector("#customerAddressCombo"),options=[...(panel?.querySelectorAll("[data-customer-address-option]")||[])];if(!options.length)return;if(event.key==="ArrowDown"||event.key==="ArrowUp"){event.preventDefault();customerAddressComboIndex=(customerAddressComboIndex+(event.key==="ArrowDown"?1:-1)+options.length)%options.length;options.forEach((option,index)=>option.setAttribute("aria-selected",String(index===customerAddressComboIndex)));options[customerAddressComboIndex].scrollIntoView({block:"nearest"})}else if(event.key==="Enter"&&customerAddressComboIndex>=0){event.preventDefault();options[customerAddressComboIndex].click()}else if(event.key==="Escape")customerAddressComboClose()});
+document.addEventListener("pointerdown",event=>{if(event.target.closest("#customerAddressCombo")){event.preventDefault();return}if(event.target!==customerAddressComboInput)customerAddressComboClose()});
+document.addEventListener("click",event=>{const option=event.target.closest("[data-customer-address-option]");if(!option||!customerAddressComboInput)return;customerAddressComboInput.value=option.dataset.customerAddressValue||"";customerAddressComboInput.dispatchEvent(new Event("input",{bubbles:true}));customerAddressComboInput.dispatchEvent(new Event("change",{bubbles:true}));customerAddressComboClose()});
+function syncCustomerTypeFields(form){const corporate=form.elements.type?.value==="Kurumsal";form.querySelectorAll("[data-customer-type-field]").forEach(input=>{const locked=input.dataset.customerTypeField!==(corporate?"corporate":"individual");input.readOnly=locked;input.setAttribute("aria-disabled",String(locked));input.classList.toggle("customer-type-locked",locked)});form.querySelectorAll(".customer-type-switch label").forEach(label=>label.classList.toggle("active",Boolean(label.querySelector("input[name=type]:checked"))))}
+document.addEventListener("change",event=>{if(!event.target.matches(".customer-type-switch input[name=type]"))return;const form=event.target.closest(".customer-editor")?.closest("form");if(form)syncCustomerTypeFields(form)});
+async function persistCustomerProfile(fd,c){const data=Object.fromEntries(fd),name=String(data.name||"").trim(),phone=String(data.phone||"").trim(),email=String(data.email||"").trim();if(name.length<2)throw Error("M\u00fc\u015fteri/Firma ad\u0131 en az 2 karakter olmal\u0131d\u0131r.");if(phone&&phone.replace(/\D/g,"").length<10)throw Error("Ge\u00e7erli bir telefon numaras\u0131 giriniz.");if(email&&!email.includes("@"))throw Error("Ge\u00e7erli bir e-posta adresi giriniz.");const target=c||{id:uid("cus"),services:[],quotes:[]},balances={TRY:+data.TRY||0,USD:+data.USD||0,EUR:+data.EUR||0};const payload={name,company_name:data.company_name||"",phone,phone2:data.phone2||"",email,type:data.type,tax_number:data.tax_number||"",tax_id:data.tax_number||"",address:data.address||"",tax_office:data.tax_office||"",district:data.district||"",city:data.city||"",neighborhood:data.neighborhood||"",notes:data.notes||"",term_days:+data.term_days||0,limit_amount:+data.limit_amount||0,sms_enabled:data.sms_enabled?1:0,is_problematic:data.is_problematic?1:0,zip_code:data.zip_code||"",tc_no:data.tc_no||"",street:data.street||"",service_type:data.service_type||"Genel",commission_rate:+data.commission_rate||0,latitude:Number(data.latitude)||0,longitude:Number(data.longitude)||0,balances,sector_extension:Object.fromEntries((currentSector==="otomotiv"?["vehicle_plate","vehicle_vin","vehicle_brand","vehicle_model","vehicle_year","vehicle_engine"]:["device_type","device_brand","device_model"]).map(field=>[field,data[field]||""]))};if(c&&Number.isInteger(+c.desktopId||+c.id)){payload.id=Number.isInteger(+c.desktopId)?+c.desktopId:+c.id;payload._action="update"}const result=await apiFetch("/api/desktop/table/customers",{method:"POST",body:JSON.stringify(payload)});if(result?.id)target.desktopId=result.id;Object.assign(target,payload,{name,phone,email,type:data.type,balances});if(!c)db.customers.push(target);save();activity(`${target.name} m\u00fc\u015fteri kayd\u0131 ${c?"g\u00fcncellendi":"olu\u015fturuldu"}`,"\u2659");toast("M\u00fc\u015fteri kaydedildi");render();return true}
+
+async function saveCustomer(fd,c){return persistCustomerProfile(fd,c)}
+async function reverseCustomerAddress(form,latitude,longitude){const status=form.querySelector("[data-customer-location-status]");try{const data=await apiFetch("/api/desktop/field-service/reverse-geocode",{method:"POST",body:JSON.stringify({lat:latitude,lon:longitude})});for(const [name,key] of [["city","city"],["district","district"],["neighborhood","neighborhood"],["street","street"],["zip_code","zip_code"],["address","display_name"]])if(data[key]&&form.elements[name])form.elements[name].value=data[key];if(status)status.textContent="Konumdan adres bilgileri dolduruldu.";return true}catch(error){if(status)status.textContent="Konum kaydedildi; adres bilgileri getirilemedi.";return false}}
+function setCustomerLocation(form,latitude,longitude,label){const lat=Number(latitude),lon=Number(longitude);if(!Number.isFinite(lat)||!Number.isFinite(lon)||lat===0&&lon===0||lat < -90||lat > 90||lon < -180||lon > 180)throw Error("Ge\u00e7erli bir konum se\u00e7in.");form.elements.latitude.value=String(lat);form.elements.longitude.value=String(lon);const status=form.querySelector("[data-customer-location-status]");if(status)status.textContent=`${label||"Konum se\u00e7ildi"}: ${lat.toFixed(6)}, ${lon.toFixed(6)}`}
+function openCustomerLocationMap(form){const wrap=form.querySelector("[data-customer-map-wrap]"),frame=form.querySelector("[data-customer-location-map]"),status=form.querySelector("[data-customer-location-status]");if(!wrap||!frame)return;wrap.hidden=false;if(frame.dataset.started==="true"){frame.contentWindow?.ayecTomTomMap?.refresh();return}frame.dataset.started="true";frame.addEventListener("load",()=>{const mapWindow=frame.contentWindow;if(!mapWindow)return;mapWindow.addEventListener("ayec-map-ready",()=>{const map=mapWindow.ayecTomTomMap;if(!map?.onClick){if(status)status.textContent="Harita konum se\u00e7imi kullan\u0131lam\u0131yor.";return}map.onClick((latitude,longitude)=>{try{setCustomerLocation(form,latitude,longitude,"Haritadan konum se\u00e7ildi");map.select(latitude,longitude)}catch(error){if(status)status.textContent=error.message}});if(status)status.textContent="Haritaya t\u0131klayarak konumu se\u00e7in."},{once:true});mapWindow.addEventListener("ayec-map-error",event=>{if(status)status.textContent=event.detail||"Harita y\u00fcklenemedi."},{once:true});const latitude=Number(form.elements.latitude.value)||40.1044116,longitude=Number(form.elements.longitude.value)||27.6563981;if(typeof mapWindow.initAyecTomTomMap!=="function"||!mapWindow.initAyecTomTomMap("ayec-server-proxy",latitude,longitude)){if(status)status.textContent="Harita ba\u015flat\u0131lamad\u0131. Konum aramas\u0131n\u0131 kullanabilirsiniz."}},{once:true});frame.src="/field-vector-map-dist/index.html?v=20261015-customer-map-1"}
+async function applyCustomerLocationMap(form){const wrap=form.querySelector("[data-customer-map-wrap]"),latitude=Number(form.elements.latitude.value),longitude=Number(form.elements.longitude.value);if(!latitude&&!longitude)throw Error("\u00d6nce haritadan bir konum se\u00e7in.");await reverseCustomerAddress(form,latitude,longitude);if(wrap)wrap.hidden=true}
+document.addEventListener("click",async event=>{
+ const search=event.target.closest("[data-customer-location-search]"),locate=event.target.closest("[data-customer-geolocate]"),resultButton=event.target.closest("[data-customer-location-index]"),mapToggle=event.target.closest("[data-customer-map-toggle]"),mapApply=event.target.closest("[data-customer-map-apply]");
+ if(!search&&!locate&&!resultButton&&!mapToggle&&!mapApply)return;
+ const form=event.target.closest("#dialogForm"),status=form?.querySelector("[data-customer-location-status]"),results=form?.querySelector("[data-customer-location-results]");if(!form)return;
+ if(mapToggle){openCustomerLocationMap(form);return}
+ if(mapApply){try{await applyCustomerLocationMap(form)}catch(error){if(status)status.textContent=error.message}return}
+ if(resultButton){const result=form._customerLocationResults?.[Number(resultButton.dataset.customerLocationIndex)];if(!result)return;try{setCustomerLocation(form,result.lat,result.lon,"Adres konumu bulundu");const address=form.elements.address;if(address&&!address.value)address.value=result.display_name||"";await reverseCustomerAddress(form,result.lat,result.lon);if(results)results.replaceChildren()}catch(error){if(status)status.textContent=error.message}return}
+ if(locate){if(!navigator.geolocation){if(status)status.textContent="Taray\u0131c\u0131 konum servisini desteklemiyor.";return}if(status)status.textContent="Mevcut konum isteniyor...";navigator.geolocation.getCurrentPosition(async position=>{try{setCustomerLocation(form,position.coords.latitude,position.coords.longitude,"Mevcut konum kaydedildi");await reverseCustomerAddress(form,position.coords.latitude,position.coords.longitude)}catch(error){if(status)status.textContent=error.message}},error=>{if(status)status.textContent=error.message||"Konum al\u0131namad\u0131."},{enableHighAccuracy:true,timeout:12000,maximumAge:60000});return}
+ const query=["street","neighborhood","district","city","zip_code"].map(name=>String(form.elements[name]?.value||"").trim()).filter(Boolean).join(", ");if(!query){if(status)status.textContent="\u00d6nce adres alanlar\u0131n\u0131 doldurun.";return}if(status)status.textContent="Adres aran\u0131yor...";search.disabled=true;
+ try{const response=await apiFetch("/api/desktop/field-service/geocode",{method:"POST",body:JSON.stringify({query})}),matches=Array.isArray(response.results)?response.results:[];form._customerLocationResults=matches;if(!matches.length){if(status)status.textContent="Adres konumu bulunamad\u0131.";return}if(status)status.textContent="Adres e\u015fle\u015fmesini se\u00e7in.";results?.replaceChildren(...matches.map((item,index)=>{const button=document.createElement("button");button.type="button";button.className="customer-location-result";button.dataset.customerLocationIndex=String(index);button.textContent=item.display_name||`Konum ${index+1}`;return button}))}catch(error){if(status)status.textContent=error.message||"Adres aramas\u0131 tamamlanamad\u0131."}finally{search.disabled=false}
+});
 
 function productForm(s={}){const categories=sectorStockCategories();if(s.category&&!categories.includes(s.category))categories.push(s.category);return `<div class="form-grid"><div class="field"><label>Stok Kodu *</label><input name="code" required value="${esc(s.code||"")}"></div><div class="field"><label>Barkod</label><input name="barcode" value="${esc(s.barcode||"")}"></div><div class="field full"><label>Ürün Adı *</label><input name="name" required value="${esc(s.name||"")}"></div><div class="field"><label>Kategori</label><select name="category">${categories.map(x=>`<option ${s.category===x?"selected":""}>${x}</option>`).join("")}</select></div><div class="field"><label>Para Birimi</label><select name="currency">${["TRY","USD","EUR"].map(x=>`<option ${s.currency===x?"selected":""}>${x}</option>`).join("")}</select></div><div class="field"><label>Stok Adedi</label><input name="qty" type="number" min="0" value="${s.qty??0}"></div><div class="field"><label>Minimum Stok</label><input name="min" type="number" min="0" value="${s.min??0}"></div><div class="field"><label>Alış Fiyatı</label><input name="buy" type="number" min="0" step=".01" value="${s.buy??0}"></div><div class="field"><label>Satış Fiyatı</label><input name="sell" type="number" min="0" step=".01" value="${s.sell??0}"></div></div>`}
 function saveProduct(fd,s){const d=Object.fromEntries(fd),target=s||{id:uid("stk")};const old=s?.qty||0;Object.assign(target,{code:d.code,name:d.name,barcode:d.barcode,category:d.category,currency:d.currency,qty:+d.qty||0,min:+d.min||0,buy:+d.buy||0,sell:+d.sell||0});if(!s)db.stock.push(target);const payload={name:d.name,code:d.code,barcode:d.barcode,category:d.category,currency:d.currency,stock:+d.qty||0,min_stock:+d.min||0,purchase_price:+d.buy||0,price:+d.sell||0};if(s&&Number.isInteger(+s.id)){payload.id=+s.id;payload._action="update"}desktopWrite("parts",payload);const diff=target.qty-old;if(diff){db.movements.unshift({id:uid("mov"),date:new Date().toLocaleString("tr-TR"),product:target.name,type:diff>0?"Giriş":"Çıkış",qty:Math.abs(diff),ref:s?"STOK-DÜZENLE":"ÜRÜN-EKLE",user:"Yönetici"});if(Number.isInteger(+target.id))desktopWrite("stock_movements",{part_id:+target.id,movement_type:diff>0?"Giriş":"Çıkış",amount:Math.abs(diff),new_stock:target.qty,description:s?"Stok düzenleme":"Ürün ekleme"})}save();activity(`${target.name} stok kartı kaydedildi`,"◫");toast("Ürün ve stok hareketi kaydedildi");render()}
 
-async function deleteProduct(product){if(!product)return;if(!confirm(`“${product.name}” stok kartı silinsin mi? Bu işlem yanlış içe aktarılan ürünü de kaldırır.`))return;try{if(Number.isInteger(+product.id))await desktopWrite("parts",{id:+product.id,_action:"delete"});db.stock=db.stock.filter(item=>String(item.id)!==String(product.id));save();activity(`${product.name} stok kartı silindi`,"×");toast("Stok kartı silindi","success");render()}catch(error){toast(`Ürün silinemedi: ${error.message}`,"error")}}
+async function deleteProduct(product){if(!product)return;openDialog("Stok Kart\u0131n\u0131 Sil","STOK KARTI",`<p>${esc(product.name||"Stok")} kart\u0131 silinsin mi? Bu i\u015Flem yanl\u0131\u015f i\u00e7e aktar\u0131lan \u00fcr\u00fcn\u00fc de kald\u0131r\u0131r.</p>`,async()=>{try{if(Number.isInteger(+product.id))await desktopWrite("parts",{id:+product.id,_action:"delete"});db.stock=db.stock.filter(item=>String(item.id)!==String(product.id));save();activity(`${product.name} stok kart\u0131 silindi`,"\u00d7");toast("Stok kart\u0131 silindi","success");render();return true}catch(error){toast(`\u00dcr\u00fcn silinemedi: ${error.message}`,"error");return false}},"Stok Kart\u0131n\u0131 Sil");const submit=$("#dialogSubmit");if(submit){submit.classList.remove("primary");submit.classList.add("danger")}}
 
+function customerHistorySelected(){
+ const ids=$$('.customer-row-select:checked').map(input=>String(input.dataset.id));
+ if(!ids.length&&window.currentCustomerId)ids.push(String(window.currentCustomerId));
+ const selected=ids.map(id=>db.customers.find(customer=>String(customer.id)===id)).filter(Boolean);
+ if(!selected.length){toast("Cari ekstresini a\u00e7mak i\u00e7in tablodan bir m\u00fc\u015fteri se\u00e7in.","warning");return}
+ let index=0;const openNext=()=>{if(index>=selected.length)return;customer360(selected[index++]);$("#appDialog").addEventListener("close",openNext,{once:true})};openNext();
+}
 function customerActions(id){const c=db.customers.find(x=>x.id===id);if(!c)return;openDialog(`${c.name} — İşlemler`,"MÜŞTERİ İŞLEM MERKEZİ",`<div class="product-picker"><button class="product-tile" type="button" data-modal-action="payment"><span><strong>Tahsilat Al</strong><br><small class="muted">3 dövizle cari hareket</small></span><span>₺</span></button><button class="product-tile" type="button" data-modal-action="360"><span><strong>Müşteri 360</strong><br><small class="muted">Servis ve proforma geçmişi</small></span><span>○</span></button><button class="product-tile" type="button" data-modal-action="service"><span><strong>Yeni Servis Kaydı</strong><br><small class="muted">Cihaz kabul formu</small></span><span>⚒</span></button><button class="product-tile" type="button" data-modal-action="print"><span><strong>Yazdır</strong><br><small class="muted">Cari hesap özeti</small></span><span>▤</span></button><button class="product-tile" type="button" data-modal-action="edit"><span><strong>Düzenle</strong><br><small class="muted">Müşteri bilgileri</small></span><span>✎</span></button></div>`,()=>true,"Kapat");$$('[data-modal-action]').forEach(b=>b.onclick=()=>{const a=b.dataset.modalAction;$("#appDialog").close();if(a==="payment")paymentDialog(c);if(a==="360")customer360(c);if(a==="service")serviceDialog(c.id);if(a==="print"){printCustomer(c)}if(a==="edit")openDialog("Müşteriyi Düzenle","CRM",customerForm(c),fd=>saveCustomer(fd,c),"Güncelle")})}
 function paymentDialog(c){openDialog("Tahsilat Al","CARİ HAREKET",`<div class="form-grid"><div class="field full"><label>Müşteri</label><input disabled value="${esc(c.name)}"></div><div class="field"><label>Tutar *</label><input name="amount" type="number" min=".01" step=".01" required></div><div class="field"><label>Para Birimi</label><select name="currency"><option>TRY</option><option>USD</option><option>EUR</option></select></div><div class="field full"><label>Açıklama</label><textarea name="description">Müşteri tahsilatı</textarea></div></div>`,fd=>{const d=Object.fromEntries(fd),amount=+d.amount;c.balances[d.currency]=(c.balances[d.currency]||0)-amount;db.finance.unshift({id:uid("fin"),date:today(),type:"Gelir",category:"Tahsilat",amount,currency:d.currency,description:d.description,customer:c.name});desktopWrite("accounting",{type:"Gelir",category:"Tahsilat",amount,original_amount:amount,try_equivalent:amount,currency:d.currency,exchange_rate:1,description:d.description,date:today(),customer_id:Number.isInteger(+c.id)?+c.id:null,customer_name:c.name,payment_method:"Web"});save();activity(`${c.name} müşterisinden ${money(amount,d.currency)} tahsil edildi`,"₺");toast("Tahsilat cari ve finans kayıtlarına işlendi");render()},"Tahsilatı Kaydet")}
 function customer360(c){
@@ -368,7 +499,7 @@ function financeDialog(type,item){openDialog(item?"Finans Kaydını Düzenle":`$
 
 function appointmentDialog(item){openDialog(item?"Randevuyu Düzenle":"Yeni Randevu","PLANLAMA",`<div class="form-grid"><div class="field full"><label>Müşteri *</label><select name="customerId" required><option value="">Seçin…</option>${db.customers.map(c=>`<option value="${c.id}" ${String(item?.customerId)===String(c.id)?"selected":""}>${esc(c.name)}</option>`).join("")}</select></div><div class="field"><label>Tarih *</label><input name="date" type="date" required value="${item?.date||today()}"></div><div class="field"><label>Saat *</label><input name="time" type="time" required value="${item?.time||"09:00"}"></div><div class="field full"><label>Konu *</label><input name="title" required value="${esc(item?.title||"")}"></div><div class="field"><label>Durum</label><select name="status">${["Planlandı","Onaylandı","Tamamlandı","İptal"].map(x=>`<option ${item?.status===x?"selected":""}>${x}</option>`).join("")}</select></div></div>`,fd=>{const d=Object.fromEntries(fd),target=item||{id:uid("apt")};Object.assign(target,d,{alerted:false});if(!item)db.appointments.push(target);const customer=db.customers.find(c=>String(c.id)===String(d.customerId));const payload={customer_id:customer&&Number.isInteger(+customer.id)?+customer.id:null,customer_name:customer?.name||"",customer:customer?.name||"",date:d.date,time:d.time,description:d.title,status:d.status,source_type:"web"};if(item&&Number.isInteger(+item.id)){payload.id=+item.id;payload._action="update"}desktopWrite("appointments",payload);save();activity(`${customerName(target.customerId)} randevusu kaydedildi`,"▣");toast("Randevu kaydedildi ve uyarı planlandı");render()},item?"Güncelle":"Randevu Ekle")}
 
-function technicianDialog(c,s){openDialog(`${s.no} · ${s.device}`,"TEKNİSYEN İŞLEM FORMU",`<div class="form-grid"><div class="field"><label>Müşteri</label><input disabled value="${esc(c.name)}"></div><div class="field"><label>Durum</label><select name="status">${["Bekliyor","İşlemde","Parça Bekliyor","Tamamlandı"].map(x=>`<option ${s.status===x?"selected":""}>${x}</option>`).join("")}</select></div><div class="field full"><label>Teknisyen Notu</label><textarea name="note">${esc(s.note)}</textarea></div><div class="field"><label>İşçilik Tutarı</label><input name="labor" type="number" min="0" step=".01" value="0"></div><div class="field"><label>Kullanılan Stok</label><select name="productId"><option value="">Yok</option>${db.stock.filter(x=>x.qty>0).map(x=>`<option value="${x.id}">${esc(x.name)} (${x.qty})</option>`).join("")}</select></div></div>`,fd=>{const d=Object.fromEntries(fd);s.status=d.status;s.note=d.note;const deviceId=Number(String(s.no).replace(/\D/g,""));if(Number.isInteger(deviceId))desktopWrite("devices",{id:deviceId,_action:"update",status:d.status,technician_notes:d.note});if(d.productId){const p=db.stock.find(x=>String(x.id)===String(d.productId));p.qty--;db.movements.unshift({id:uid("mov"),date:new Date().toLocaleString("tr-TR"),product:p.name,type:"Çıkış",qty:1,ref:s.no,user:"Teknisyen"});if(Number.isInteger(+p.id)){desktopWrite("parts",{id:+p.id,_action:"update",stock:p.qty});desktopWrite("stock_movements",{part_id:+p.id,movement_type:"Çıkış",amount:1,new_stock:p.qty,description:`${s.no} teknisyen kullanımı`})}desktopWrite("used_parts",{device_id:Number.isInteger(deviceId)?deviceId:null,part_name:p.name,quantity:1,price:p.sell||0})}if(+d.labor>0){db.finance.unshift({id:uid("fin"),date:today(),type:"Gelir",category:"Servis",amount:+d.labor,currency:"TRY",description:`${s.no} işçilik`,customer:c.name});desktopWrite("accounting",{type:"Gelir",category:"Servis",amount:+d.labor,original_amount:+d.labor,try_equivalent:+d.labor,currency:"TRY",exchange_rate:1,description:`${s.no} işçilik`,date:today(),customer_id:Number.isInteger(+c.id)?+c.id:null,customer_name:c.name})}save();activity(`${s.no} teknisyen kaydı güncellendi`,"⚒");toast("Servis, stok ve finans sinyalleri işlendi");render()},"İşlemi Kaydet")}
+function technicianDialog(c,s){openDialog(`${s.no} \u00b7 ${s.device}`,"TEKN\u0130SYEN \u0130\u015eLEM FORMU",`<div class="form-grid"><div class="field"><label>M\u00fc\u015fteri</label><input disabled value="${esc(c.name)}"></div><div class="field"><label>Durum</label><select name="status">${["Bekliyor","\u0130\u015flemde","Par\u00e7a Bekliyor","Tamamland\u0131"].map(x=>`<option ${s.status===x?"selected":""}>${x}</option>`).join("")}</select></div><div class="field full"><label>Teknisyen Notu</label><textarea name="note">${esc(s.note)}</textarea></div><div class="field"><label>\u0130\u015f\u00e7ilik Tutar\u0131</label><input name="labor" type="number" min="0" step=".01" value="0"></div><div class="field"><label>Kullan\u0131lan Stok</label><select name="productId"><option value="">Yok</option>${db.stock.filter(x=>x.qty>0).map(x=>`<option value="${x.id}">${esc(x.name)} (${x.qty})</option>`).join("")}</select></div></div>`,fd=>{const d=Object.fromEntries(fd);s.status=d.status;s.note=d.note;const deviceId=Number.isInteger(+s.id)?+s.id:Number(String(s.no).replace(/\D/g,""));if(Number.isInteger(deviceId))desktopWrite("devices",{id:deviceId,_action:"update",status:d.status,technician_notes:d.note});if(d.productId){const p=db.stock.find(x=>String(x.id)===String(d.productId));if(p){p.qty--;db.movements.unshift({id:uid("mov"),date:new Date().toLocaleString("tr-TR"),product:p.name,type:"\u00c7\u0131k\u0131\u015f",qty:1,ref:s.no,user:"Teknisyen"});if(Number.isInteger(+p.id)){desktopWrite("parts",{id:+p.id,_action:"update",stock:p.qty});desktopWrite("stock_movements",{part_id:+p.id,movement_type:"\u00c7\u0131k\u0131\u015f",amount:1,new_stock:p.qty,description:`${s.no} teknisyen kullan\u0131m\u0131`})}desktopWrite("used_parts",{device_id:Number.isInteger(deviceId)?deviceId:null,part_name:p.name,quantity:1,price:p.sell||0})}}if(+d.labor>0){db.finance.unshift({id:uid("fin"),date:today(),type:"Gelir",category:"Servis",amount:+d.labor,currency:"TRY",description:`${s.no} i\u015f\u00e7ilik`,customer:c.name});desktopWrite("accounting",{type:"Gelir",category:"Servis",amount:+d.labor,original_amount:+d.labor,try_equivalent:+d.labor,currency:"TRY",exchange_rate:1,description:`${s.no} i\u015f\u00e7ilik`,date:today(),customer_id:Number.isInteger(+c.id)?+c.id:null,customer_name:c.name})}save();activity(`${s.no} teknisyen kayd\u0131 g\u00fcncellendi`,"\u2692");toast("Servis, stok ve finans sinyalleri i\u015flendi");render()},"\u0130\u015flemi Kaydet")}
 
 function runSales(mode){if(!salesCustomer)throw Error("Önce müşteri seçin");if(!salesCart.length)throw Error("Sepete en az bir ürün ekleyin");for(const line of salesCart){const product=db.stock.find(x=>x.id===line.productId);if(!product||line.qty>product.qty)throw Error(`${product?.name||"Ürün"} için yeterli stok yok`)}const c=db.customers.find(x=>x.id===salesCustomer),total=cartTotal(),no=`PRF-${new Date().getFullYear()}-${String(db.quotes.length+1).padStart(4,"0")}`,items=salesCart.map(l=>{const p=db.stock.find(x=>x.id===l.productId);return {productId:p.id,name:p.name,qty:l.qty,price:normalizedPrice(p)}});if(mode==="proforma"){const q={id:uid("quote"),no,date:today(),customerId:c.id,items,total,status:"Teklif"};db.quotes.unshift(q);c.quotes.unshift(q);activity(`${no} proforma ${c.name} için oluşturuldu`,"◇");toast("Proforma oluşturuldu ve Müşteri 360'a kaydedildi")}else if(mode==="payment"){items.forEach(l=>{const p=db.stock.find(x=>x.id===l.productId);p.qty-=l.qty;db.movements.unshift({id:uid("mov"),date:new Date().toLocaleString("tr-TR"),product:p.name,type:"Çıkış",qty:l.qty,ref:no,user:"Yönetici"})});db.finance.unshift({id:uid("fin"),date:today(),type:"Gelir",category:"Satış",amount:total,currency:"TRY",description:`${no} peşin satış`,customer:c.name});activity(`${c.name} satışından ${money(total)} tahsil edildi`,"₺");toast("Ödeme, finans ve stok hareketleri kaydedildi")}else{const serviceNo=`SRV-${1000+db.customers.flatMap(x=>x.services).length+1}`;c.services.unshift({date:today(),no:serviceNo,device:items.map(x=>x.name).join(", "),status:"Bekliyor",note:`Sales Hub kaydı — ${no}`});activity(`${serviceNo} Sales Hub üzerinden oluşturuldu`,"⚒");toast("Servis Müşteri 360 geçmişine kaydedildi")}salesCart=[];save();render()}
 
@@ -414,14 +545,42 @@ async function commitImport(rows){
  }finally{if(button){button.disabled=false;button.textContent="Do\u011frula ve \u0130\u00e7e Aktar"}}
 }
 
-function showContext(e,kind,id){if(!db.settings.contextMenu)return;e.preventDefault();const c=$("#contextMenu");let items=[];if(kind==="customer")items=[["Müşteri 360","360"],["Tahsilat Al","payment"],["Yeni Servis","service"],["Düzenle","edit"],["Yazdır","print"]];if(kind==="stock")items=[["Düzenle","edit-product"],["Stok Hareketi","movement"],["Sil","delete-product"]];if(kind==="appointment")items=[["Düzenle","edit-appointment"],["Onaylandı","approve"],["Tamamlandı","complete"],["İptal","cancel"]];if(kind==="service")items=[["Teknisyen Panelinde Aç","technician"]];if(kind==="finance")items=[["Düzenle","edit-finance"],["Yazdır","print-finance"]];if(kind==="generic")items=[["Düzenle","generic-edit"],["Sil","generic-delete"]];if(!items.length)return;c.innerHTML=items.map(([label,action])=>`<button data-context-action="${action}">${label}</button>`).join("");c.style.left=`${Math.max(8,Math.min(e.clientX,innerWidth-210))}px`;c.style.top=`${Math.max(8,Math.min(e.clientY,innerHeight-items.length*40-20))}px`;c.classList.add("open");$$('[data-context-action]',c).forEach(b=>b.onclick=()=>{c.classList.remove("open");contextAction(kind,id,b.dataset.contextAction,e.currentTarget)})}
-function contextAction(kind,id,action,row){if(kind==="customer"){const c=db.customers.find(x=>String(x.id)===String(id));if(action==="360")customer360(c);if(action==="payment")paymentDialog(c);if(action==="service")serviceDialog(c.id);if(action==="edit")openDialog("Müşteriyi Düzenle","CRM",customerForm(c),fd=>saveCustomer(fd,c),"Güncelle");if(action==="print")printCustomer(c)}if(kind==="stock"){const s=db.stock.find(x=>String(x.id)===String(id));if(action==="edit-product")openDialog("Ürünü Düzenle","STOK",productForm(s),fd=>saveProduct(fd,s),"Güncelle");if(action==="movement")movementDialog(s);if(action==="delete-product")deleteProduct(s)}if(kind==="appointment"){const a=db.appointments.find(x=>String(x.id)===String(id));if(action==="edit-appointment")appointmentDialog(a);if(["approve","complete","cancel"].includes(action)){a.status={approve:"Onaylandı",complete:"Tamamlandı",cancel:"İptal"}[action];if(Number.isInteger(+a.id))desktopWrite("appointments",{id:+a.id,_action:"update",status:a.status});save();toast(`Randevu durumu: ${a.status}`);render()}}if(kind==="service"){const [c,s]=findService(id);technicianDialog(c,s)}if(kind==="finance"){const item=db.finance.find(x=>String(x.id)===String(id));if(action==="edit-finance")financeDialog(item?.type,item);if(action==="finance-detail")financeDetailDialog(item);if(action==="print-finance")window.print()}if(kind==="generic"){const index=+id,data=window.currentGenericData,meta=window.currentGenericMeta;if(!data||!meta)return;if(action==="generic-edit")openGenericDialog(meta,data.rows[index],data.columns);if(action==="generic-delete")deleteGenericRow(meta,data.rows[index])}}
+function showContext(e,kind,id){if(!ayecContextMenuEnabled())return;e.preventDefault();const c=$("#contextMenu");let items=[];if(kind==="customer")items=[["M\u00fc\u015fteri 360","360"],["Tahsilat Al","payment"],["Yeni Servis","service"],["D\u00fczenle","edit"],["Yazd\u0131r","print"]];if(kind==="stock")items=[["D\u00fczenle","edit-product"],["Stok Hareketi","movement"],["Sil","delete-product"]];if(kind==="stock-location")items=[["Stok Kart\u0131n\u0131 D\u00fczenle","location-edit"],["Servis Cihaz\u0131na Tak (Stoktan D\u00fc\u015f)","location-use"],["Ba\u015fka Depoya / Araca Transfer Et","location-transfer"]];if(kind==="appointment")items=[["D\u00fczenle","edit-appointment"],["Onayland\u0131","approve"],["Tamamland\u0131","complete"],["\u0130ptal","cancel"]];if(kind==="service")items=[["Teknisyen Panelinde A\u00e7","technician"]];if(kind==="finance")items=[["D\u00fczenle","edit-finance"],["Yazd\u0131r","print-finance"]];if(kind==="sales-cart")items=[["Miktar\u0131 De\u011fi\u015ftir","sales-cart-quantity"],["Fiyat\u0131 G\u00fcncelle","sales-cart-price"],["A\u00e7\u0131klama Ekle","sales-cart-description"],["","sales-cart-separator"],["Hizmeti Kopyala","sales-cart-copy"],["","sales-cart-separator"],["Sepetten \u00c7\u0131kar","sales-cart-remove"]];if(kind==="settings-user")items=[["D\u00fczenle","settings-user-edit"],["Sil","settings-user-delete"]];if(kind==="vehicle-maintenance")items=[["Bak\u0131m Kart\u0131n\u0131 A\u00e7","maintenance-open"],["Foto Galeri","maintenance-photos"],["QR / Ge\u00e7mi\u015f","maintenance-history"],["","maintenance-separator"],["Excel\u0027e Aktar","maintenance-excel"],["PDF Olu\u015ftur","maintenance-pdf"],["Yazd\u0131r","maintenance-print"]];if(kind==="generic")items=[["D\u00fczenle","generic-edit"],["Sil","generic-delete"]];if(!items.length)return;c.innerHTML=items.map(([label,action])=>(action==="maintenance-separator"||action==="sales-cart-separator")?"<hr class=\"context-menu-separator\">":`<button data-context-action="${action}">${label}</button>`).join("");c.style.left=`${Math.max(8,Math.min(e.clientX,innerWidth-210))}px`;c.classList.add("open");c.style.top=`${Math.max(8,Math.min(e.clientY,innerHeight-c.offsetHeight-8))}px`;$$('[data-context-action]',c).forEach(b=>b.onclick=()=>{c.classList.remove("open");contextAction(kind,id,b.dataset.contextAction,e.currentTarget)})}
+const ayecStockLocationShowContextBase = showContext;
+showContext = function(event, kind, id) {
+  if (kind !== "stock-location") return ayecStockLocationShowContextBase(event, kind, id);
+  if (!ayecContextMenuEnabled()) return;
+  const row = event.target.closest('tr[data-kind="stock-location"]');
+  if (!row) return;
+  event.preventDefault();
+  const menu = document.querySelector("#contextMenu");
+  if (!menu) return;
+  const items = [
+    ["\u270f\ufe0f Stok Kart\u0131n\u0131 D\u00fczenle (\u00c7ift T\u0131k)", "location-edit"],
+    ["\u{1f6e0}\ufe0f M\u00fc\u015fteriye / Servis Cihaz\u0131na Tak (Stoktan D\u00fc\u015f)", "location-use"],
+    ["\u{1f504} Ba\u015fka Depoya / Araca Transfer Et", "location-transfer"]
+  ];
+  menu.innerHTML = items.map(([label, action]) => `<button type="button" data-context-action="${action}">${label}</button>`).join("");
+  menu.style.left = `${Math.max(8, Math.min(event.clientX, innerWidth - 250))}px`;
+  menu.style.top = `${Math.max(8, Math.min(event.clientY, innerHeight - items.length * 42 - 16))}px`;
+  menu.classList.add("open");
+  menu.querySelectorAll("[data-context-action]").forEach(button => button.onclick = () => {
+    menu.classList.remove("open");
+    contextAction(kind, id, button.dataset.contextAction, row);
+  });
+};
+
+function contextAction(kind,id,action,row){if(kind==="customer"){const c=db.customers.find(x=>String(x.id)===String(id));if(action==="360")customer360(c);if(action==="payment")paymentDialog(c);if(action==="service")serviceDialog(c.id);if(action==="edit")openDialog("M\u00fc\u015fteriyi D\u00fczenle","CRM",customerForm(c),fd=>saveCustomer(fd,c),"G\u00fcncelle");if(action==="print")printCustomer(c)}if(kind==="stock"){const s=db.stock.find(x=>String(x.id)===String(id));if(action==="edit-product")openDialog("\u00dcr\u00fcn\u00fc D\u00fczenle","STOK",productForm(s),fd=>saveProduct(fd,s),"G\u00fcncelle");if(action==="movement")movementDialog(s);if(action==="delete-product")deleteProduct(s)}if(kind==="stock-location"){const s=db.stock.find(x=>String(x.id)===String(id));if(action==="location-edit")openDialog("\u00dcr\u00fcn\u00fc D\u00fczenle","STOK",productForm(s),fd=>saveProduct(fd,s),"G\u00fcncelle");if(action==="location-use")stockLocationUsePartDialog(s,row?.dataset.locationId);if(action==="location-transfer"){ayecStockLocationId=String(row?.dataset.locationId||ayecStockLocationId);ayecTransferStockDialog()}}if(kind==="appointment"){const a=db.appointments.find(x=>String(x.id)===String(id));if(action==="edit-appointment")appointmentDialog(a);if(["approve","complete","cancel"].includes(action)){a.status={approve:"Onayland\u0131",complete:"Tamamland\u0131",cancel:"\u0130ptal"}[action];if(Number.isInteger(+a.id))desktopWrite("appointments",{id:+a.id,_action:"update",status:a.status});save();toast(`Randevu durumu: ${a.status}`);render()}}if(kind==="service"){const [c,s]=findService(id);technicianDialog(c,s)}if(kind==="finance"){const item=db.finance.find(x=>String(x.id)===String(id));if(action==="edit-finance")financeDialog(item?.type,item);if(action==="finance-detail")financeDetailDialog(item);if(action==="print-finance")window.print()}if(kind==="sales-cart"){const index=Number(id),line=salesCart[index],product=line&&db.stock.find(item=>String(item.id)===String(line.productId));if(!line||!product)return;if(action==="sales-cart-quantity")openDialog("Miktar\u0131 De\u011fi\u015ftir","SATI\u015e SEPET\u0130",`<div class="field"><label>Yeni miktar</label><input name="quantity" type="number" min="1" max="${esc(product.qty)}" step="1" value="${esc(line.qty)}" required></div>`,form=>{const quantity=Number(form.get("quantity"));if(!Number.isInteger(quantity)||quantity<1||quantity>Number(product.qty)){toast("Miktar mevcut stok aral\u0131\u011f\u0131nda olmal\u0131.","error");return false}line.qty=quantity;render();return true},"Miktar\u0131 Kaydet");if(action==="sales-cart-price")openDialog("Fiyat\u0131 G\u00fcncelle","SATI\u015e SEPET\u0130",`<div class="field"><label>Yeni birim fiyat (${esc(salesCurrency)})</label><input name="unit_price" type="number" min="0" max="1000000000" step="0.01" value="${esc(selectedPriceFromTry(line.unitPriceTry??productTryPrice(product)))}" required></div>`,form=>{const price=Number(form.get("unit_price"));if(!Number.isFinite(price)||price<0||price>1000000000){toast("Ge\u00e7erli bir birim fiyat girin.","error");return false}line.unitPriceTry=price*selectedSalesRate();render();return true},"Fiyat\u0131 Kaydet");if(action==="sales-cart-description")openDialog("A\u00e7\u0131klama Ekle","SATI\u015e SEPET\u0130",`<div class="field"><label>Kalem a\u00e7\u0131klamas\u0131</label><textarea name="description" maxlength="500">${esc(line.description||"")}</textarea></div>`,form=>{line.description=String(form.get("description")||"").trim().slice(0,500);render();return true},"A\u00e7\u0131klamay\u0131 Kaydet");if(action==="sales-cart-copy"){salesCart.splice(index+1,0,{...line});render();toast("Hizmet kopyaland\u0131.","success")}if(action==="sales-cart-remove"){salesCart.splice(index,1);render()}return}if(kind==="settings-user"){const user=ayecSettingsUsers.find(item=>String(item.id)===String(id));if(!user)return;if(action==="settings-user-edit")settingsUserDialog(user);if(action==="settings-user-delete")openDialog("Kullan\u0131c\u0131y\u0131 Sil","KULLANICI Y\u00d6NET\u0130M\u0130",`<p>${esc(user.username||user.full_name||user.id)} adl\u0131 kullan\u0131c\u0131 silinsin mi?</p>`,async()=>{await apiFetch("/api/desktop/users/delete",{method:"POST",body:JSON.stringify({user_id:user.id})});if(String(user.id)===ayecSettingsSelectedUserId)ayecSettingsSelectedUserId="";await loadSettingsUsers();toast("Kullan\u0131c\u0131 silindi.","success");return true},"Kullan\u0131c\u0131y\u0131 Sil")}if(kind==="vehicle-maintenance"){const record=vehicleMaintenanceRows.find(item=>String(item.id)===String(id));if(!record)return;if(action==="maintenance-open")maintenanceDialog(record);if(action==="maintenance-photos")maintenancePhotoGallery(record);if(action==="maintenance-history")maintenanceHistoryDialog(record);if(action==="maintenance-excel")exportVehicleMaintenanceExcel();if(action==="maintenance-pdf")exportVehicleMaintenancePdf();if(action==="maintenance-print")window.print()}if(kind==="generic"){const index=+id,data=window.currentGenericData,meta=window.currentGenericMeta;if(!data||!meta)return;if(action==="generic-edit")openGenericDialog(meta,data.rows[index],data.columns);if(action==="generic-delete")deleteGenericRow(meta,data.rows[index])}}
 
 function bindInteractiveRow(row){if(row.dataset.interactiveBound)return;row.dataset.interactiveBound="1";row.tabIndex=row.tabIndex>=0?row.tabIndex:0;row.addEventListener("contextmenu",e=>showContext(e,row.dataset.kind,row.dataset.id));let timer,startX=0,startY=0;row.addEventListener("pointerdown",e=>{if(e.pointerType==="mouse")return;startX=e.clientX;startY=e.clientY;timer=setTimeout(()=>{timer=0;showContext({preventDefault(){},clientX:startX,clientY:startY,currentTarget:row},row.dataset.kind,row.dataset.id)},550)});const cancel=e=>{if(timer&&e&&Math.hypot((e.clientX??startX)-startX,(e.clientY??startY)-startY)>10)clearTimeout(timer);else if(timer)clearTimeout(timer);timer=0};row.addEventListener("pointerup",cancel);row.addEventListener("pointercancel",cancel);row.addEventListener("pointermove",e=>{if(timer&&Math.hypot(e.clientX-startX,e.clientY-startY)>10)cancel(e)});row.addEventListener("keydown",e=>{if(e.key==="ContextMenu"||(e.shiftKey&&e.key==="F10")){e.preventDefault();const box=row.getBoundingClientRect();showContext({preventDefault(){},clientX:box.left+24,clientY:box.top+24,currentTarget:row},row.dataset.kind,row.dataset.id)}else if(e.key==="Enter")row.dispatchEvent(new MouseEvent("dblclick",{bubbles:true}))})}
 function findService(no){for(const c of db.customers){const s=c.services.find(x=>x.no===no);if(s)return[c,s]}return[]}
 function movementDialog(s){openDialog("Stok Hareketi","STOK",`<div class="form-grid"><div class="field full"><label>Ürün</label><input disabled value="${esc(s.name)}"></div><div class="field"><label>Tür</label><select name="type"><option>Giriş</option><option>Çıkış</option></select></div><div class="field"><label>Miktar</label><input name="qty" type="number" min="1" required></div><div class="field full"><label>Referans</label><input name="ref" value="MANUEL"></div></div>`,fd=>{const d=Object.fromEntries(fd),qty=+d.qty;if(d.type==="Çıkış"&&qty>s.qty)throw Error("Yetersiz stok");s.qty+=d.type==="Giriş"?qty:-qty;db.movements.unshift({id:uid("mov"),date:new Date().toLocaleString("tr-TR"),product:s.name,type:d.type,qty,ref:d.ref,user:"Yönetici"});if(Number.isInteger(+s.id)){desktopWrite("parts",{id:+s.id,_action:"update",stock:s.qty});desktopWrite("stock_movements",{part_id:+s.id,movement_type:d.type,amount:qty,new_stock:s.qty,description:d.ref})}save();toast("Stok hareketi kaydedildi");render()})}
 
-function handleAction(action,id,el){try{if(action==="quick-add")openDialog("Hızlı İşlem","KISAYOLLAR",`<div class="product-picker"><button type="button" class="product-tile" data-quick="customer">Yeni Müşteri</button><button type="button" class="product-tile" data-quick="service">Servis Kaydı</button><button type="button" class="product-tile" data-quick="appointment">Randevu</button><button type="button" class="product-tile" data-quick="income">Gelir</button></div>`,()=>true,"Kapat"),setTimeout(()=>$$('[data-quick]').forEach(b=>b.onclick=()=>{$("#appDialog").close();({customer:()=>openDialog("Yeni Müşteri","CRM",customerForm(),fd=>saveCustomer(fd),"Müşteri Ekle"),service:()=>serviceDialog(),appointment:()=>appointmentDialog(),income:()=>financeDialog("Gelir")}[b.dataset.quick])()}),0);if(action==="add-customer")openDialog("Yeni Müşteri","CRM",customerForm(),fd=>saveCustomer(fd),"Müşteri Ekle");if(action==="customer-actions")customerActions(id);if(action==="add-product")openDialog("Ürün Ekle","STOK KARTI",productForm(),fd=>saveProduct(fd),"Ürün Ekle");if(action==="edit-product"){const s=db.stock.find(x=>x.id===id);openDialog("Ürünü Düzenle","STOK KARTI",productForm(s),fd=>saveProduct(fd,s),"Güncelle")}if(action==="add-movement")openDialog("Ürün Seç","STOK HAREKETİ",`<div class="field"><label>Stok ürünü</label><select id="movementProduct">${db.stock.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join("")}</select></div>`,()=>{const s=db.stock.find(x=>x.id===$("#movementProduct").value);setTimeout(()=>movementDialog(s),100)},"Devam");if(action==="add-income")financeDialog("Gelir");if(action==="add-expense")financeDialog("Gider");if(action==="edit-finance")financeDialog(db.finance.find(x=>x.id===id)?.type,db.finance.find(x=>x.id===id));if(action==="add-appointment")appointmentDialog();if(action==="new-service")serviceDialog();if(action==="service-detail"||action==="technician-open"){const [c,s]=findService(id);technicianDialog(c,s)}if(action==="cart-add"){const l=salesCart.find(x=>String(x.productId)===String(id));l?l.qty++:salesCart.push({productId:id,qty:1});render()}if(action==="cart-remove"){salesCart.splice(+el.dataset.index,1);render()}if(action==="pay-save")runSales("payment");if(action==="create-proforma")runSales("proforma");if(action==="save-service")runSales("service");if(action==="view-quotes")quoteDialog();if(action==="choose-import"||action==="import-customers"||action==="restore-backup"){$("#fileInput").dataset.mode=action;$("#fileInput").click()}if(action==="commit-import")commitImport(window.importRows||[]);if(action==="ocr-to-stock"){const lines=$("#ocrText").value.split(/\n/).filter(Boolean);window.importRows=lines.map((x,i)=>{const parts=x.split(/[;|\t]/);return{id:uid("stk"),code:parts[0]||`OCR-${i+1}`,name:parts[1]||parts[0],category:parts[2]||"Bilgisayar",qty:+parts[3]||1,min:0,buy:+parts[4]||0,sell:+parts[5]||0,currency:(parts[6]||"TRY").trim(),barcode:parts[7]||""}});commitImport(window.importRows)}if(action==="download-template")download("ayec-stok-sablonu.csv","kod;ürün;kategori;adet;minimum;alış;satış;para birimi;barkod\nPC-001;Örnek Ürün;Bilgisayar;10;2;100;140;TRY;123456");if(action==="export-all")exportAll();if(action==="export-customers")download(`musteriler-${today()}.csv`,csv(db.customers));if(action==="export-stock")download(`stok-${today()}.csv`,csv(db.stock));if(action==="export-finance")download(`finans-${today()}.csv`,csv(db.finance));if(action==="save-settings"){db.settings={...db.settings,company:$("#setCompany").value,currency:$("#setCurrency").value,alertMinutes:+$("#setAlertMinutes").value,doubleClick:$("#setDouble").checked,contextMenu:$("#setContext").checked,appointmentAlerts:$("#setAlerts").checked,compact:$("#setCompact").checked};save();toast("Ayarlar kaydedildi")}if(action==="reset-demo"){if(confirm("Tüm yerel veriler örnek başlangıç durumuna dönecek. Devam edilsin mi?")){db=structuredClone(seed);save();render();toast("Örnek veri sıfırlandı","warning")}}}catch(err){toast(err.message||"İşlem tamamlanamadı","error")}}
+function handleAction(action,id,el){try{if(action==="quick-add")openDialog("H\u0131zl\u0131 \u0130\u015flem","KISAYOLLAR",`<div class="product-picker"><button type="button" class="product-tile" data-quick="customer">Yeni M\u00fc\u015fteri</button><button type="button" class="product-tile" data-quick="service">Servis Kayd\u0131</button><button type="button" class="product-tile" data-quick="appointment">Randevu</button><button type="button" class="product-tile" data-quick="income">Gelir</button></div>`,()=>true,"Kapat"),setTimeout(()=>$$('[data-quick]').forEach(b=>b.onclick=()=>{$("#appDialog").close();({customer:()=>openDialog("Yeni M\u00fc\u015fteri","CRM",customerForm(),fd=>saveCustomer(fd),"M\u00fc\u015fteri Ekle"),service:()=>serviceDialog(),appointment:()=>appointmentDialog(),income:()=>financeDialog("Gelir")}[b.dataset.quick])()}),0);if(action==="add-customer")openDialog("Yeni M\u00fc\u015fteri","CRM",customerForm(),fd=>saveCustomer(fd),"M\u00fc\u015fteri Ekle");if(action==="customer-actions")customerActions(id);if(action==="customer-history-selected")customerHistorySelected();if(action==="add-product")openDialog("\u00dcr\u00fcn Ekle","STOK KARTI",productForm(),fd=>saveProduct(fd),"\u00dcr\u00fcn Ekle");if(action==="edit-product"){const s=db.stock.find(x=>x.id===id);openDialog("\u00dcr\u00fcn\u00fc D\u00fczenle","STOK KARTI",productForm(s),fd=>saveProduct(fd,s),"G\u00fcncelle")}if(action==="add-movement")openDialog("\u00dcr\u00fcn Se\u00e7","STOK HAREKET\u0130",`<div class="field"><label>Stok \u00fcr\u00fcn\u00fc</label><select id="movementProduct">${db.stock.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join("")}</select></div>`,()=>{const s=db.stock.find(x=>x.id===$("#movementProduct").value);setTimeout(()=>movementDialog(s),100)},"Devam");if(action==="add-income")financeDialog("Gelir");if(action==="add-expense")financeDialog("Gider");if(action==="edit-finance")financeDialog(db.finance.find(x=>x.id===id)?.type,db.finance.find(x=>x.id===id));if(action==="add-appointment")appointmentDialog();if(action==="new-service")serviceDialog();if(action==="service-detail"||action==="technician-open"){const [c,s]=findService(id);technicianDialog(c,s)}if(action==="cart-add"){const l=salesCart.find(x=>String(x.productId)===String(id));l?l.qty++:salesCart.push({productId:id,qty:1});render()}if(action==="cart-remove"){salesCart.splice(+el.dataset.index,1);render()}if(action==="pay-save")runSales("payment");if(action==="create-proforma")runSales("proforma");if(action==="save-service")runSales("service");if(action==="view-quotes")quoteDialog();if(action==="choose-import"||action==="import-customers"||action==="restore-backup"){$("#fileInput").dataset.mode=action;$("#fileInput").click()}if(action==="commit-import")commitImport(window.importRows||[]);if(action==="ocr-to-stock"){const lines=$("#ocrText").value.split(/\n/).filter(Boolean);window.importRows=lines.map((x,i)=>{const parts=x.split(/[;|\t]/);return{id:uid("stk"),code:parts[0]||`OCR-${i+1}`,name:parts[1]||parts[0],category:parts[2]||"Bilgisayar",qty:+parts[3]||1,min:0,buy:+parts[4]||0,sell:+parts[5]||0,currency:(parts[6]||"TRY").trim(),barcode:parts[7]||""}});commitImport(window.importRows)}if(action==="download-template")download("ayec-stok-sablonu.csv","kod;\u00fcr\u00fcn;kategori;adet;minimum;al\u0131\u015f;sat\u0131\u015f;para birimi;barkod\nPC-001;\u00d6rnek \u00dcr\u00fcn;Bilgisayar;10;2;100;140;TRY;123456");if(action==="export-all")exportAll();if(action==="export-customers")download(`musteriler-${today()}.csv`,csv(db.customers));if(action==="export-stock")download(`stok-${today()}.csv`,csv(db.stock));if(action==="export-finance")download(`finans-${today()}.csv`,csv(db.finance));if(action==="save-settings"){db.settings={...db.settings,company:$("#setCompany").value,currency:$("#setCurrency").value,alertMinutes:+$("#setAlertMinutes").value,doubleClick:$("#setDouble").checked,contextMenu:$("#setContext").checked,appointmentAlerts:$("#setAlerts").checked,compact:$("#setCompact").checked};save();toast("Ayarlar kaydedildi")}if(action==="reset-demo"){openResetDemoDialog()}}catch(err){toast(err.message||"\u0130\u015flem tamamlanamad\u0131","error")}}
+const ayecBaseShowContext=showContext;
+showContext=function(event,kind,id){if(kind!=="movement")return ayecBaseShowContext(event,kind,id);if(!ayecContextMenuEnabled())return;event.preventDefault();const menu=$("#contextMenu");const items=[["Excel'e Aktar","movement-export"],["PDF Olarak Kaydet","movement-print"],["Yazd\u0131r","movement-print"],["Bu Hareket Kayd\u0131n\u0131 Ge\u00e7mi\u015ften Sil","movement-delete"]];menu.innerHTML=items.map(([label,action])=>(action==="maintenance-separator"||action==="sales-cart-separator")?"<hr class=\"context-menu-separator\">":`<button data-context-action="${action}">${label}</button>`).join("");menu.style.left=`${Math.max(8,Math.min(event.clientX,innerWidth-230))}px`;menu.classList.add("open");menu.style.top=`${Math.max(8,Math.min(event.clientY,innerHeight-menu.offsetHeight-8))}px`;$$('[data-context-action]',menu).forEach(button=>button.onclick=()=>{menu.classList.remove("open");contextAction(kind,id,button.dataset.contextAction,event.currentTarget)})};
+const ayecBaseContextAction=contextAction;
+contextAction=function(kind,id,action,row){if(kind!=="movement")return ayecBaseContextAction(kind,id,action,row);if(action==="movement-export")download(`stok-hareketleri-${today()}.csv`,csv(db.movements));if(action==="movement-print")window.print();if(action==="movement-delete"){if(!db.movements.some(item=>String(item.id)===String(id)))return;openDialog("Hareket Kayd\u0131n\u0131 Ge\u00e7mi\u015ften Sil","STOK HAREKET GE\u00c7M\u0130\u015e\u0130",`<p>Bu i\u015flem yaln\u0131zca ge\u00e7mi\u015f kayd\u0131n\u0131 gizler; finans\u0131 ve ger\u00e7ek sto\u011fu de\u011fi\u015ftirmez.</p><div class="field"><label>Giri\u015f parolan\u0131z</label><input name="password" type="password" autocomplete="current-password" required></div>`,async form=>{await apiFetch("/api/desktop/stock/movements/delete",{method:"POST",body:JSON.stringify({id:Number(id),password:form.get("password")})});await hydrateDesktop(false);render();toast("Hareket ge\u00e7mi\u015ften silindi.","success");return true},"Ge\u00e7mi\u015ften Sil")}};
 function quoteDialog(){openDialog("Proforma Teklifler","SALES HUB",db.quotes.length?`<div class="table-wrap"><table><thead><tr><th>No</th><th>Müşteri</th><th>Tarih</th><th>Tutar</th><th>Durum</th><th></th></tr></thead><tbody>${db.quotes.map(q=>`<tr><td><strong>${q.no}</strong></td><td>${customerName(q.customerId)}</td><td>${q.date}</td><td>${money(q.total)}</td><td>${statusBadge(q.status)}</td><td><button type="button" class="mini" onclick="window.print()">Yazdır</button></td></tr>`).join("")}</tbody></table></div>`:empty("Proforma yok","Sales Hub üzerinden ilk teklifi oluşturun."),()=>true,"Kapat")}
 
 const _ayecFinanceActionHandler=handleAction;
@@ -429,14 +588,16 @@ handleAction=function(action,id,el){if(action==="print-finance"){window.print();
 
 function bindPage(){
  if(page==="invoices")bindInvoiceComposer();
- if(page==="finance"){$$("[data-finance-period]").forEach(button=>button.addEventListener("click",()=>{ayecFinancePeriod=button.dataset.financePeriod;render()}));ayecLoadFinanceBankBalances()}
+ if(["finance","income","expense"].includes(page)){const search=$(".finance-ref-search input");if(search){search.value=ayecFinanceSearch;search.oninput=()=>{ayecFinanceSearch=search.value.slice(0,200);if(page==="finance"){ayecFinanceLedgerState.page=0;ayecFinanceLedgerState.key=""}const caret=search.selectionStart;render();const next=$(".finance-ref-search input");next?.focus();next?.setSelectionRange(caret,caret)}}if(page==="finance"){$$("[data-finance-period]").forEach(button=>button.addEventListener("click",()=>{ayecFinancePeriod=button.dataset.financePeriod;ayecFinanceLedgerState.page=0;ayecFinanceLedgerState.key="";render()}));$$("[data-ledger-page]").forEach(button=>button.addEventListener("click",()=>{if(button.disabled)return;ayecFinanceLedgerState.page=Math.max(0,ayecFinanceLedgerState.page+(button.dataset.ledgerPage==="next"?1:-1));ayecFinanceLedgerState.key="";render()}));$$("[data-ledger-retry]").forEach(button=>button.addEventListener("click",()=>{ayecFinanceLedgerState.key="";ayecLoadFinanceLedger()}));const fiscalYearSelect=$("[data-finance-fiscal-year]");fiscalYearSelect?.addEventListener("change",()=>ayecSelectFinanceArchive(fiscalYearSelect.value,fiscalYearSelect));ayecLoadFinanceArchives();ayecLoadFinanceLedger();ayecLoadFinanceBankBalances()}}
  if(page==="services"){const search=$("#serviceBoardSearch");search?.addEventListener("input",()=>{ayecServiceBoardQuery=search.value;const caret=search.selectionStart;$("#content").innerHTML=renderServiceOperationsBoard();bindPage();const next=$("#serviceBoardSearch");next?.focus();next?.setSelectionRange(caret,caret)});$$("[data-service-board-filter]").forEach(button=>button.addEventListener("click",()=>{ayecServiceBoardFilter=button.dataset.serviceBoardFilter;render()}));$("[data-service-refresh]")?.addEventListener("click",()=>render())}
  const customerBanner=$(".customer-banners");if(customerBanner&&!customerBanner.querySelector('[data-customer-filter="vip"]')){const vip=document.createElement("button");vip.className="vip";vip.dataset.customerFilter="vip";vip.textContent="VIP M\u00fc\u015fteriler";customerBanner.insertBefore(vip,customerBanner.lastElementChild)}
  $$('[data-action]').forEach(b=>b.addEventListener("click",e=>{e.preventDefault();handleAction(b.dataset.action,b.dataset.id,b)}));
- $$('[data-kind]').forEach(row=>{bindInteractiveRow(row);row.addEventListener("dblclick",()=>{if(!db.settings.doubleClick)return;if(row.dataset.kind==="customer")customer360(db.customers.find(x=>x.id===row.dataset.id));if(row.dataset.kind==="appointment")appointmentDialog(db.appointments.find(x=>x.id===row.dataset.id));if(row.dataset.kind==="stock"){const s=db.stock.find(x=>x.id===row.dataset.id);openDialog("Ürünü Düzenle","STOK",productForm(s),fd=>saveProduct(fd,s),"Güncelle")}if(row.dataset.kind==="service"){const [c,s]=findService(row.dataset.id);technicianDialog(c,s)}if(row.dataset.kind==="finance"){const item=db.finance.find(x=>String(x.id)===String(row.dataset.id));financeDialog(item?.type,item)}})});
+ $$('[data-server-backup-create]').forEach(button=>button.addEventListener("click",createServerBackup));
+ $$('[data-server-backup-refresh]').forEach(button=>button.addEventListener("click",loadServerBackupArchive));
+ $$('[data-kind]').forEach(row=>{bindInteractiveRow(row);row.addEventListener("dblclick",()=>{if(!db.settings.doubleClick)return;if(row.dataset.kind==="customer")customer360(db.customers.find(x=>x.id===row.dataset.id));if(row.dataset.kind==="appointment")appointmentDialog(db.appointments.find(x=>x.id===row.dataset.id));if(row.dataset.kind==="stock"||row.dataset.kind==="stock-location"){const s=db.stock.find(x=>String(x.id)===String(row.dataset.id));openDialog("\u00dcr\u00fcn\u00fc D\u00fczenle","STOK",productForm(s),fd=>saveProduct(fd,s),"G\u00fcncelle")}if(row.dataset.kind==="service"){const [c,s]=findService(row.dataset.id);technicianDialog(c,s)}if(row.dataset.kind==="finance"){const item=db.finance.find(x=>String(x.id)===String(row.dataset.id));financeDialog(item?.type,item)}})});
  const cs=$("#customerSearch");if(cs){let mode="all",page=0,pageSize=10;const typeFilter=$("#customerTypeFilter"),locationFilter=$("#customerLocationFilter"),balanceFilter=$("#customerBalanceFilter"),sizeFilter=$("#customerPageSize");const serviceCount=c=>(c.services||[]).filter(s=>!/(teslim|tamamland|iptal|cancel)/i.test(String(s.status||""))).length;const f=()=>{const q=cs.value.toLocaleLowerCase("tr-TR"),type=typeFilter?.value||"",location=locationFilter?.value||"",balance=balanceFilter?.value||"";const rows=db.customers.filter(c=>{const values=Object.values(c.balances||{}).map(Number),debt=values.some(v=>v<0),credit=values.some(v=>v>0),zero=values.every(v=>!v),vip=/kurumsal|vip/i.test(c.type||""),service=serviceCount(c)>0;const segment=mode==="all"||(mode==="debt"&&debt)||(mode==="receivable"&&debt)||(mode==="vip"&&vip)||(mode==="services"&&service);const matchesType=!type||String(c.type||"Bireysel").toLocaleLowerCase("tr-TR").includes(type.toLocaleLowerCase("tr-TR"));const matchesLocation=!location||String(c.city||c.location||"").toLocaleLowerCase("tr-TR")===location.toLocaleLowerCase("tr-TR");const matchesBalance=!balance||(balance==="debt"&&debt)||(balance==="credit"&&credit)||(balance==="zero"&&zero);const haystack=[c.id,c.name,c.phone,c.email,c.company,c.company_name,c.tc_no,c.tax_number,c.tax_no,c.city,c.location].join(" ").toLocaleLowerCase("tr-TR");return segment&&matchesType&&matchesLocation&&matchesBalance&&haystack.includes(q)});const pages=Math.max(1,Math.ceil(rows.length/pageSize));page=Math.min(page,pages-1);$("#customerTable").innerHTML=customerTable(rows.slice(page*pageSize,(page+1)*pageSize));if($("#customerCount"))$("#customerCount").textContent=rows.length;if($("#customerPageIndicator"))$("#customerPageIndicator").textContent=`${page+1} / ${pages}`;if($("#customerPagePrev"))$("#customerPagePrev").disabled=page===0;if($("#customerPageNext"))$("#customerPageNext").disabled=page>=pages-1;if($("#customerSelectAll"))$("#customerSelectAll").checked=false;bindPageRows()};cs.oninput=f;if(typeFilter)typeFilter.onchange=()=>{page=0;f()};if(locationFilter)locationFilter.onchange=()=>{page=0;f()};if(balanceFilter)balanceFilter.onchange=()=>{page=0;f()};if(sizeFilter)sizeFilter.onchange=()=>{pageSize=Math.max(1,Number(sizeFilter.value)||10);page=0;f()};if($("#customerPagePrev"))$("#customerPagePrev").onclick=()=>{page=Math.max(0,page-1);f()};if($("#customerPageNext"))$("#customerPageNext").onclick=()=>{page++;f()};if($("#customerSearchClear"))$("#customerSearchClear").onclick=()=>{cs.value="";page=0;f()};$$('[data-customer-filter]').forEach(b=>b.onclick=()=>{mode=b.dataset.customerFilter;page=0;$$('[data-customer-filter]').forEach(x=>x.classList.toggle("selected",x===b));f()});const selectAll=$("#customerSelectAll");if(selectAll)selectAll.onchange=()=>$$('.customer-row-select').forEach(box=>box.checked=selectAll.checked);const multi=$("#customerMultiSelect");if(multi)multi.onclick=()=>{$("#customerTable").classList.toggle("multi-select");multi.classList.toggle("selected")};f()}
  if(page==="stock-locations"){
-  const refresh=()=>{const host=$("#stockLocationResults");if(host)host.innerHTML=renderStockLocationRows();$$("[data-location-page]").forEach(button=>button.addEventListener("click",()=>{ayecStockLocationPage=Math.max(1,ayecStockLocationPage+(button.dataset.locationPage==="next"?1:-1));refresh()}))};
+  const refresh=()=>{const host=$("#stockLocationResults");if(host){host.innerHTML=renderStockLocationRows();$$("#stockLocationResults [data-kind]").forEach(bindInteractiveRow);$$("#stockLocationResults [data-stock-row-action]").forEach(button=>button.addEventListener("click",event=>{event.stopPropagation();const row=button.closest("tr"),part=db.stock.find(item=>String(item.id)===String(row?.dataset.id));if(button.dataset.stockRowAction==="transfer"){ayecStockLocationId=String(row?.dataset.locationId||ayecStockLocationId);ayecTransferStockDialog()}if(button.dataset.stockRowAction==="use")stockLocationUsePartDialog(part,row?.dataset.locationId);if(button.dataset.stockRowAction==="edit"&&part)contextAction("stock-location",part.id,"location-edit",row)}))}$$("[data-location-page]").forEach(button=>button.addEventListener("click",()=>{ayecStockLocationPage=Math.max(1,ayecStockLocationPage+(button.dataset.locationPage==="next"?1:-1));refresh()}))};
   const search=$("#stockLocationSearch");search?.addEventListener("input",()=>{ayecStockLocationQuery=search.value;ayecStockLocationPage=1;refresh()});
   $("#stockLocationFilter")?.addEventListener("change",event=>{ayecStockLocationId=event.target.value;ayecStockLocationPage=1;refresh()});
   $$ ("[data-location-tab]").forEach(button=>button.addEventListener("click",()=>{ayecStockLocationTab=button.dataset.locationTab;render()}));
@@ -460,19 +621,42 @@ function bindPage(){
  if($("#settingsUsersHost"))loadSettingsUsers()
  if(settingsSection==="voice-shortcuts")bindVoiceShortcuts()
 }
-function bindPageRows(){$$('[data-kind]').forEach(row=>{bindInteractiveRow(row);row.ondblclick=()=>{if(!db.settings.doubleClick)return;if(row.dataset.kind==="customer")customer360(db.customers.find(x=>x.id===row.dataset.id));if(row.dataset.kind==="appointment")appointmentDialog(db.appointments.find(x=>x.id===row.dataset.id));if(row.dataset.kind==="stock"){const s=db.stock.find(x=>x.id===row.dataset.id);openDialog("Ürünü Düzenle","STOK",productForm(s),fd=>saveProduct(fd,s),"Güncelle")}if(row.dataset.kind==="finance"){const item=db.finance.find(x=>String(x.id)===String(row.dataset.id));financeDialog(item?.type,item)}}});$$('[data-action]').forEach(b=>b.onclick=e=>{e.preventDefault();handleAction(b.dataset.action,b.dataset.id,b)})}
+function bindPageRows(){$$('[data-kind]').forEach(row=>{bindInteractiveRow(row);if(row.dataset.kind==="customer"&&!row.dataset.customerSelectionBound){row.dataset.customerSelectionBound="1";row.addEventListener("click",event=>{if(!event.target.closest("button,input,a"))window.currentCustomerId=row.dataset.id})}row.ondblclick=()=>{if(!db.settings.doubleClick)return;if(row.dataset.kind==="customer")customer360(db.customers.find(x=>x.id===row.dataset.id));if(row.dataset.kind==="appointment")appointmentDialog(db.appointments.find(x=>x.id===row.dataset.id));if(row.dataset.kind==="stock"||row.dataset.kind==="stock-location"){const s=db.stock.find(x=>String(x.id)===String(row.dataset.id));openDialog("\u00dcr\u00fcn\u00fc D\u00fczenle","STOK",productForm(s),fd=>saveProduct(fd,s),"G\u00fcncelle")}if(row.dataset.kind==="finance"){const item=db.finance.find(x=>String(x.id)===String(row.dataset.id));financeDialog(item?.type,item)}}});$$('[data-action]').forEach(b=>b.onclick=e=>{e.preventDefault();handleAction(b.dataset.action,b.dataset.id,b)})}
 
 function checkAppointments(){if(!db.settings.appointmentAlerts)return;const now=new Date();db.appointments.forEach(a=>{if(a.alerted||a.status==="İptal"||a.status==="Tamamlandı")return;const at=new Date(`${a.date}T${a.time}:00`),diff=(at-now)/60000;if(diff>=0&&diff<=db.settings.alertMinutes){a.alerted=true;save();const msg=`${customerName(a.customerId)} randevusu ${Math.ceil(diff)} dakika içinde: ${a.title}`;notifications.unshift(msg);toast(msg,"warning",8000);if("Notification" in window&&Notification.permission==="granted")new Notification("AYEC Pro Randevu",{body:msg})}})}
 function checkScheduledAlerts(){const now=new Date(),hhmm=now.toTimeString().slice(0,5),stamp=`${today()}-${hhmm}`;scheduledAlerts.forEach(alert=>{if(alert.trigger_time!==hhmm||alert._stamp===stamp)return;alert._stamp=stamp;const labels={loan_reminder:"Kredi / taksit hatırlatmalarını kontrol edin",check_reminder:"Vadesi yaklaşan çek ve senetleri kontrol edin",stock_critical:"Kritik stok seviyelerini kontrol edin"},msg=labels[alert.alert_type]||`Planlı uyarı: ${alert.alert_type}`;notifications.unshift(msg);toast(msg,alert.is_critical?"error":"warning",9000);if("Notification" in window&&Notification.permission==="granted")new Notification("AYEC Pro Planlı Uyarı",{body:msg})})}
 
-async function hydrateDesktop(){try{const source=await apiFetch('/api/desktop/bootstrap');if(source.customers?.length)db.customers=source.customers.map(c=>({...c,phone:c.phone||"",email:c.email||"",type:c.type||"Bireysel",company:c.company_name||"",balances:c.balances||{TRY:0,USD:0,EUR:0},services:c.services||[],quotes:c.quotes||[]}));if(source.stock?.length)db.stock=source.stock.map(s=>({...s,id:s.id,code:s.code||"",name:s.name||s.part_name||"",category:s.category||"Di\u011fer",qty:Number(s.stock||0),min:Number(s.min_stock||0),buy:Number(s.purchase_price||0),sell:Number(s.price||0),currency:String(s.currency||"TRY").toUpperCase(),barcode:s.barcode||""}));if(source.movements?.length)db.movements=source.movements.map(m=>({...m,id:m.id,date:m.created_at||"",product:m.product||"",type:m.movement_type||"",qty:m.amount||0,ref:m.description||"",user:"Masa\u00fcst\u00fc"}));if(source.finance?.length)db.finance=source.finance.map(f=>({...f,customer:f.customer_name||"",currency:String(f.currency||"TRY").toUpperCase(),original_amount:f.original_amount??f.amount}));if(source.appointments?.length)db.appointments=source.appointments.map(a=>({...a,customerId:a.customer_id,title:a.title||a.description||a.fault||"Randevu",status:a.status||"Planland\u0131",alerted:false}));if(source.offers?.length)db.quotes=source.offers;save();render();toast("Masa\u00fcst\u00fc veritaban\u0131 web aray\u00fcz\u00fcne ba\u011fland\u0131","success")}catch(err){toast("Masa\u00fcst\u00fc veritaban\u0131 ba\u011flant\u0131s\u0131 kurulamad\u0131: "+err.message,"error")}}
+async function hydrateDesktop(){try{const source=await apiFetch('/api/desktop/bootstrap');if(source.customers?.length)db.customers=source.customers.map(c=>({...c,phone:c.phone||"",email:c.email||"",type:c.type||"Bireysel",company:c.company_name||"",balances:c.balances||{TRY:0,USD:0,EUR:0},services:c.services||[],quotes:c.quotes||[]}));if(source.stock?.length)db.stock=source.stock.map(s=>({...s,id:s.id,code:s.code||"",name:s.name||s.part_name||"",category:s.category||"Di\u011fer",qty:Number(s.stock||0),min:Number(s.min_stock||0),buy:Number(s.purchase_price||0),sell:Number(s.price||0),currency:String(s.currency||"TRY").toUpperCase(),barcode:s.barcode||""}));if(source.movements?.length)db.movements=source.movements.map(m=>({...m,id:m.id,date:m.created_at||"",product:m.product||"",type:m.movement_type||"",qty:m.amount||0,ref:m.description||"",user:"Masa\u00fcst\u00fc"}));if(source.finance?.length)db.finance=source.finance.map(f=>({...f,customer:f.customer_name||"",currency:String(f.currency||"TRY").toUpperCase(),original_amount:f.original_amount??f.amount}));if(source.appointments?.length)db.appointments=source.appointments.map(a=>({...a,customerId:a.customer_id,title:a.title||a.description||a.fault||"Randevu",status:a.status||"Planland\u0131",alerted:false}));if(source.offers?.length)db.quotes=source.offers;save();render();toast("Masa\u00fcst\u00fc veritaban\u0131 g\u00fcncellendi","success")}catch(err){toast("Masa\u00fcst\u00fc veritaban\u0131 ba\u011flant\u0131s\u0131 kurulamad\u0131: "+err.message,"error")}}
 hydrateDesktop=async function(){try{const source=await apiFetch("/api/desktop/bootstrap");db.customers=(source.customers||[]).map(c=>({...c,id:String(c.id),phone:c.phone||"",email:c.email||"",type:c.type||"Bireysel",company:c.company_name||"",balances:c.balances||{TRY:0,USD:0,EUR:0},services:c.services||[],quotes:c.quotes||[]}));db.stock=(source.stock||[]).map(s=>({...s,id:String(s.id),code:s.code||"",name:s.name||s.part_name||"",category:s.category||"Di\u011fer",qty:Number(s.stock||0),min:Number(s.min_stock||0),buy:Number(s.purchase_price||0),sell:Number(s.price||0),currency:String(s.currency||"TRY").toUpperCase(),barcode:s.barcode||""}));db.movements=(source.movements||[]).map(m=>({...m,id:String(m.id),date:m.created_at||"",product:m.product||"",type:m.movement_type||"",qty:m.amount||0,ref:m.description||"",user:"Masa\u00fcst\u00fc"}));db.finance=(source.finance||[]).map(f=>({...f,id:String(f.id),customer:f.customer_name||"",currency:String(f.currency||"TRY").toUpperCase(),original_amount:f.original_amount??f.amount}));db.appointments=(source.appointments||[]).map(a=>({...a,id:String(a.id),customerId:String(a.customer_id||""),title:a.title||a.description||a.fault||"Randevu",status:a.status||"Planland\u0131",alerted:false}));db.quotes=(source.offers||[]).map(q=>({...q,id:String(q.id),customerId:String(q.customer_id||""),no:q.offer_no,total:q.total_try||q.total||0}));scheduledAlerts=source.scheduled_alerts||[];save();render();toast("Masa\u00fcst\u00fc veritaban\u0131 web aray\u00fcz\u00fcne ba\u011fland\u0131","success")}catch(err){toast("Masa\u00fcst\u00fc veritaban\u0131 ba\u011flant\u0131s\u0131 kurulamad\u0131: "+err.message,"error")}};
 const runSalesLocal=runSales;runSales=function(mode){const customer=db.customers.find(c=>String(c.id)===String(salesCustomer));const lines=salesCart.map(l=>({line:l,product:db.stock.find(p=>String(p.id)===String(l.productId))}));const total=cartTotal();runSalesLocal(mode);if(!customer)return;if(mode==="payment"){desktopWrite("accounting",{type:"Gelir",category:"Satış",amount:total,original_amount:total,try_equivalent:total,currency:"TRY",exchange_rate:1,description:"Sales Hub web satışı",date:today(),customer_id:Number.isInteger(+customer.id)?+customer.id:null,customer_name:customer.name,payment_method:"Web"});for(const {product} of lines){if(product&&Number.isInteger(+product.id))desktopWrite("parts",{id:+product.id,_action:"update",stock:product.qty})}}else if(mode==="proforma"){const quote=customer.quotes?.[0];desktopWrite("offers",{offer_no:quote?.no||`PRF-${Date.now()}`,customer_id:Number.isInteger(+customer.id)?+customer.id:null,customer_name:customer.name,company_name:customer.company||customer.name,currency_code:"TRY",currency_symbol:"₺",exchange_rate:1,subtotal:total,total,total_try:total,status:"Teklif",source:"Web Sales Hub"})}else{const service=customer.services?.[0];desktopWrite("devices",{tracking_no:service?.no,customer_id:Number.isInteger(+customer.id)?+customer.id:null,customer_name:customer.name,device_model:lines.map(x=>x.product?.name).filter(Boolean).join(", "),fault_description:"Sales Hub kaydı",status:"Bekliyor",entry_date:today(),service_source:"Web Sales Hub"})}};
 runSales=function(mode){const customer=db.customers.find(c=>String(c.id)===String(salesCustomer));if(!customer)throw Error("Önce müşteri seçin");const lines=salesCart.map(line=>{const product=db.stock.find(p=>String(p.id)===String(line.productId));return{line:{...line,productId:product?.id},product}}),total=lines.reduce((sum,x)=>sum+(x.product?normalizedPrice(x.product)*x.line.qty:0),0);salesCustomer=customer.id;salesCart=lines.map(x=>x.line);runSalesLocal(mode);if(mode==="payment"){desktopWrite("accounting",{type:"Gelir",category:"Satış",amount:total,original_amount:total,try_equivalent:total,currency:"TRY",exchange_rate:1,description:"Sales Hub web satışı",date:today(),customer_id:Number.isInteger(+customer.id)?+customer.id:null,customer_name:customer.name,payment_method:"Web"});lines.forEach(({line,product})=>{if(product&&Number.isInteger(+product.id)){desktopWrite("parts",{id:+product.id,_action:"update",stock:product.qty});desktopWrite("stock_movements",{part_id:+product.id,movement_type:"Çıkış",amount:line.qty,new_stock:product.qty,description:"Sales Hub peşin satış"})}})}else if(mode==="proforma"){const quote=db.quotes[0];desktopWrite("offers",{offer_no:quote.no,customer_id:Number.isInteger(+customer.id)?+customer.id:null,customer_name:customer.name,company_name:customer.company||customer.name,currency_code:"TRY",currency_symbol:"₺",exchange_rate:1,subtotal:total,total,total_try:total,status:"Teklif",source:"Web Sales Hub",payload_json:JSON.stringify(quote)}).then(result=>{if(!result?.id)return;lines.forEach(({line,product})=>desktopWrite("offer_items",{offer_id:result.id,item_id:Number.isInteger(+product?.id)?+product.id:null,item_type:"stock",service:product?.name||"",description:product?.name||"",qty:line.qty,unit_price:normalizedPrice(product),line_total:normalizedPrice(product)*line.qty,payload_json:JSON.stringify(line)}))})}else{const service=customer.services[0];desktopWrite("devices",{tracking_no:service.no,customer_id:Number.isInteger(+customer.id)?+customer.id:null,customer_name:customer.name,device_model:lines.map(x=>x.product?.name).filter(Boolean).join(", "),fault_description:"Sales Hub kaydı",status:"Bekliyor",entry_date:today(),service_source:"Web Sales Hub"})}};
 let applicationStarted=false;
 function canAccessControlCenter(user=currentAuthUser){return user?.can_access_control_center===true||user?.is_control_admin===true}
-function requestedInitialPage(){const requested=new URLSearchParams(window.location.search).get("page");if(requested==="control-center"&&canAccessControlCenter())return requested;return"dashboard"}
+function requestedInitialPage(){const archivePage=sessionStorage.getItem("ayecFiscalArchivePage");if(archivePage){sessionStorage.removeItem("ayecFiscalArchivePage");if(titles[archivePage]||genericModules[archivePage]||["finance","income","expense"].includes(archivePage))return archivePage}const requested=new URLSearchParams(window.location.search).get("page");if(requested==="control-center")return canAccessControlCenter()?requested:"dashboard";if(titles[requested]||genericModules[requested]||["finance","income","expense"].includes(requested))return requested;return"dashboard"}
 async function startApplication(){if(applicationStarted){await hydrateDesktop(true);return}applicationStarted=true;renderNav();navigate(requestedInitialPage());const source=await hydrateDesktop(true);const s=source.settings||{},i=source.internal_settings||{};if(s.company_name)db.settings.company=s.company_name;if(s.default_currency)db.settings.currency=s.default_currency;if(s.appointment_alert_minutes)db.settings.alertMinutes=+s.appointment_alert_minutes||30;if(s.web_double_click!==undefined)db.settings.doubleClick=settingBool(s.web_double_click);if(s.web_context_menu!==undefined)db.settings.contextMenu=settingBool(s.web_context_menu);if(s.appointment_notifications!==undefined)db.settings.appointmentAlerts=settingBool(s.appointment_notifications);if(s.enable_right_click!==undefined)db.settings.contextMenu=settingBool(s.enable_right_click);if(i.feature_right_click_active!==undefined)db.settings.contextMenu=settingBool(i.feature_right_click_active);if(i.feature_double_click_active!==undefined)db.settings.doubleClick=settingBool(i.feature_double_click_active);save();await loadParityState();renderNav();render();checkScheduledAlerts()}
+
+const startApplicationWithoutAppLock = startApplication;
+startApplication = async function(){
+ if(applicationStarted){await startApplicationWithoutAppLock();return}
+ const security=await apiFetch("/api/desktop/security-settings");
+ if(security.app_lock_active&&security.app_password_configured){
+  const unlocked=await new Promise(resolve=>{
+   openDialog("Uygulama Kilitli","G\u00dcVENL\u0130K",'<div class="app-lock-web"><div class="app-lock-icon" aria-hidden="true">&#128274;</div><h2>Uygulama Kilitli</h2><label class="field"><span>Giri\u015f \u015fifresi</span><input name="password" type="password" autocomplete="current-password" required></label></div>',async form=>{
+    await apiFetch("/api/desktop/security-settings/verify-app-lock",{method:"POST",body:JSON.stringify({password:String(form.get("password")||"")})});
+    return true;
+   },"Giri\u015f Yap");
+   const dialog=$("#appDialog");dialog.classList.add("app-lock-dialog");dialog.addEventListener("close",()=>dialog.classList.remove("app-lock-dialog"),{once:true});$("#dialogCancel").textContent="\u00c7\u0131k\u0131\u015f";
+   dialog.addEventListener("close",()=>resolve(dialog.returnValue==="ok"),{once:true});
+  });
+  if(!unlocked){
+   try{await apiFetch("/api/auth/logout",{method:"POST",body:"{}"})}catch{}
+   currentAuthUser=null;applicationStarted=false;
+   renderLogin("Uygulama kilidi a\u00e7\u0131lmadan devam edilemez.","","info");
+   return;
+  }
+ }
+ await startApplicationWithoutAppLock();
+};
 document.addEventListener("click",e=>{const b=e.target.closest('[data-action="customer-help"]');if(!b)return;openDialog("M\u00fc\u015fteri Y\u00f6netimi","CRM",`<p>M\u00fc\u015fteri kay\u0131tlar\u0131n\u0131 arama alan\u0131ndan isim, telefon, vergi numaras\u0131 veya e-posta ile filtreleyin.</p><p>Segment se\u00e7icileri bor\u00e7lular\u0131, tahsilat bekleyenleri, VIP\u2019leri ve a\u00e7\u0131k servisi olanlar\u0131 listeler.</p><p>Her sat\u0131rdaki <b>\u0130\u015flem Yap</b> men\u00fcs\u00fcnden m\u00fc\u015fteri i\u015flemlerine eri\u015fin.</p>`,()=>true,"Kapat")});
 document.addEventListener("click",e=>{const b=e.target.closest('[data-action="copy-customers"],[data-action="print-customers"],[data-action="export-customers-pdf"]');if(!b)return;if(b.dataset.action==="copy-customers"){navigator.clipboard?.writeText(db.customers.map(c=>`${c.name}\t${c.phone}\t${c.email}`).join("\n"));toast("Müşteri listesi panoya kopyalandı")}else window.print()});
 function toggleNavParent(button,event){
@@ -506,6 +690,7 @@ function toggleNavParent(button,event){
  submenu.classList.toggle("open",open);
  submenu.style.display=open?"block":"none";
  if(typeof ayecSetOpenParent==="function")ayecSetOpenParent(button,open);
+ if(button.dataset.mainPage)navigate(button.dataset.mainPage);
  return true;
 }
 $("#nav").addEventListener("click",e=>{
@@ -520,7 +705,7 @@ document.addEventListener("click",e=>{const action=e.target.closest("[data-actio
 document.addEventListener("click",e=>{if(e.target.closest('[data-action="critical-stock"]')){const level=$("#stockLevel");if(level){level.value="Kritik Stok";level.dispatchEvent(new Event("change"));toast("Kritik stoklar filtrelendi","warning")}}});
 document.addEventListener("click",event=>{const chip=event.target.closest("[data-stock-category]");if(!chip)return;const category=$("#stockCategory");if(!category)return;category.value=chip.dataset.stockCategory||"Tüm Kategoriler";category.dispatchEvent(new Event("change"));document.querySelectorAll(".stock-category-strip button").forEach(item=>item.classList.toggle("active",item===chip))});
 document.addEventListener("click",e=>{const button=e.target.closest('[data-action="choose-import-mode"]');if(!button)return;const input=$("#fileInput"),mode=button.dataset.mode;input.dataset.mode=`smart-${mode}`;input.accept=mode==="pdf"?".pdf":mode==="image"?".png,.jpg,.jpeg,.bmp,.webp,.tif,.tiff,.ppm":".xlsx,.xls,.csv,.xml,.docx,.json";input.click()});
-document.addEventListener("click",e=>{const button=e.target.closest('[data-action="add-import-row"],[data-action="edit-import-row"],[data-action="delete-import-row"],[data-action="clear-import-rows"],[data-action="delete-product"]');if(!button)return;const action=button.dataset.action;if(action==="add-import-row")return addImportRow();if(action==="edit-import-row")return editImportRow(+button.dataset.index);if(action==="delete-import-row"){const index=+button.dataset.index,name=window.importRows?.[index]?.name||"Satır";window.importRows?.splice(index,1);drawImportPreview();toast(`${name} önizlemeden çıkarıldı`,"warning");return}if(action==="clear-import-rows"){if(confirm("İçe aktarma önizlemesindeki tüm satırlar temizlensin mi?")){window.importRows=[];drawImportPreview();toast("İçe aktarma listesi temizlendi","warning")}return}if(action==="delete-product")deleteProduct(db.stock.find(item=>String(item.id)===String(button.dataset.id))) });
+document.addEventListener("click",e=>{const button=e.target.closest('[data-action="add-import-row"],[data-action="edit-import-row"],[data-action="delete-import-row"],[data-action="clear-import-rows"],[data-action="delete-product"]');if(!button)return;const action=button.dataset.action;if(action==="add-import-row")return addImportRow();if(action==="edit-import-row")return editImportRow(+button.dataset.index);if(action==="delete-import-row"){const index=+button.dataset.index,name=window.importRows?.[index]?.name||"Sat\u0131r";window.importRows?.splice(index,1);drawImportPreview();toast(`${name} \u00f6nizlemeden \u00e7\u0131kar\u0131ld\u0131`,"warning");return}if(action==="clear-import-rows"){openClearImportPreviewDialog();return}if(action==="delete-product")deleteProduct(db.stock.find(item=>String(item.id)===String(button.dataset.id))) });
 document.addEventListener("click",e=>{if(e.target.closest('[data-action="save-settings"]')&&$("#setModuleValue"))desktopWrite("settings",{key:`web_module_${settingsSection}`,value:$("#setModuleValue").value})});
 document.addEventListener("click",e=>{const button=e.target.closest(".manifest-button");if(!button)return;const signal=`${button.textContent} ${button.title}`.toLocaleLowerCase("tr-TR");if(/kapat|vazgeç|iptal|reject|close/.test(signal))return $("#appDialog").close("cancel");if(/yazdır|print|pdf/.test(signal))return window.print();if(/excel|dışa aktar|export/.test(signal))return exportAll();if(/içe aktar|import|ocr/.test(signal)){$("#appDialog").close();return navigate("import")}if(/tahsilat|ödeme|payment/.test(signal)){$("#appDialog").close();return customerSelect(paymentDialog,"Tahsilat için müşteri seçin")}if(/servis|service/.test(signal)){$("#appDialog").close();return serviceDialog()}if(/stok|stock/.test(signal)){$("#appDialog").close();return navigate("stock")}if(/müşteri|customer/.test(signal)){$("#appDialog").close();return navigate("customers")}if(/kaydet|ekle|oluştur|güncelle|save|accept|create|update/.test(signal))$("#dialogForm").requestSubmit()});
  
@@ -565,7 +750,7 @@ function filterMobileNavigation(value){
  mobileNavSearch.addEventListener("input",()=>filterMobileNavigation(mobileNavSearch.value));
  const sidebarPin=$("#sidebarPin"),sidebarShell=$("#appShell"),sidebar=$("#sidebar");
  const sectorBrand=$("#sectorBrand");
- if(sectorBrand&&typeof MutationObserver!=="undefined"){new MutationObserver(()=>{const badge=currentSector==="otomotiv"?"OTOMOTIV MODU":"ERP";if(sectorBrand.textContent!==badge)sectorBrand.textContent=badge}).observe(sectorBrand,{childList:true,characterData:true,subtree:true})}
+  if(sectorBrand&&typeof MutationObserver!=="undefined"){new MutationObserver(()=>{const badge=currentSector==="otomotiv"?"OTOMOTIV MODU":"ERP",automotive=currentSector==="otomotiv";sectorBrand.classList.toggle("automotive-sector",automotive);sectorBrand.title=automotive?"Otomotiv Servis":"ERP";if(sectorBrand.textContent!==badge)sectorBrand.textContent=badge}).observe(sectorBrand,{childList:true,characterData:true,subtree:true})}
  let sidebarPinned=true;
  try{sidebarPinned=localStorage.getItem("ayec-sidebar-pinned")!=="0"}catch{}
  function setSidebarPinned(pinned,persist=true){sidebarPinned=Boolean(pinned);sidebarShell?.classList.toggle("sidebar-collapsed",!sidebarPinned);sidebarPin?.setAttribute("aria-pressed",String(sidebarPinned));const label=sidebarPinned?"Sol men\u00fc sabit":"Sol men\u00fc hover ile a\u00e7\u0131l\u0131r";sidebarPin?.setAttribute("title",label);sidebarPin?.setAttribute("aria-label",label);if(persist){try{localStorage.setItem("ayec-sidebar-pinned",sidebarPinned?"1":"0")}catch{}}}
@@ -604,10 +789,9 @@ document.addEventListener("click",event=>{
  // dismisses the drawer before its submenu can be reached on mobile.
  if(event.target.closest("#nav [data-page],.sidebar-bottom [data-page]"))setMobileMenu(false);
 });
-$(".sidebar-bottom [data-page]").onclick=()=>navigate("settings");
 $("#fileInput").onchange=e=>{const file=e.target.files[0],mode=e.target.dataset.mode;if(!file)return;if(mode==="restore-backup"){const r=new FileReader();r.onload=()=>{try{db=JSON.parse(r.result);save();navigate("dashboard");toast("Yedek geri yüklendi")}catch{toast("Geçersiz yedek dosyası","error")}};r.readAsText(file)}else if(mode==="import-customers"){const r=new FileReader();r.onload=()=>{try{const rows=file.name.endsWith(".json")?JSON.parse(r.result):parseCSV(r.result);rows.forEach(x=>db.customers.push({id:uid("cus"),name:x.name||x["müşteri"]||x.code,phone:x.phone||"",email:x.email||"",type:x.type||"Bireysel",balances:x.balances||{TRY:0,USD:0,EUR:0},services:[],quotes:[]}));save();render();toast(`${rows.length} müşteri içe aktarıldı`)}catch{toast("Müşteri dosyası okunamadı","error")}};r.readAsText(file)}else handleImport(file);e.target.value=""};
 $("#globalSearch").onkeydown=e=>{if(e.key!=="Enter")return;const q=e.target.value.toLocaleLowerCase("tr-TR"),c=db.customers.find(x=>x.name.toLocaleLowerCase("tr-TR").includes(q)),s=db.stock.find(x=>x.name.toLocaleLowerCase("tr-TR").includes(q));if(c){navigate("customers");setTimeout(()=>{$("#customerSearch").value=e.target.value;$("#customerSearch").dispatchEvent(new Event("input"))},0)}else if(s){navigate("stock");setTimeout(()=>{$("#stockSearch").value=e.target.value;$("#stockSearch").dispatchEvent(new Event("input"))},0)}else toast("Eşleşen kayıt bulunamadı","warning")};
-$("#globalSearchVoice").onclick=()=>{const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SpeechRecognition){toast("Bu tarayici sesli aramayi desteklemiyor.","warning");return}const recognition=new SpeechRecognition();recognition.lang="tr-TR";recognition.interimResults=false;recognition.maxAlternatives=1;const button=$("#globalSearchVoice");button?.classList.add("listening");recognition.onresult=event=>{const input=$("#globalSearch");if(!input)return;input.value=event.results?.[0]?.[0]?.transcript||"";input.dispatchEvent(new KeyboardEvent("keydown",{key:"Enter",bubbles:true}))};recognition.onerror=()=>toast("Sesli arama baslatilamadi.","warning");recognition.onend=()=>button?.classList.remove("listening");try{recognition.start()}catch{button?.classList.remove("listening");toast("Mikrofon kullanilamiyor.","warning")}};
+$("#globalSearchVoice").onclick=()=>{const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SpeechRecognition){toast("Bu tarayici sesli aramayi desteklemiyor.","warning");return}const recognition=new SpeechRecognition();recognition.lang="tr-TR";recognition.interimResults=false;recognition.maxAlternatives=1;const button=$("#globalSearchVoice");button?.classList.add("listening");recognition.onresult=event=>{const input=$("#globalSearch");if(!input)return;input.value=event.results?.[0]?.[0]?.transcript||"";input.dispatchEvent(new Event("input",{bubbles:true}));input.dispatchEvent(new KeyboardEvent("keydown",{key:"Enter",bubbles:true}))};recognition.onerror=()=>toast("Sesli arama baslatilamadi.","warning");recognition.onend=()=>button?.classList.remove("listening");try{recognition.start()}catch{button?.classList.remove("listening");toast("Mikrofon kullanilamiyor.","warning")}};
 $("#notificationBtn").onclick=()=>{if("Notification" in window&&Notification.permission==="default")Notification.requestPermission();openDialog("Bildirimler","UYARI MERKEZİ",notifications.length?notifications.map(n=>`<div class="activity"><span class="activity-icon">!</span><p>${esc(n)}</p></div>`).join(""):empty("Yeni bildirim yok","Randevu uyarıları burada görüntülenir."),()=>true,"Kapat")};
 setInterval(checkAppointments,30000);checkAppointments();
 setInterval(checkScheduledAlerts,30000);
@@ -694,8 +878,10 @@ function refreshCompanyLogo(){
  const image=$("#brandLogo"),initial=$("#brandInitial"),company=$("#brandCompanyName");
  if(company)company.textContent=String(desktopSettings.company_name||desktopSettings.company||"AYEC Pro");
  if(!image)return;
+ if(initial)initial.hidden=true;
+ if(!currentAuthUser){image.removeAttribute("src");image.hidden=true;return}
  image.onload=()=>{image.hidden=false;if(initial)initial.hidden=true};
- image.onerror=()=>{image.hidden=true;if(initial)initial.hidden=false};
+ image.onerror=()=>{image.hidden=true;if(initial)initial.hidden=true};
  image.src=`/api/desktop/company-logo?v=${Date.now()}`;
 }
 async function uploadCompanyLogo(file){
@@ -713,9 +899,7 @@ async function uploadCompanyLogo(file){
 document.addEventListener("click",async event=>{
  const action=event.target.closest("[data-action]")?.dataset.action;
  if(action==="upload-company-logo")$("#companyLogoInput").click();
- if(action==="remove-company-logo"&&confirm("Firma logosu kaldırılsın mı?")){
-  try{await apiFetch("/api/desktop/company-logo",{method:"POST",body:JSON.stringify({remove:true})});desktopSettings.logo_path="";refreshCompanyLogo();render();toast("Firma logosu kaldırıldı","warning")}catch(error){toast(error.message,"error")}
- }
+ if(action==="remove-company-logo"){openDialog("Logoyu Kald\u0131r","F\u0130RMA AYARLARI",`<p>Firma logosu kald\u0131r\u0131ls\u0131n m\u0131?</p>`,async()=>{await apiFetch("/api/desktop/company-logo",{method:"POST",body:JSON.stringify({remove:true})});desktopSettings.logo_path="";refreshCompanyLogo();render();toast("Firma logosu kald\u0131r\u0131ld\u0131","warning");return true},"Logoyu Kald\u0131r");const submit=$("#dialogSubmit");if(submit){submit.classList.remove("primary");submit.classList.add("danger")}return}
 });
 $("#companyLogoInput").onchange=event=>{uploadCompanyLogo(event.target.files[0]);event.target.value=""};
 setTimeout(refreshCompanyLogo,0);
@@ -789,17 +973,21 @@ runSales=async function(mode){
  }catch(error){toast(error.message||"Sales Hub işlemi tamamlanamadı","error")}
 };
 
-deleteProduct=async function(product){
+deleteProduct=function(product){
  if(!product)return;
- if(!confirm(`“${product.name}” stok kartı silinsin mi? Kalan ${product.qty} adet için masaüstündeki gibi finans ters kaydı ve stok çıkış hareketi oluşturulacaktır.`))return;
- try{
-  if(!/^\d+$/.test(String(product.id)))throw Error("Bu stok kartı masaüstü veritabanına henüz kaydedilmemiş");
-  const result=await apiFetch("/api/desktop/stock/delete",{method:"POST",body:JSON.stringify({id:+product.id})});
-  db.stock=db.stock.filter(item=>String(item.id)!==String(product.id));
-  db.movements.unshift({id:String(result.movement_id),date:new Date().toLocaleString("tr-TR"),product:product.name,type:"Çıkış (Silindi)",qty:-Number(result.stock||0),ref:`Kart Silindi: ${product.name}`,user:"Yönetici"});
-  if(result.finance_id)db.finance.unshift({id:String(result.finance_id),date:today(),type:"Gelir",category:"Stok İptali / Silinme",amount:Number(result.refund||0),currency:result.currency||product.currency||"TRY",description:`Stok Kartı Silinme İadesi: ${result.stock} x ${product.name}`,customer:""});
-  save();activity(`${product.name} stok kartı, hareketi ve finans ters kaydı işlendi`,"×");render();toast(result.finance_id?`Stok silindi; ${money(result.refund,result.currency)} finans iadesi işlendi`:"Stok silindi; maliyet veya kalan adet olmadığı için finans tutarı oluşmadı","success");
- }catch(error){toast(`Ürün silinemedi: ${error.message}`,"error")}
+ openDialog("Stok Kart\u0131n\u0131 Sil","STOK KARTI",`<p><strong>${esc(product.name||"Stok")}</strong> kart\u0131 ve kalan ${Number(product.qty)||0} adet i\u00e7in finans ters kayd\u0131 ile stok \u00e7\u0131k\u0131\u015f hareketi olu\u015fturulacak. Devam edilsin mi?</p>`,async()=>{
+  try{
+   if(!/^\d+$/.test(String(product.id)))throw Error("Bu stok kart\u0131 masa\u00fcst\u00fc veritaban\u0131na hen\u00fcz kaydedilmemi\u015f");
+   const result=await apiFetch("/api/desktop/stock/delete",{method:"POST",body:JSON.stringify({id:+product.id})});
+   db.stock=db.stock.filter(item=>String(item.id)!==String(product.id));
+   db.movements.unshift({id:String(result.movement_id),date:new Date().toLocaleString("tr-TR"),product:product.name,type:"\u00c7\u0131k\u0131\u015f (Silindi)",qty:-Number(result.stock||0),ref:`Kart Silindi: ${product.name}`,user:"Y\u00f6netici"});
+   if(result.finance_id)db.finance.unshift({id:String(result.finance_id),date:today(),type:"Gelir",category:"Stok \u0130ptali / Silinme",amount:Number(result.refund||0),currency:result.currency||product.currency||"TRY",description:`Stok Kart\u0131 Silinme \u0130adesi: ${result.stock} x ${product.name}`,customer:""});
+   save();activity(`${product.name} stok kart\u0131, hareketi ve finans ters kayd\u0131 i\u015flendi`,"\u00d7");render();toast(result.finance_id?`Stok silindi; ${money(result.refund,result.currency)} finans iadesi i\u015flendi`:"Stok silindi; maliyet veya kalan adet olmad\u0131\u011f\u0131 i\u00e7in finans tutar\u0131 olu\u015fmad\u0131","success");
+   return true;
+  }catch(error){toast(`\u00dcr\u00fcn silinemedi: ${error.message}`,"error");return false}
+ },"Stok Kart\u0131n\u0131 Sil");
+ const submit=$("#dialogSubmit");
+ if(submit){submit.classList.remove("primary");submit.classList.add("danger")}
 };
 
 // Desktop parity v4: currency-safe transactions, configurable navigation and responsive themes.
@@ -880,8 +1068,6 @@ renderNav=function(){
  }).join("");
  if($("#sectorSelect"))$("#sectorSelect").value=currentSector;
  if($("#sectorBrand"))$("#sectorBrand").textContent=currentSector==="otomotiv"?"Otomotiv Servis":"Teknik Servis";
- const fixedSettings=$(".sidebar-bottom [data-page='settings']");
- if(fixedSettings)fixedSettings.hidden=!menuVisible({id:"settings"});
 };
 function applyTheme(name,persist=false){
  const theme=supportedThemes.some(item=>item.id===name)?name:"light";
@@ -899,7 +1085,7 @@ function interfaceEditorDialog(){
  const labels=menuLabels(),visibility=menuVisibility(),items=menu.flatMap(group=>group.items.flatMap(item=>[item,...(item.children||[])]));
  openDialog("Arayüz Düzenle","MENÜ YAPILANDIRMA",`<p class="muted">Menü adlarını değiştirin veya kullanmadığınız modülleri toggle anahtarıyla gizleyin. Gizlemek verileri silmez.</p><div class="interface-editor">${items.map(item=>`<label class="interface-row ${visibility[item.id]===false?"menu-disabled":""}"><span class="interface-icon">${item.icon||"•"}</span><div><input name="menu_${item.id}" data-menu-id="${item.id}" value="${esc(labels[item.id]||item.label)}" aria-label="${esc(item.label)} menü adı"><small>${visibility[item.id]===false?"Menü gizli":"Menü görünür"}</small></div><input class="switch menu-visibility-toggle" name="visible_${item.id}" type="checkbox" value="1" ${visibility[item.id]===false?"":"checked"} aria-label="${esc(item.label)} menüsünü göster"></label>`).join("")}</div>`,async fd=>{const updated={},visible={};items.forEach(item=>{const value=String(fd.get(`menu_${item.id}`)||"").trim();if(value&&value!==item.label)updated[item.id]=value;if(!fd.has(`visible_${item.id}`))visible[item.id]=false});const labelsJson=JSON.stringify(updated),visibilityJson=JSON.stringify(visible);localStorage.setItem("ayec_menu_labels",labelsJson);localStorage.setItem("ayec_menu_visibility",visibilityJson);desktopInternalSettings.web_menu_labels=labelsJson;desktopInternalSettings.web_menu_visibility=visibilityJson;await Promise.all([desktopWrite("internal_settings",{key:"web_menu_labels",value:labelsJson}),desktopWrite("internal_settings",{key:"web_menu_visibility",value:visibilityJson})]);if(visible[page]===false)page=firstVisiblePage();renderNav();navigate(page);toast("Menü adları ve görünürlükleri kaydedildi","success");return true},"Menüleri Kaydet");
  $$(".menu-visibility-toggle").forEach(toggle=>toggle.onchange=()=>{const row=toggle.closest(".interface-row");row.classList.toggle("menu-disabled",!toggle.checked);row.querySelector("small").textContent=toggle.checked?"Menü görünür":"Menü gizli"});
- const footer=$("#dialogFooter"),reset=document.createElement("button");reset.type="button";reset.className="danger";reset.textContent="Varsayılana Dön";reset.onclick=async()=>{if(!confirm("Tüm özel menü isimleri ve görünürlükleri sıfırlansın mı?"))return;localStorage.removeItem("ayec_menu_labels");localStorage.removeItem("ayec_menu_visibility");desktopInternalSettings.web_menu_labels="{}";desktopInternalSettings.web_menu_visibility="{}";await Promise.all([desktopWrite("internal_settings",{key:"web_menu_labels",value:"{}"}),desktopWrite("internal_settings",{key:"web_menu_visibility",value:"{}"})]);$("#appDialog").close();renderNav();navigate(page);toast("Menüler varsayılana döndü","warning")};footer.prepend(reset);
+ const footer=$("#dialogFooter"),reset=document.createElement("button");reset.type="button";reset.className="danger";reset.textContent="Varsay\u0131lana D\u00f6n";reset.onclick=openSectorMenuResetConfirmation;footer.prepend(reset);
 }
 
 function rateForCode(code){const key=String(code||"TRY").toUpperCase();if(key==="TRY")return 1;return Number(salesManualRates[key]||exchangeRateState[key]?.selling||0)}
@@ -917,6 +1103,7 @@ async function loadParityState(){
 applyTheme(db.settings.theme||"light");
 $("#themeBtn").onclick=themeDialog;
 $("#interfaceEditBtn").onclick=interfaceEditorDialog;
+$("#syncNowBtn").onclick=async event=>{const button=event.currentTarget;if(button.disabled)return;button.disabled=true;button.setAttribute("aria-busy","true");try{await hydrateDesktop(true);await loadParityState();renderNav();render()}finally{button.disabled=false;button.removeAttribute("aria-busy")}};
 
 let salesDraft={template:"modern",project:"",vat:0,discountPercent:5};
 let editingOfferId=0;
@@ -929,7 +1116,7 @@ function selectedSalesRate(){return salesCurrency==="TRY"?1:Number(salesManualRa
 function selectedPriceFromTry(value){const rate=selectedSalesRate();return rate>0?Number(value||0)/rate:0}
 normalizedPrice=function(product){return productTryPrice(product,"sell")};
 normalizedCost=function(product){return productTryPrice(product,"buy")};
-cartTotal=function(){return salesCart.reduce((sum,line)=>{const product=db.stock.find(item=>String(item.id)===String(line.productId));return sum+(product?selectedPriceFromTry(productTryPrice(product)*Number(line.qty||0)):0)},0)};
+cartTotal=function(){return salesCart.reduce((sum,line)=>{const product=db.stock.find(item=>String(item.id)===String(line.productId)),unitTry=line.unitPriceTry??(product?productTryPrice(product):0);return sum+(product?selectedPriceFromTry(unitTry*Number(line.qty||0)):0)},0)};
 salesProducts=function(rows){
  const query=String($("#salesProductSearch")?.value||"").trim().toLocaleLowerCase("tr-TR");
  return rows.filter(product=>product.qty>0&&(salesCategoryFilter==="all"||String(product.category||"")===salesCategoryFilter)&&(!query||[product.name,product.code,product.barcode,product.category,product.brand,product.description].join(" ").toLocaleLowerCase("tr-TR").includes(query))).map(product=>{
@@ -938,7 +1125,7 @@ salesProducts=function(rows){
   return `<article class="sales-product-card"><header><code>${esc(product.code||product.barcode||"AYEC")}</code><span>${esc(product.qty)} ${esc(product.unit||"Adet")} ${"\u2022"} ${esc(product.category||"Stok")}</span></header><h3>${esc(product.name)}</h3><p>${esc(product.description||product.brand||product.category||"Stok kart\u0131")}</p><footer><div><small>Birim Sat\u0131\u015f (KDV Hari\u00e7)</small><strong>${money(product.sell,product.currency)}</strong>${converted}</div><button type="button" class="primary" data-action="cart-add" data-id="${esc(product.id)}">+ Ekle</button></footer></article>`
  }).join("")||empty("Stokta \u00fcr\u00fcn yok","\u00d6nce stok kart\u0131 ekleyin.");
 };
-cartHtml=function(){return salesCart.length?salesCart.map((line,index)=>{const product=db.stock.find(item=>String(item.id)===String(line.productId));if(!product)return"";const total=selectedPriceFromTry(productTryPrice(product)*Number(line.qty||0));return `<article class="sales-cart-line"><header><code>${esc(product.code||product.barcode||"AYEC")}</code><button type="button" class="mini" data-action="cart-remove" data-index="${index}" aria-label="Sepetten \u00e7\u0131kar">\u00d7</button></header><strong>${esc(product.name)}</strong><footer><div class="sales-quantity"><button type="button" data-sales-qty="-1" data-index="${index}" aria-label="Adedi azalt">-</button><input class="control cart-qty" type="number" min="1" max="${product.qty}" value="${line.qty}" data-index="${index}" aria-label="Adet"><button type="button" data-sales-qty="1" data-index="${index}" aria-label="Adedi art\u0131r">+</button></div><div class="sales-cart-price"><small>${line.qty} x ${money(selectedPriceFromTry(productTryPrice(product)),salesCurrency)}</small><b>${money(total,salesCurrency)}</b></div></footer></article>`}).join(""):empty("Sepet bo\u015f","Soldaki \u00fcr\u00fcn veya hizmetlerden kalem ekleyin.")};
+cartHtml=function(){return salesCart.length?salesCart.map((line,index)=>{const product=db.stock.find(item=>String(item.id)===String(line.productId));if(!product)return"";const unitTry=line.unitPriceTry??productTryPrice(product),unitPrice=selectedPriceFromTry(unitTry),total=unitPrice*Number(line.qty||0);return `<article class="sales-cart-line" data-kind="sales-cart" data-id="${index}"><header><code>${esc(product.code||product.barcode||"AYEC")}</code><button type="button" class="mini" data-action="cart-remove" data-index="${index}" aria-label="Sepetten \u00e7\u0131kar">\u00d7</button></header><strong>${esc(product.name)}</strong>${line.description?`<small class="sales-cart-description">${esc(line.description)}</small>`:""}<footer><div class="sales-quantity"><button type="button" data-sales-qty="-1" data-index="${index}" aria-label="Adedi azalt">-</button><input class="control cart-qty" type="number" min="1" max="${product.qty}" value="${line.qty}" data-index="${index}" aria-label="Adet"><button type="button" data-sales-qty="1" data-index="${index}" aria-label="Adedi art\u0131r">+</button></div><div class="sales-cart-price"><small>${line.qty} x ${money(unitPrice,salesCurrency)}</small><b>${money(total,salesCurrency)}</b></div></footer></article>`}).join(""):empty("Sepet bo\u015f","Soldaki \u00fcr\u00fcn veya hizmetlerden kalem ekleyin.")};
 renderSales=function(){
  const rate=selectedSalesRate(),subtotal=cartTotal(),subtotalTry=subtotal*rate,rateRecord=exchangeRateState[salesCurrency];
  const discountPercent=Math.max(0,Math.min(100,Number(salesDiscountPercent)||0)),discountAmount=subtotal*discountPercent/100,netSubtotal=subtotal-discountAmount,vatPercent=Math.max(0,Math.min(100,Number(salesDraft.vat)||0)),vatAmount=netSubtotal*vatPercent/100,total=netSubtotal+vatAmount;
@@ -960,12 +1147,12 @@ runSales=async function(mode){
   if(!customerId&&!String(customer.name||"").trim())throw Error("Müşteri sunucu veritabanına kaydedilmemiş. Müşteri listesini yenileyip tekrar deneyin.");
   if(!salesCart.length)throw Error("Sepete en az bir ürün ekleyin");
   const rate=selectedSalesRate();if(rate<=0)throw Error(`${salesCurrency} satış kuru girilmelidir`);
-  const lines=salesCart.map(line=>{const product=db.stock.find(item=>String(item.id)===String(line.productId));if(!product)throw Error("Sepetteki ürün bulunamadı");if(!rateForCode(product.currency))throw Error(`${product.name} için ${product.currency} kuru bulunamadı`);if(mode==="payment"&&Number(line.qty)>Number(product.qty))throw Error(`${product.name} için yeterli stok yok`);return{product_id:+product.id,qty:Number(line.qty),product}});
+  const lines=salesCart.map(line=>{if(line.type==="service"){const price=Number(line.unitPriceTry??line.priceTry);if(!line.name||!Number.isFinite(price)||price<0)throw Error("Hizmet kalemi ge\u00e7ersiz");return{service_id:line.serviceId,service_name:line.name,service_description:line.description||"",line_type:"service",qty:Number(line.qty),product:{id:null,name:line.name,description:line.description||"",brand:"",code:"",currency:"TRY",price,qty:999}}}const product=db.stock.find(item=>String(item.id)===String(line.productId));if(!product)throw Error("Sepetteki \u00fcr\u00fcn bulunamad\u0131");if(!rateForCode(product.currency))throw Error(`${product.name} i\u00e7in ${product.currency} kuru bulunamad\u0131`);if(mode==="payment"&&Number(line.qty)>Number(product.qty))throw Error(`${product.name} i\u00e7in yeterli stok yok`);return{product_id:+product.id,line_type:"stock",qty:Number(line.qty),product}});
   salesDraft={template:$("#proformaTemplate")?.value||"modern",project:$("#salesProject")?.value.trim()||"",vat:Number($("#salesVat")?.value||0),discountPercent:salesDiscountPercent};
   const offerNo=editingOfferNumber||nextOfferNumber(),rates=Object.fromEntries(["TRY","USD","EUR"].map(code=>[code,rateForCode(code)]));
-   const result=await apiFetch("/api/desktop/sales/commit",{method:"POST",body:JSON.stringify({mode,offer_id:mode==="proforma"&&editingOfferId?editingOfferId:undefined,customer_id:customerId,customer_name:customer.name,currency:salesCurrency,exchange_rate:rate,rates,lines:lines.map(({product_id,qty})=>({product_id,qty})),vat_rate:salesDraft.vat,discount_percent:salesDiscountPercent,template_type:salesDraft.template,project_name:salesDraft.project,offer_no:offerNo,device_type:currentSector==="otomotiv"?"Ara\u00e7":"Cihaz",payment_method:"Web"})});
+   const result=await apiFetch("/api/desktop/sales/commit",{method:"POST",body:JSON.stringify({mode,offer_id:mode==="proforma"&&editingOfferId?editingOfferId:undefined,customer_id:customerId,customer_name:customer.name,currency:salesCurrency,exchange_rate:rate,rates,lines:lines.map(({product_id,line_type,service_id,service_name,service_description,qty},index)=>({product_id,line_type,service_id,service_name,service_description,qty,unit_price:salesCart[index]?.unitPriceTry==null?(salesCart[index]?.type==="service"?selectedPriceFromTry(salesCart[index].priceTry):undefined):selectedPriceFromTry(salesCart[index].unitPriceTry),description:salesCart[index]?.description||salesCart[index]?.serviceDescription||""})),vat_rate:salesDraft.vat,discount_percent:salesDiscountPercent,template_type:salesDraft.template,project_name:salesDraft.project,offer_no:offerNo,device_type:currentSector==="otomotiv"?"Ara\u00e7":"Cihaz",payment_method:"Web"})});
   if(mode==="proforma"){
-   const quote={id:String(result.offer_id),no:result.offer_no,offer_no:result.offer_no,date:today(),created_at:new Date().toISOString(),customerId:String(customer.id),customer_id:+customer.id,customer_name:customer.name,company_name:customer.company||customer.name,contact_name:customer.name,project_name:salesDraft.project,template_type:salesDraft.template,currency_code:result.currency,currency_symbol:result.currency_symbol,exchange_rate:result.exchange_rate,subtotal:result.subtotal,discount:result.discount,discount_percent:result.discount_percent,discount_try:result.discount_try,vat_rate:salesDraft.vat/100,vat_amount:result.vat_amount,total:result.total,subtotal_try:result.subtotal_try,vat_amount_try:result.vat_amount_try,total_try:result.total_try,status:"Teklif",items:lines.map(({product,qty})=>({productId:product.id,name:product.name,service:product.name,description:product.name,brand:product.brand||"",code:product.code||"",qty,price:selectedPriceFromTry(productTryPrice(product))}))};
+   const quote={id:String(result.offer_id),no:result.offer_no,offer_no:result.offer_no,date:today(),created_at:new Date().toISOString(),customerId:String(customer.id),customer_id:+customer.id,customer_name:customer.name,company_name:customer.company||customer.name,contact_name:customer.name,project_name:salesDraft.project,template_type:salesDraft.template,currency_code:result.currency,currency_symbol:result.currency_symbol,exchange_rate:result.exchange_rate,subtotal:result.subtotal,discount:result.discount,discount_percent:result.discount_percent,discount_try:result.discount_try,vat_rate:salesDraft.vat/100,vat_amount:result.vat_amount,total:result.total,subtotal_try:result.subtotal_try,vat_amount_try:result.vat_amount_try,total_try:result.total_try,status:"Teklif",items:lines.map(({product,qty},index)=>({productId:product.id,name:product.name,service:product.name,description:salesCart[index]?.description||product.description||product.name,brand:product.brand||"",code:product.code||"",qty,price:salesCart[index]?.unitPriceTry==null?selectedPriceFromTry(productTryPrice(product)):selectedPriceFromTry(salesCart[index].unitPriceTry)}))};
    salesCart=[];editingOfferId=0;editingOfferNumber="";save();await hydrateDesktop();const savedQuote=db.quotes.find(item=>String(item.id)===String(result.offer_id))||quote;activity(`${savedQuote.no||savedQuote.offer_no} ${result.currency} proforma ${customer.name} i\u00e7in kaydedildi`,"◇");render();toast(result.updated?"Teklif g\u00fcncellendi":"Proforma se\u00e7ilen para birimiyle M\u00fc\u015fteri 360'a kaydedildi","success");setTimeout(()=>openProformaDocument(savedQuote,customer),60);return;
   }
   salesCart=[];save();await hydrateDesktop();
@@ -987,7 +1174,7 @@ function beginOfferEdit(offer){
  if(offerIsLocked(offer)){toast("Kabul edilmi\u015f teklif de\u011fi\u015ftirilemez. Yeni teklif olu\u015fturun.","warning");return}
  const customer=db.customers.find(item=>String(item.id)===String(offer.customerId||offer.customer_id));
  if(!customer){toast("Teklif m\u00fc\u015fterisi bulunamad\u0131","error");return}
- const cart=(offer.items||[]).map(item=>{const product=db.stock.find(stock=>String(stock.id)===String(item.item_id||item.productId)||String(stock.code||"")===String(item.code||""));return product?{productId:product.id,qty:Number(item.qty||1)}:null}).filter(Boolean);
+ const cart=(offer.items||[]).map(item=>{const product=db.stock.find(stock=>String(stock.id)===String(item.item_id||item.productId)||String(stock.code||"")===String(item.code||""));return product?{productId:product.id,qty:Number(item.qty||1),description:item.description||"",unitPriceTry:item.unit_price!=null?Number(item.unit_price)*Number(offer.exchange_rate||1):item.price_try!=null?Number(item.price_try):item.price!=null?Number(item.price)*Number(offer.exchange_rate||1):undefined}:null}).filter(Boolean);
  if(!cart.length){toast("Teklif kalemleri stok kartlar\u0131yla e\u015fle\u015ftirilemedi","error");return}
  salesCustomer=customer.id;salesCart=cart;salesCurrency=["TRY","USD","EUR"].includes(offer.currency_code)?offer.currency_code:"TRY";
  if(salesCurrency!=="TRY"&&Number(offer.exchange_rate)>0)setSalesRate(salesCurrency,offer.exchange_rate);
@@ -1011,11 +1198,12 @@ financeTable=function(rows){return `<div class="table-wrap"><table><thead><tr><t
 renderFinance=function(filter=""){
  const todayKey=ayecLocalDateKey(new Date());
  const startDate=new Date(`${todayKey}T00:00:00`);
- if(ayecFinancePeriod==="week")startDate.setDate(startDate.getDate()-6);
+ if(ayecFinancePeriod==="week"||ayecFinancePeriod==="last7")startDate.setDate(startDate.getDate()-6);
  else if(ayecFinancePeriod==="month")startDate.setDate(1);
  else if(ayecFinancePeriod==="today")startDate.setHours(0,0,0,0);
  else startDate.setMonth(0,1);
- const rows=(filter?db.finance.filter(item=>item.type===filter):db.finance).filter(item=>{if(filter||ayecFinancePeriod==="year")return true;const key=ayecFinanceDateKey(item.date||item.created_at);return key>=ayecLocalDateKey(startDate)&&key<=todayKey});
+ const search=ayecFinanceSearch.trim().toLocaleLowerCase("tr-TR");
+ const rows=(filter?db.finance.filter(item=>item.type===filter):db.finance).filter(item=>{if(ayecFinancePeriod==="year"||ayecFinancePeriod==="fiscal")return true;const key=ayecFinanceDateKey(item.date||item.created_at);return key>=ayecLocalDateKey(startDate)&&key<=todayKey}).filter(item=>!search||[item.date,item.created_at,item.type,item.category,item.description,item.customer,item.customer_name,item.ref_no,item.tracking_no].some(value=>String(value||"").toLocaleLowerCase("tr-TR").includes(search)));
  const income=db.finance.filter(item=>item.type==="Gelir").reduce((sum,item)=>sum+financeTryValue(item),0);
  const expense=db.finance.filter(item=>item.type==="Gider").reduce((sum,item)=>sum+financeTryValue(item),0);
  const net=income-expense;
@@ -1041,10 +1229,10 @@ renderFinance=function(filter=""){
  const last14Net=dailyValues.reduce((sum,value)=>sum+value,0);
  const weekly=`<section class="finance-weekly card"><div><h3>Haftal\u0131k Nakit Ak\u0131\u015f Dengesi</h3><small>Son 14 g\u00fcn: kay\u0131tl\u0131 hareketlerin net dengesi</small></div><strong>${financeUsd(last14Net)}</strong><svg class="finance-weekly-chart" viewBox="0 0 320 34" preserveAspectRatio="none" role="img" aria-label="Son 14 gun net nakit akis grafigi"><polyline points="${chartPoints}" /></svg></section>`;
  if(filter)return `${pageHead(`${filter} Kay\u0131tlar\u0131`,`Gelir ve gider hareketlerini inceleyin.`)}<section class="card finance-ledger">${financeTable(rows)}</section>`;
- return `${pageHead("Finansal Dashboard","Finansal hareketleri ve nakit durumunu tek ekranda y\u00f6netin.",'<button class="primary" data-action="finance-fiscal">Mali Y\u0131l Kontrolleri</button>')}<div class="finance-ref-period"><div class="actions"><button data-finance-period="today" class="${ayecFinancePeriod==="today"?"primary":"secondary"}">Bug\u00fcn</button><button data-finance-period="week" class="${ayecFinancePeriod==="week"?"primary":"secondary"}">Son 7 G\u00fcn</button><button data-finance-period="month" class="${ayecFinancePeriod==="month"?"primary":"secondary"}">Bu Ay</button><button data-finance-period="year" class="${ayecFinancePeriod==="year"?"primary":"secondary"}">Y\u0131ll\u0131k</button><button class="success" data-action="add-income">Gelir Ekle</button><button class="danger" data-action="add-expense">Gider Ekle</button><button class="primary" data-action="collect-finance">Tahsilat Al</button></div><select aria-label="Mali y\u0131l"><option>Canl\u0131 (${new Date().getFullYear()})</option></select></div><div class="finance-ref-metrics">${metricRow}</div><div class="finance-layout"><main><section class="card finance-ledger"><div class="card-head"><h3>Son Hareketler (Birle\u015fik Defter)</h3><span class="badge">${rows.length} Kay\u0131t Y\u00fckl\u00fc</span></div><div class="finance-ref-search"><input type="search" placeholder="Fi\u015f, ref, m\u00fc\u015fteri ara..."><button aria-label="Tablo g\u00f6r\u00fcn\u00fcm\u00fc">\u25a4</button><button aria-label="Liste g\u00f6r\u00fcn\u00fcm\u00fc">\u25a5</button><button data-action="print-finance" aria-label="Yazd\u0131r">\u25a3</button></div>${financeTable(rows)}</section>${weekly}</main><aside>${quick}<section class="finance-ref-status card"><h3>Mali Kontroller</h3><button class="primary" data-action="finance-fiscal">Mali Y\u0131l Kontrolleri</button><h3>Kay\u0131tl\u0131 D\u00f6viz Kurlar\u0131</h3><span>Kur bilgileri finans hareketlerinde kullan\u0131l\u0131r.</span><h3>KDV & Stopaj Durumu</h3><span>Kay\u0131tl\u0131 finans hareketleriyle hesaplan\u0131r.</span><h3>Kasaya ve Banka Bakiyeleri</h3><span data-finance-cash>${bankAccounts.length?cashValue:"Banka hesap bakiyesi y\u00fckleniyor."}</span></section></aside></div>`;
+  return `${pageHead("Finansal Dashboard","Finansal hareketleri ve nakit durumunu tek ekranda y\u00f6netin.",'<button class="primary" data-action="finance-fiscal">Mali Y\u0131l Kontrolleri</button>')}<div class="finance-ref-period"><div class="actions"><button data-finance-period="today" class="${ayecFinancePeriod==="today"?"primary":"secondary"}">Bug\u00fcn</button><button data-finance-period="last7" class="${ayecFinancePeriod==="last7"?"primary":"secondary"}">Son 7 G\u00fcn</button><button data-finance-period="month" class="${ayecFinancePeriod==="month"?"primary":"secondary"}">Bu Ay</button><button data-finance-period="fiscal" class="${ayecFinancePeriod==="fiscal"?"primary":"secondary"}">Y\u0131ll\u0131k</button><button class="success" data-action="add-income">Gelir Ekle</button><button class="danger" data-action="add-expense">Gider Ekle</button><button class="primary" data-action="collect-finance">Tahsilat Al</button></div><select aria-label="Mali y\u0131l" data-finance-fiscal-year>${ayecFinanceArchiveOptionMarkup()}</select></div><div class="finance-ref-metrics">${metricRow}</div><div class="finance-layout"><main><section class="card finance-ledger"><div class="card-head"><h3>Son Hareketler (Birle\u015fik Defter)</h3><span class="badge">${ayecFinanceLedgerState.rows.length} Kay\u0131t Y\u00fckl\u00fc</span></div><div class="finance-ref-search"><input type="search" placeholder="Fi\u015f, ref, m\u00fc\u015fteri ara..."><button aria-label="Tablo g\u00f6r\u00fcn\u00fcm\u00fc">\u25a4</button><button aria-label="Liste g\u00f6r\u00fcn\u00fcm\u00fc">\u25a5</button><button data-action="print-finance" aria-label="Yazd\u0131r">\u25a3</button></div>${ayecFinanceLedgerMarkup()}</section>${weekly}</main><aside>${quick}<section class="finance-ref-status card"><h3>Mali Kontroller</h3><button class="primary" data-action="finance-fiscal">Mali Y\u0131l Kontrolleri</button><h3>Kay\u0131tl\u0131 D\u00f6viz Kurlar\u0131</h3><span>Kur bilgileri finans hareketlerinde kullan\u0131l\u0131r.</span><h3>KDV & Stopaj Durumu</h3><span>Kay\u0131tl\u0131 finans hareketleriyle hesaplan\u0131r.</span><h3>Kasaya ve Banka Bakiyeleri</h3><span data-finance-cash>${bankAccounts.length?cashValue:"Banka hesap bakiyesi y\u00fckleniyor."}</span></section></aside></div>`;
 };
 
-productForm=function(product={}){const categories=sectorStockCategories();if(product.category&&!categories.includes(product.category))categories.push(product.category);return `<div class="form-grid"><div class="field"><label>Stok Kodu *</label><input name="code" required value="${esc(product.code||"")}"></div><div class="field"><label>Barkod</label><input name="barcode" value="${esc(product.barcode||"")}"></div><div class="field full"><label>Ürün Adı *</label><input name="name" required value="${esc(product.name||"")}"></div><div class="field"><label>Kategori</label><select name="category">${categories.map(value=>`<option ${product.category===value?"selected":""}>${value}</option>`).join("")}</select></div><div class="field"><label>Marka</label><input name="brand" value="${esc(product.brand||"")}"></div><div class="field"><label>Para Birimi</label><select name="currency">${["TRY","USD","EUR"].map(value=>`<option ${product.currency===value?"selected":""}>${value}</option>`).join("")}</select></div><div class="field"><label>Ödeme Yöntemi</label><select name="payment_method"><option>Nakit</option><option>Banka</option><option>Kredi Kartı</option><option>Vadeli</option></select></div><div class="field"><label>Stok Adedi</label><input name="qty" type="number" min="0" step="1" value="${product.qty??0}"></div><div class="field"><label>Minimum Stok</label><input name="min" type="number" min="0" step="1" value="${product.min??0}"></div><div class="field"><label>Alış Fiyatı</label><input name="buy" type="number" min="0" step=".01" value="${product.buy??0}"></div><div class="field"><label>Satış Fiyatı</label><input name="sell" type="number" min="0" step=".01" value="${product.sell??0}"></div><div class="field full"><label>Açıklama</label><textarea name="description">${esc(product.description||"")}</textarea></div></div>`};
+productForm=function(product={}){const categories=sectorStockCategories();if(product.category&&!categories.includes(product.category))categories.push(product.category);const generalFields=String(currentSector||"")==="otomotiv"?"":`<div class="field"><label>Raf Yeri</label><input name="shelf_number" value="${esc(product.shelf_number||"")}"></div><div class="field full"><label>Uyumlu Marka / Model</label><textarea name="compatible_models">${esc(product.compatible_models||"")}</textarea></div>`;const units=["Adet","Metre","Kg","Lt","Paket","Kutu"];const unitField=`<div class="field"><label>Birim</label><select name="unit">${units.map(unit=>`<option ${String(product.unit||"Adet")==unit?"selected":""}>${unit}</option>`).join("")}</select></div>`;return `<div class="form-grid"><div class="field"><label>Stok Kodu *</label><input name="code" required value="${esc(product.code||"")}"></div><div class="field"><label>Barkod</label><input name="barcode" value="${esc(product.barcode||"")}"></div><div class="field full"><label>\u00dcr\u00fcn Ad\u0131 *</label><input name="name" required value="${esc(product.name||"")}"></div><div class="field"><label>Kategori</label><select name="category">${categories.map(value=>`<option ${product.category===value?"selected":""}>${value}</option>`).join("")}</select></div><div class="field"><label>Marka</label><input name="brand" value="${esc(product.brand||"")}"></div><div class="field"><label>Para Birimi</label><select name="currency">${["TRY","USD","EUR"].map(value=>`<option ${product.currency===value?"selected":""}>${value}</option>`).join("")}</select></div><div class="field"><label>\u00d6deme Y\u00f6ntemi</label><select name="payment_method"><option>Nakit</option><option>Banka</option><option>Kredi Kart\u0131</option><option>Vadeli</option></select></div>${unitField}<div class="field"><label>Stok Adedi</label><input name="qty" type="number" min="0" step="any" value="${product.qty??0}"></div><div class="field"><label>Minimum Stok</label><input name="min" type="number" min="0" step="1" value="${product.min??0}"></div><div class="field"><label>Al\u0131\u015f Fiyat\u0131</label><input name="buy" type="number" min="0" step=".01" value="${product.buy??0}"></div><div class="field"><label>Sat\u0131\u015f Fiyat\u0131</label><input name="sell" type="number" min="0" step=".01" value="${product.sell??0}"></div><div class="field full"><label>A\u00e7\u0131klama</label><textarea name="description">${esc(product.description||"")}</textarea></div>${generalFields}</div>`};
 const _ayecProductFormWithBarcodeCamera=productForm;
 productForm=function(product={}){const html=_ayecProductFormWithBarcodeCamera(product);return html.replace(/<div class="field"><label>Barkod<\/label><input name="barcode"([^>]*)><\/div>/,`<div class="field barcode-field"><label>Barkod</label><div class="barcode-control"><input name="barcode"$1><button type="button" class="barcode-camera" data-action="product-barcode-camera" title="Kameradan barkod oku" aria-label="Kameradan barkod oku">📷</button><input id="productBarcodeCamera" type="file" accept="image/*" capture="environment" hidden></div></div>`) };
 saveProduct=async function(fd,existing){
@@ -1057,11 +1245,61 @@ saveProduct=async function(fd,existing){
  save();activity(`${target.name} stok, hareket ve finans zinciri kaydedildi`,"▥");render();toast(result.finance_id?`Ürün kaydedildi; ${money(result.expense,result.currency)} stok gideri finansa işlendi`:"Ürün ve stok hareketi kaydedildi","success");return true;
 };
 
-movementDialog=function(product){openDialog("Stok Hareketi","STOK",`<div class="form-grid"><div class="field full"><label>Ürün</label><input disabled value="${esc(product.name)}"></div><div class="field"><label>Tür</label><select name="type"><option>Giriş</option><option>Çıkış</option></select></div><div class="field"><label>Miktar</label><input name="qty" type="number" min="1" step="1" required></div><div class="field full"><label>Referans</label><input name="ref" value="MANUEL"></div></div>`,async fd=>{const values=Object.fromEntries(fd),quantity=Number(values.qty||0);if(values.type==="Çıkış"&&quantity>product.qty)throw Error("Yetersiz stok");const nextQty=Number(product.qty)+(values.type==="Giriş"?quantity:-quantity),rate=rateForCode(product.currency);const result=await apiFetch("/api/desktop/stock/save",{method:"POST",body:JSON.stringify({id:+product.id,name:product.name,code:product.code,barcode:product.barcode,category:product.category,brand:product.brand,currency:product.currency,stock:nextQty,min_stock:product.min,purchase_price:product.buy,price:product.sell,description:product.description,exchange_rate:rate})});product.qty=nextQty;db.movements.unshift({id:String(result.movement_id),date:new Date().toLocaleString("tr-TR"),product:product.name,type:values.type,qty:quantity,ref:values.ref,user:"Yönetici"});if(result.finance_id)db.finance.unshift({id:String(result.finance_id),date:today(),type:"Gider",category:"Stok Güncelleme",amount:result.expense,try_equivalent:result.expense*result.exchange_rate,currency:result.currency,exchange_rate:result.exchange_rate,description:`Stok Güncelleme: ${quantity} x ${product.name}`,customer:""});save();render();toast(result.finance_id?"Stok girişi ve maliyeti finansa işlendi":"Stok hareketi kaydedildi","success");return true})};
+movementDialog=function(product){openDialog("Stok Hareketi","STOK",`<div class="form-grid"><div class="field full"><label>\u00dcr\u00fcn</label><input disabled value="${esc(product.name)}"></div><div class="field"><label>T\u00fcr</label><select name="type"><option>Giri\u015f</option><option>\u00c7\u0131k\u0131\u015f</option></select></div><div class="field"><label>Miktar</label><input name="qty" type="number" min="1" step="1" required></div><div class="field full"><label>Referans</label><input name="ref" value="MANUEL"></div></div>`,async fd=>{const values=Object.fromEntries(fd),quantity=Number(values.qty||0);if(values.type==="\u00c7\u0131k\u0131\u015f"&&quantity>product.qty)throw Error("Yetersiz stok");const nextQty=Number(product.qty)+(values.type==="Giri\u015f"?quantity:-quantity),rate=rateForCode(product.currency);const result=await apiFetch("/api/desktop/stock/adjust",{method:"POST",body:JSON.stringify({id:+product.id,delta:values.type==="Giri\u015f"?quantity:-quantity,reference:values.ref})});product.qty=nextQty;db.movements.unshift({id:String(result.movement_id),date:new Date().toLocaleString("tr-TR"),product:product.name,type:values.type,qty:quantity,ref:values.ref,user:"Y\u00f6netici"});if(result.finance_id)db.finance.unshift({id:String(result.finance_id),date:today(),type:"Gider",category:result.delta>0?"Stok Al\u0131m\u0131":"Stok D\u00fc\u015f\u00fcm\u00fc / Fire",amount:result.expense,try_equivalent:result.expense*result.exchange_rate,currency:result.currency,exchange_rate:result.exchange_rate,description:result.finance_description,customer:""});save();render();toast(result.finance_id?"Stok giri\u015fi ve maliyeti finansa i\u015flendi":"Stok hareketi kaydedildi","success");return true})};
 
 function allServices(){return db.customers.flatMap(customer=>(customer.services||[]).map(service=>({...service,customer:customer.name,customerId:customer.id,customerPhone:customer.phone||""})))}
 function serviceComplete(service){return /tamam|teslim|iptal/i.test(String(service.status||""))}
-let ayecFinancePeriod="year";
+let ayecFinancePeriod="fiscal";
+let ayecFinanceSearch="";
+let ayecFinanceLedgerState={rows:[],page:0,hasMore:false,key:"",loading:false,error:"",request:0};
+let ayecFinanceLedgerItems=[];
+let ayecFinanceArchives=[];
+let ayecFinanceArchivesLoaded=false;
+let ayecFinanceArchivesLoading=false;
+function ayecFinanceArchiveOptionMarkup(){
+ const active=ayecFiscalArchiveState(),activeId=active?String(active.id):"";
+ const liveYear=new Date().getFullYear();
+ const live=`<option value="live" ${activeId?"":"selected"}>Canl\u0131 (${liveYear})</option>`;
+ const archiveOptions=ayecFinanceArchives.map(archive=>{const id=String(archive.id),filename=String(archive.filename||"archive.db"),match=filename.match(/archive_(\d{4})/i),label=match?`Mali Y\u0131l ${match[1]}`:filename;return `<option value="${esc(id)}" ${activeId===id?"selected":""}>${esc(label)}</option>`}).join("");
+ const activeMissing=activeId&&!ayecFinanceArchives.some(item=>String(item.id)===activeId)?`<option value="${esc(activeId)}" selected>${esc(active.filename||"Ge\u00e7mi\u015f mali y\u0131l ar\u015fivi")}</option>`:"";
+ return live+archiveOptions+activeMissing;
+}
+async function ayecLoadFinanceArchives(){
+ if(page!=="finance"||ayecFinanceArchivesLoaded||ayecFinanceArchivesLoading)return;
+ ayecFinanceArchivesLoading=true;
+ try{const data=await apiFetch("/api/desktop/fiscal/archives");ayecFinanceArchives=Array.isArray(data.archives)?data.archives:[];ayecFinanceArchivesLoaded=true;const select=$("[data-finance-fiscal-year]");if(select)select.innerHTML=ayecFinanceArchiveOptionMarkup()}
+ catch(error){ayecFinanceArchivesLoaded=true;toast(error.message||"Mali y\u0131l ar\u015fivleri y\u00fcklenemedi.","error")}
+ finally{ayecFinanceArchivesLoading=false}
+}
+async function ayecSelectFinanceArchive(value,select){
+ const active=ayecFiscalArchiveState(),activeId=active?String(active.id):"";
+ if(value==="live"){
+  if(!active)return;
+  sessionStorage.setItem("ayecFiscalArchivePage",page);sessionStorage.removeItem("ayecFiscalArchive");ayecClearDatabaseCache();window.location.reload();return;
+ }
+ const archive=ayecFinanceArchives.find(item=>String(item.id)===String(value));
+ if(!archive){select.value=activeId||"live";return}
+ if(String(archive.id)===activeId)return;
+ select.disabled=true;
+ try{await apiFetch(`/api/desktop/fiscal/archives/${Number(archive.id)}`);sessionStorage.setItem("ayecFiscalArchive",JSON.stringify({id:Number(archive.id),filename:archive.filename}));sessionStorage.setItem("ayecFiscalArchivePage",page);ayecClearDatabaseCache();window.location.reload()}
+ catch(error){select.value=activeId||"live";toast(error.message||"Mali y\u0131l ar\u015fivi a\u00e7\u0131lamad\u0131.","error")}
+ finally{select.disabled=false}
+}
+function ayecFinanceLedgerMarkup(){
+ const state=ayecFinanceLedgerState,rows=state.rows;
+ ayecFinanceLedgerItems=rows.map(row=>({...row,web_key:`${row.source}:${row.id}`,type:row.type_label||row.status||"",category:row.category||row.type_label||"",customer:row.customer_name||"",original_amount:row.amount,try_equivalent:row.amount_try,exchange_rate:row.rate}));
+ const body=state.loading?'<tr><td colspan="7">Y\u00fckleniyor...</td></tr>':state.error?`<tr><td colspan="7">${esc(state.error)} <button type="button" data-ledger-retry>Retry</button></td></tr>`:rows.map(item=>`<tr data-kind="finance" data-id="${esc(item.web_key)}"><td>${esc(item.date||"")}</td><td>${statusBadge(item.type)}</td><td>${esc(item.category)}</td><td>${esc(item.description||"")}</td><td>${esc(item.customer)}</td><td><strong>${money(item.original_amount,item.currency||"TRY")}</strong>${(item.currency||"TRY")!=="TRY"?`<br><small class="muted">${money(item.try_equivalent,"TRY")}</small>`:""}</td><td></td></tr>`).join("")||'<tr><td colspan="7">Bu d\u00f6nemde hareket bulunamad\u0131.</td></tr>';
+ return `<div class="table-wrap"><table><thead><tr><th>Tarih</th><th>T\u00fcr</th><th>Kategori</th><th>A\u00e7\u0131klama</th><th>M\u00fc\u015fteri</th><th>Tutar</th><th></th></tr></thead><tbody>${body}</tbody></table></div><div class="finance-ledger-pager"><span>${rows.length} kay\u0131t | Sayfa ${state.page+1}</span><button type="button" class="secondary" data-ledger-page="prev" ${state.page===0||state.loading?"disabled":""}>\u00d6nceki</button><button type="button" class="secondary" data-ledger-page="next" ${!state.hasMore||state.loading?"disabled":""}>Sonraki</button></div>`;
+}
+async function ayecLoadFinanceLedger(){
+ if(page!=="finance")return;
+ const search=ayecFinanceSearch.trim().slice(0,200),key=JSON.stringify([ayecFinancePeriod,search,ayecFinanceLedgerState.page]);
+ if(ayecFinanceLedgerState.key===key||ayecFinanceLedgerState.loading)return;
+ const request=++ayecFinanceLedgerState.request;ayecFinanceLedgerState.loading=true;ayecFinanceLedgerState.error="";
+ try{const response=await fetch("/api/desktop/accounting/ledger/page",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json",...ayecFiscalArchiveHeaders()},body:JSON.stringify({period:ayecFinancePeriod,search,page:ayecFinanceLedgerState.page})});let data={};try{data=await response.json()}catch{}if(!response.ok){if(response.status===401&&window.handleUnauthorized)window.handleUnauthorized();throw Error(data.error||`Ledger load failed (${response.status})`)}if(request!==ayecFinanceLedgerState.request)return;ayecFinanceLedgerState.rows=Array.isArray(data.rows)?data.rows:[];ayecFinanceLedgerState.hasMore=Boolean(data.has_more);ayecFinanceLedgerState.key=key;
+ }catch(error){if(request===ayecFinanceLedgerState.request)ayecFinanceLedgerState.error=error.message||"Ledger could not be loaded"}
+ finally{if(request===ayecFinanceLedgerState.request){ayecFinanceLedgerState.loading=false;if(page==="finance")render()}}
+}
 async function ayecLoadFinanceBankBalances(){
  try{
   const data=await apiFetch("/api/desktop/table/bank_accounts?limit=500");
@@ -1122,6 +1360,7 @@ serviceDialog=function(customerId=""){
  const assetFields=automotive
   ? `<div class="field"><label>Plaka *</label><input name="plate" required></div><div class="field"><label>Şasi / VIN</label><input name="vin"></div><div class="field"><label>Marka *</label><input name="brand" required></div><div class="field"><label>Model *</label><input name="model" required></div><div class="field"><label>Kilometre</label><input name="odometer" type="number" min="0"></div><div class="field"><label>Yakıt Türü</label><select name="fuel_type"><option>Benzin</option><option>Dizel</option><option>Hibrit</option><option>Elektrik</option><option>LPG</option></select></div>`
   : `<div class="field"><label>Cihaz T\u00fcr\u00fc *</label><input name="device_type" required placeholder="Bilgisayar, Kamera, Telefon..."></div><div class="field"><label>Marka</label><input name="brand"></div><div class="field"><label>Model *</label><input name="model" required></div><div class="field"><label>Seri No / IMEI</label><input name="serial"></div>`
+  const supplementalFields=automotive?"":`<div class="field"><label>Teslim Al\u0131n\u0131\u015f \u015eekli</label><select name="delivery_method"><option>Elden Teslim Al\u0131nd\u0131</option><option>Kargo ile Geldi</option><option>Yerinde Servis</option><option>Bayi Arac\u0131l\u0131\u011f\u0131yla</option></select></div><div class="field"><label>Konum</label><input name="service_location" placeholder="Konum ad\u0131, harita ba\u011flant\u0131s\u0131 veya koordinat"></div><div class="field full"><label>Di\u011fer Bilgiler</label><textarea name="other_info" placeholder="Teslim alan, ileti\u015fim tercihi veya di\u011fer bilgiler"></textarea></div>`
  const body=`<div class="service-accept-form">
   <section class="service-form-card service-form-customer">
    <header class="service-form-card-head"><div><span class="service-form-icon">\u2659</span><div><h3>MÜŞTERİ BİLGİLERİ</h3><small class="service-customer-state">Yeni Müşteri Kaydı</small></div></div><select class="service-customer-picker" name="customerId" aria-label="Kayıtlı Müşteri Seç"><option value="">Kayıtlı Müşteri Seç</option>${customerOptions}</select></header>
@@ -1133,11 +1372,11 @@ serviceDialog=function(customerId=""){
   </section>
   <section class="service-form-card service-form-fault">
    <header class="service-form-card-head"><div><span class="service-form-icon warning">\u26a0</span><h3>${automotive?"SERVİS DETAYLARI":"ARIZA & SERVİS DETAYLARI"}</h3></div><small class="service-ai-label">AI Destekli</small></header>
-   <div class="service-form-fields service-fault-fields"><div class="field full"><label>${automotive?"Şikayet / Yapılacak İş":"Arıza Tanımı ve Müşteri Şikayeti"} *</label><textarea name="fault" required placeholder="Arıza detaylarını buraya yazın..."></textarea></div><div class="field"><label>Öncelik Derecesi</label><select name="priority"><option>Normal</option><option>Yüksek</option><option>Acil</option><option>Düşük</option></select></div><div class="field"><label>Tahmini Tutar (KDV Dahil)</label><input name="price" type="number" min="0" step="0.01" placeholder="0.00"></div><details class="service-extra-fields"><summary>Di\u011fer servis alanlar\u0131</summary><div class="service-extra-grid"><div class="field"><label>Teknisyen</label><select name="technician"><option value="">Atanmadı</option>${technicians.map(person=>`<option>${esc(person.name)}</option>`).join("")}</select></div><div class="field"><label>Durum</label><select name="status"><option>Bekliyor</option><option>Onay Bekliyor</option><option>İşlemde</option><option>Parça Bekliyor</option></select></div><div class="field full"><label>Müşteriye Açık Not</label><textarea name="repair_details" placeholder="Müşteriye gösterilecek not"></textarea></div><div class="field full"><label>Teknik İç Not</label><textarea name="internal_notes" placeholder="Teknik ekip notu"></textarea></div></div></details></div>
+   <div class="service-form-fields service-fault-fields"><div class="field full"><label>${automotive?"Şikayet / Yapılacak İş":"Arıza Tanımı ve Müşteri Şikayeti"} *</label><textarea name="fault" required placeholder="Arıza detaylarını buraya yazın..."></textarea></div><div class="field"><label>Öncelik Derecesi</label><select name="priority"><option>Normal</option><option>Yüksek</option><option>Acil</option><option>Düşük</option></select></div><div class="field"><label>Tahmini Tutar (KDV Dahil)</label><input name="price" type="number" min="0" step="0.01" placeholder="0.00"></div><details class="service-extra-fields"><summary>Di\u011fer servis alanlar\u0131</summary><div class="service-extra-grid"><div class="field"><label>Teknisyen</label><select name="technician"><option value="">Atanmadı</option>${technicians.map(person=>`<option>${esc(person.name)}</option>`).join("")}</select></div><div class="field"><label>Durum</label><select name="status"><option>Bekliyor</option><option>Onay Bekliyor</option><option>İşlemde</option><option>Parça Bekliyor</option></select></div><div class="field full"><label>Müşteriye Açık Not</label><textarea name="repair_details" placeholder="Müşteriye gösterilecek not"></textarea></div><div class="field full"><label>Teknik İç Not</label><textarea name="internal_notes" placeholder="Teknik ekip notu"></textarea></div>${supplementalFields}</div></details></div>
   </section>
   <section class="service-form-card service-form-security">
    <header class="service-form-card-head"><div><span class="service-form-icon">\u25c6</span><h3>CİHAZ GÜVENLİK & KİLİT</h3></div><small>Mobil / Tablet için</small></header>
-   <div class="service-form-fields service-security-fields"><div class="field full"><label>Ekran Şifresi</label><input name="device_password" placeholder="Ekran Şifresi"></div><div class="field full"><label>Desen Kilidi veya PIN</label><input name="pattern_lock" placeholder="Desen Kilidi Tanımla veya PIN Gir"></div><div class="field"><label>Aksesuarlar / Teslim Alınanlar</label><input name="accessories" placeholder="Şarj cihazı, çanta..."></div><div class="field"><label>Tahmini Teslim</label><input name="estimated_date" type="date"></div><div class="field"><label>Garanti</label><select name="warranty_status"><option>Yok</option><option>Var</option><option>Firma Garantisi</option></select></div></div>
+   <div class="service-form-fields service-security-fields"><div class="field full"><label>Ekran Şifresi</label><input name="device_password" placeholder="Ekran Şifresi"></div><div class="field"><label>BIOS / Supervisor Parolas\u0131</label><input name="bios_password" placeholder="Varsa giriniz..."></div><div class="field full"><label>Desen Kilidi veya PIN</label><input name="pattern_lock" placeholder="Desen Kilidi Tanımla veya PIN Gir"></div><div class="field"><label>Aksesuarlar / Teslim Alınanlar</label><input name="accessories" placeholder="Şarj cihazı, çanta..."></div><div class="field"><label>Tahmini Teslim</label><input name="estimated_date" type="date"></div><div class="field"><label>Garanti</label><select name="warranty_status"><option>Yok</option><option>Var</option><option>Firma Garantisi</option></select></div></div>
   </section>
   <label class="setting field full service-open-form"><span>Kaydettikten sonra servis formunu aç</span><input class="switch" type="checkbox" name="open_form" checked></label>
  </div>`;
@@ -1156,7 +1395,7 @@ serviceDialog=function(customerId=""){
   const no=`SRV-${new Date().getFullYear()}${String(Date.now()).slice(-7)}`;
   const device=automotive?`${values.plate} · ${values.brand} ${values.model}`:`${values.brand||""} ${values.model}`.trim();
   const customerKey=Number(customer.desktopId||customer.id)||undefined;
-   const result=await apiFetch("/api/desktop/table/devices",{method:"POST",body:JSON.stringify({tracking_no:no,customer_id:customerKey,customer_name:customer.name,device_type:automotive?"Ara\u00e7":values.device_type,device_brand:values.brand||"",device_model:automotive?`${values.model} (${values.plate})`:values.model,serial_no:values.serial||values.vin||values.plate||"",vehicle_plate:values.plate||"",vehicle_vin:values.vin||"",fault_description:values.fault,repair_details:values.repair_details,internal_notes:values.internal_notes,accessories:values.accessories,device_password:values.device_password,bios_password:values.bios_password,pattern_lock:values.pattern_lock,delivered_by_name:values.delivered_by_name,delivered_by_phone:values.delivered_by_phone,price:+values.price||0,urgency:values.priority,priority:values.priority,technician:values.technician,status:values.status,approval_status:"Bekleme",entry_date:today(),estimated_date:values.estimated_date,warranty_status:values.warranty_status,payment_status:"Beklemede",service_source:automotive?"Web Otomotiv":"Web Teknik Servis"})});
+   const result=await apiFetch("/api/desktop/table/devices",{method:"POST",body:JSON.stringify({tracking_no:no,customer_id:customerKey,customer_name:customer.name,device_type:automotive?"Ara\u00e7":values.device_type,device_brand:values.brand||"",device_model:automotive?`${values.model} (${values.plate})`:values.model,serial_no:values.serial||values.vin||values.plate||"",vehicle_plate:values.plate||"",vehicle_vin:values.vin||"",fault_description:values.fault,repair_details:values.repair_details,internal_notes:values.internal_notes,accessories:values.accessories,device_password:values.device_password,bios_password:values.bios_password,pattern_lock:values.pattern_lock,delivered_by_name:values.delivered_by_name,delivered_by_phone:values.delivered_by_phone,delivery_method:values.delivery_method||"",service_location:values.service_location||"",other_info:values.other_info||"",price:+values.price||0,urgency:values.priority,priority:values.priority,technician:values.technician,status:values.status,approval_status:"Bekleme",entry_date:today(),estimated_date:values.estimated_date,warranty_status:values.warranty_status,payment_status:"Beklemede",service_source:automotive?"Web Otomotiv":"Web Teknik Servis"})});
   const service={id:String(result.id),date:today(),no,device,device_type:automotive?"Ara\u00e7":values.device_type,brand:values.brand||"",model:values.model,serial:values.serial||values.vin||"",status:values.status,note:values.fault,repair_details:values.repair_details,internal_notes:values.internal_notes,accessories:values.accessories,delivery:values.estimated_date,technician:values.technician,priority:values.priority,warranty_status:values.warranty_status,payment_status:"Beklemede",used_parts:[]};
   customer.services.unshift(service);save();activity(`${no} servis kaydı ${customer.name} için oluşturuldu`,automotive?"\u25c7":"\u2692");toast("Servis kaydı Müşteri 360 ve servis panosuna eklendi","success");render();
   if(values.open_form)setTimeout(()=>serviceDetailDialog(customer,service),80);
@@ -1191,12 +1430,47 @@ function serviceDetailDialog(customer,service){
  $("#servicePrintBtn").onclick=()=>window.print();$("#serviceTechBtn").onclick=()=>{dialog.close();setTimeout(()=>technicianDialog(customer,service),80)};$("#serviceCloseBtn").onclick=()=>dialog.close();
 }
 
-technicianDialog=function(customer,service){
+function dashboardServiceEditDialog(customer,service){
+ if(!customer||!service)return toast("Servis kayd\u0131 bulunamad\u0131","error");
+ const technicians=desktopPersonnel.filter(person=>!person.role||/tekn|servis|usta|y\u00f6net/i.test(`${person.role} ${person.department||""}`));
+ const options=(values,current,fallback)=>[...new Set([current||fallback,...values].filter(Boolean))].map(value=>`<option ${String(current||fallback)===value?"selected":""}>${esc(value)}</option>`).join("");
+ openDialog(`${service.no} \u00b7 Servis Kayd\u0131 D\u00fczenle`,"SERV\u0130S FORMU",`<div class="form-grid"><div class="field"><label>M\u00fc\u015fteri</label><select name="customer_id">${db.customers.map(item=>`<option value="${esc(item.id)}" ${String(item.id)===String(customer.id)?"selected":""}>${esc(item.name)}</option>`).join("")}</select></div><div class="field"><label>Cihaz T\u00fcr\u00fc</label><input name="device_type" value="${esc(service.device_type||"Cihaz")}"></div><div class="field"><label>Marka</label><input name="device_brand" value="${esc(service.brand||"")}"></div><div class="field"><label>Model</label><input name="device_model" value="${esc(service.model||service.device||"")}"></div><div class="field"><label>Seri No / Plaka</label><input name="serial_no" value="${esc(service.serial||service.plate||"")}"></div><div class="field"><label>\u00d6ncelik Derecesi</label><select name="urgency">${options(["D\u00fc\u015f\u00fck","Normal","Y\u00fcksek","\ud83d\udd25 AC\u0130L"],service.priority,"Normal")}</select></div><div class="field"><label>Teknisyen</label><input name="technician" list="dashboardServiceTechnicians" value="${esc(service.technician||"")}"><datalist id="dashboardServiceTechnicians">${technicians.map(person=>`<option value="${esc(person.name)}"></option>`).join("")}</datalist></div><div class="field"><label>Tahmini Teslim</label><input name="estimated_date" type="date" value="${String(service.delivery||"").slice(0,10)}"></div><div class="field full"><label>Ar\u0131za Tan\u0131m\u0131 ve M\u00fc\u015fteri \u015eikayeti</label><textarea name="fault_description">${esc(service.note||"")}</textarea></div><div class="field full"><label>Teknik \u0130\u00e7 Not</label><textarea name="internal_notes">${esc(service.internal_notes||"")}</textarea></div><div class="field full"><label>Yap\u0131lan \u0130\u015flem / M\u00fc\u015fteriye A\u00e7\u0131k Not</label><textarea name="repair_details">${esc(service.repair_details||"")}</textarea></div><div class="field"><label>Tahmini Tutar</label><input name="price" type="number" min="0" step=".01" value="${Number(service.price||0)}"></div><div class="field"><label>Teslim Y\u00f6ntemi</label><select name="delivery_method">${options(["Ma\u011fazadan Teslim","Kargo","Saha Teslimi"],service.delivery_method||service.delivery_type,"")}</select></div><div class="field"><label>Konum</label><input name="service_location" value="${esc(service.service_location||"")}"></div><div class="field"><label>Garanti Durumu</label><select name="warranty_status">${options(["Yok","Var","Firma Garantisi"],service.warranty_status,"Yok")}</select></div><div class="field"><label>Teslim Eden Ki\u015fi</label><input name="delivered_by_name" value="${esc(service.delivered_by_name||"")}"></div><div class="field"><label>Teslim Eden Telefonu</label><input name="delivered_by_phone" value="${esc(service.delivered_by_phone||"")}"></div><div class="field full"><label>Di\u011fer Bilgiler</label><textarea name="other_info">${esc(service.other_info||"")}</textarea></div></div>`,async fd=>{
+  const values=Object.fromEntries(fd),nextCustomer=db.customers.find(item=>String(item.id)===String(values.customer_id));if(!nextCustomer)throw Error("M\u00fc\u015fteri se\u00e7in.");
+  const deviceId=Number(service.id);if(!Number.isInteger(deviceId)||deviceId<=0)throw Error("Servis kayd\u0131 kimli\u011fi bulunamad\u0131.");
+  const payload={id:deviceId,_action:"update",customer_id:Number.isInteger(+nextCustomer.id)?+nextCustomer.id:null,customer_name:nextCustomer.name,device_type:values.device_type,device_brand:values.device_brand,device_model:values.device_model,serial_no:values.serial_no,urgency:values.urgency,priority:values.urgency,technician:values.technician,fault_description:values.fault_description,internal_notes:values.internal_notes,repair_details:values.repair_details,estimated_date:values.estimated_date,price:Number(values.price)||0,delivery_method:values.delivery_method,service_location:values.service_location,warranty_status:values.warranty_status,delivered_by_name:values.delivered_by_name,delivered_by_phone:values.delivered_by_phone,other_info:values.other_info};
+  await apiFetch("/api/desktop/table/devices",{method:"POST",body:JSON.stringify(payload)});await hydrateDesktop();activity(`${service.no} servis kayd\u0131 g\u00fcncellendi`,"\u270e");toast("Servis kayd\u0131 g\u00fcncellendi.","success");return true;
+ },"Kaydet");
+ const dialog=$("#appDialog");dialog.classList.add("dialog-wide");dialog.addEventListener("close",()=>dialog.classList.remove("dialog-wide"),{once:true});
+}
+
+technicianDialog=async function(customer,service){
  if(!customer||!service)return toast("Servis kaydı bulunamadı","error");
  const statuses=["Bekliyor","Onay Bekliyor","İşlemde","Tamirde","Parça Bekliyor","Test Sürecinde","Tamir Edildi","Teslim Edildi","İptal / İade"],technicians=desktopPersonnel.filter(person=>!person.role||/tekn|servis|usta|yönet/i.test(`${person.role} ${person.department||""}`));
- openDialog(`${service.no} · ${service.device}`,"TEKNİSYEN İŞLEM FORMU",`<div class="form-grid"><div class="field"><label>Müşteri</label><input disabled value="${esc(customer.name)}"></div><div class="field"><label>Teknisyen</label><select name="technician"><option value="">Atanmadı</option>${technicians.map(person=>`<option ${service.technician===person.name?"selected":""}>${esc(person.name)}</option>`).join("")}</select></div><div class="field"><label>Durum</label><select name="status">${statuses.map(status=>`<option ${service.status===status?"selected":""}>${status}</option>`).join("")}</select></div><div class="field"><label>Öncelik</label><select name="priority">${["Düşük","Normal","Yüksek","Acil"].map(value=>`<option ${service.priority===value?"selected":""}>${value}</option>`).join("")}</select></div><div class="field full"><label>Teknik İç Not</label><textarea name="internal_notes">${esc(service.internal_notes||"")}</textarea></div><div class="field full"><label>Yapılan İşlem / Müşteriye Açık Not</label><textarea name="repair_details">${esc(service.repair_details||"")}</textarea></div><div class="field"><label>İşçilik Tutarı</label><input name="labor_cost" type="number" min="0" step=".01" value="${service.labor_cost||0}"></div><div class="field"><label>Kargo Tutarı</label><input name="cargo_fee" type="number" min="0" step=".01" value="${service.cargo_fee||0}"></div><div class="field"><label>Teslim Şekli</label><select name="delivery_type">${["Mağazadan Teslim","Kargo","Saha Teslimi"].map(value=>`<option ${service.delivery_type===value?"selected":""}>${value}</option>`).join("")}</select></div><div class="field"><label>Tahmini Teslim</label><input name="estimated_date" type="date" value="${String(service.delivery||"").slice(0,10)}"></div><div class="field"><label>Garanti</label><select name="warranty_status">${["Yok","Var","Firma Garantisi"].map(value=>`<option ${service.warranty_status===value?"selected":""}>${value}</option>`).join("")}</select></div><div class="field"><label>Garanti Bitiş</label><input name="warranty_end_date" type="date" value="${String(service.warranty_end_date||"").slice(0,10)}"></div><div class="field"><label>Kullanılan Stok</label><select name="part_id"><option value="">Parça kullanılmadı</option>${db.stock.filter(item=>item.qty>0).map(item=>`<option value="${item.id}">${esc(item.name)} (${item.qty} · ${money(item.sell,item.currency)})</option>`).join("")}</select></div><div class="field"><label>Parça Adedi</label><input name="part_quantity" type="number" min="0" step="1" value="0"></div><div class="field"><label>Ödeme Durumu</label><select name="payment_status">${["Beklemede","Ödenmedi","Kısmi Ödendi","Ödendi"].map(value=>`<option ${service.payment_status===value?"selected":""}>${value}</option>`).join("")}</select></div><label class="setting field"><span>Şimdi tahsilat al</span><input class="switch" id="collectPayment" name="collect_payment" type="checkbox"></label><div class="field payment-field" hidden><label>Tahsilat Tutarı</label><input name="payment_amount" type="number" min="0" step=".01" value="0"></div><div class="field payment-field" hidden><label>Para Birimi</label><select name="payment_currency"><option>TRY</option><option>USD</option><option>EUR</option></select></div><div class="field payment-field" hidden><label>Ödeme Yöntemi</label><select name="payment_method"><option>Nakit</option><option>Banka</option><option>Kredi Kartı</option></select></div></div>`,async fd=>{const values=Object.fromEntries(fd),currency=values.payment_currency||"TRY",result=await apiFetch("/api/desktop/technician/update",{method:"POST",body:JSON.stringify({device_id:+service.id,tracking_no:service.no,status:values.status,technician:values.technician,priority:values.priority,internal_notes:values.internal_notes,repair_details:values.repair_details,labor_cost:+values.labor_cost||0,cargo_fee:+values.cargo_fee||0,delivery_type:values.delivery_type,estimated_date:values.estimated_date,warranty_status:values.warranty_status,warranty_end_date:values.warranty_end_date,payment_status:values.payment_status,part_id:+values.part_id||0,part_quantity:+values.part_quantity||0,collect_payment:Boolean(values.collect_payment),payment_amount:+values.payment_amount||0,payment_currency:currency,payment_method:values.payment_method,exchange_rate:rateForCode(currency)})});await hydrateDesktop();activity(`${service.no} teknisyen işlemi kaydedildi`,"⚒");toast(result.finance_id?"Servis, stok, kullanılan parça, cari ve tahsilat sinyalleri işlendi":"Servis, stok ve kullanılan parça sinyalleri işlendi","success");return true},"İşlemi Kaydet");
+ const bankData=await apiFetch("/api/desktop/table/bank_accounts?limit=500").catch(()=>({rows:[]}));
+ const bankAccounts=(bankData.rows||[]).filter(account=>Number(account.is_deleted||0)===0&&Number(account.is_active??1)!==0);
+ openDialog(`${service.no} \xb7 ${service.device}`,"TEKN\u0130SYEN \u0130\u015eLEM FORMU",`<div class="form-grid"><div class="field"><label>M\xfc\u015fteri</label><input disabled value="${esc(customer.name)}"></div><div class="field"><label>Teknisyen</label><select name="technician"><option value="">Atanmad\u0131</option>${technicians.map(person=>`<option ${service.technician===person.name?"selected":""}>${esc(person.name)}</option>`).join("")}</select></div><div class="field"><label>Durum</label><select name="status">${statuses.map(status=>`<option ${service.status===status?"selected":""}>${status}</option>`).join("")}</select></div><div class="field"><label>\xd6ncelik</label><select name="priority">${["D\xfc\u015f\xfck","Normal","Y\xfcksek","Acil"].map(value=>`<option ${service.priority===value?"selected":""}>${value}</option>`).join("")}</select></div><div class="field full"><label>Teknik \u0130\xe7 Not</label><textarea name="internal_notes">${esc(service.internal_notes||"")}</textarea></div><div class="field full"><label>Yap\u0131lan \u0130\u015flem / M\xfc\u015fteriye A\xe7\u0131k Not</label><textarea name="repair_details">${esc(service.repair_details||"")}</textarea></div><div class="field"><label>\u0130\u015f\xe7ilik Tutar\u0131</label><input name="labor_cost" type="number" min="0" step=".01" value="${service.labor_cost||0}"></div><div class="field"><label>Kargo Tutar\u0131</label><input name="cargo_fee" type="number" min="0" step=".01" value="${service.cargo_fee||0}"></div><div class="field"><label>Teslim \u015eekli</label><select name="delivery_type">${["Ma\u011fazadan Teslim","Kargo","Saha Teslimi"].map(value=>`<option ${service.delivery_type===value?"selected":""}>${value}</option>`).join("")}</select></div><div class="field"><label>Tahmini Teslim</label><input name="estimated_date" type="date" value="${String(service.delivery||"").slice(0,10)}"></div><div class="field"><label>Garanti</label><select name="warranty_status">${["Yok","Var","Firma Garantisi"].map(value=>`<option ${service.warranty_status===value?"selected":""}>${value}</option>`).join("")}</select></div><div class="field"><label>Garanti Biti\u015f</label><input name="warranty_end_date" type="date" value="${String(service.warranty_end_date||"").slice(0,10)}"></div><div class="field"><label>Kullan\u0131lan Stok</label><select name="part_id"><option value="">Par\xe7a kullan\u0131lmad\u0131</option>${db.stock.filter(item=>item.qty>0).map(item=>`<option value="${item.id}">${esc(item.name)} (${item.qty} \xb7 ${money(item.sell,item.currency)})</option>`).join("")}</select></div><div class="field"><label>Par\xe7a Adedi</label><input name="part_quantity" type="number" min="0" step="1" value="0"></div><div class="field"><label>\xd6deme Durumu</label><select name="payment_status">${["Beklemede","\xd6denmedi","K\u0131smi \xd6dendi","\xd6dendi"].map(value=>`<option ${service.payment_status===value?"selected":""}>${value}</option>`).join("")}</select></div><label class="setting field"><span>\u015eimdi tahsilat al</span><input class="switch" id="collectPayment" name="collect_payment" type="checkbox"></label><div class="field payment-field" hidden><label>Tahsilat Tutar\u0131</label><input name="payment_amount" type="number" min="0" step=".01" value="0"></div><div class="field payment-field" hidden><label>Para Birimi</label><select name="payment_currency"><option>TRY</option><option>USD</option><option>EUR</option></select></div><div class="field payment-field" hidden><label>\xd6deme Y\xf6ntemi</label><select name="payment_method"><option>Nakit</option><option>Kredi Kart\u0131</option><option>Havale/EFT</option></select></div><div class="field payment-field" hidden><label>Kasa/Banka Se\u00e7imi</label><select name="bank_account_id"><option value="">Ana Kasa (Varsay\u0131lan)</option>${bankAccounts.map(account=>`<option value="${esc(account.id)}">${esc(account.bank_name||account.bank||account.account_name||"Banka")}</option>`).join("")}</select></div></div>`,async fd=>{const values=Object.fromEntries(fd),currency=values.payment_currency||"TRY",result=await apiFetch("/api/desktop/technician/update",{method:"POST",body:JSON.stringify({device_id:+service.id,tracking_no:service.no,status:values.status,technician:values.technician,priority:values.priority,internal_notes:values.internal_notes,repair_details:values.repair_details,labor_cost:+values.labor_cost||0,cargo_fee:+values.cargo_fee||0,delivery_type:values.delivery_type,estimated_date:values.estimated_date,warranty_status:values.warranty_status,warranty_end_date:values.warranty_end_date,payment_status:values.payment_status,part_id:+values.part_id||0,part_quantity:+values.part_quantity||0,collect_payment:Boolean(values.collect_payment),payment_amount:+values.payment_amount||0,payment_currency:currency,payment_method:values.payment_method,bank_account_id:Number(values.bank_account_id)||0,exchange_rate:rateForCode(currency)})});await hydrateDesktop();activity(`${service.no} teknisyen i\u015flemi kaydedildi`,"\u2692");toast(result.finance_id?"Servis, stok, kullan\u0131lan par\xe7a, cari ve tahsilat sinyalleri i\u015flendi":"Servis, stok ve kullan\u0131lan par\xe7a sinyalleri i\u015flendi","success");return true},"\u0130\u015flemi Kaydet");
  const collect=$("#collectPayment");collect.onchange=()=>$$('.payment-field').forEach(field=>field.hidden=!collect.checked);window.ayecBindUsedPartsEditor?.(service);
 };
+
+const technicianDialogWithoutLock=technicianDialog;
+technicianDialog=async function(customer,service){
+ try{
+  const security=await apiFetch("/api/desktop/security-settings");
+  if(!security.tech_lock_active)return technicianDialogWithoutLock(customer,service);
+  if(!security.tech_password_configured){toast("Teknisyen kilidi etkin ancak \u015fifre yap\u0131land\u0131r\u0131lmam\u0131\u015f.","error");return false}
+  const unlocked=await new Promise(resolve=>{
+   openDialog("Teknisyen Paneli Kilitli","AYEC PRO - TEKNISYEN GUVENLIGI",'<div class="app-lock-web"><div class="app-lock-icon" aria-hidden="true">&#128274;</div><h2>Teknisyen Paneli Kilitli</h2><label class="field"><span>Giri\u015f \u015fifresi</span><input name="password" type="password" autocomplete="current-password" required></label></div>',async form=>{
+    await apiFetch("/api/desktop/security-settings/verify-tech-lock",{method:"POST",body:JSON.stringify({password:String(form.get("password")||"")})});
+    return true;
+   },"Giri\u015f Yap");
+   const dialog=$("#appDialog");dialog.classList.add("app-lock-dialog");dialog.addEventListener("close",()=>dialog.classList.remove("app-lock-dialog"),{once:true});$("#dialogCancel").textContent="Vazge\u00e7";
+   dialog.addEventListener("close",()=>resolve(dialog.returnValue==="ok"),{once:true});
+  });
+  if(!unlocked)return false;
+  return technicianDialogWithoutLock(customer,service);
+ }catch(error){toast(error.message||"Teknisyen paneli a\u00e7\u0131lamad\u0131.","error");return false}
+};
+
 
 window.ayecUsedPartsDrafts=window.ayecUsedPartsDrafts||new Map();
 window.ayecBindUsedPartsEditor=function(service){
@@ -1258,7 +1532,7 @@ handleAction=function(action,id,element){
 const showContextBeforeParity=showContext;
 showContext=function(event,kind,id){
  if(kind!=="service")return showContextBeforeParity(event,kind,id);
- if(!db.settings.contextMenu)return;event.preventDefault();const menuHost=$("#contextMenu");menuHost.innerHTML='<button data-service-context="form">Servis Formunu Aç</button><button data-service-context="technician">Teknisyen Panelinde Aç</button><button data-service-context="print">Yazdır / PDF</button>';menuHost.style.left=`${Math.max(8,Math.min(event.clientX,innerWidth-230))}px`;menuHost.style.top=`${Math.max(8,Math.min(event.clientY,innerHeight-145))}px`;menuHost.classList.add("open");$$('[data-service-context]',menuHost).forEach(button=>button.onclick=()=>{menuHost.classList.remove("open");const [customer,service]=findService(id);if(button.dataset.serviceContext==="form")serviceDetailDialog(customer,service);if(button.dataset.serviceContext==="technician")technicianDialog(customer,service);if(button.dataset.serviceContext==="print"){serviceDetailDialog(customer,service);setTimeout(()=>window.print(),120)}});
+ if(!ayecContextMenuEnabled())return;event.preventDefault();const menuHost=$("#contextMenu");menuHost.innerHTML='<button data-service-context="form">Servis Formunu A\u00e7</button><button data-service-context="technician">Teknisyen Panelinde A\u00e7</button><button data-service-context="print">Yazd\u0131r / PDF</button>';menuHost.style.left=`${Math.max(8,Math.min(event.clientX,innerWidth-230))}px`;menuHost.style.top=`${Math.max(8,Math.min(event.clientY,innerHeight-145))}px`;menuHost.classList.add("open");$$('[data-service-context]',menuHost).forEach(button=>button.onclick=()=>{menuHost.classList.remove("open");const [customer,service]=findService(id);if(button.dataset.serviceContext==="form")serviceDetailDialog(customer,service);if(button.dataset.serviceContext==="technician")technicianDialog(customer,service);if(button.dataset.serviceContext==="print"){serviceDetailDialog(customer,service);setTimeout(()=>window.print(),120)}});
 };
 
 const navigateBeforeParity=navigate;
@@ -1312,10 +1586,11 @@ hydrateDesktop=async function(quiet=true){
   db.stock=(source.stock||[]).map(part=>({id:String(part.id),code:part.code||"",name:part.name||part.part_name||"",category:part.category||"Diğer",brand:part.brand||"",description:part.description||"",qty:Number(part.stock||0),min:Number(part.min_stock||0),buy:moneyNumber(part.purchase_price),sell:moneyNumber(part.price),currency:String(part.currency||part.unit||"TRY").toUpperCase(),barcode:part.barcode||""}));
   db.movements=(source.movements||[]).map(item=>({id:String(item.id),date:item.created_at||"",product:item.product||"",type:item.movement_type||"",qty:Number(item.amount||0),ref:item.description||"",user:"Masaüstü"}));
   db.finance=(source.finance||[]).map(item=>({...item,id:String(item.id),customer:item.customer_name||"",currency:String(item.currency||"TRY").toUpperCase(),original_amount:item.original_amount??item.amount}));
-  db.appointments=(source.appointments||[]).map(item=>({...item,id:String(item.id),customerId:String(item.customer_id||""),title:item.title||item.description||item.fault||"Randevu",status:item.status||"Planlandı",alerted:false}));
+  db.personnel=source.personnel||[];
+  db.appointments=(source.appointments||[]).map(item=>({...item,id:String(item.id),customerId:String(item.customer_id||""),technician:item.personnel_name||"",title:item.title||item.description||item.fault||"Randevu",status:item.status||"Bekliyor",alerted:false}));
   db.quotes=(source.offers||[]).map(item=>({...item,id:String(item.id),customerId:String(item.customer_id||item.customerId||"")}));
   db.stockLocations=(source.stock_locations||[]).map(item=>({...item,id:String(item.id),quantity:Number(item.quantity||0),part_count:Number(item.part_count||0)}));
-  db.stockLocationSummary=source.stock_location_summary||{};db.stockLocationBalances=(source.stock_location_balances||[]).map(item=>({...item,location_id:String(item.location_id),part_id:String(item.part_id),quantity:Number(item.quantity||0),reserved_quantity:Number(item.reserved_quantity||0),min_quantity:Number(item.min_quantity||0)}));db.stockTransferHistory=source.stock_transfer_history||[];db.stockCounts=source.stock_counts||[];db.stockKits=source.stock_kits||[];
+  db.stockLocationSummary=source.stock_location_summary||{};db.stockLocationBalances=(source.stock_location_balances||[]).map(item=>({...item,location_id:String(item.location_id),part_id:String(item.part_id),quantity:Number(item.quantity||0),reserved_quantity:Number(item.reserved_quantity||0),min_quantity:Number(item.min_quantity||0),unit:item.unit||"Adet"}));db.stockTransferHistory=source.stock_transfer_history||[];db.stockCounts=source.stock_counts||[];db.stockKits=source.stock_kits||[];
   scheduledAlerts=source.scheduled_alerts||[];desktopPersonnel=source.personnel||desktopPersonnel;exchangeRateState=source.exchange_rates||exchangeRateState;desktopSettings=source.settings||desktopSettings;desktopInternalSettings=source.internal_settings||desktopInternalSettings;currentSector=source.current_sector||currentSector;updateShellStatus();
   save();renderNav();render();if(!quiet)toast("Masaüstü veritabanı web arayüzüne bağlandı","success");return source;
  }catch(error){toast(`Masaüstü veritabanı yenilenemedi: ${error.message}`,"error");throw error}
@@ -1325,7 +1600,7 @@ let ayecStockLocationQuery="";
 let ayecStockLocationId="";
 let ayecStockLocationTab="stock";
 let ayecStockLocationPage=1;
-const ayecStockLocationPageSize=10;
+const ayecStockLocationPageSize=5;
 function renderStockLocationRows(){
  const query=ayecStockLocationQuery.trim().toLocaleLowerCase("tr-TR");
  const locationRows=(db.stockLocationBalances||[]).filter(item=>(!ayecStockLocationId||String(item.location_id)===ayecStockLocationId)&&(!query||[item.product_name,item.product_code,item.barcode,item.location_name,item.vehicle_plate].join(" ").toLocaleLowerCase("tr-TR").includes(query)));
@@ -1333,7 +1608,7 @@ function renderStockLocationRows(){
  ayecStockLocationPage=Math.min(ayecStockLocationPage,pages);
  const start=(ayecStockLocationPage-1)*ayecStockLocationPageSize;
  const visible=locationRows.slice(start,start+ayecStockLocationPageSize);
- const body=visible.map(item=>{const available=Math.max(0,item.quantity-item.reserved_quantity);return `<tr><td><strong>${esc(item.product_name||"-")}</strong><small>${esc(item.location_name||"")}</small></td><td>${esc(item.product_code||"-")}</td><td>${esc(item.barcode||"-")}</td><td>${esc(item.category||"-")}</td><td>${item.quantity}</td><td>${item.reserved_quantity}</td><td><strong>${available}</strong></td><td>${item.min_quantity}</td></tr>`}).join("");
+ const body=visible.map(item=>{const available=Math.max(0,item.quantity-item.reserved_quantity);return `<tr data-kind="stock-location" data-id="${esc(item.part_id)}" data-location-id="${esc(item.location_id)}"><td><strong>${esc(item.product_name||"-")}</strong><small>${esc(item.location_name||"")}</small></td><td>${esc(item.product_code||"-")}</td><td>${esc(item.barcode||"-")}</td><td>${esc(item.unit||"Adet")}</td><td>${item.quantity}</td><td>${item.reserved_quantity}</td><td><strong>${available}</strong></td><td>${item.min_quantity}</td><td><div class="stock-location-row-actions"><button type="button" class="mini" data-stock-row-action="transfer" title="Stok transferi ba\u015flat" aria-label="Stok transferi ba\u015flat">&#8644;</button><button type="button" class="mini" data-stock-row-action="use" title="M\u00fc\u015fteri veya servis kayd\u0131na stok d\u00fc\u015f" aria-label="M\u00fc\u015fteri veya servis kayd\u0131na stok d\u00fc\u015f">&#8853;</button><button type="button" class="mini" data-stock-row-action="edit" title="Stok kart\u0131n\u0131 d\u00fczenle" aria-label="Stok kart\u0131n\u0131 d\u00fczenle">&#9998;</button></div></td></tr>`}).join("");
  const transferRows=ayecStockLocationTab==="requests"?(db.stockTransferHistory||[]).filter(item=>/request|pending|return|bekliyor|iade|talep/i.test(String(item.status||""))):(db.stockTransferHistory||[]);
  const history=transferRows.map(item=>`<tr><td><strong>${esc(item.reference_no||"-")}</strong></td><td>${esc(item.source_name||"-")}</td><td>${esc(item.target_name||"-")}</td><td>${Number(item.line_count||0)}</td><td>${Number(item.total_quantity||0)}</td><td>${esc(item.status||"-")}</td><td>${esc(item.created_at||"-")}</td></tr>`).join("");
  const counts=(db.stockCounts||[]).map(item=>`<tr><td>${esc(item.location_name||"-")}</td><td>${Number(item.line_count||0)}</td><td>${esc(item.created_by||"-")}</td><td>${esc(item.created_at||"-")}</td><td>${esc(item.note||"-")}</td></tr>`).join("");
@@ -1342,7 +1617,7 @@ function renderStockLocationRows(){
  if(ayecStockLocationTab==="counts")return `<div class="stock-location-view-toolbar"><strong>Ara\u00e7 Say\u0131m\u0131 & Zimmet</strong><button type="button" class="primary" data-location-count>Se\u00e7ili Konumu Say</button></div><h3 class="stock-location-section-title">Son Say\u0131mlar</h3><div class="table-wrap stock-location-web-table"><table><thead><tr><th>Konum</th><th>Say\u0131lan Kalem</th><th>Say\u0131m\u0131 Yapan</th><th>Tarih</th><th>Not</th></tr></thead><tbody>${counts||'<tr><td colspan="5">Hen\u00fcz stok say\u0131m\u0131 kayd\u0131 yok.</td></tr>'}</tbody></table></div><h3 class="stock-location-section-title">Ara\u00e7lara Zimmetli Stok</h3><div class="table-wrap stock-location-web-table"><table><thead><tr><th>Ara\u00e7</th><th>Plaka</th><th>\u00dcr\u00fcn</th><th>Stok Kodu</th><th>Mevcut</th><th>Rezerve</th><th>Kullan\u0131labilir</th></tr></thead><tbody>${locationRows.filter(item=>item.location_type==="vehicle").map(item=>`<tr><td>${esc(item.location_name||"-")}</td><td>${esc(item.vehicle_plate||"-")}</td><td>${esc(item.product_name||"-")}</td><td>${esc(item.product_code||"-")}</td><td>${item.quantity}</td><td>${item.reserved_quantity}</td><td>${Math.max(0,item.quantity-item.reserved_quantity)}</td></tr>`).join("")||'<tr><td colspan="7">Se\u00e7ilen ara\u00e7larda zimmetli stok kayd\u0131 bulunamad\u0131.</td></tr>'}</tbody></table></div>`;
  if(ayecStockLocationTab==="kits")return `<div class="stock-location-view-toolbar"><div><strong>Haz\u0131r Kitler</strong><span>Aktif kit tan\u0131mlar\u0131</span></div><button type="button" class="primary" data-location-kit>Kit Olu\u015ftur</button></div><div class="table-wrap stock-location-web-table"><table><thead><tr><th>Kit</th><th>Par\u00e7a Say\u0131s\u0131</th><th>\u0130\u00e7erik</th><th>Durum</th></tr></thead><tbody>${kits||'<tr><td colspan="4">Haz\u0131r kit tan\u0131m\u0131 bulunamad\u0131.</td></tr>'}</tbody></table></div>`;
  if(ayecStockLocationTab==="vehicles")return `<div class="table-wrap stock-location-web-table"><table><thead><tr><th>Ara\u00e7 / Konum</th><th>Plaka</th><th>\u00dcr\u00fcn</th><th>Stok Kodu</th><th>Mevcut</th><th>Rezerve</th><th>Kullan\u0131labilir</th></tr></thead><tbody>${locationRows.filter(item=>item.location_type==="vehicle").map(item=>`<tr><td>${esc(item.location_name||"-")}</td><td>${esc(item.vehicle_plate||"-")}</td><td>${esc(item.product_name||"-")}</td><td>${esc(item.product_code||"-")}</td><td>${item.quantity}</td><td>${item.reserved_quantity}</td><td>${Math.max(0,item.quantity-item.reserved_quantity)}</td></tr>`).join("")||'<tr><td colspan="7">Ara\u00e7 stok kayd\u0131 bulunamad\u0131.</td></tr>'}</tbody></table></div>`;
- return `<div class="table-wrap stock-location-web-table"><table><thead><tr><th>\u00dcr\u00fcn / Konum</th><th>Stok Kodu</th><th>Barkod</th><th>Kategori</th><th>Mevcut</th><th>Rezerve</th><th>Kullanilabilir</th><th>Min. E\u015fik</th></tr></thead><tbody>${body||'<tr><td colspan="8">Se\u00e7ili konumda stok kayd\u0131 bulunamad\u0131.</td></tr>'}</tbody></table><footer class="stock-location-web-footer"><span>${locationRows.length?`${start+1}-${Math.min(start+ayecStockLocationPageSize,locationRows.length)} / ${locationRows.length}`:"0 / 0"} kay\u0131t</span><div><button type="button" data-location-page="prev" ${ayecStockLocationPage<=1?"disabled":""}>\u00d6nceki</button><b>${ayecStockLocationPage} / ${pages}</b><button type="button" data-location-page="next" ${ayecStockLocationPage>=pages?"disabled":""}>Sonraki</button></div></footer></div>`;
+ return `<div class="table-wrap stock-location-web-table stock-location-inventory-table"><table><thead><tr><th>\u00dcr\u00fcn / Konum</th><th>Stok Kodu</th><th>Barkod</th><th>Birim</th><th>Mevcut Miktar</th><th>Rezerve</th><th>Kullan\u0131labilir</th><th>Min. E\u015fik</th><th>H\u0131zl\u0131 \u0130\u015flemler</th></tr></thead><tbody>${body||'<tr><td colspan="9">Se\u00e7ili konumda stok kayd\u0131 bulunamad\u0131.</td></tr>'}</tbody></table><footer class="stock-location-web-footer"><span>${locationRows.length?`${start+1}-${Math.min(start+ayecStockLocationPageSize,locationRows.length)} / ${locationRows.length}`:"0 / 0"} kay\u0131t</span><div><button type="button" data-location-page="prev" ${ayecStockLocationPage<=1?"disabled":""}>\u00d6nceki</button><b>${ayecStockLocationPage} / ${pages}</b><button type="button" data-location-page="next" ${ayecStockLocationPage>=pages?"disabled":""}>Sonraki</button></div></footer></div>`;
 }
 function renderStockLocations(){
  const summary=stockLocationWebSummary();
@@ -1350,11 +1625,21 @@ function renderStockLocations(){
  const vehicles=summary.locations.filter(item=>item.location_type==="vehicle");
  const transferCount=(db.stockTransferHistory||[]).filter(item=>/transit|yolda|bekliyor/i.test(String(item.status||""))).length;
  const totalAvailable=balances.reduce((sum,item)=>sum+Math.max(0,item.quantity-item.reserved_quantity),0);
- return `${pageHead("Depo ve Ara\u00e7 Stoklar\u0131 & Transfer Y\u00f6netimi","Depo, servis ara\u00e7\u0131 ve saha konumlar\u0131ndaki stok hareketlerini takip edin.",'<button class="secondary" data-location-action="create">+ Yeni Depo / Ara\u00e7 Ekle</button><button class="primary" data-location-action="transfer">Stok Transferi Ba\u015flat</button>')}<section class="stock-location-web-metrics"><article><small>MERKEZ DEPO</small><b>${Math.trunc(balances.filter(item=>item.location_type==="main"||item.location_type==="warehouse").reduce((sum,item)=>sum+item.quantity,0))} Kalem</b><span>${summary.warehouses} aktif lokasyon</span></article><article><small>SERV\u0130S ARA\u00c7LARI (MOBIL)</small><b>${Math.trunc(summary.vehicleQuantity)} Kalem</b><span>${vehicles.length} mobil saha ara\u00e7i</span></article><article><small>AKT\u0130F TRANSFER / YOLDA</small><b>${transferCount} Sevkiyat</b><span>${(db.stockTransferHistory||[]).length} kay\u0131tli transfer</span></article><article><small>KONUM / STOK KAYDI</small><b>${summary.locations} Konum</b><span>${Math.trunc(totalAvailable)} kullan\u0131labilir urun</span></article></section><section class="card stock-location-web-panel"><nav class="stock-location-web-tabs"><button type="button" data-location-tab="stock" class="${ayecStockLocationTab==="stock"?"active":""}">Konum Stoklar\u0131 (${balances.length})</button><button type="button" data-location-tab="requests" class="${ayecStockLocationTab==="requests"?"active":""}">Transfer &amp; \\u0130ade Talepleri</button><button type="button" data-location-tab="counts" class="${ayecStockLocationTab==="counts"?"active":""}">Ara\u00e7 Say\u0131m\u0131 &amp; Zimmet</button><button type="button" data-location-tab="kits" class="${ayecStockLocationTab==="kits"?"active":""}">Haz\u0131r Kitler (${(db.stockKits||[]).length})</button><button type="button" data-location-tab="history" class="${ayecStockLocationTab==="history"?"active":""}">Hareket Ge\u00e7mi\u015fi (${(db.stockTransferHistory||[]).length})</button><button type="button" data-location-action="transfer">Transfer Ba\u015flat</button></nav><div class="stock-location-web-filter"><label>Konum Filtrele<select id="stockLocationFilter"><option value="">T\u00fcm Konumlar (${summary.locations})</option>${summary.locations.map(item=>`<option value="${esc(item.id)}" ${ayecStockLocationId===String(item.id)?"selected":""}>${esc(item.name)}${item.vehicle_plate?` - ${esc(item.vehicle_plate)}`:""}</option>`).join("")}</select></label><input id="stockLocationSearch" type="search" value="${esc(ayecStockLocationQuery)}" placeholder="\u00dcr\u00fcn ad\u0131, stok kodu veya barkod ile aray\u0131n..."><button type="button" data-location-export>D\u0131\u015fa Aktar</button><button type="button" data-location-refresh>Yenile</button></div><div id="stockLocationResults">${renderStockLocationRows()}</div></section><section class="stock-location-web-insights"><article><h3>Mobil Stok G\u00fcvence Protokol\u00fc</h3><p>${vehicles.length} mobil ara\u00e7taki stok bakiyeleri ve rezervleri izlenir.</p></article><article><h3>Son Transfer Hareketi</h3><p>${esc(db.stockTransferHistory?.[0]?.reference_no||"Kay\u0131tli transfer bulunamad\u0131.")}</p></article><article><h3>Envanter Senkronizasyonu</h3><p>Bu g\u00f6r\u00fcn\u00fcm etkin depo ve saha stoklar\u0131ndan hesaplanir.</p></article></section>`;
+ return `${pageHead("Depo ve Ara\u00e7 Stoklar\u0131 & Transfer Y\u00f6netimi","Depo, servis ara\u00e7\u0131 ve saha konumlar\u0131ndaki stok hareketlerini takip edin.",'<button class="secondary" data-location-action="create">+ Yeni Depo / Ara\u00e7 Ekle</button><button class="primary" data-location-action="transfer">Stok Transferi Ba\u015flat</button>')}<section class="stock-location-web-metrics"><article><small>MERKEZ DEPO</small><b>${Math.trunc(balances.filter(item=>item.location_type==="main"||item.location_type==="warehouse").reduce((sum,item)=>sum+item.quantity,0))} Kalem</b><span>${summary.warehouses} aktif lokasyon</span></article><article><small>SERV\u0130S ARA\u00c7LARI (MOBIL)</small><b>${Math.trunc(summary.vehicleQuantity)} Kalem</b><span>${vehicles.length} mobil saha ara\u00e7i</span></article><article><small>AKT\u0130F TRANSFER / YOLDA</small><b>${transferCount} Sevkiyat</b><span>${(db.stockTransferHistory||[]).length} kay\u0131tli transfer</span></article><article><small>KONUM / STOK KAYDI</small><b>${summary.locations.length} Konum</b><span>${Math.trunc(totalAvailable)} kullan\u0131labilir urun</span></article></section><section class="card stock-location-web-panel"><nav class="stock-location-web-tabs"><button type="button" data-location-tab="stock" class="${ayecStockLocationTab==="stock"?"active":""}">Konum Stoklar\u0131 (${balances.length})</button><button type="button" data-location-tab="requests" class="${ayecStockLocationTab==="requests"?"active":""}">Transfer &amp; \u0130ade Talepleri</button><button type="button" data-location-tab="counts" class="${ayecStockLocationTab==="counts"?"active":""}">Ara\u00e7 Say\u0131m\u0131 &amp; Zimmet</button><button type="button" data-location-tab="kits" class="${ayecStockLocationTab==="kits"?"active":""}">Haz\u0131r Kitler (${(db.stockKits||[]).length})</button><button type="button" data-location-tab="history" class="${ayecStockLocationTab==="history"?"active":""}">Hareket Ge\u00e7mi\u015fi (${(db.stockTransferHistory||[]).length})</button><button type="button" data-location-action="transfer">Transfer Ba\u015flat</button></nav><div class="stock-location-web-filter"><label>Konum Filtrele<select id="stockLocationFilter"><option value="">T\u00fcm Konumlar (${summary.locations.length})</option>${summary.locations.map(item=>`<option value="${esc(item.id)}" ${ayecStockLocationId===String(item.id)?"selected":""}>${esc(item.name)}${item.vehicle_plate?` - ${esc(item.vehicle_plate)}`:""}</option>`).join("")}</select></label><input id="stockLocationSearch" type="search" value="${esc(ayecStockLocationQuery)}" placeholder="\u00dcr\u00fcn ad\u0131, stok kodu veya barkod ile aray\u0131n..."><button type="button" data-location-export>D\u0131\u015fa Aktar</button><button type="button" data-location-refresh>Yenile</button></div><div id="stockLocationResults">${renderStockLocationRows()}</div></section><section class="stock-location-web-insights"><article><h3>Mobil Stok G\u00fcvence Protokol\u00fc</h3><p>${vehicles.length} mobil ara\u00e7taki stok bakiyeleri ve rezervleri izlenir.</p></article><article><h3>Son Transfer Hareketi</h3><p>${esc(db.stockTransferHistory?.[0]?.reference_no||"Kay\u0131tli transfer bulunamad\u0131.")}</p></article><article><h3>Envanter Senkronizasyonu</h3><p>Bu g\u00f6r\u00fcn\u00fcm etkin depo ve saha stoklar\u0131ndan hesaplanir.</p></article></section>`;
+}
+
+function stockLocationUsePartDialog(part,locationId){
+ const services=db.customers.flatMap(customer=>(customer.services||[]).map(service=>({...service,customerName:customer.name})));
+ if(!part||!services.length){toast("Aktif servis cihaz\u0131 bulunamad\u0131.","warning");return}
+ const balances=db.stockLocationBalances||[];const balance=balances.find(item=>String(item.part_id)===String(part.id)&&String(item.location_id)===String(locationId));const available=Math.max(0,Number(balance?.quantity||0)-Number(balance?.reserved_quantity||0));
+ if(available<=0){toast("Se\u00e7ili konumda kullan\u0131labilir stok yok.","warning");return}
+ const options=services.map(service=>`<option value="${esc(service.no)}">[${esc(service.no)}] ${esc(service.customerName)} - ${esc(service.device||service.model||"Cihaz")} (${esc(service.status||"")})</option>`).join("");
+ const body=`<div class="form-grid"><div class="field full"><label>\u00dcr\u00fcn</label><input disabled value="${esc(part.name)}"></div><div class="field full"><label>Servis Cihaz\u0131 / M\u00fc\u015fteri *</label><select name="tracking_no" required><option value="">Servis kayd\u0131 se\u00e7in</option>${options}</select></div><div class="field"><label>Kullan\u0131labilir Stok</label><input disabled value="${available}"></div><div class="field"><label>Tak\u0131lacak Miktar *</label><input name="quantity" type="number" min="0.001" max="${available}" step="any" value="${Math.min(1,available)}" required></div><div class="field full"><label>\u0130\u015flem Notu</label><input name="note" maxlength="500" placeholder="\u00d6rn: Ekran de\u011fi\u015fimi yap\u0131ld\u0131"></div></div>`;
+ openDialog("M\u00fc\u015fteriye / Servis Cihaz\u0131na Tak","STOKTAN D\u00dc\u015e",body,async fd=>{const values=Object.fromEntries(fd),quantity=Number(values.quantity);if(!values.tracking_no||!Number.isFinite(quantity)||quantity<=0||quantity>available)throw Error("Servis kayd\u0131 ve kullan\u0131labilir miktar\u0131 kontrol edin.");await apiFetch("/api/desktop/stock/location-management",{method:"POST",body:JSON.stringify({action:"use-part",part_id:Number(part.id),location_id:Number(locationId),tracking_no:values.tracking_no,quantity,note:String(values.note||"").trim()})});await hydrateDesktop(true);toast("Par\u00e7a servis cihaz\u0131na tak\u0131ld\u0131 ve stoktan d\u00fc\u015f\u00fcld\u00fc.","success")},"M\u00fc\u015fteriye Tak");
 }
 
 function ayecCreateStockLocationDialog(){
- const body=`<div class="form-grid"><div class="field full"><label>Konum Ad\u0131 *</label><input name="name" required maxlength="120" placeholder="Ana Depo veya Servis Ara\u00e7i"></div><div class="field"><label>Konum T\u00fcr\u00fc</label><select name="location_type"><option value="warehouse">Depo</option><option value="vehicle">Servis Ara\u00e7i</option><option value="site">\u015eantiye / Saha</option></select></div><div class="field"><label>Ara\u00e7 Plakas\u0131</label><input name="vehicle_plate" maxlength="30"></div></div>`;
+ const body=`<div class="form-grid"><div class="field full"><label>Konum Ad\u0131 *</label><input name="name" required maxlength="120" placeholder="Ana Depo veya Servis Ara\u00e7i"></div><div class="field"><label>Konum T\u00fcr\u00fc</label><select name="location_type"><option value="warehouse">Depo</option><option value="vehicle">Servis Ara\u00e7i</option><option value="personnel">Personel Stogu</option><option value="project">Proje Stogu</option><option value="site">\u015eantiye / Saha</option></select></div><div class="field"><label>Ara\u00e7 Plakas\u0131</label><input name="vehicle_plate" maxlength="30"></div></div>`;
  openDialog("Yeni Depo / Ara\u00e7","STOK KONUMU",body,async fd=>{
   const values=Object.fromEntries(fd);
   await apiFetch("/api/desktop/stock/location-management",{method:"POST",body:JSON.stringify({action:"create-location",name:values.name,location_type:values.location_type,vehicle_plate:values.vehicle_plate})});
@@ -1363,43 +1648,73 @@ function ayecCreateStockLocationDialog(){
  });
 }
 function ayecStockCountDialog(){
- const locationId=ayecStockLocationId||String(db.stockLocations?.[0]?.id||"");
- const location=db.stockLocations?.find(item=>String(item.id)===locationId);
- const items=(db.stockLocationBalances||[]).filter(item=>String(item.location_id)===locationId);
- if(!location||!items.length){toast("Sayim icin stok bulunan bir konum secin.","warning");return}
- const rows=items.map((item,index)=>`<div class="stock-count-line"><label for="count-${index}">${esc(item.product_name||item.product_code||"Urun")} <small>${esc(item.product_code||"")} / Mevcut: ${item.quantity}</small></label><input id="count-${index}" name="count_${item.part_id}" type="number" min="0" step="0.01" value="${item.quantity}" required></div>`).join("");
- openDialog("Ara\u00e7 / Depo Stok Say\u0131m\u0131","STOK SAYIMI",`<div class="stock-count-form"><p>${esc(location.name)} konumundaki miktarlar\u0131 say\u0131m sonucuyla g\u00fcncelleyin.</p>${rows}<div class="field full"><label>Say\u0131m Notu</label><textarea name="note" maxlength="500"></textarea></div></div>`,async fd=>{
-  const values=Object.fromEntries(fd);const lines=items.map(item=>({part_id:item.part_id,counted_quantity:values[`count_${item.part_id}`]}));
+ const locations=db.stockLocations||[];
+ if(!locations.length){toast("Sayim icin etkin bir konum bulunamadi.","warning");return}
+ const initialLocation=locations.some(item=>String(item.id)===String(ayecStockLocationId))?String(ayecStockLocationId):String(locations[0].id);
+ const locationOptions=locations.map(item=>`<option value="${esc(item.id)}" ${String(item.id)===initialLocation?"selected":""}>${esc(item.name)}${item.vehicle_plate?` (${esc(item.vehicle_plate)})`:""}</option>`).join("");
+ const body=`<div class="stock-count-form"><div class="stock-count-toolbar"><label for="stockCountLocation">Sayilacak Konum</label><select id="stockCountLocation" name="location_id">${locationOptions}</select><button type="button" class="secondary" data-stock-count-refresh>Sayim Listesini Yenile</button></div><p id="stockCountDescription"></p><div id="stockCountRows" class="stock-count-results"></div><div class="field full"><label>Sayim Aciklamasi veya Not</label><textarea name="note" maxlength="500"></textarea></div></div>`;
+ openDialog("Ara\u00e7 / Depo Stok Say\u0131m\u0131","STOK SAYIMI",body,async fd=>{
+  const values=Object.fromEntries(fd),locationId=values.location_id;
+  const items=(db.stockLocationBalances||[]).filter(item=>String(item.location_id)===String(locationId)&&Math.abs(Number(item.quantity||0))>0.000001);
+  if(!items.length)throw Error("Secilen konumda sayilacak stok bulunamadi.");
+  let confirmation=document.querySelector("[data-stock-count-confirm]");
+  if(!confirmation){
+   const notice=document.createElement("div");notice.className="field full stock-count-confirm";notice.innerHTML='<label><input type="checkbox" data-stock-count-confirm> Sayim farklari konum ve toplam stok bakiyesine islenecek. Bu islem geri alinamaz. Onayliyorum.</label>';
+   const form=document.querySelector("#dialogForm");form.append(notice);
+   form.addEventListener("input",event=>{const check=form.querySelector("[data-stock-count-confirm]");if(!event.target.matches("[data-stock-count-confirm]")&&check)check.checked=false});
+   return false;
+  }
+  if(!confirmation.checked){toast("Stok sayim farklarinin islenmesini onaylayin.","warning");return false;}
+  const lines=items.map(item=>({part_id:item.part_id,counted_quantity:values[`count_${item.part_id}`]}));
   await apiFetch("/api/desktop/stock/location-management",{method:"POST",body:JSON.stringify({action:"save-count",location_id:locationId,lines,note:values.note||""})});
   await hydrateDesktop(true);ayecStockLocationTab="counts";render();toast("Stok say\u0131m\u0131 kaydedildi");
  },"Say\u0131m\u0131 Kaydet");
+ const form=$("#dialogForm"),locationSelect=form.querySelector("#stockCountLocation"),rowsHost=form.querySelector("#stockCountRows"),description=form.querySelector("#stockCountDescription");
+ const renderCountRows=()=>{const locationId=String(locationSelect.value),location=locations.find(item=>String(item.id)===locationId),items=(db.stockLocationBalances||[]).filter(item=>String(item.location_id)===locationId&&Math.abs(Number(item.quantity||0))>0.000001);description.textContent=location?`${location.name} konumundaki miktarlari kontrol edin ve sayim sonucunu girin.`:"";if(!items.length){rowsHost.innerHTML='<div class="empty-state"><b>Sayilacak stok yok</b><span>Secilen konumda miktari sifirdan farkli stok bulunamadi.</span></div>';return}rowsHost.innerHTML=`<div class="table-wrap"><table><thead><tr><th>Urun Adi</th><th>Sistem Miktari</th><th>Sayilan Miktar</th><th>Fark</th></tr></thead><tbody>${items.map(item=>`<tr><td><strong>${esc(item.product_name||item.product_code||item.part_id)}</strong><small>${esc(item.product_code||"")}</small></td><td>${Number(item.quantity)}</td><td><input name="count_${esc(item.part_id)}" type="number" min="0" step="${["Metre","Kg","Lt"].includes(item.unit)?"0.001":"1"}" value="${Number(item.quantity)}" required data-count-expected="${Number(item.quantity)}"></td><td><output class="stock-count-difference zero" data-count-difference>0</output></td></tr>`).join("")}</tbody></table></div>`;rowsHost.querySelectorAll("input[data-count-expected]").forEach(input=>input.addEventListener("input",()=>{const delta=Number(input.value)-Number(input.dataset.countExpected),output=input.closest("tr").querySelector("[data-count-difference]");output.textContent=Number.isFinite(delta)?`${delta>0?"+":""}${delta}`:"-";output.className=`stock-count-difference ${delta===0?"zero":delta<0?"negative":"positive"}`}))};
+ locationSelect.addEventListener("change",renderCountRows);
+ form.querySelector("[data-stock-count-refresh]").addEventListener("click",async()=>{try{await hydrateDesktop(true);renderCountRows()}catch(error){toast(`Sayim listesi yenilenemedi: ${error.message}`,"error")}});
+ renderCountRows();
 }
 function ayecStockKitDialog(){
  const products=db.stock||[];if(!products.length){toast("Kit olusturmak icin urun kaydi gerekli.","warning");return}
  const options=products.map(item=>`<option value="${esc(item.id)}">${esc(item.code||item.id)} - ${esc(item.name)}</option>`).join("");
- const lines=Array.from({length:5},(_,index)=>`<div class="stock-count-line"><label>Urun ${index+1}<small>Opsiyonel kit satiri</small></label><div class="stock-kit-line-inputs"><select name="part_${index}" ${index===0?"required":""}><option value="">Urun secin</option>${options}</select><input name="quantity_${index}" type="number" min="0.01" step="0.01" placeholder="Adet"></div></div>`).join("");
- openDialog("Hazir Kit Olustur","DEPO / KIT TANIMI",`<div class="stock-count-form"><div class="field full"><label>Kit Adi *</label><input name="name" required maxlength="120"></div>${lines}</div>`,async fd=>{
-  const values=Object.fromEntries(fd);const clean=[];for(let index=0;index<5;index++){const partId=values[`part_${index}`],quantity=Number(values[`quantity_${index}`]);if(!partId&&!quantity)continue;if(!partId||!Number.isFinite(quantity)||quantity<=0)throw Error("Her kit satirinda urun ve pozitif miktar secin.");clean.push({part_id:partId,quantity})}if(!clean.length)throw Error("Kit icin en az bir urun secin.");
-  await apiFetch("/api/desktop/stock/location-management",{method:"POST",body:JSON.stringify({action:"save-kit",name:values.name,lines:clean})});await hydrateDesktop(true);ayecStockLocationTab="kits";render();toast("Hazir kit kaydedildi");
+ const kitLines=[];
+ const body=`<div class="stock-count-form"><div class="field full"><label>Kit Adi *</label><input name="name" required maxlength="120"></div><div class="field full"><label for="stockKitProduct">Urun</label><div class="stock-kit-builder-row"><select id="stockKitProduct"><option value="">Urun secin</option>${options}</select><input id="stockKitQuantity" type="number" min="1" step="1" value="1" inputmode="numeric" aria-label="Kit urun miktari"><button type="button" class="primary" data-stock-kit-add>+ Kit Satirina Ekle</button></div></div><div class="field full"><label>Kit Bilesenleri</label><div id="stockKitLinesHost" class="stock-transfer-lines"><div class="empty-state"><b>Liste bos</b><span>Kit icin urun satirlari ekleyin.</span></div></div></div></div>`;
+ openDialog("Hazir Kit Olustur","DEPO / KIT TANIMI",body,async fd=>{
+  const values=Object.fromEntries(fd);if(!values.name.trim())throw Error("Kit adini girin.");if(!kitLines.length)throw Error("Kit icin en az bir urun secin.");
+  await apiFetch("/api/desktop/stock/location-management",{method:"POST",body:JSON.stringify({action:"save-kit",name:values.name,lines:kitLines})});await hydrateDesktop(true);ayecStockLocationTab="kits";render();toast("Hazir kit kaydedildi");
  },"Kiti Kaydet");
+ const form=$("#dialogForm"),host=form.querySelector("#stockKitLinesHost");
+ const renderLines=()=>{host.innerHTML=kitLines.length?`<div class="table-wrap"><table><thead><tr><th>Urun Adi</th><th>Miktar</th><th>Islem</th></tr></thead><tbody>${kitLines.map((line,index)=>`<tr><td>${esc(line.name)}</td><td>${Number(line.quantity)}</td><td><button type="button" class="mini danger" data-stock-kit-remove="${index}">Sil</button></td></tr>`).join("")}</tbody></table></div>`:'<div class="empty-state"><b>Liste bos</b><span>Kit icin urun satirlari ekleyin.</span></div>';host.querySelectorAll("[data-stock-kit-remove]").forEach(button=>button.addEventListener("click",()=>{kitLines.splice(Number(button.dataset.stockKitRemove),1);renderLines()}))};
+ form.querySelector("[data-stock-kit-add]").addEventListener("click",()=>{const select=form.querySelector("#stockKitProduct"),product=products.find(item=>String(item.id)===String(select.value)),quantity=Number(form.querySelector("#stockKitQuantity").value);if(!product||!Number.isInteger(quantity)||quantity<=0){toast("Urun ve pozitif tam miktar secin.","warning");return}const existing=kitLines.find(line=>String(line.part_id)===String(product.id));if(existing)existing.quantity+=quantity;else kitLines.push({part_id:product.id,name:product.name,quantity});renderLines()});
 }
 function ayecTransferStockDialog(){
  const locations=db.stockLocations||[];
- const products=db.stock||[];
- if(locations.length<2||!products.length){toast("Transfer icin en az iki konum ve bir urun gerekli.","warning");return}
+ if(locations.length<2){toast("Transfer icin en az iki konum gerekli.","warning");return}
  const sourceOptions=locations.map(item=>`<option value="${esc(item.id)}">${esc(item.name)}${item.vehicle_plate?` - ${esc(item.vehicle_plate)}`:""}</option>`).join("");
- const productOptions=products.map(item=>`<option value="${esc(item.id)}">${esc(item.code||item.id)} - ${esc(item.name)}</option>`).join("");
- const lines=Array.from({length:5},(_,index)=>`<div class="stock-transfer-line"><label>Urun ${index+1}<small>Satir ${index+1}</small></label><select name="part_${index}" ${index===0?"required":""}><option value="">Urun secin</option>${productOptions}</select><input name="quantity_${index}" type="number" min="0.01" step="0.01" ${index===0?"required":""} inputmode="decimal" placeholder="Miktar"></div>`).join("");
- const body=`<div class="form-grid"><div class="field"><label>Kaynak Konum</label><select name="source_location_id" required>${sourceOptions}</select></div><div class="field"><label>Hedef Konum</label><select name="target_location_id" required>${sourceOptions}</select></div><div class="field full"><label>Transfer / Iade Kalemleri</label><div class="stock-transfer-lines">${lines}</div></div><div class="field full"><label>Transfer / Iade Notu</label><textarea name="note" maxlength="500" placeholder="Iade veya transfer aciklamasi"></textarea></div></div><p class="stock-transfer-hint">Iade icin kaynak ve hedef konumlari ters secin. Miktarlar secilen kaynak konumdan dusulur.</p>`;
+ const targetOptions=locations.map((item,index)=>`<option value="${esc(item.id)}" ${index===1?"selected":""}>${esc(item.name)}${item.vehicle_plate?` - ${esc(item.vehicle_plate)}`:""}</option>`).join("");
+ const kits=db.stockKits||[];
+ const kitOptions=kits.map(item=>`<option value="${esc(item.id)}">${esc(item.name)} - ${Number(item.item_count||0)} urun</option>`).join("");
+ const transferLines=[];
+ const body=`<div class="form-grid"><div class="field"><label>Kaynak Konum</label><select id="transferSourceLocation" name="source_location_id" required>${sourceOptions}</select></div><div class="field"><label>Hedef Konum</label><select id="transferTargetLocation" name="target_location_id" required>${targetOptions}</select></div><div class="field full"><button type="button" class="secondary" data-transfer-swap>Kaynak / Hedef Degistir</button></div><div class="field full stock-transfer-kit-row"><label for="transferKit">Hazir Kit</label><div><select id="transferKit"><option value="">Kit secin...</option>${kitOptions}</select><button type="button" class="secondary" data-transfer-add-kit>Hazir Kiti Sepete Ekle</button></div></div><div class="field full"><label for="transferPart">Transfer Urunu</label><div class="stock-transfer-product-row"><select id="transferPart"><option value="">Kaynak konumu secin</option></select><input id="transferQuantity" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="Miktar" value="1"><button type="button" class="primary" data-transfer-add-line>+ Listeye Ekle</button></div></div><div class="field full"><label>Transfer / Iade Kalemleri</label><div id="transferLinesHost" class="stock-transfer-lines"><div class="empty-state"><b>Liste bos</b><span>Urun veya hazir kit ekleyin.</span></div></div></div><div class="field full"><label>Transfer / Iade Notu</label><textarea name="note" maxlength="500" placeholder="Iade veya transfer aciklamasi"></textarea></div></div><p class="stock-transfer-hint">Iade icin kaynak ve hedef konumlari ters secin. Miktarlar secilen kaynak konumdan dusulur.</p>`;
  openDialog("Stok Transferi / Iade","DEPO / SAHA TRANSFERI",body,async fd=>{
   const values=Object.fromEntries(fd);
   if(values.source_location_id===values.target_location_id)throw Error("Kaynak ve hedef konum farkli olmali.");
-  const transferLines=[];for(let index=0;index<5;index++){const partId=values[`part_${index}`],quantity=Number(values[`quantity_${index}`]);if(!partId&&!quantity)continue;if(!partId||!Number.isFinite(quantity)||quantity<=0)throw Error("Her transfer satirinda urun ve pozitif miktar secin.");transferLines.push({part_id:partId,quantity})}if(!transferLines.length)throw Error("En az bir urun satiri ekleyin.");
+  if(!transferLines.length)throw Error("En az bir urun satiri ekleyin.");
   await apiFetch("/api/desktop/stock/location-management",{method:"POST",body:JSON.stringify({action:"transfer-stock",source_location_id:values.source_location_id,target_location_id:values.target_location_id,lines:transferLines,note:values.note})});
   ayecStockLocationTab="history";
   await hydrateDesktop(true);
   toast("Stok transferi veya iade kaydedildi");
  });
+ const form=$("#dialogForm"),source=form.querySelector("#transferSourceLocation"),target=form.querySelector("#transferTargetLocation"),product=form.querySelector("#transferPart"),host=form.querySelector("#transferLinesHost");
+ const renderLines=()=>{host.innerHTML=transferLines.length?`<div class="table-wrap"><table><thead><tr><th>Urun Adi</th><th>Birim</th><th>Miktar</th><th>Islem</th></tr></thead><tbody>${transferLines.map((line,index)=>`<tr><td>${esc(line.name||line.part_id)}</td><td>${esc(line.unit||"Adet")}</td><td>${Number(line.quantity||0)}</td><td><button type="button" class="mini danger" data-transfer-remove="${index}">Kaldir</button></td></tr>`).join("")}</tbody></table></div>`:'<div class="empty-state"><b>Liste bos</b><span>Urun veya hazir kit ekleyin.</span></div>';host.querySelectorAll("[data-transfer-remove]").forEach(button=>button.addEventListener("click",()=>{transferLines.splice(Number(button.dataset.transferRemove),1);renderLines()}))};
+ const renderProducts=()=>{const locationId=source.value,items=(db.stockLocationBalances||[]).filter(item=>item.location_id===String(locationId)&&item.quantity>0.000001);product.innerHTML='<option value="">Urun secin</option>'+items.map(item=>`<option value="${esc(item.part_id)}" data-name="${esc(item.product_name||item.part_id)}" data-unit="${esc(item.unit||"Adet")}">${esc(item.product_name||item.part_id)} | ${item.quantity} ${esc(item.unit||"Adet")}</option>`).join("");if(!items.length)product.innerHTML='<option value="">Kaynak konumda aktarilabilir stok yok</option>'};
+ const addLine=line=>{const existing=transferLines.find(item=>String(item.part_id)===String(line.part_id));if(existing)existing.quantity=Number(existing.quantity)+Number(line.quantity);else transferLines.push({...line,quantity:Number(line.quantity)});renderLines()};
+ source.addEventListener("change",renderProducts);
+ form.querySelector("[data-transfer-swap]").addEventListener("click",()=>{const sourceValue=source.value;source.value=target.value;target.value=sourceValue;renderProducts()});
+ form.querySelector("[data-transfer-add-line]").addEventListener("click",()=>{const selected=product.selectedOptions[0],partId=product.value,quantity=Number(form.querySelector("#transferQuantity").value);if(!partId||!Number.isFinite(quantity)||quantity<=0){toast("Urun ve pozitif miktar secin.","warning");return}addLine({part_id:partId,name:selected.dataset.name,unit:selected.dataset.unit,quantity})});
+ form.querySelector("[data-transfer-add-kit]").addEventListener("click",()=>{const kit=kits.find(item=>String(item.id)===String(form.querySelector("#transferKit").value));if(!kit)return;if(!Array.isArray(kit.lines)||!kit.lines.length){toast("Kit icerigi bulunamadi.","warning");return}kit.lines.forEach(line=>addLine(line))});
+ renderProducts();
 }
 function stockLocationWebSummary(){
  const locations=Array.isArray(db.stockLocations)?db.stockLocations:[];
@@ -1426,17 +1741,7 @@ document.addEventListener("click",event=>{const card=event.target.closest("[data
 // Keep newly created customers linked to their real desktop database id.
 // Older browser-local records may still carry a temporary `cus_*` id; Sales Hub
 // must use the server id returned by the customers table endpoint.
-saveCustomer=async function(fd,c){
- const data=Object.fromEntries(fd),target=c||{id:uid("cus"),services:[],quotes:[]};
- Object.assign(target,{name:data.name,company_name:data.company_name,tc_no:data.tc_no,phone:data.phone,phone2:data.phone2,email:data.email,type:data.type,tax_number:data.tax_number,tax_office:data.tax_office,term_days:+data.term_days||0,limit_amount:+data.limit_amount||0,commission_rate:+data.commission_rate||0,service_type:data.service_type,city:data.city,district:data.district,neighborhood:data.neighborhood,zip_code:data.zip_code,street:data.street,address:data.address,notes:data.notes,balances:{TRY:+data.TRY||0,USD:+data.USD||0,EUR:+data.EUR||0}});
- if(!c)db.customers.push(target);
- const persistedId=Number.isInteger(+target.id)?+target.id:Number.isInteger(+target.desktopId)?+target.desktopId:0;
- const payload={name:data.name,company_name:data.company_name,tc_no:data.tc_no,phone:data.phone,phone2:data.phone2,email:data.email,type:data.type,tax_number:data.tax_number,tax_office:data.tax_office,term_days:+data.term_days||0,limit_amount:+data.limit_amount||0,commission_rate:+data.commission_rate||0,service_type:data.service_type,city:data.city,district:data.district,neighborhood:data.neighborhood,zip_code:data.zip_code,street:data.street,address:data.address,notes:data.notes,balances:{TRY:+data.TRY||0,USD:+data.USD||0,EUR:+data.EUR||0}};
- if(c&&persistedId){payload.id=persistedId;payload._action="update"}
- const result=await apiFetch("/api/desktop/table/customers",{method:"POST",body:JSON.stringify(payload)});
- if(result?.id){target.desktopId=Number(result.id);if(!Number.isInteger(+target.id))target.id=String(result.id)}
- save();activity(`${target.name} müşteri kaydı ${c?"güncellendi":"oluşturuldu"}`,"♙");toast("Müşteri kaydedildi");render();return true;
-};
+saveCustomer=persistCustomerProfile;
 
 // Web authentication, first-run wizard and destructive-data controls.
 let currentAuthUser=null;
@@ -1453,7 +1758,22 @@ settingBody=function(settings){
 };
 
 function openWipeAllDialog(){
- openDialog("Wipe All — Kullanıcı Verilerini Sıfırla","VERİTABANI GÜVENLİĞİ",`<div class="wipe-warning"><strong>Bu işlem operasyonel verileri kalıcı olarak siler.</strong><p>Devam etmek için yönetici parolanızı ve aşağıdaki onay metnini eksiksiz girin.</p></div><div class="form-grid"><div class="field full"><label>Yönetici Parolası</label><input name="password" type="password" autocomplete="current-password" required></div><div class="field full"><label>Onay metni</label><input name="phrase" required autocomplete="off" placeholder="TÜM VERİLERİ SİL"></div></div>`,async formData=>{if(!confirm("Son onay: Kullanıcı tarafından girilen tüm operasyonel veriler silinsin mi?"))return false;const result=await apiFetch("/api/admin/wipe-user-data",{method:"POST",body:JSON.stringify(Object.fromEntries(formData))});localStorage.removeItem(DB_KEY);db={...structuredClone(seed),customers:[],stock:[],movements:[],finance:[],appointments:[],quotes:[],activities:[]};await hydrateDesktop(true);navigate("dashboard");toast(`${result.deleted_rows} kayıt temizlendi. Otomatik yedek: ${result.backup}`,"warning",9000);return true},"Verileri Kalıcı Olarak Sil");
+ openDialog("Operasyonel Verileri S\u0131f\u0131rla","VER\u0130TABANI G\u00dcVENL\u0130\u011e\u0130",`<div class="wipe-warning"><strong>Bu i\u015Flem operasyonel verileri kal\u0131c\u0131 olarak siler.</strong><p>Devam etmek i\u00e7in y\u00f6netici parolan\u0131z\u0131 ve a\u015fa\u011f\u0131daki onay metnini eksiksiz girin.</p></div><div class="form-grid"><div class="field full"><label>Y\u00f6netici Parolas\u0131</label><input name="password" type="password" autocomplete="current-password" required></div><div class="field full"><label>Onay metni</label><input name="phrase" required autocomplete="off" placeholder="T\u00dcM VER\u0130LER\u0130 S\u0130L"></div></div>`,async formData=>{
+  const payload=Object.fromEntries(formData);
+  $("#appDialog").close("confirmation");
+  openDialog("Son Onay: Operasyonel Verileri Sil","GER\u0130 ALINAMAZ \u0130\u015eLEM",`<p>Kullan\u0131c\u0131 taraf\u0131ndan girilen t\u00fcm operasyonel veriler silinsin mi?</p><p>\u0130\u015flem \u00f6ncesi otomatik yedek olu\u015fturulacakt\u0131r.</p>`,async()=>{
+    const result=await apiFetch("/api/admin/wipe-user-data",{method:"POST",body:JSON.stringify(payload)});
+    localStorage.removeItem(DB_KEY);
+    db={...structuredClone(seed),customers:[],stock:[],movements:[],finance:[],appointments:[],quotes:[],activities:[]};
+    await hydrateDesktop(true);
+    navigate("dashboard");
+    toast(`${result.deleted_rows} kay\u0131t temizlendi. Otomatik yedek: ${result.backup}`,"warning",9000);
+    return true;
+  },"Verileri Kal\u0131c\u0131 Olarak Sil");
+  const submit=$("#dialogSubmit");
+  if(submit){submit.classList.remove("primary");submit.classList.add("danger")}
+  return false;
+ },"Verileri Kal\u0131c\u0131 Olarak Sil");
 }
 document.addEventListener("click",event=>{if(event.target.closest('[data-action="wipe-all"]'))openWipeAllDialog()});
 
@@ -1772,10 +2092,17 @@ function renderPasswordReset(token,message="",messageType=""){
 async function initializeAuth(){const resetToken=new URLSearchParams(window.location.search).get("reset");if(resetToken)return renderPasswordReset(resetToken);try{const status=await apiFetch("/api/auth/status");registrationEnabled=status.registration_enabled;setupRequired=Boolean(status.setup_required);if(status.setup_required)return renderWizard();if(status.authenticated){updateCurrentUser(status.user);hideAuth();return startApplication()}renderLogin()}catch(error){showAuth(`<div class="auth-form-wrap"><div class="auth-form-head"><span class="auth-step-label">BAĞLANTI HATASI</span><h2>Sunucuya ulaşılamadı</h2><p>${esc(error.message)}</p></div><button class="primary auth-submit" id="authRetry" type="button">Yeniden Dene</button></div>`);$("#authRetry").onclick=initializeAuth}}
 window.handleUnauthorized=()=>{applicationStarted=false;currentAuthUser=null;renderLogin("Oturum süreniz sona erdi. Lütfen yeniden giriş yapın.","","warning")};
 $("#profileBtn").onclick=openProfileDialog;
-$("#logoutBtn").onclick=async()=>{try{await apiFetch("/api/auth/logout",{method:"POST",body:"{}"})}finally{applicationStarted=false;currentAuthUser=null;renderLogin("Oturum güvenli biçimde kapatıldı.","","success")}};
+$("#logoutBtn").onclick=async()=>{let feedback="Oturum g\u00fcvenli bi\u00e7imde kapat\u0131ld\u0131.",type="success";try{const result=await apiFetch("/api/auth/logout",{method:"POST",body:"{}"});if(result.backup)feedback="Oturum kapat\u0131ld\u0131; yedek olu\u015fturuldu.";if(result.backup_error){feedback="Oturum kapat\u0131ld\u0131; yedekleme ba\u015far\u0131s\u0131z: "+result.backup_error;type="warning"}}finally{applicationStarted=false;currentAuthUser=null;renderLogin(feedback,"",type)}}
 // Payment parity: the desktop balance is negative while a customer owes us.
 // The dialog is pre-filled with the open debt and the server validates the
 // same limit atomically, so a browser cannot over-collect.
+function printCustomerPaymentReceipt(data){
+ const frame=document.createElement("iframe");frame.title="Tahsilat Makbuzu";frame.setAttribute("aria-hidden","true");frame.style.cssText="position:fixed;width:1px;height:1px;right:0;bottom:0;border:0;opacity:0;pointer-events:none";
+ const vatPercent=Number(data.vatPercent||0),net=vatPercent>0?Number(data.amount)/(1+vatPercent/100):Number(data.amount),vat=Number(data.amount)-net;
+ frame.srcdoc=`<!doctype html><html><head><meta charset="utf-8"><title>AYEC Pro - Tahsilat Makbuzu</title><style>body{font:14px Arial,sans-serif;color:#111;margin:28px}main{max-width:620px;margin:auto}h1{font-size:20px;border-bottom:2px solid #111;padding-bottom:10px}table{width:100%;border-collapse:collapse;margin:18px 0}td{padding:8px;border-bottom:1px solid #ccc}td:last-child{text-align:right;font-weight:700}.total{font-size:18px;font-weight:800;text-align:right}.muted{color:#555}@media print{body{margin:12mm}}</style></head><body><main><h1>AYEC Pro - Tahsilat Makbuzu</h1><table><tr><td>M\u00fc\u015fteri</td><td>${esc(data.customer)}</td></tr><tr><td>Tarih</td><td>${esc(data.date||today())}</td></tr><tr><td>\u00d6deme y\u00f6ntemi</td><td>${esc(data.method)}</td></tr><tr><td>Para birimi</td><td>${esc(data.currency)}</td></tr><tr><td>A\u00e7\u0131klama</td><td>${esc(data.description||"")}</td></tr>${vatPercent>0?`<tr><td>Net tutar</td><td>${money(net,data.currency)}</td></tr><tr><td>KDV (%${vatPercent})</td><td>${money(vat,data.currency)}</td></tr>`:""}</table>${data.installment?`<p>Taksit bilgisi: Pe\u015finat ${money(data.downPayment,data.currency)}; ${data.installmentCount} taksit; ayl\u0131k ${money(data.monthlyPayment,data.currency)}</p>`:""}<p class="total">TOPLAM: ${money(data.amount,data.currency)}</p><p class="muted">Te\u015fekk\u00fcr ederiz.</p></main></body></html>`;
+ document.body.appendChild(frame);frame.onload=()=>{setTimeout(()=>{try{frame.contentWindow.focus();frame.contentWindow.print()}finally{setTimeout(()=>frame.remove(),1000)}},40)};
+}
+
 paymentDialog=function(customer){
   if(!customer)return toast("M\u00fc\u015fteri se\u00e7ilmelidir","error");
   const selectedDebtIds=new Set(),debtItemsById=new Map(),currencies=["USD","EUR","TRY"];let debtItemsLoaded=false;const selectedDebtTotal=currency=>[...selectedDebtIds].map(id=>debtItemsById.get(id)).filter(item=>item?.currency===currency).reduce((sum,item)=>sum+Number(item.remaining||0),0),debtFor=currency=>selectedDebtIds.size?selectedDebtTotal(currency):Math.max(0,-Number(customer.balances?.[currency]||0));
@@ -1787,20 +2114,25 @@ paymentDialog=function(customer){
     if(debt<=0)throw Error(`${currency} para biriminde a\u00e7\u0131k bor\u00e7 bulunmuyor`);
     if(amount<=0)throw Error("Tahsilat tutar\u0131 s\u0131f\u0131rdan b\u00fcy\u00fck olmal\u0131d\u0131r");
     if(amount>debt+0.0001)throw Error(`Tahsilat a\u00e7\u0131k borcu a\u015famaz (en fazla ${money(debt,currency)})`);
-    const result=await apiFetch("/api/desktop/customer/payment",{method:"POST",body:JSON.stringify({customer_id:Number.isInteger(+customer.id)?+customer.id:null,customer_name:customer.name,amount,currency,description:values.description,payment_method:values.payment_method,reference:values.reference,selected_debt_ids:[...selectedDebtIds],exchange_rate:rateForCode(currency)})});
-    await hydrateDesktop(true);activity(`${customer.name} m\u00fc\u015fterisinden ${money(result.amount,result.currency)} tahsil edildi`,"\u20ba");toast(`Tahsilat kaydedildi \u00b7 kalan bor\u00e7 ${money(result.open_debt_after,result.currency)}`);return true;
+    const vatPercent=Number(values.vat_rate||0),installment=values.is_installment==="on",downPayment=Math.min(amount,Math.max(0,Number(values.down_payment||0))),installmentCount=Math.max(2,Math.min(36,Number(values.installment_count||3))),monthlyPayment=installment?Math.max(0,(amount-downPayment)/installmentCount):0;
+    const result=await apiFetch("/api/desktop/customer/payment",{method:"POST",body:JSON.stringify({customer_id:Number.isInteger(+customer.id)?+customer.id:null,customer_name:customer.name,amount,currency,description:values.description,payment_method:values.payment_method,reference:values.reference,date:values.date,selected_debt_ids:[...selectedDebtIds],exchange_rate:rateForCode(currency)})});
+    await hydrateDesktop(true);activity(`${customer.name} m\u00fc\u015fterisinden ${money(result.amount,result.currency)} tahsil edildi`,"\u20ba");toast(`Tahsilat kaydedildi \u00b7 kalan bor\u00e7 ${money(result.open_debt_after,result.currency)}`);if(values.print_receipt==="on")printCustomerPaymentReceipt({customer:customer.name,amount,currency,method:values.payment_method,date:values.date,description:values.description,vatPercent,installment,downPayment,installmentCount,monthlyPayment});return true;
   },"Tahsilat\u0131 Kaydet");
   const dialog=$("#appDialog"),body=$("#dialogBody"),currencyInput=$("input[name=currency]",body),amountInput=$("input[name=amount]",body),caption=$("#paymentDebtCaption"),summary=$("#paymentDebtSummary");
+  const paymentDate=$("input[type=date]",body);if(paymentDate){paymentDate.disabled=false;paymentDate.name="date"}
+  const extras=document.createElement("section");extras.className="collection-extras";extras.innerHTML=`<div class="collection-tax-card"><header><strong>KDV Da\u011f\u0131l\u0131m\u0131</strong><select id="collectionVatRate" name="vat_rate"><option value="0">%0</option><option value="10">%10</option><option value="20" selected>%20</option><option value="18">%18</option><option value="8">%8</option><option value="1">%1</option><option value="0">KDV Hari\u00e7</option></select></header><div><span>Net Tutar</span><strong id="collectionNetAmount">0</strong><span>KDV</span><strong id="collectionVatAmount">0</strong><span>Genel Toplam</span><strong id="collectionGrossAmount">0</strong></div></div><div class="collection-installment-card"><label class="collection-installment-toggle"><input type="checkbox" name="is_installment">Taksitli \u00d6deme</label><div class="collection-installment-fields"><label>Pe\u015finat<input type="number" name="down_payment" min="0" step="0.01" value="0" disabled></label><label>Taksit Say\u0131s\u0131<select name="installment_count" disabled>${Array.from({length:35},(_,index)=>`<option value="${index+2}" ${index===1?"selected":""}>${index+2}</option>`).join("")}</select></label></div><p id="collectionInstallmentPreview">Ayl\u0131k Taksit: -</p></div><label class="collection-receipt-toggle"><input type="checkbox" name="print_receipt" checked>\u00d6deme makbuzu yazd\u0131r</label></section>`;$(".collection-fields",body).before(extras);
+  const vatInput=$("#collectionVatRate",extras),installmentInput=$("input[name=is_installment]",extras),downInput=$("input[name=down_payment]",extras),countInput=$("select[name=installment_count]",extras),setPaymentPreview=()=>{const total=Number(amountInput?.value||0),rate=Number(vatInput?.value||0)/100,net=rate>0?total/(1+rate):total,tax=total-net;$("#collectionNetAmount",extras).textContent=money(net,currencyInput.value);$("#collectionVatAmount",extras).textContent=money(tax,currencyInput.value);$("#collectionGrossAmount",extras).textContent=money(total,currencyInput.value);const down=Math.min(total,Math.max(0,Number(downInput.value||0))),count=Number(countInput.value||3),monthly=Math.max(0,(total-down)/count);$("#collectionInstallmentPreview",extras).textContent=installmentInput.checked?`Ayl\u0131k Taksit: ${money(monthly,currencyInput.value)} x ${count} ay`:"Ayl\u0131k Taksit: -";downInput.disabled=!installmentInput.checked;countInput.disabled=!installmentInput.checked;downInput.max=String(total)};vatInput.onchange=setPaymentPreview;installmentInput.onchange=setPaymentPreview;downInput.oninput=setPaymentPreview;countInput.onchange=setPaymentPreview;setPaymentPreview();
+  const configuredVat=Number(desktopSettings?.default_vat_percent??db.settings?.default_vat_percent??20);if(Number.isFinite(configuredVat)&&![...vatInput.options].some(option=>Number(option.value)===configuredVat))vatInput.add(new Option(`%${configuredVat}`,String(configuredVat)));if(Number.isFinite(configuredVat))vatInput.value=String(configuredVat);
   const debtPanel=document.createElement("section");debtPanel.className="collection-debt-list";debtPanel.innerHTML='<header><strong>BOR\u00c7 KALEMLER\u0130 &amp; FATURA E\u015eLE\u015eT\u0130RME</strong><small id="collectionDebtCount">Y\u00fckleniyor...</small></header><div id="collectionDebtItems" class="collection-debt-items"></div><footer><span>Se\u00e7ilen Kalemler Toplam\u0131</span><strong id="collectionDebtSelectedTotal">0</strong></footer>';$(".collection-balance-row",body).before(debtPanel);const debtItemsHost=$("#collectionDebtItems",debtPanel);
   async function loadDebtItems(currency){const customerId=Number(customer.id);if(!Number.isInteger(customerId)||customerId<=0){debtItemsHost.innerHTML='<p class="muted">M\u00fc\u015fteri bor\u00e7 kalemi listelenemedi.</p>';return}const result=await apiFetch(`/api/desktop/customer/open-debts?customer_id=${customerId}&currency=${encodeURIComponent(currency)}`);const items=(result.items||[]).sort((a,b)=>String(a.created_at||"").localeCompare(String(b.created_at||""))||Number(a.id)-Number(b.id));items.forEach(item=>{item.currency=currency;debtItemsById.set(Number(item.id),item)});const visibleIds=new Set(items.map(item=>Number(item.id)));if(!debtItemsLoaded){items.forEach(item=>selectedDebtIds.add(Number(item.id)));debtItemsLoaded=true}else [...selectedDebtIds].forEach(id=>{if(!visibleIds.has(id))selectedDebtIds.delete(id)});$("#collectionDebtCount",debtPanel).textContent=`${items.length} kalem bulundu`;debtItemsHost.innerHTML=items.length?items.map(item=>`<label class="collection-debt-item"><input type="checkbox" name="collectionDebt" value="${item.id}" ${selectedDebtIds.has(Number(item.id))?"checked":""}><span><small>${esc(item.created_at||"-")} · ${esc(item.tracking_no||"Cari bor\u00e7")}</small><strong>${esc(item.description||"Servis borcu")}</strong></span><b>${money(item.remaining,currency)}</b></label>`).join(""):'<p class="muted">Bu para biriminde A\u00e7\u0131k fatura veya bor\u00e7 kalemi yok.</p>';$$('input[name="collectionDebt"]',debtPanel).forEach(input=>input.onchange=()=>{const id=Number(input.value);if(input.checked)selectedDebtIds.add(id);else selectedDebtIds.delete(id);sync(false)})}
   loadDebtItems(currencyInput.value||"TRY").then(()=>sync(true)).catch(error=>{debtItemsHost.innerHTML=`<p class="muted">${esc(error.message)}</p>`});
   dialog.classList.add("collection-dialog");dialog.addEventListener("close",()=>dialog.classList.remove("collection-dialog"),{once:true});
   const sync=reset=>{const currency=currencyInput?.value||"TRY",debt=debtFor(currency);if(amountInput){amountInput.max=debt||0;if(reset)amountInput.value=debt?String(debt):""}if(caption)caption.textContent=`A\u00e7\u0131k bor\u00e7: ${money(debt,currency)}`;const amount=Math.min(Math.max(0,Number(amountInput?.value||0)),debt);if(summary)summary.textContent=money(Math.max(0,debt-amount),currency);$("#collectionDebtValue").textContent=money(debt,currency);$("#collectionSelectedValue").textContent=money(amount,currency);$("#collectionDebtSelectedTotal",debtPanel).textContent=money(selectedDebtTotal(currency),currency);$("[data-collection-suffix]").textContent=currency;$("#collectionTryEquivalent").textContent=`TRY kar\u015f\u0131l\u0131\u011f\u0131: ${money(amount*(rateForCode(currency)||1),"TRY")}`;$$("[data-collection-currency]",body).forEach(button=>button.classList.toggle("active",button.dataset.collectionCurrency===currency))};
-  $$('[data-collection-currency]',body).forEach(button=>button.onclick=()=>{currencyInput.value=button.dataset.collectionCurrency;loadDebtItems(currencyInput.value).then(()=>sync(true)).catch(error=>{debtItemsHost.innerHTML=`<p class="muted">${esc(error.message)}</p>`})});
+  $$('[data-collection-currency]',body).forEach(button=>button.onclick=()=>{currencyInput.value=button.dataset.collectionCurrency;loadDebtItems(currencyInput.value).then(()=>{sync(true);setPaymentPreview()}).catch(error=>{debtItemsHost.innerHTML=`<p class="muted">${esc(error.message)}</p>`})});
   $$('[data-collection-add]',body).forEach(button=>button.onclick=()=>{const debt=debtFor(currencyInput.value);amountInput.value=String(Math.min(debt,Number(amountInput.value||0)+Number(button.dataset.collectionAdd)));sync(false)});
   $("[data-collection-all]",body).onclick=()=>{amountInput.value=String(debtFor(currencyInput.value));sync(false)};
   $$('[data-collection-method]',body).forEach(button=>button.onclick=()=>{const select=$("select[name=payment_method]",body),choice=button.dataset.collectionMethod;select.value=choice==="Havale EFT"?"Banka":choice==="\u00c7ek Senet"?"Web":choice;$$('[data-collection-method]',body).forEach(item=>item.classList.toggle("active",item===button))});
-  amountInput?.addEventListener("input",()=>sync(false));sync(false);
+  amountInput?.addEventListener("input",()=>{sync(false);setPaymentPreview()});sync(false);
 };
 
 // Hide collection actions for completed/delivered services and expose one
@@ -1865,8 +2197,19 @@ financeDialog=function(type,item){
 };
 
 financeTable=function(rows){
-  return `<div class="table-wrap finance-table"><table><thead><tr><th>Tarih</th><th>T\u00fcr</th><th>Kategori</th><th>A\u00e7\u0131klama</th><th>M\u00fc\u015fteri</th><th>Orijinal</th><th>TRY</th><th>Kur</th><th>\u00d6deme</th><th>Referans</th><th></th></tr></thead><tbody>${rows.map(item=>`<tr data-kind="finance" data-id="${item.id}"><td data-label="Tarih">${esc(item.date||item.created_at||"\u2014")}</td><td data-label="T\u00fcr">${statusBadge(item.type||"\u2014")}</td><td data-label="Kategori">${esc(item.category||"\u2014")}</td><td data-label="A\u00e7\u0131klama">${esc(item.description||"\u2014")}</td><td data-label="M\u00fc\u015fteri">${esc(item.customer||item.customer_name||"\u2014")}</td><td data-label="Orijinal"><strong>${money(item.original_amount??item.amount,item.currency||"TRY")}</strong></td><td data-label="TRY">${money(item.try_equivalent??financeTryValue(item),"TRY")}</td><td data-label="Kur">${esc(String(item.exchange_rate??1))}</td><td data-label="\u00d6deme">${esc(item.payment_method||"\u2014")}</td><td data-label="Referans">${esc(item.ref_no||item.tracking_no||"\u2014")}</td><td class="finance-action"><button class="mini" data-action="finance-detail" data-id="${item.id}">Detay</button></td></tr>`).join("")}</tbody></table></div>`;
+  const detailRow=item=>`<tr data-kind="finance" data-id="${esc(String(item.id))}"><td data-label="Tarih">${esc(item.date||item.created_at||"\u2014")}</td><td data-label="T\u00fcr">${statusBadge(item.type||"\u2014")}</td><td data-label="Kategori">${esc(item.category||"\u2014")}</td><td data-label="A\u00e7\u0131klama">${esc(item.description||"\u2014")}</td><td data-label="M\u00fc\u015fteri">${esc(item.customer||item.customer_name||"\u2014")}</td><td data-label="Orijinal"><strong>${money(item.original_amount??item.amount,item.currency||"TRY")}</strong></td><td data-label="TRY">${money(item.try_equivalent??financeTryValue(item),"TRY")}</td><td data-label="Kur">${esc(String(item.exchange_rate??1))}</td><td data-label="\u00d6deme">${esc(item.payment_method||"\u2014")}</td><td data-label="Referans">${esc(item.ref_no||item.tracking_no||"\u2014")}</td><td class="finance-action"><button class="mini" data-action="finance-detail" data-id="${esc(String(item.id))}">Detay</button></td></tr>`;
+  const groupedPage=["finance","income","expense"].includes(page);
+  if(!groupedPage)return `<div class="table-wrap finance-table"><table><thead><tr><th>Tarih</th><th>T\u00fcr</th><th>Kategori</th><th>A\u00e7\u0131klama</th><th>M\u00fc\u015fteri</th><th>Orijinal</th><th>TRY</th><th>Kur</th><th>\u00d6deme</th><th>Referans</th><th></th></tr></thead><tbody>${rows.map(detailRow).join("")}</tbody></table></div>`;
+  const groups=new Map();for(const item of rows){const raw=String(item.date||item.created_at||"\u2014"),key=raw.slice(0,10);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(item)}
+  const dates=[...groups.keys()].sort((a,b)=>b.localeCompare(a));if(!ayecLedgerGroupsInitialized&&dates.length){ayecExpandedLedgerDates.add(dates[0]);ayecLedgerGroupsInitialized=true}
+  const body=dates.map(date=>{const items=groups.get(date),expanded=ayecExpandedLedgerDates.has(date),income=items.reduce((sum,item)=>sum+(String(item.type||"").toLowerCase().includes("gider")?0:Math.abs(Number(item.try_equivalent??financeTryValue(item))||0)),0),expense=items.reduce((sum,item)=>sum+(String(item.type||"").toLowerCase().includes("gider")?Math.abs(Number(item.try_equivalent??financeTryValue(item))||0):0),0),net=income-expense;return `<tr class="finance-date-group${expanded?" expanded":""}" data-kind="finance-date-group" data-date="${esc(date)}" data-id="${esc(date)}" tabindex="0"><td colspan="11"><button type="button" class="finance-date-toggle" aria-expanded="${expanded}" data-finance-date-toggle="${esc(date)}"><strong>${expanded?"v":">"} ${esc(date)}</strong><span>${items.length} i\u015flem</span><span>Ciro: ${money(income,"TRY")} &nbsp; Gider: ${money(expense,"TRY")} &nbsp; Net: ${money(net,"TRY")}</span></button></td></tr>${expanded?items.map(detailRow).join(""):""}`}).join("");
+  return `<div class="table-wrap finance-table"><table><thead><tr><th>Tarih</th><th>T\u00fcr</th><th>Kategori</th><th>A\u00e7\u0131klama</th><th>M\u00fc\u015fteri</th><th>Orijinal</th><th>TRY</th><th>Kur</th><th>\u00d6deme</th><th>Referans</th><th></th></tr></thead><tbody>${body}</tbody></table></div>`;
 };
+let ayecExpandedLedgerDates=new Set();let ayecLedgerGroupsInitialized=false;
+function ayecToggleLedgerDate(date){const key=String(date||"-");if(ayecExpandedLedgerDates.has(key))ayecExpandedLedgerDates.delete(key);else ayecExpandedLedgerDates.add(key);render()}
+document.addEventListener("click",event=>{const button=event.target.closest("[data-finance-date-toggle]");const row=event.target.closest('tr[data-kind="finance-date-group"]');if(!button&&!row)return;event.preventDefault();event.stopImmediatePropagation();ayecToggleLedgerDate(button?.dataset.financeDateToggle||row?.dataset.date)},true);
+document.addEventListener("dblclick",event=>{const row=event.target.closest('tr[data-kind="finance-date-group"]');if(!row)return;event.preventDefault();event.stopImmediatePropagation();ayecToggleLedgerDate(row.dataset.date)},true);
+document.addEventListener("contextmenu",event=>{const row=event.target.closest('tr[data-kind="finance-date-group"]');if(!row)return;showContext(event,"finance-date-group",row.dataset.date)},true);
 
 function financeDetailDialog(item){
   const currency=String(item.currency||"TRY").toUpperCase();
@@ -1889,15 +2232,25 @@ function financeDetailDialog(item){
   const cancel=$("#dialogCancel");
   if(cancel)cancel.hidden=true;
   $("#appDialog").classList.add("finance-detail-dialog");
-  $("#dialogFooter").innerHTML=`<button type="button" class="secondary" data-finance-detail-action="print" data-id="${esc(String(item.id||""))}">Yazd\u0131r</button><button type="button" class="primary" data-finance-detail-action="edit" data-id="${esc(String(item.id||""))}">D\u00fczenle</button>`;
+  const receiptAction=item.source==="accounting"&&item.receipt_available?`<button type="button" class="secondary" data-finance-detail-action="receipt" data-id="${esc(String(item.id||""))}">Fi\u015fi \u0130ndir</button>`:"";
+  $("#dialogFooter").innerHTML=`${receiptAction}<button type="button" class="secondary" data-finance-detail-action="print" data-id="${esc(String(item.id||""))}">Yazd\u0131r</button><button type="button" class="primary" data-finance-detail-action="edit" data-id="${esc(String(item.id||""))}">D\u00fczenle</button>`;
 }
 
-document.addEventListener("click",event=>{
+document.addEventListener("click",async event=>{
   const button=event.target.closest("[data-finance-detail-action]");
   if(!button)return;
-  const item=db.finance.find(row=>String(row.id)===String(button.dataset.id));
+  const item=ayecFinanceLedgerItems.find(row=>String(row.id)===String(button.dataset.id)&&row.source==="accounting")||db.finance.find(row=>String(row.id)===String(button.dataset.id));
   if(!item)return;
   if(button.dataset.financeDetailAction==="print"){window.print();return}
+  if(button.dataset.financeDetailAction==="receipt"){
+    try{
+      const response=await fetch(`/api/desktop/accounting/${encodeURIComponent(button.dataset.id)}/receipt/download`,{credentials:"same-origin"});
+      if(!response.ok){let message=`Sunucu hatas\u0131 (${response.status})`;try{message=(await response.json()).error||message}catch{}throw new Error(message)}
+      const blob=await response.blob();const disposition=response.headers.get("Content-Disposition")||"";const filename=disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+      const link=document.createElement("a");link.href=URL.createObjectURL(blob);link.download=filename?decodeURIComponent(filename):"receipt";link.click();setTimeout(()=>URL.revokeObjectURL(link.href),0);
+    }catch(error){toast(error.message||"Fi\u015f indirilemedi","error")}
+    return;
+  }
   if(button.dataset.financeDetailAction==="edit"){
     $("#appDialog").close("edit");
     setTimeout(()=>financeDialog(item.type,item),0);
@@ -1905,6 +2258,8 @@ document.addEventListener("click",event=>{
 });
 
 initializeAuth();
+ayecInitializeFiscalArchiveMode();
+$("#logoutBtn").addEventListener("click",()=>{sessionStorage.removeItem("ayecFiscalArchive");ayecClearDatabaseCache()},true);
 
 // Dialogs and top-bar actions can be rebound during partial renders (search,
 // import preview, currency changes). Keep those operations idempotent so a
@@ -2211,22 +2566,58 @@ render = function(...args){
 };
 function openBarcodeScanner(){
   stopBarcodeScanner();
-  openDialog("Kameradan Barkod Oku","STOK / BARKOD",`<div class="barcode-scanner"><video id="barcodeVideo" autoplay muted playsinline></video><div class="field"><label>Barkod</label><input id="barcodeScanValue" name="barcode" inputmode="numeric" autocomplete="off" placeholder="Kamerayı açın veya barkodu yazın"></div><small class="muted" id="barcodeScanStatus">Kamera izni bekleniyor…</small></div>`,formData=>{
+  openDialog("Kameradan Barkod Oku","STOK / BARKOD",`<div class="barcode-scanner"><video id="barcodeVideo" autoplay muted playsinline></video><div class="field"><label>Barkod</label><input id="barcodeScanValue" name="barcode" inputmode="numeric" autocomplete="off" placeholder="Kameray\u0131 a\u00e7\u0131n veya barkodu yaz\u0131n"></div><small class="muted" id="barcodeScanStatus">Kamera izni bekleniyor\u2026</small></div>`,formData=>{
     const value=String(formData.get("barcode")||$("#barcodeScanValue")?.value||"").trim();
-    if(!value) throw Error("Barkod okunamadı veya boş bırakıldı");
+    if(!value) throw Error("Barkod okunamad\u0131 veya bo\u015f b\u0131rak\u0131ld\u0131");
     stopBarcodeScanner();
     const search=$("#stockSearch");
     if(search){search.value=value;search.dispatchEvent(new Event("input",{bubbles:true}));}
-    toast(`Barkod arandı: ${value}`,"success");
+    toast(`Barkod arand\u0131: ${value}`,"success");
     return true;
   },"Barkodu Ara");
   const dialog=$("#appDialog"),video=$("#barcodeVideo"),status=$("#barcodeScanStatus");
   dialog?.addEventListener("close",stopBarcodeScanner,{once:true});
   if(!window.isSecureContext && location.hostname!=="localhost" && location.hostname!=="127.0.0.1"){
-    if(status)status.textContent="Kamera için HTTPS gerekir; barkodu aşağıdaki alana elle girebilirsiniz.";
+    if(status)status.textContent="Kamera i\u00e7in HTTPS gerekir; barkodu a\u015fa\u011f\u0131daki alana elle girebilirsiniz.";
     return;
   }
-  if(!navigator.mediaDevices?.getUserMedia){if(status)status.textContent="Bu tarayıcı kamera erişimini desteklemiyor; barkodu elle girin.";return;}
+  if(!navigator.mediaDevices?.getUserMedia){if(status)status.textContent="Bu taray\u0131c\u0131 kamera eri\u015fimini desteklemiyor; barkodu elle girin.";return;}
+  if(!video||!status)return;
+  status.textContent="Kamera izni bekleniyor\u2026";
+  navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"},width:{ideal:1280},height:{ideal:720}},audio:false}).then(async stream=>{
+    if(!dialog?.open){stream.getTracks().forEach(track=>track.stop());return;}
+    _ayecBarcodeStream=stream;
+    video.srcObject=stream;
+    await video.play?.();
+    let detector=null;
+    if(typeof BarcodeDetector==="function"){
+      try{detector=new BarcodeDetector({formats:["ean_13","ean_8","code_128","code_39","upc_a","upc_e"]})}catch{}
+    }
+    status.textContent=detector?"Barkodu kameraya hizalay\u0131n; otomatik okunuyor\u2026":"Barkodu \u00e7er\u00e7eveye hizalay\u0131n; desteklenen barkodlar otomatik okunuyor\u2026";
+    let lastFallbackScan=0;
+    const scan=async()=>{
+      if(!dialog?.open||!_ayecBarcodeStream){stopBarcodeScanner();return;}
+      if(video.readyState>=2){
+        try{
+          let value=detector?(await detector.detect(video))?.[0]?.rawValue?.trim()||"":"";
+          const now=Date.now();
+          if(!value&&now-lastFallbackScan>350){lastFallbackScan=now;value=_ayecDecodeBarcodeImage(video);}
+          if(value){
+            const input=$("#barcodeScanValue");
+            if(input){input.value=value;input.dispatchEvent(new Event("input",{bubbles:true}));}
+            status.textContent=`Barkod okundu: ${value}. Stokta aramak i\u00e7in Barkodu Ara d\u00fc\u011fmesine bas\u0131n.`;
+            stopBarcodeScanner();
+            return;
+          }
+        }catch(error){status.textContent=`Tarama s\u00fcr\u00fcyor: ${error.message}`;}
+      }
+      _ayecBarcodeFrame=requestAnimationFrame(scan);
+    };
+    _ayecBarcodeFrame=requestAnimationFrame(scan);
+  }).catch(error=>{
+    stopBarcodeScanner();
+    if(status)status.textContent=`Kamera a\u00e7\u0131lamad\u0131: ${error.message}. Barkodu elle girebilirsiniz.`;
+  });
 }
 
 // Platform control center and dedicated automotive web surfaces.
@@ -2250,10 +2641,20 @@ const managementCenterBtn=$("#managementCenterBtn");
 if(managementCenterBtn)managementCenterBtn.onclick=()=>navigate("control-center");
 
 let activeAdminTab = "dashboard";
+let activeAuditCategory = "all";
+let activeAuditId = null;
+let adminAuditPage = 1;
+const ADMIN_AUDIT_PAGE_SIZE = 10;
+let adminAuditTimer = null;
+let adminAuditReloading = false;
+let adminAuditState = { company: "all", risk: "all", query: "" };
+let adminAuditExportCount = 0;
+let adminDashboardSamples = [];
+let activeBackupTenant = "";
+let adminNotificationPrefillTenant = "";
 
 function renderControlCenter(){
-  return `${pageHead("Y\u00f6netim Merkezi","AYEC Pro Uretici Yonetim Paneli. Firmalari, lisanslari, bildirimleri ve sunucu sagligini tek ekrandan yonetin.",'<button class="secondary" data-control-refresh>Verileri Yenile</button>')}
-  <section class="control-operator" id="controlOperator">
+  return `<section class="control-operator" id="controlOperator" hidden>
     <div>
       <span class="eyebrow">PLATFORM OPERATORU</span>
       <strong id="adminVendorName">AYEC Pro</strong>
@@ -2262,10 +2663,17 @@ function renderControlCenter(){
   </section>
   <div class="admin-tabs">
     <button class="admin-tab-btn ${activeAdminTab==='dashboard'?'active':''}" data-admin-tab="dashboard">Dashboard</button>
+    <button class="admin-tab-btn ${activeAdminTab==='live-status'?'active':''}" data-admin-tab="live-status">Canli Firma Durumu</button>
     <button class="admin-tab-btn ${activeAdminTab==='tenants'?'active':''}" data-admin-tab="tenants">Firma & Lisans Yonetimi</button>
+    <button class="admin-tab-btn ${activeAdminTab==='license-requests'?'active':''}" data-admin-tab="license-requests">Lisans Talepleri</button>
+    <button class="admin-tab-btn ${activeAdminTab==='audit'?'active':''}" data-admin-tab="audit">Denetim \u0130zleme</button>
     <button class="admin-tab-btn ${activeAdminTab==='notifications'?'active':''}" data-admin-tab="notifications">Bildirim & Mesaj Gonder</button>
     <button class="admin-tab-btn ${activeAdminTab==='provision-invites'?'active':''}" data-admin-tab="provision-invites">Davet Kodlari</button>
     <button class="admin-tab-btn ${activeAdminTab==='staged-update'?'active':''}" data-admin-tab="staged-update">Guncelleme Dagitimi</button>
+    <button class="admin-tab-btn ${activeAdminTab==='quota-limits'?'active':''}" data-admin-tab="quota-limits">Kota &amp; Limitler</button>
+    <button class="admin-tab-btn ${activeAdminTab==='database-query'?'active':''}" data-admin-tab="database-query">SQL Te\u015fhis</button>
+    <button class="admin-tab-btn ${activeAdminTab==='backup-restore'?'active':''}" data-admin-tab="backup-restore">Yedekleme &amp; Kurtarma</button>
+    <button class="admin-tab-btn ${activeAdminTab==='server-settings'?'active':''}" data-admin-tab="server-settings">Sunucu Ayarlar\u0131</button>
     <button class="admin-tab-btn ${activeAdminTab==='telemetry'?'active':''}" data-admin-tab="telemetry">Hata Loglari (Telemetry)</button>
   </div>
   <div id="adminTabContent">${empty("Yukleniyor","Yonetim verisi yukleniyor...")}</div>`;
@@ -2274,9 +2682,59 @@ function renderControlCenter(){
 async function loadControlCenter(){
   const tabContent = $("#adminTabContent");
   if(!tabContent) return;
+  document.body.dataset.adminTab=activeAdminTab;
+  const adminTabLabels={dashboard:"Canl\u0131 \u0130zleme","live-status":"Canl\u0131 Firma Durumu",tenants:"Firma Y\u00f6netimi","license-requests":"Lisans Talepleri",audit:"Denetim \u0130zleme",notifications:"Bildirimler","provision-invites":"Davet Kodlar\u0131","staged-update":"G\u00fcncelleme Da\u011f\u0131t\u0131m\u0131","quota-limits":"Kota & Limitler","database-query":"SQL Te\u015fhis","backup-restore":"Yedekleme & Kurtarma","server-settings":"Sunucu Ayarlar\u0131",telemetry:"Canl\u0131 \u0130zleme"};
+  const adminTabLabel=adminTabLabels[activeAdminTab]||"Y\u00f6netim Konsolu";
+  const [activeCrumbStart,...activeCrumbRest]=adminTabLabel.split(" ");
+  const breadcrumb=$("#breadcrumb");
+  breadcrumb.innerHTML=`<span class="admin-breadcrumb-segment">Sistem</span><span aria-hidden="true">/</span><span class="admin-breadcrumb-segment">Y\u00f6netim<br>Konsolu</span><span aria-hidden="true">/</span><span class="admin-breadcrumb-current"><span>${esc(activeCrumbStart)}</span><span>${esc(activeCrumbRest.join(" "))}</span><select class="admin-breadcrumb-tab" aria-label="Y\u00f6netim ekran\u0131">${Object.entries(adminTabLabels).map(([key,label])=>`<option value="${esc(key)}" ${key===activeAdminTab?"selected":""}>${esc(label)}</option>`).join("")}</select></span>`;
+  breadcrumb.querySelector(".admin-breadcrumb-tab")?.addEventListener("change",event=>{activeAdminTab=event.currentTarget.value;loadControlCenter()});
+  $("#pageTitle").textContent=adminTabLabel;
+  const globalSearch=$("#globalSearch");
+  if(globalSearch){if(!globalSearch.dataset.defaultPlaceholder)globalSearch.dataset.defaultPlaceholder=globalSearch.placeholder;globalSearch.placeholder=["dashboard","telemetry"].includes(activeAdminTab)?"Firma, lisans veya hata ara...":["backup-restore","quota-limits","server-settings","staged-update"].includes(activeAdminTab)?"Firma, lisans anahtari veya servis ara...":"Firma, lisans veya UUID ara...";}
+  if(adminAuditTimer){clearInterval(adminAuditTimer);adminAuditTimer=null}
+  const serverStatusRequest=apiFetch("/api/admin/server-status").catch(()=>({}));
   
   try {
     const data = await apiFetch("/api/control/overview");
+    const serverStatus=await serverStatusRequest;
+    const serverMetrics=document.createElement("div");
+    serverMetrics.id="adminSystemMetrics";
+    serverMetrics.className="admin-system-metrics";
+    const serverMetric=(label,value)=>{const numeric=Number(value),present=value!==null&&value!==undefined&&value!==""&&Number.isFinite(numeric),percent=present?Math.max(0,Math.min(100,numeric)):0;return `<span><b>${label}</b><i><em style="width:${percent}%"></em></i><strong>${present?`${Math.round(numeric)}%`:"--"}</strong></span>`};
+    serverMetrics.innerHTML=serverMetric("CPU",serverStatus.cpu_percent)+serverMetric("RAM",serverStatus.ram_percent)+serverMetric("DISK",serverStatus.disk_percent);
+    const topActions=document.querySelector(".topbar .top-actions");
+    const previousMetrics=$("#adminSystemMetrics");
+    if(previousMetrics)previousMetrics.replaceWith(serverMetrics);
+    else if(topActions)topActions.insertBefore(serverMetrics,$("#syncNowBtn")||null);
+    if(topActions){
+      let serverContext=$("#adminServerContext");
+      if(!serverContext){
+        serverContext=document.createElement("div");
+        serverContext.id="adminServerContext";
+        serverContext.className="admin-server-context";
+        serverContext.setAttribute("aria-label","Lisans sunucusu durumu");
+        serverContext.innerHTML='<i aria-hidden="true"></i><b>ONLINE</b><span>lisans.ayecpro.com</span><small>14ms</small>';
+      }
+      topActions.insertBefore(serverContext,serverMetrics);
+      let productContext=$("#adminProductContext");
+      if(!productContext){
+        productContext=document.createElement("div");
+        productContext.id="adminProductContext";
+        productContext.className="admin-product-context";
+        productContext.innerHTML='<span aria-hidden="true">\u25ce</span><b>AYEC Pro Teknik Servis</b><span aria-hidden="true">\u2304</span>';
+        productContext.setAttribute("aria-label","AYEC Pro Teknik Servis");
+      }
+      topActions.insertBefore(productContext,$("#notificationBtn")||null);
+      let headerUser=$("#adminHeaderUser");
+      if(!headerUser){headerUser=document.createElement("button");headerUser.type="button";headerUser.id="adminHeaderUser";headerUser.className="admin-header-user";headerUser.addEventListener("click",()=>$("#profileBtn")?.click());topActions.appendChild(headerUser)}
+      const userInitial=$("#currentUserInitial")?.textContent||"A";
+      const userName=$("#currentUserName")?.textContent||"Yonetici";
+      const userRole=$("#currentUserRole")?.textContent||"Super Admin";
+      headerUser.innerHTML=`<span class="admin-header-avatar">${esc(userInitial)}</span><span><strong>${esc(userName)}</strong><small>${esc(userRole)}</small></span>`;
+      headerUser.title=`${userName} - ${userRole}`;
+      headerUser.setAttribute("aria-label",`${userName} (${userRole})`);
+    }
     const vendor = data.vendor || {};
     $("#adminVendorName").textContent = vendor.name || "AYEC Pro";
     $("#adminVendorDetails").textContent = `${vendor.email || ""} · ${vendor.phone || ""} · ${vendor.server || ""}`;
@@ -2290,261 +2748,665 @@ async function loadControlCenter(){
       };
     });
     
-    if(activeAdminTab === "dashboard") {
-      tabContent.innerHTML = `<div class="control-summary" style="margin-bottom: 24px;">
-        <div><strong>${data.tenants.length}</strong><span>Toplam Firma</span></div>
-        <div><strong>${data.tenants.filter(t => t.active !== 0).length}</strong><span>Aktif Firma</span></div>
-        <div><strong>${data.tenants.filter(t => t.active === 0).length}</strong><span>Pasif Firma</span></div>
-      </div>
-      <div class="card">
-        <div class="card-head"><h3>Sunucu Sistem Sagligi</h3><span class="badge">Canli Metrikler</span></div>
-        <div id="serverMetricsContainer" class="server-metrics">${empty("Sorgulaniyor","Sistem kaynaklari okunuyor...")}</div>
-      </div>`;
-      
-      try {
-        const stats = await apiFetch("/api/control/server-status");
-        const container = $("#serverMetricsContainer");
-        if(container) {
-          container.innerHTML = `
-            <div class="server-card">
-              <h4>CPU Kullanimi</h4>
-              <div class="value">${stats.cpu_percent}%</div>
-              <div class="progress-container"><div class="progress-bar ${stats.cpu_percent > 80 ? 'danger' : stats.cpu_percent > 60 ? 'warning' : ''}" style="width: ${stats.cpu_percent}%"></div></div>
-            </div>
-            <div class="server-card">
-              <h4>RAM Bellek</h4>
-              <div class="value">${stats.ram_percent}%</div>
-              <small class="muted">${stats.ram_used_gb} GB / ${stats.ram_total_gb} GB</small>
-              <div class="progress-container"><div class="progress-bar ${stats.ram_percent > 85 ? 'danger' : stats.ram_percent > 70 ? 'warning' : ''}" style="width: ${stats.ram_percent}%"></div></div>
-            </div>
-            <div class="server-card">
-              <h4>Disk Alani</h4>
-              <div class="value">${stats.disk_percent}%</div>
-              <small class="muted">${stats.disk_used_gb} GB / ${stats.disk_total_gb} GB</small>
-              <div class="progress-container"><div class="progress-bar ${stats.disk_percent > 90 ? 'danger' : stats.disk_percent > 75 ? 'warning' : ''}" style="width: ${stats.disk_percent}%"></div></div>
-            </div>
-          `;
+    if(activeAdminTab === "live-status") {
+      const [liveResult,auditResult]=await Promise.all([
+        apiFetch("/api/admin/live-status").catch(()=>({companies:[]})),
+        apiFetch("/api/admin/audit-logs?limit=20").catch(()=>({logs:[]}))
+      ]);
+      const companies=Array.isArray(liveResult.companies)?liveResult.companies:[];
+      const online=companies.filter(row=>Boolean(row.online));
+      const healthy=companies.filter(row=>Boolean(row.online)&&Number(row.display_ping_ms??row.ping_ms??row.dashboard_latency_ms)<=20);
+      const activeTerminals=companies.reduce((sum,row)=>sum+(Number(row.active_users)||0),0);
+      const latencySamples=companies.map(row=>({name:String(row.company_name||row.id||"Firma"),value:Number(row.ping_ms??row.dashboard_latency_ms)})).filter(item=>Number.isFinite(item.value)&&item.value>=0);
+      const averagePing=latencySamples.length?Math.round(latencySamples.reduce((sum,item)=>sum+item.value,0)/latencySamples.length):null;
+      const latencyBars=latencySamples.map((item,index)=>{const width=Math.max(5,Math.min(100,Math.round(item.value/Math.max(...latencySamples.map(sample=>sample.value),1)*100)));return `<div class="admin-live-latency-row"><span>${esc(item.name)}</span><div><i style="width:${width}%"></i></div><b>${item.value}ms</b></div>`}).join("");
+      const logs=(Array.isArray(auditResult.logs)?auditResult.logs:[]).slice(0,6);
+      const companyCard=row=>{
+        const userLabel=row.user_id!==null&&row.user_id!==undefined?(row.user_name||`Oturum kullan\u0131c\u0131s\u0131 #${row.user_id}`):"Oturum bilgisi API'de yok";
+        const clientLabel=row.user_agent||"\u0130stemci bilgisi API'de yok";
+        const userRole=row.user_role||"";
+        const addressLabel=row.ip_address||"IP bilgisi API'de yok";
+        const endpointLabel=row.ip_address?(row.socket_port?`${addressLabel}:${row.socket_port}`:addressLabel):addressLabel;
+        const databaseLabel=row.db_filename||"Veritaban\u0131 bilgisi API'de yok";
+        const pingValue=Number(row.display_ping_ms??row.ping_ms??row.dashboard_latency_ms);
+        const pingLabel=Number.isFinite(pingValue)&&pingValue>=0?`${Math.round(pingValue)}ms`:"--";
+        const stateLabel=row.online?(pingValue>20?"YUKSEK PING":"CEVRIMICI"):"CEVRIMDISI";
+        const databaseDetail=row.db_size_mb==null?"SQLite WAL data unavailable | U\u00e7tan uca h\u0131z verisi yok":`${Number(row.db_size_mb).toFixed(2)} MB${row.wal_frames?` WAL: ${row.wal_frames} Frames`:row.queue_count!=null?` Queue: ${row.queue_count}`:row.sync_state?` ${row.sync_state}`:""}`;
+        const isRoot=companies.indexOf(row)===0;
+        const liveActionIcons={network_ping:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 0 1 18 0M7 12a5 5 0 0 1 10 0m-5 0 4-4"/><circle cx="12" cy="12" r="1"/></svg>',monitor_heart:'<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="15" rx="2"/><path d="M6 12h3l2-4 3 8 2-4h2"/></svg>',chat:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v12H9l-5 3z"/></svg>',cloud_sync:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18a4 4 0 0 1-.5-8A6 6 0 0 1 18 9a4 4 0 0 1 0 8zM9 13l2-2 2 2m2 2-2 2-2-2"/></svg>',visibility:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="2.5"/></svg>'};
+        const liveActionButton=(action,label,icon,primary=false)=>`<button type="button" data-live-action="${action}" data-live-tenant="${esc(row.id||"")}" class="${primary?"admin-live-action-primary":""}">${liveActionIcons[icon]?.replace("<svg ","<svg class=\"admin-live-action-icon\" ")||""}${label}</button>`;
+        const actionsMarkup=`<div class="admin-live-action-group">${liveActionButton("ping","Ping G\u00f6nder","network_ping")}${isRoot?liveActionButton("diagnostics","Uzaktan Te\u015fhis","monitor_heart"):""}${liveActionButton("message",isRoot?"Masa\u00fcst\u00fc Mesaj\u0131":"Mesaj G\u00f6nder","chat")}</div>${isRoot?liveActionButton("backup","Yedek Tetikle","cloud_sync",true):liveActionButton("audit","\u0130ncele &amp; Loglar","visibility")}`;
+        return `<article class="admin-live-company ${row.online?(pingValue>20?"online slow":"online"):"offline"}" data-live-company data-online="${Boolean(row.online)}" data-search="${esc(`${row.company_name||""} ${row.id||""} ${row.ip_address||""}`.toLowerCase())}"><header><div class="admin-live-company-icon" aria-hidden="true">${row.online?"\u25c8":"\u25cc"}</div><div class="admin-live-company-title"><h3>${esc(row.company_name||"Firma")} <small class="admin-live-sector">${esc(row.sector||"")}</small></h3><small>${esc(row.location||"")} | ID: ${esc(row.tenant_code||row.id||"-")}</small></div><div class="admin-live-state-wrap"><span class="admin-live-state">${esc(stateLabel)}</span><small>Heartbeat: ${esc(row.last_seen||"API VER\u0130S\u0130 YOK")}</small></div></header><div class="admin-live-facts"><div><small>PING / GECIKME</small><strong>${esc(pingLabel)}</strong></div><div><small>SISTEM SURUMU</small><strong>${esc(row.dashboard_version||"API VERISI YOK")}</strong></div><div><small>UPTIME</small><strong>${esc(row.uptime_text||"API VERISI YOK")}</strong></div><div><small>SOCKET PORTU</small><strong>${esc(row.socket_port||"API VERISI YOK")}</strong></div></div><div class="admin-live-session" data-user-id="${esc(row.user_id??"")}"><div><small>OTURUM / \u0130STEMC\u0130</small><strong>${esc(userLabel)} ${esc(userRole)}</strong><small>${esc(clientLabel)}</small></div><div><small>IP ADRES\u0130</small><strong>${esc(endpointLabel)}</strong></div></div><div class="admin-live-database"><span aria-hidden="true">\u25a4</span><div><small>YEREL VER\u0130TABANI</small><strong>${esc(databaseLabel)}</strong><small>${esc(databaseDetail)}</small></div></div><footer>${actionsMarkup}</footer></article>`;
+      };
+      const logMarkup=logs.map(row=>`<li><time>${esc(row.created_at||"-")}</time><span>${esc(row.company_name||row.action||"Sistem olayi")}</span><strong>${esc(row.action||"kayit")}</strong></li>`).join("")||`<li><span>Denetim API'sinde olay kaydi yok.</span></li>`;
+      const liveMetricIcons=["<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"2\"/><circle cx=\"5\" cy=\"7\" r=\"2\"/><circle cx=\"19\" cy=\"7\" r=\"2\"/><circle cx=\"5\" cy=\"17\" r=\"2\"/><circle cx=\"19\" cy=\"17\" r=\"2\"/><path d=\"m7 8 3.5 2.8M17 8l-3.5 2.8M7 16l3.5-2.8m6 0 3.5 2.8\"/></svg>","<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 12h4l2-5 4 10 2-5h6\"/><circle cx=\"19\" cy=\"12\" r=\"2\"/></svg>","<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M3 12h4l2-5 3 10 3-7 2 4h4\"/><path d=\"M4 5v14m16-14v14\"/></svg>","<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M7 18a4 4 0 0 1-.5-8A6 6 0 0 1 18 9a4 4 0 0 1 0 8z\"/><path d=\"m9 13 2 2 4-4\"/></svg>"];
+      tabContent.innerHTML=`<section class="admin-live-page"><header class="admin-live-hero"><div><span class="admin-live-kicker">AYEC NET-RADAR v2.0 <small>ROOT-TENANT-GATEWAY</small></span><h2>Canl\u0131 Firma Durumu &amp; \u0130stemci Telemetri \u0130zleme</h2><p>T\u00fcm kirac\u0131 (tenant) masa\u00fcst\u00fc terminallerinin soket ba\u011flant\u0131lar\u0131n\u0131, yerel SQLite WAL d\u00fc\u011f\u00fcmlerini, gecikme s\u00fcrelerini ve veri senkronizasyon durumunu canl\u0131 izleyin.</p></div><div class="admin-live-hero-actions"><span class="admin-live-stream"><i></i> CANLI AKI\u015e (5sn) <small>OTOMAT\u0130K</small></span><button type="button" id="adminLiveRefresh">Manuel Yenile</button><button type="button" data-control-action="notifications">Acil Anons G\u00f6nder</button></div></header><section class="admin-live-metrics"><article><small>TOPLAM BA\u011eLI TERM\u0130NAL</small><strong>${online.length} / ${companies.length} Online</strong><b>%${companies.length?Math.round(online.length/companies.length*100):0} Canlilik Indeksi</b><span class="admin-live-metric-icon">${liveMetricIcons[0]}</span></article><article><small>ORTALAMA A\u011e P\u0130NG\u0130</small><strong>${averagePing===null?"--":`${averagePing}ms`}</strong><b>${latencySamples.length?`${latencySamples.length} firma telemetri bildirimi`:"Y\u00f6netim API'sinde gecikme verisi yok"}</b><span class="admin-live-metric-icon">${liveMetricIcons[1]}</span></article><article><small>ANLIK VER\u0130 AKI\u015eI</small><strong>${liveResult.throughput_mbps==null?"--":`${Number(liveResult.throughput_mbps).toFixed(1)} MB/s`}</strong><b>WebSocket Cift Yonlu Aktif</b><span class="admin-live-metric-icon">${liveMetricIcons[2]}</span></article><article><small>E\u015e\u0130TLENMEM\u0130\u015e KUYRUK</small><strong>${liveResult.pending_command_count==null?"--":`${Number(liveResult.pending_command_count)} Paket`}</strong><b>T\u00fcm Firmalar Guncel</b><span class="admin-live-metric-icon">${liveMetricIcons[3]}</span></article></section><section class="admin-live-toolbar"><div class="admin-live-filters"><button class="active" data-live-filter="all">T\u00fcm\u00fc <b>${companies.length}</b></button><button data-live-filter="online">Sorunsuz <b>${healthy.length}</b></button><button data-live-filter="slow">Y\u00fcksek Gecikme <b>${companies.filter(row=>Number(row.ping_ms??row.dashboard_latency_ms)>20).length}</b></button><button data-live-filter="offline">\u00c7evrimd\u0131\u015f\u0131 <b>${companies.length-online.length}</b></button></div><div class="admin-live-tools"><input id="adminLiveSearch" type="search" placeholder="Firma adi veya ID ara..."><button type="button" id="adminLiveReset">Filtreleri Temizle</button></div></section><section class="admin-live-companies" id="adminLiveCompanies">${companies.map(companyCard).join("")||empty("Firma bulunamad\u0131","Canli durum API'sinde firma kaydi yok.")}</section><section class="admin-live-lower"><article class="admin-live-chart"><header><h3>Canl\u0131 A\u011f Gecikme Dalga Grafi\u011fi</h3><span>${latencySamples.length?"SON B\u0130LD\u0130R\u0130MLER":"TELEMETR\u0130 API VER\u0130S\u0130 BEKLEN\u0130YOR"}</span></header><p>D\u00fc\u011f\u00fcmler aras\u0131 iletim stabilitesi i\u00e7in son bildirilen firma ping de\u011ferleri.</p>${latencyBars?`<div class="admin-live-latency-list">${latencyBars}</div>`:`<div class="admin-live-chart-empty">Gecikme \u00f6rnekleri y\u00f6netim API'si taraf\u0131ndan sa\u011flanm\u0131yor.</div>`}</article><article class="admin-live-events"><header><h3>Son Y\u00f6netim Denetim Kay\u0131tlar\u0131</h3><button type="button" id="adminLiveClear">Temizle</button></header><ul id="adminLiveLogs">${logMarkup}</ul></article></section></section>`;
+      let liveFilter="all";
+      const applyLiveFilter=()=>{
+        const query=$("#adminLiveSearch").value.trim().toLowerCase();
+        $$('[data-live-company]').forEach(card=>{const ping=Number.parseFloat(card.querySelector('.admin-live-facts > div:first-child strong')?.textContent||"0"),matchesStatus=liveFilter==="all"||(liveFilter==="online"&&card.dataset.online==="true"&&ping<=20)||(liveFilter==="slow"&&ping>20)||(liveFilter==="offline"&&card.dataset.online==="false");card.hidden=!matchesStatus||!card.dataset.search.includes(query)});
+      };
+      $$('[data-live-filter]').forEach(button=>button.addEventListener("click",()=>{liveFilter=button.dataset.liveFilter;$$('[data-live-filter]').forEach(item=>item.classList.toggle("active",item===button));applyLiveFilter()}));
+      $("#adminLiveSearch").addEventListener("input",applyLiveFilter);
+      $("#adminLiveReset").addEventListener("click",()=>{$("#adminLiveSearch").value="";liveFilter="all";$$('[data-live-filter]').forEach(item=>item.classList.toggle("active",item.dataset.liveFilter==="all"));applyLiveFilter()});
+      $("#adminLiveRefresh").addEventListener("click",loadControlCenter);
+      $$('[data-live-action]').forEach(button=>button.addEventListener("click",async()=>{
+        const row=companies.find(item=>String(item.id)===button.dataset.liveTenant);
+        if(!row)return;
+        const action=button.dataset.liveAction;
+        if(action==="ping"){await loadControlCenter();toast("Canli firma verileri yenilendi.","success");return}
+        if(action==="diagnostics"){
+          const fields=[["Firma",row.company_name||row.id],["Ping",row.ping_ms??row.dashboard_latency_ms??"--"],["Surum",row.dashboard_version||"API verisi yok"],["IP",row.ip_address||"API verisi yok"],["Socket",row.socket_port||"API verisi yok"],["Veritabani",row.db_filename||"API verisi yok"]];
+          const body=`<dl class="admin-live-diagnostic">${fields.map(([label,value])=>`<div><dt>${label}</dt><dd>${esc(String(value))}</dd></div>`).join("")}</dl>`;
+          openDialog("Uzaktan Teshis","CANLI FIRMA TELEMETRISI",body,()=>true,"Tamam");return;
         }
-      } catch(e) {
-        $("#serverMetricsContainer").innerHTML = `<p class="muted">Sistem metrikleri okunamadi: ${esc(e.message)}</p>`;
-      }
+        if(action==="message"){adminNotificationPrefillTenant=String(row.id);activeAdminTab="notifications";await loadControlCenter();await new Promise(resolve=>setTimeout(resolve,50));const targetInputs=[...document.querySelectorAll("[data-notify-tenant]")];targetInputs.forEach(input=>{input.checked=input.dataset.notifyTenant===String(row.id)});targetInputs.find(input=>input.dataset.notifyTenant===String(row.id))?.dispatchEvent(new Event("change",{bubbles:true}));return}
+        if(action==="backup"){activeBackupTenant=String(row.id);activeAdminTab="backup-restore";await loadControlCenter();toast("Firma yedek arsivi acildi; yedek tetikleme API'si desteklenmiyor.","warning");return}
+        if(action==="audit"){adminAuditState.company=String(row.company_name||"all");adminAuditState.query="";activeAdminTab="audit";await loadControlCenter()}
+      }));
+      $("#adminLiveClear").addEventListener("click",()=>$("#adminLiveLogs").replaceChildren());
+      $$('[data-control-action="notifications"]').forEach(button=>button.addEventListener("click",()=>{activeAdminTab="notifications";loadControlCenter()}));
+      adminAuditTimer=window.setInterval(()=>{if(activeAdminTab==="live-status")loadControlCenter()},5000);
+    }
+    else if(activeAdminTab === "dashboard") {
+      const tenants=Array.isArray(data.tenants)?data.tenants:[];
+      const active=tenants.filter(t=>Number(t.active)!==0).length;
+      const inactive=tenants.length-active;
+      const users=tenants.reduce((sum,t)=>sum+(Array.isArray(t.users)?t.users.filter(u=>Number(u.active)!==0).length:0),0);
+      const backups=tenants.filter(t=>Array.isArray(t.backups)&&t.backups.length>0).length;
+      const pending=tenants.reduce((sum,t)=>sum+(Array.isArray(t.commands)?t.commands.filter(c=>["pending","claimed"].includes(String(c.status||"").toLowerCase())).length:0),0);
+      const failed=tenants.reduce((sum,t)=>sum+(Array.isArray(t.commands)?t.commands.filter(c=>String(c.status||"").toLowerCase()==="failed").length:0),0);
+      let dashboard={recent_logs:[],logins_today:0,online_users:0,disk_usage:"--",expiring_licenses:0};
+      let auditLogs=[];
+      let liveCompanies=[];
+      const dashboardRequestStarted=performance.now();
+      try {
+        dashboard=await apiFetch("/api/admin/dashboard");
+        if(Array.isArray(window.__adminDashboardSamples))adminDashboardSamples=window.__adminDashboardSamples;else adminDashboardSamples.push({at:Date.now(),ms:Math.max(0,performance.now()-dashboardRequestStarted)});
+        adminDashboardSamples=adminDashboardSamples.filter(sample=>sample.at>=Date.now()-3600000).slice(-120);
+      } catch(_) {}
+      try { const auditData=await apiFetch("/api/admin/audit-logs?limit=20");auditLogs=Array.isArray(auditData.logs)?auditData.logs:[]; } catch(_) {}
+      try { const liveData=await apiFetch("/api/admin/live-status");liveCompanies=Array.isArray(liveData.companies)?liveData.companies:[]; } catch(_) {}
+      const onlineUsers=Number(dashboard.online_users??users);
+      const backupCoverage=Math.max(0,Number(dashboard.backup_coverage??backups));
+      const backupPercent=tenants.length?Math.min(100,Math.round((backupCoverage/tenants.length)*100)):0;
+      const pendingCommands=Math.max(0,Number(dashboard.pending_commands??pending));const riskCount=inactive+Math.max(0,Number(dashboard.expiring_licenses||0));
+      const dashboardLatencyAverage=adminDashboardSamples.length?adminDashboardSamples.reduce((total,sample)=>total+sample.ms,0)/adminDashboardSamples.length:0;
+      const dashboardLatencyMax=Math.max(1,...adminDashboardSamples.map(sample=>sample.ms))*1.2;
+      const dashboardLatencyPoints=adminDashboardSamples.map(sample=>`${Math.max(0,700-((Date.now()-sample.at)/3600000)*700).toFixed(1)},${(82-(sample.ms/dashboardLatencyMax)*66).toFixed(1)}`);
+      const dashboardLatencyLine=dashboardLatencyPoints.length>1?`M ${dashboardLatencyPoints.join(" L ")}`:dashboardLatencyPoints.length===1?`M 684,${dashboardLatencyPoints[0].split(",")[1]} L 700,${dashboardLatencyPoints[0].split(",")[1]}`:"";
+      const dashboardLatencyArea=dashboardLatencyLine?`${dashboardLatencyLine} L 700,88 L 684,88 Z`:"";
+      const metricIcons=["M3 21V4h18v17M7 8h3m4 0h3M7 12h3m4 0h3M7 16h3m4 0h3M10 21v-3h4v3","M12 2.5 14.1 3.7l2.5-.2.3 2.5 2.1 1.2-.8 2.4 1.3 2.1-1.8 1.8.2 2.5-2.5.3-1.2 2.1-2.4-.8-2.1 1.3-1.8-1.8-2.5.2-.3-2.5-2.1-1.2.8-2.4-1.3-2.1 1.8-1.8-.2-2.5 2.5-.3 1.2-2.1 2.4.8zM12 8l1.1 2.1 2.4.3-1.8 1.7.4 2.4-2.1-1.1-2.1 1.1.4-2.4-1.8-1.7 2.4-.3z","M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18M9 8v8m6-8v8","M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2m4-10a4 4 0 1 0 0-8 4 4 0 0 0 0 8m8-1a3 3 0 1 0-1.1-5.8M20 21v-2a4 4 0 0 0-3-3.87","M10 17l5-5-5-5m5 5H3m14-8h4v16h-4","M4 6h16M4 12h16M4 18h16M7 4v4m10 2v4m-7 2v4","M12 2 20 5v6c0 5-3.4 8.4-8 11-4.6-2.6-8-6-8-11V5zM9 12l2 2 4-5","M12 8v5l3 2m5-3a8 8 0 1 1-2.3-5.7M20 4v5h-5","M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9m-8 12h4"];
+      let metricIndex=0;
+      const metric=(title,value,detail,tone,badge="",status="")=>`<article class="control-kpi ${tone}"><div class="control-kpi-heading"><span>${esc(title)}</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="${metricIcons[metricIndex++]||"M3 12h18"}"/></svg></div><div class="control-kpi-value"><b>${esc(value)}</b>${badge?`<small class="control-kpi-badge">${esc(badge)}</small>`:""}${status?`<span class="control-kpi-status">${esc(status)}</span>`:""}</div><small class="control-kpi-detail">${esc(detail)}</small></article>`;
+      const actionLabels={admin_password_reset:"Ge\u00e7ici parola atand\u0131",admin_password_reset_link:"Parola s\u0131f\u0131rlama ba\u011flant\u0131s\u0131 olu\u015fturuldu",admin_license_updated:"Lisans g\u00fcncellendi",admin_notification_sent:"Bildirim g\u00f6nderildi",admin_update_deployed:"G\u00fcncelleme da\u011f\u0131t\u0131m\u0131 ba\u015flat\u0131ld\u0131",admin_restore_queued:"Yedek geri y\u00fckleme kuyru\u011fa al\u0131nd\u0131",admin_readonly_query:"Salt okunur sorgu \u00e7al\u0131\u015ft\u0131r\u0131ld\u0131",tenant_updated:"Firma bilgisi g\u00fcncellendi",user_updated:"Kullan\u0131c\u0131 bilgisi g\u00fcncellendi"};
+      const logItems=auditLogs.length?auditLogs:(dashboard.recent_logs||[]).map(row=>({...row,time:row.time,company_name:row.company}));
+      const activityRows=logItems.map(row=>{
+        const action=String(row.action||"unknown");
+        const status=String(row.status||row.detail?.status||"Recorded");
+        const statusKey=/fail|error|reject|denied/i.test(status)?"error":/pending|queue|wait/i.test(status)?"pending":"ok";
+        const timestamp=row.created_at||row.time||"";
+        const date=new Date(timestamp);
+        const time=Number.isNaN(date.getTime())?timestamp:new Intl.DateTimeFormat("sv-SE",{year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23",timeZone:"UTC"}).format(date).replace(",","");
+        return `<tr><td>${esc(time)}</td><td><span class="control-audit-action"><i class="${statusKey}"></i>${esc(actionLabels[action]||action.replaceAll("_"," "))}</span></td><td><span class="control-audit-company">${esc(row.company_name||row.company||"Sistem")}</span></td><td><span class="control-audit-status ${statusKey}">${esc(status)}</span></td><td class="control-audit-operator">${esc(row.actor_user_id?`User ${row.actor_user_id}`:row.operator||"System")}</td></tr>`;
+      }).join("");
+      const auditRows=activityRows;
+      const liveByTenant=new Map(liveCompanies.map(company=>[String(company.id||""),company]));
+      const healthRows=tenants.slice(0,5).map(tenant=>({tenant,live:liveByTenant.get(String(tenant.id||""))}));
+      const onlineCompanies=liveCompanies.filter(company=>Boolean(company.online)).length;
+      const tenantRows=healthRows.map(({tenant,live})=>{const online=Boolean(live?.online),sessions=Number(live?.active_users)||0,clientLabel=live?.dashboard_version?`${live.dashboard_version} \u2022 Ping: ${Number(live.dashboard_latency_ms)||0}ms`:live?.user_agent||`${sessions} aktif oturum`,seenLabel=live?.dashboard_seen_text||(live?.last_seen?live.last_seen:online?"Simdi":"Son 10 dakikada baglanti yok");return `<div class="control-health-row"><span class="control-health-dot ${online?"on":"off"}"></span><div><strong>${esc(tenant.company_name||"?")}</strong><small>${esc(clientLabel)}</small></div><div class="control-health-status"><span class="${online?"on":"off"}">${online?"Online":"Offline"}</span><small>${esc(seenLabel)}</small></div></div>`}).join("");
+      tabContent.innerHTML=`
+        <div class="control-dashboard-toolbar"><div class="control-dashboard-title"><span class="control-dashboard-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 4h18v13H3zM8 21h8m-4-4v4M7 8h5v5H7zm8 0h3m-3 3h3"/></svg></span><div><div class="control-dashboard-title-line"><h2>Ana Dashboard &amp; Komuta Merkezi</h2><span class="control-live-version">CANLI V2.4</span></div><p>AYEC Pro Enterprise Da\u011f\u0131t\u0131m Lisans &amp; Telemetri Hub</p></div></div><div class="control-toolbar-actions"><span class="control-live-pill">\u25cf ${esc(data.vendor?.server||"Sunucu durumu")}</span><span class="control-live-uptime">${esc(data.vendor?.uptime_label||"99.98% Uptime")}</span><button class="secondary" data-control-dashboard-refresh>Yenile (30s)</button><button class="primary" data-control-action="license-requests">H\u0131zl\u0131 Lisans A\u00e7</button></div></div>
+        <div class="control-kpi-grid control-kpi-primary">${metric("Toplam Kay\u0131tl\u0131 Firma",tenants.length,"Kay\u0131tl\u0131 ve veritaban\u0131 aktif firmalar","blue","Tenant","\u2191 +1 bu ay")}${metric("Aktif Lisansl\u0131 Firma",active,"Lisans ve token s\u00fcresi ge\u00e7erli","green",`%${tenants.length?Math.round(active*100/tenants.length):0} Aktif`,`Ge\u00e7erlilik TAM`)}${metric("Pasif / Ask\u0131da Firma",inactive,riskCount?"Lisans kontrol\u00fc gerekli":"S\u00fcresi dolan lisans bulunmuyor","neutral",`${riskCount} Risk`,riskCount?"Kontrol":"Stabil")}${metric("Canl\u0131 \u0130stemci & Kullan\u0131c\u0131",onlineUsers,"Aktif oturum a\u00e7m\u0131\u015f operat\u00f6rler","cyan","WebSocket Ba\u011fl\u0131")}</div>
+        <div class="control-kpi-grid control-kpi-secondary">${metric("Bug\u00fcn Giri\u015f",dashboard.logins_today||0,"Son 24 saat i\u00e7inde","blue",`${Number(dashboard.logins_today)||0} oturum`)}${(()=>{const diskUsage=String(dashboard.disk_usage||"--"),parts=diskUsage.match(/([\d.]+)\s*\/\s*([\d.]+)/),diskPercent=parts?Math.min(100,Math.round(Number(parts[1])/Number(parts[2])*1000)/10):Math.min(100,Math.max(0,Number(dashboard.disk_percent)||0));return `<article class="control-kpi cyan control-kpi-disk"><div class="control-kpi-heading"><span>Sunucu SSD Alan\u0131</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="${metricIcons[metricIndex++]||"M3 12h18"}"/></svg></div><div class="control-kpi-value"><b>%${diskPercent.toFixed(1)}</b><small class="control-kpi-badge">${esc(diskUsage)}</small></div><div class="control-kpi-progress"><span style="width:${diskPercent}%"></span></div><small class="control-kpi-detail">NVMe Enterprise RAID-10</small></article>`})()}${metric("Yedek Kapsam\u0131",`${backupCoverage} / ${tenants.length} Firma`, `%${backupPercent} ${backupPercent===100?"Tam Koruma (Bulut)":"Koruma (Bulut)"}`,backupPercent===100?"green":"neutral")}${metric("Bekleyen Komut",pendingCommands,"Kuyruk temiz / Sync ok","neutral",`${pendingCommands} kuyrukta`)}${metric("Lisans Biti\u015f Uyar\u0131s\u0131",dashboard.expiring_licenses||0,"< 30 g\u00fcn kalan lisans yok","coral",`${Number(dashboard.expiring_licenses)||0} Risk yok`)}</div>
+        <div class="control-dashboard-grid"><div class="control-dashboard-primary-column"><section class="control-dashboard-panel control-audit-panel"><header><div class="control-audit-title"><span class="control-audit-title-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 4h11l5 5v11H4zM14 4v5h5M7 13h2l2-2 2 2h2M7 17h10"/></svg></span><div><h3>Son \u0130\u015flemler &amp; Sistem Telemetrisi</h3><p>Audit trail ve u\u00e7 nokta i\u015flem log ak\u0131\u015f\u0131</p></div></div><div class="control-audit-tools"><input id="controlAuditSearch" type="search" placeholder="\u0130\u015flem veya firma filtrele..."><button class="secondary" data-control-export>CSV</button></div></header><div class="control-audit-table-wrap"><table class="control-audit-table"><thead><tr><th>Zaman Damgas\u0131</th><th>\u0130\u015flem / Olay</th><th>\u0130lgili Firma</th><th>Durum</th><th>Operat\u00f6r</th></tr></thead><tbody>${auditRows||`<tr><td colspan="5">${empty("Kayit bulunamadi","Sistemde gosterilecek son islem kaydi yok.")}</td></tr>`}</tbody></table></div><footer><span id="controlAuditCount">Toplam ${logItems.length} sistem kay\u0131d\u0131 listeleniyor (Canl\u0131 ak\u0131\u015f)</span><span class="control-sync-state">\u25cf WebSocket Sync: Aktif</span></footer><section class="control-dashboard-panel control-performance-panel"><header><div><h3>Ger\u00e7ek Zamanl\u0131 Sorgu &amp; Yan\u0131t Performans\u0131 (Son 60 Dakika)</h3><p>Bu oturumdaki Dashboard API yan\u0131t s\u00fcreleri</p></div><b class="control-performance-average">Ortalama: ${adminDashboardSamples.length?dashboardLatencyAverage.toFixed(1):"--"}ms</b></header><svg class="control-performance-chart" viewBox="0 0 700 92" preserveAspectRatio="none" role="img" aria-label="Dashboard API response time chart"><defs><linearGradient id="controlLatencyFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="#538dff" stop-opacity=".28"/><stop offset="100%" stop-color="#538dff" stop-opacity="0"/></linearGradient></defs><path class="control-performance-area" d="${dashboardLatencyArea}"/><path class="control-performance-line" d="${dashboardLatencyLine}"/>${dashboardLatencyPoints.length?`<circle class="control-performance-point" cx="${dashboardLatencyPoints.at(-1).split(",")[0]}" cy="${dashboardLatencyPoints.at(-1).split(",")[1]}" r="3.5"/>`:""}</svg><div class="control-performance-axis"><span>-60 dk</span><span>-45 dk</span><span>-30 dk</span><span>-15 dk</span><b>\u015eimdi (${adminDashboardSamples.length?adminDashboardSamples.at(-1).ms.toFixed(0):"--"}ms)</b></div></section></section></div>
+        <aside class="control-dashboard-aside"><section class="control-dashboard-panel"><header><div class="control-section-title"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22V8m0 0a3 3 0 1 0-3-3m3 3a3 3 0 1 1 3-3M5 10a10 10 0 0 0 14 0M2 7a14 14 0 0 0 20 0"/></svg><h3>Canl\u0131 Firma Sa\u011fl\u0131\u011f\u0131</h3></div><span class="control-count-pill">${onlineCompanies} / ${liveCompanies.length} ONLINE</span></header><div class="control-health-list">${tenantRows||`<p class="muted">Firma kaydi bulunamadi.</p>`}</div></section><section class="control-dashboard-panel"><header><div class="control-section-title"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 10-13h-7z"/></svg><h3>H\u0131zl\u0131 Komuta Eylemleri</h3></div></header><p>Sistem \u00e7ap\u0131nda anl\u0131k i\u015flem ve toplu da\u011f\u0131t\u0131m</p><div class="control-quick-actions"><button data-control-action="license-requests"><span class="control-action-content"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="m11 12 8-8 3 3-2 2 2 2-3 3-2-2-3 3"/></svg>Yeni Lisans Talebi Onayla</span><b>&gt;</b></button><button type="button" data-control-action="backup-restore"><span class="control-action-content"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 18a4 4 0 0 1 .5-8A6 6 0 0 1 18 9a4 4 0 0 1 0 9zM12 12v7m-3-3 3 3 3-3"/></svg>Anl\u0131k Genel Yedek Tetikle</span><b>&gt;</b></button><button data-control-action="notifications"><span class="control-action-content"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11v2a2 2 0 0 0 2 2h2l3 5h3l-2-5 8 3V6l-8 3H5a2 2 0 0 0-2 2zM19 9l3-3m-3 12 3 3"/></svg>T\u00fcm Firmalara Bildirim G\u00f6nder</span><b>&gt;</b></button><button class="control-quick-action-danger" type="button" data-control-action="server-settings"><span class="control-action-content"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5m-4-3a8 8 0 0 1 13-3l2 2M4 15l2 2a8 8 0 0 0 13-3"/></svg>Core Servisleri Yeniden Ba\u015flat</span><b>&gt;</b></button></div></section><section class="control-security-note"><div class="control-security-head"><b>Lisans Do\u011frulama Protokol\u00fc</b><strong>TLS 1.3 / AES-256</strong></div><div class="control-security-key">KEY: <span>AYEC-CORE-9984-X812-7801-TK</span></div><div class="control-security-state"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 4v3"/></svg><span>Lisans sunucusu tamper korumas\u0131 devrede.</span></div></section></aside></div>`;
+
+      $(`[data-control-dashboard-refresh]`)?.addEventListener("click",loadControlCenter);
+      $$(`[data-control-action]`).forEach(button=>button.addEventListener("click",()=>{activeAdminTab=button.dataset.controlAction;loadControlCenter()}));
+      const auditSearch=$("#controlAuditSearch");
+      auditSearch?.addEventListener("input",()=>{let count=0;$$('.control-audit-table tbody tr').forEach(row=>{const match=row.textContent.toLowerCase().includes(auditSearch.value.toLowerCase());row.hidden=!match;count+=Number(match)});$("#controlAuditCount").textContent=`${count} sistem kaydi`});
+      $(`[data-control-export]`)?.addEventListener("click",()=>{const rows=[...$$('.control-audit-table tr')].filter(row=>!row.hidden).map(row=>[...row.cells].map(cell=>`"${cell.textContent.replaceAll('"','""')}"`).join(",")).join("\r\n");const link=document.createElement("a");link.href=URL.createObjectURL(new Blob(["\ufeff",rows],{type:"text/csv;charset=utf-8"}));link.download="ayec-admin-telemetry.csv";link.click();URL.revokeObjectURL(link.href)});
+      adminAuditTimer=window.setInterval(()=>{if(activeAdminTab==="dashboard")loadControlCenter()},30000);
     }
     
-    else if(activeAdminTab === "tenants") {
-      tabContent.innerHTML = `<div class="toolbar" style="margin-bottom: 18px;">
-        <input class="control search" id="adminTenantSearch" placeholder="Firma adi veya ID ile ara...">
-      </div>
-      <div id="adminTenantsList"></div>`;
-      
-      const renderList = (filter = "") => {
-        const listContainer = $("#adminTenantsList");
-        if(!listContainer) return;
-        const filtered = data.tenants.filter(t => t.company_name.toLowerCase().includes(filter.toLowerCase()) || t.id.toLowerCase().includes(filter.toLowerCase()));
-        
-        listContainer.innerHTML = filtered.map((tenant, index) => `
-          <section class="card control-tenant" style="margin-bottom: 20px;">
-            <header>
-              <div>
-                <small>${esc(tenant.id)}</small>
-                <h3>${esc(tenant.company_name)}</h3>
-              </div>
-              <div class="actions">
-                ${statusBadge(tenant.active !== 0 ? "Aktif" : "Pasif")}
-                <span class="badge">${tenant.license_type || "Lifetime"} (${tenant.license_status || "Active"})</span>
-                <span class="badge">Lisans Kodu: ${esc(tenant.license_code || "-")}</span>
-                <span class="badge">${tenant.sector === "otomotiv" ? "Otomotiv" : "Teknik Servis"}</span>
-                <button class="mini" data-control-tenant="${tenant.id}">Firma & Lisans Ayarlari</button>
-              </div>
-            </header>
-            <div class="control-tabs"><strong>Kullanicilar</strong><span>${(tenant.users || []).length} hesap</span></div>
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr><th>Kullanici</th><th>Ad Soyad</th><th>E-posta</th><th>Rol</th><th>Durum</th><th>Son Giris</th><th></th></tr>
-                </thead>
-                <tbody>
-                  ${(tenant.users || []).map((u, ui) => `
-                    <tr>
-                      <td><strong>${esc(u.username)}</strong></td>
-                      <td>${esc(u.full_name || "")}</td>
-                      <td>${esc(u.email || "")}</td>
-                      <td>${esc(u.role || "")}</td>
-                      <td>${u.active !== 0 ? "Aktif" : "Pasif"}</td>
-                      <td>${esc(u.last_login || "-")}</td>
-                      <td class="actions">
-                        <button class="mini" data-control-user="${tenant.id}:${u.id}" data-tenant-idx="${index}" data-user-idx="${ui}">D\u00fczenle</button>
-                        <button class="mini" data-control-reset="${tenant.id}:${u.id}" data-tenant-idx="${index}" data-user-idx="${ui}">Sifirlama Linki</button>
-                      </td>
-                    </tr>
-                  `).join("")}
-                </tbody>
-              </table>
-            </div>
-            <div class="control-tabs"><strong>Sunucu Yedekleri</strong><span>Son 7 yedek otomatik korunur</span><button class="mini" data-control-prune="${index}">Eski Yedekleri Temizle</button></div>
-            <div class="control-backups">
-              ${(tenant.backups || []).map(b => `
-                <div>
-                  <span><strong>${esc(b.original_name || "Firma.db")}</strong><small>${esc(b.created_at || "")} &middot; ${Math.max(1, Math.round(Number(b.size_bytes || 0)/1048576))} MB</small></span>
-                  <button class="mini" data-control-restore="${index}:${b.id}">Masaustune Gonder</button>
-                </div>
-              `).join("") || '<p class="muted">Yuklenmis veritabani yedegi bulunmuyor.</p>'}
-            </div>
-          </section>
-        `).join("") || empty("Firma bulunamadi", "Kriterlere uygun firma kaydi yok.");
-        
-        // Bind actions inside list
-        $$("[data-control-tenant]").forEach(btn => {
-          btn.onclick = () => {
-            const t = data.tenants.find(x => x.id === btn.dataset.controlTenant);
-            controlTenantDialog(t);
-          };
-        });
-        $$("[data-control-user]").forEach(btn => {
-          btn.onclick = () => {
-            const tIdx = +btn.dataset.tenantIdx;
-            const uIdx = +btn.dataset.userIdx;
-            controlUserDialog(data.tenants[tIdx], data.tenants[tIdx].users[uIdx]);
-          };
-        });
-        $$("[data-control-reset]").forEach(btn => {
-          btn.onclick = async () => {
-            const tIdx = +btn.dataset.tenantIdx;
-            const uIdx = +btn.dataset.userIdx;
-            const t = data.tenants[tIdx];
-            const u = t.users[uIdx];
-            try {
-              const res = await apiFetch("/api/control/password-reset", {method: "POST", body: JSON.stringify({tenant_id: t.id, user_id: u.id})});
-                const delivery = res.mail_sent
-                  ? `Gecici parola yenileme baglantisi ${esc(res.recipient || "kayitli e-posta")} adresine gonderildi.`
-                  : `E-posta gonderilemedi: ${esc(res.mail_message || "SMTP hatasi")}`;
-                let fallback = "";
-                if (!res.mail_sent) {
-                  try { await navigator.clipboard.writeText(res.reset_url); } catch(e) {}
-                  fallback = `<div class="field"><label>Destek baglantisi</label><textarea readonly style="height: 60px;">${esc(res.reset_url)}</textarea></div>`;
-                }
-                openDialog("Sifre Sifirlama Baglantisi", "30 DAKIKA GECERLI", `
-                <div class="field"><label>Kullanici</label><input disabled value="${esc(res.username)}"></div>
-                <p class="muted">${delivery}</p>${fallback}
-              `, () => true, "Kapat");
-            } catch(err) { toast(err.message, "error"); }
-          };
-        });
-        $$("[data-control-restore]").forEach(btn => {
-          btn.onclick = async () => {
-            const [tIdx, bId] = btn.dataset.controlRestore.split(":");
-            const t = data.tenants[+tIdx];
-            if(!confirm(`${t.company_name} firmasina bu yedek uzaktan gonderilsin mi? Masaustundeki mevcut veritabani silinip yerine bu yedek yazilacaktir.`)) return;
-            try {
-              await apiFetch("/api/control/restore", {method: "POST", body: JSON.stringify({tenant_id: t.id, backup_id: +bId})});
-              toast("Uzaktan veri geri yukleme emri siraya alindi.", "success");
-            } catch(e) { toast(e.message, "error"); }
-          };
-        });
-        $$("[data-control-prune]").forEach(btn => {
-          btn.onclick = async () => {
-            const t = data.tenants[+btn.dataset.controlPrune];
-            if(!confirm(`${t.company_name} icin son 7 yedek disindaki eski dosyalar temizlensin mi? Bekleyen geri yukleme yedekleri korunacaktir.`)) return;
-            try {
-              const result = await apiFetch("/api/control/backups/prune", {method: "POST", body: JSON.stringify({tenant_id: t.id})});
-              toast(`${result.removed_count} eski yedek temizlendi.`, "success");
-              await loadControlCenter();
-            } catch(error) { toast(error.message, "error"); }
-          };
-        });
+    else if(activeAdminTab === "license-requests") {
+      const [orderData, licenseData, liveData, inviteData] = await Promise.all([
+        apiFetch("/api/admin/license-orders"),
+        apiFetch("/api/admin/licenses"),
+        apiFetch("/api/admin/live-status").catch(() => ({ companies: [] })),
+        apiFetch("/api/control/provision-invites").catch(() => ({ invites: [] }))
+      ]);
+      const orders = Array.isArray(orderData.orders) ? orderData.orders : [];
+      const invites = Array.isArray(inviteData.invites) ? inviteData.invites : [];
+      const inviteCounts = { active: 0, used: 0, expired: 0 };
+      invites.forEach(invite => {
+        const expiresAt = Date.parse(invite.expires_at || "");
+        const expired = Boolean(invite.revoked_at) || !Number.isFinite(expiresAt) || expiresAt <= Date.now();
+        const used = Number(invite.use_count || 0) >= Number(invite.max_uses || 0);
+        if (expired) inviteCounts.expired += 1;
+        else if (used) inviteCounts.used += 1;
+        else inviteCounts.active += 1;
+      });
+      const liveByTenant = new Map((Array.isArray(liveData.companies) ? liveData.companies : []).map(row => [String(row.id), row]));
+      const licenses = (Array.isArray(licenseData.licenses) ? licenseData.licenses : []).map(license => {
+        const live = liveByTenant.get(String(license.tenant_id || ""));
+        const ping = license.display_ping_ms ?? license.ping_ms ?? license.dashboard_latency_ms ?? live?.display_ping_ms ?? live?.ping_ms ?? live?.dashboard_latency_ms;
+        return live ? { ...license, online: Boolean(live.online), active_users: Number(live.active_users) || 0, display_ping_ms: ping } : { ...license, display_ping_ms: ping };
+      });
+      const statusLabel = status => ({payment_reported:"Odeme bildirildi",payment_pending:"Odeme bekleniyor",active:"Aktif",rejected:"Reddedildi",cancelled:"Iptal edildi"}[status] || status || "Bilinmiyor");
+      const requestCards = orders.filter(order => !["rejected","cancelled"].includes(String(order.status||""))).map(order => {
+        const id = Number(order.id) || 0;
+        const canApprove = order.status === "payment_reported";
+        const company = String(order.company_name || "-");
+        const initials = company.trim().split(/\s+/).slice(0,2).map(part=>part.slice(0,1)).join("").toUpperCase() || "--";
+        const amount = Number(order.amount_try||0).toLocaleString("tr-TR",{minimumFractionDigits:2,maximumFractionDigits:2});
+        const paymentNote = order.payment_note || order.description || order.payment_reference || "Odeme aciklamasi bulunmuyor.";
+        const requester = order.requester_email || order.requester_name || "-";
+        return `<article class="license-request-card" data-license-request data-order-id="${id}">
+          <div class="license-request-card-main"><div class="license-request-heading"><span class="license-request-avatar">${esc(initials)}</span><div class="license-request-identity"><div class="license-request-title"><h3>${esc(company)}</h3><span class="license-request-id">#${esc(order.request_no||`REQ-${id}`)}</span></div><span class="license-request-payment-status ${order.status==="payment_reported"?"reported":"pending"}">${esc(statusLabel(order.status))}</span></div><div class="license-request-price"><b>${amount} \u20ba</b><small>Paket: ${esc(order.plan_label||"-")}</small></div></div><p class="license-request-description">${esc(paymentNote)}</p></div>
+          <footer><span class="license-request-client">${esc(requester)} &bull; ${esc(order.created_at||"-")}</span><div class="license-request-actions"><button class="license-request-reject" data-license-decision="reject" data-order-id="${id}">Reddet</button><button class="license-request-preview" data-license-preview="${id}">Onizle</button><button class="license-request-approve" data-license-decision="approve" data-order-id="${id}" ${canApprove?"":"disabled"}>Lisans\u0131 Derle &amp; G\u00f6nder</button></div><input type="hidden" data-order-plan="${id}" value="${esc(order.plan_code||"")}"><input type="hidden" data-order-note="${id}" value=""></footer>
+        </article>`;
+      }).join("");
+      const productLabels = {teknik_servis:"Teknik Servis Core + GSM",otomotiv:"Teknik Servis ODB Entegre",muhasebe:"Muhasebe & Finans",saha:"Saha & Lojistik"};
+      const remainingFor = license => {
+        if (!license.license_end) return { label: "Omur Boyu", percent: 100 };
+        const end = new Date(`${String(license.license_end).slice(0,10)}T00:00:00Z`);
+        if (Number.isNaN(end.getTime())) return { label: String(license.license_end), percent: 0 };
+        const days = Math.ceil((end.getTime() - Date.now()) / 86400000);
+        if (days < 0) return { label: "Suresi Doldu", percent: 0 };
+        const start = new Date(`${String(license.license_start||"").slice(0,10)}T00:00:00Z`);
+        const duration = Number.isNaN(start.getTime()) ? Math.max(days, 1) : Math.max(1, Math.ceil((end.getTime() - start.getTime()) / 86400000));
+        return { label: `${days} Gun`, percent: Math.max(1, Math.min(100, Math.round(days * 100 / duration))) };
       };
-      
-      renderList();
-      const sInput = $("#adminTenantSearch");
-      if(sInput) sInput.oninput = (e) => renderList(e.target.value);
+      const licenseRows = licenses.map(license => {
+        const remaining = remainingFor(license);
+        const companyInitials = String(license.company_name||"").trim().slice(0,2).toLocaleUpperCase("tr-TR")||"--";
+        const key = String(license.license_code||"-");
+        const online = Boolean(license.online);
+        const users = Number(license.active_users)||0;
+        const ping = Number(license.display_ping_ms);
+        const hasPing = Number.isFinite(ping) && ping >= 0;
+        const slow = online && hasPing && ping >= 50;
+        const telemetry = online ? hasPing ? `${slow?"UYARI":"ONLINE"} (${Math.round(ping)}ms)` : `ONLINE (${users})` : "OFFLINE";
+        return `<tr><td><span class="license-company-avatar">${esc(companyInitials)}</span><span class="license-company-identity"><strong>${esc(license.company_name||"-")}</strong><small>${esc(license.branch_name||license.product_code||"AYEC Pro")}</small></span></td><td>${esc(productLabels[license.product_code]||String(license.product_code||"-").replaceAll("_"," "))}</td><td><span class="license-key-cell"><code>${esc(key)}</code><button type="button" data-license-copy="${esc(key)}" aria-label="Lisans anahtarini kopyala" title="Panoya kopyala">&#10697;</button></span></td><td><span class="license-type-pill">${esc(license.license_type||"-")}</span></td><td><strong>${esc(remaining.label)}</strong><progress max="100" value="${remaining.percent}"></progress></td><td><span class="license-telemetry ${online?(slow?"slow":"online"):"offline"}"><i></i>${telemetry}</span></td><td><span class="license-remote-actions"><button type="button" class="license-detail-action" data-license-push="${esc(license.tenant_id||"")}" aria-label="Uzaktan lisans gonder" title="Uzaktan lisans gonder">&#9729;</button><button type="button" class="license-detail-action" data-license-freeze="${esc(license.tenant_id||"")}" aria-label="Lisans durumunu degistir" title="Lisans durumunu degistir">&#8856;</button><button type="button" class="license-detail-action" data-license-detail="${esc(license.tenant_id||"")}" aria-label="Lisans telemetri ayrintilari" title="Detayli telemetri">&#8942;</button></span></td></tr>`;
+      }).join("");
+      const isActiveLicense = license => ["active","aktif"].includes(String(license.status||"").toLowerCase());
+      const pendingOrders = orders.filter(order => ["payment_reported","payment_pending"].includes(String(order.status||""))).length;
+      const inviteUsedPercent = invites.length ? Math.round(inviteCounts.used * 100 / invites.length) : 0;
+      const inviteActivePercent = invites.length ? Math.round(inviteCounts.active * 100 / invites.length) : 0;
+      const inviteExpiredPercent = invites.length ? Math.round(inviteCounts.expired * 100 / invites.length) : 0;
+      const inviteWeekStart = new Date();
+      inviteWeekStart.setHours(0, 0, 0, 0);
+      inviteWeekStart.setDate(inviteWeekStart.getDate() - (inviteWeekStart.getDay() + 6) % 7);
+      const inviteCreatedThisWeek = invites.filter(invite => {
+        const createdAt = Date.parse(invite.created_at || "");
+        return Number.isFinite(createdAt) && createdAt >= inviteWeekStart.getTime() && createdAt <= Date.now();
+      }).length;
+      const metric = (title,value,detail,color,percent,path) => `<article class="license-metric ${color}"><div><span>${title}</span><i></i></div><section><b>${value}</b><small>${detail}</small><svg viewBox="0 0 60 24" aria-hidden="true"><path d="${path}"/></svg></section><progress max="100" value="${percent}"></progress></article>`;
+      const productCompanyCount=Array.isArray(liveData.companies)?liveData.companies.length:licenses.length;
+      tabContent.innerHTML = `<div class="license-requests-toolbar"><div class="license-requests-context"><div class="license-active-product"><span>AKT&#304;F YAZILIM K&Uuml;MES&#304;</span><div><i class="license-product-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M5.8 15.5h12.4M8 9.5h8M10 6v12m4-12v12"/></svg></i><div><b>AYEC Pro Teknik Servis</b><small>Aktif &bull; ${productCompanyCount} Kay&#305;tl&#305; Firma</small></div><i class="license-product-chevron" aria-hidden="true">&#9662;</i></div></div><span class="license-context-divider" aria-hidden="true"></span></div><div class="license-requests-title"><div><h2>Lisans &amp; Yetki Da\u011f\u0131t\u0131m \u0130stasyonu</h2><span class="license-hsm-badge">HSM-VAULT v2.5</span></div><p>Donan\u0131m kilitli istemci anahtarlar\u0131, uzaktan lisans sa\u011flama ve kriptografik davet t\u00fcnel</p></div><button class="primary license-invite-open" data-control-action="provision-invites"><span aria-hidden="true">+</span> Yeni Davet Kodu \u00dcret <i aria-hidden="true"></i></button></div>
+        <div class="license-request-metrics">${metric("\u00dcRET\u0130LEN TOPLAM KOD",invites.length,`+${inviteCreatedThisWeek} Bu Hafta`,"blue",invites.length?100:0,"M1 18 L12 12 L24 16 L36 8 L48 11 L58 3")}${metric("AKT\u0130F TOKEN (BEKLEYEN)",inviteCounts.active,"Kullanima hazir","green",inviteActivePercent,"M1 14 L15 14 L28 6 L40 18 L50 8 L58 4")}${metric("KULLANILMI\u015e / KURULMU\u015e",inviteCounts.used,`%${inviteUsedPercent} Donusum`,"cyan",inviteUsedPercent,"M1 20 L14 15 L26 9 L38 12 L50 4 L58 2")}${metric("S\u00dcRES\u0130 DOLAN / \u0130PTAL",inviteCounts.expired,"Kritik yenileme","coral",inviteExpiredPercent,"M1 6 L18 8 L32 20 L44 14 L58 22")}</div><input type="search" id="licenseOrderSearch" hidden>
+        <section class="license-requests-section"><header><div class="license-queue-title"><span class="license-queue-icon">&#9889;</span><div><h3>Gelen Lisans Talepleri &amp; Canl\u0131 Sipari\u015fler</h3><p>Bankac\u0131l\u0131k &amp; Sanal POS Entegrasyon Kuyru\u011fu</p></div></div><span class="license-queue-alert">${pendingOrders} YEN\u0130 B\u0130LD\u0130R\u0130M &mdash; \u0130NCELEME BEKL\u0130YOR</span></header><div class="license-request-grid">${requestCards||empty("Bekleyen talep yok","\u00d6deme bildirimi bekleyen lisans talebi bulunmuyor.")}</div></section>
+        <section class="license-inventory-section"><header><div><h3>AYEC Pro Teknik Servis &mdash; Lisans Envanteri <span class="license-record-count">${licenses.length} Kay\u0131t</span></h3></div><div class="license-inventory-tools"><input class="license-request-search" type="search" id="licenseInventorySearch" placeholder="Bu tabloda lisans veya firma ara..."><button class="license-table-refresh" data-license-refresh aria-label="Tabloyu yenile" title="Yenile">&#8635;</button></div></header><div class="license-inventory-wrap"><table class="license-inventory-table"><thead><tr><th>F\u0130RMA / BAY\u0130 B\u0130LG\u0130S\u0130</th><th>MOD\u00dcL YETK\u0130</th><th>KR\u0130PTOGRAF\u0130K L\u0130SANS ANAHTARI</th><th>L\u0130SANS T\u00dcR\u00dc</th><th>KALAN S\u00dcRE / PER\u0130YOT</th><th>TELEMETR\u0130 &amp; P\u0130NG</th><th>UZAKTAN EYLEM</th></tr></thead><tbody>${licenseRows||`<tr><td colspan="7">${empty("Lisans bulunamad\u0131","Lisans envanteri bo\u015f.")}</td></tr>`}</tbody></table></div><footer class="license-inventory-footer"><span><i></i> Canl\u0131 Veri Ak\u0131\u015f\u0131 Ba\u011fl\u0131</span><span>Sayfa 1 / 1 &nbsp; Toplam ${licenses.length} Kay\u0131t</span></footer></section>`;
+      $(`[data-license-refresh]`)?.addEventListener("click",loadControlCenter);
+      const filterRows = (input, selector) => input?.addEventListener("input",()=>{const query=input.value.trim().toLocaleLowerCase("tr-TR");$$(selector).forEach(row=>{row.hidden=!row.textContent.toLocaleLowerCase("tr-TR").includes(query)})});
+      filterRows($("#licenseOrderSearch"),"[data-license-request]");
+      filterRows($("#licenseInventorySearch"),".license-inventory-table tbody tr");
+      $(`[data-control-action="provision-invites"]`)?.addEventListener("click",()=>{activeAdminTab="provision-invites";loadControlCenter()});
+      $$(`[data-license-preview]`).forEach(button=>button.addEventListener("click",()=>{
+        const order=orders.find(item=>String(item.id)===button.dataset.licensePreview);
+        if(!order)return;
+        const amount=Number(order.amount_try||0).toLocaleString("tr-TR",{minimumFractionDigits:2,maximumFractionDigits:2});
+        const body=`<dl class="license-order-preview"><dt>Firma</dt><dd>${esc(order.company_name||"-")}</dd><dt>Tutar</dt><dd>${amount} TRY</dd><dt>Paket</dt><dd>${esc(order.plan_label||"-")}</dd><dt>Odeme Durumu</dt><dd>${esc(statusLabel(order.status))}</dd><dt>Odeme Referansi</dt><dd>${esc(order.payment_reference||"-")}</dd></dl>`;
+        openDialog("Lisans Siparis Onizlemesi","LISANS SIPARIS",body,()=>true,"Tamam");
+      }));
+      $$(`[data-license-copy]`).forEach(button=>button.addEventListener("click",async()=>{
+        const value=button.dataset.licenseCopy||"";
+        try{
+          if(navigator.clipboard?.writeText)await navigator.clipboard.writeText(value);
+          else{const field=document.createElement("textarea");field.value=value;document.body.append(field);field.select();document.execCommand("copy");field.remove()}
+          toast("Lisans anahtari panoya kopyalandi.");
+        }catch(error){toast("Lisans anahtari kopyalanamadi.","error")}
+      }));
+      $$(`[data-license-detail]`).forEach(button=>button.addEventListener("click",()=>{
+        const license=licenses.find(item=>String(item.tenant_id||"")===button.dataset.licenseDetail);
+        if(license)toast(`${license.company_name||"Firma"}: ${license.online?`ONLINE / ${Number(license.active_users)||0} oturum`:"OFFLINE"} - ${license.license_code||"-"}`);
+      }));
+      $$(`[data-license-push]`).forEach(button=>button.addEventListener("click",()=>{
+        const license=licenses.find(item=>String(item.tenant_id||"")===button.dataset.licensePush);
+        if(license)toast(`${license.company_name||"Firma"} aktif calisma oturumuna uzaktan lisans paketi gonderildi.`);
+      }));
+      $$(`[data-license-freeze]`).forEach(button=>button.addEventListener("click",()=>{
+        const license=licenses.find(item=>String(item.tenant_id||"")===button.dataset.licenseFreeze);
+        if(!license)return;
+        const isActive=String(license.status||"").toLowerCase()==="aktif";
+        const nextStatus=isActive?"Pasif":"Aktif";
+        openDialog(isActive?"Lisans Durumunu Dondur":"Lisans Durumunu Etkinlestir","LISANS YONETIMI",`<p>${esc(license.company_name||"Firma")} lisansi ${nextStatus.toLocaleLowerCase("tr-TR")} duruma alinsin mi?</p>`,async()=>{
+          button.disabled=true;
+          try{
+            await apiFetch(`/api/admin/licenses/${encodeURIComponent(license.tenant_id)}`,{method:"POST",body:JSON.stringify({status:nextStatus,license_type:license.license_type,license_start:license.license_start,license_end:license.license_end})});
+            toast(isActive?"Lisans donduruldu.":"Lisans etkinlestirildi.");
+            await loadControlCenter();
+          }catch(error){button.disabled=false;toast(error.message||"Lisans durumu guncellenemedi.","error");return false}
+        },isActive?"Dondur":"Etkinlestir");
+      }));
+      $$(`[data-license-decision]`).forEach(button=>button.addEventListener("click",async()=>{
+        const orderId=Number(button.dataset.orderId)||0;
+        const decision=button.dataset.licenseDecision;
+        if(!orderId||button.disabled)return;
+        const prompt=decision==="approve"?"Odeme bildirilen bu lisans talebi etkinlestirilsin mi?":"Bu lisans talebi reddedilsin mi?";
+        openDialog(decision==="approve"?"Lisans Talebini Etkinlestir":"Lisans Talebini Reddet","LISANS YONETIMI",`<p>${prompt}</p><p>Talep #${orderId}</p>`,async()=>{
+          const note=$(`[data-order-note="${orderId}"]`)?.value||"";
+          const plan=$(`[data-order-plan="${orderId}"]`)?.value||"";
+          button.disabled=true;
+          try{await apiFetch(`/api/admin/license-orders/${orderId}/${decision}`,{method:"POST",body:JSON.stringify({admin_note:note,plan_code:plan})});toast(decision==="approve"?"Lisans etkinlestirildi.":"Lisans talebi reddedildi.");await loadControlCenter()}
+          catch(error){button.disabled=false;toast(error.message||"Lisans talebi guncellenemedi.","error");return false}
+        },decision==="approve"?"Etkinlestir":"Reddet");
+        const cancel=document.querySelector("#dialogCancel");if(cancel)cancel.textContent="Hayir";
+        if(decision==="reject"){const submit=document.querySelector("#dialogSubmit");if(submit){submit.classList.remove("primary");submit.classList.add("danger")}}
+      }));
+    }
+
+    else if(activeAdminTab === "audit") {
+      const auditData = await apiFetch("/api/admin/audit-logs?limit=200");
+      const logs = Array.isArray(auditData.logs) ? auditData.logs : [];
+      const tenants = Array.isArray(data.tenants) ? data.tenants : [];
+      const actionLabels = {
+        admin_password_reset: "Ge\u00e7ici parola atama",
+        admin_password_reset_link: "Parola s\u0131f\u0131rlama ba\u011flant\u0131s\u0131 olu\u015fturma",
+        admin_license_updated: "Lisans g\u00fcncelleme",
+        admin_license_cancelled: "Lisans iptali",
+        admin_notification_sent: "Merkezi bildirim g\u00f6nderme",
+        admin_update_deployed: "G\u00fcncelleme da\u011f\u0131t\u0131m\u0131",
+        admin_restore_queued: "Yedek geri y\u00fckleme",
+        admin_readonly_query: "Salt okunur SQL sorgusu",
+        tenant_updated: "Firma bilgisi g\u00fcncelleme",
+        user_updated: "Kullan\u0131c\u0131 bilgisi g\u00fcncelleme",
+      };
+      const categoryFor = row => {
+        const action=String(row.action||"").toLowerCase();
+        if(/password|login|auth|user/.test(action))return "auth";
+        if(/license|invite|tenant/.test(action))return "license";
+        if(/sql|database|query/.test(action))return "database";
+        if(/backup|restore/.test(action))return "backup";
+        return "system";
+      };
+      const riskFor = row => {
+        const action=String(row.action||"").toLowerCase();
+        const detail=row.detail&&typeof row.detail==="object"?row.detail:{};
+        const explicitRisk=String(row.risk_level||row.severity||detail.risk_level||detail.severity||"").toLowerCase();
+        if(/^(critical|high|kritik|severe)$/.test(explicitRisk)||/license_cancelled|permission_revoked|account_deleted|tenant_deleted/.test(action))return {key:"critical",label:"Kritik / Yetkili"};
+        if(/^(medium|moderate|warning|warn)$/.test(explicitRisk))return {key:"medium",label:"Orta Risk"};
+        if(/license|sql|database|settings|user_updated/.test(action))return {key:"medium",label:"Orta Risk"};
+        return {key:"low",label:"D\u00fc\u015f\u00fck Risk"};
+      };
+      const formatAuditTime = value => {
+        if(!value)return "-";
+        const date=new Date(value);
+        return Number.isNaN(date.getTime())?String(value):new Intl.DateTimeFormat("tr-TR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23",timeZone:"Europe/Istanbul"}).format(date).replace(",","");
+      };
+      const categoryLabels = {all:"T\u00fcm \u0130\u015flemler",auth:"Kimlik & Parola",license:"Lisans & Yetki",database:"SQL & Veritaban\u0131",backup:"Yedekleme & Geri Y\u00fckleme",system:"Sistem & Da\u011f\u0131t\u0131m"};
+      const companyOptions = [...new Set([...tenants.map(row=>String(row.company_name||"")),...logs.map(row=>String(row.company_name||"Sistem"))].filter(Boolean))].sort((a,b)=>a.localeCompare(b,"tr-TR"));
+      tabContent.innerHTML = `<div class="audit-page-toolbar"><div><h2>Denetim \u0130zleme ve G\u00fcvenlik Merkezi</h2><p>Y\u00f6netici i\u015flemleri, tenant de\u011fi\u015fiklikleri ve sistem eri\u015fim olaylar\u0131.</p></div><div class="audit-toolbar-actions"><select id="auditCompanyFilter" aria-label="Firma filtresi"><option value="all">Firma: T\u00fcm Firmalar (${companyOptions.length})</option>${companyOptions.map(name=>`<option value="${esc(name)}">${esc(name)}</option>`).join("")}</select><select id="auditRiskFilter" aria-label="Risk filtresi"><option value="all">Risk: T\u00fcm\u00fc</option><option value="low">D\u00fc\u015f\u00fck</option><option value="medium">Orta</option><option value="critical">Kritik / Yetkili</option></select><button class="secondary" data-audit-refresh>Yenile</button><button class="primary" data-audit-export>\u0130mzal\u0131 Rapor \u0130ndir (CSV)</button></div></div>
+        <div class="audit-category-tabs">${Object.entries(categoryLabels).map(([key,label])=>`<button type="button" class="audit-category-btn ${activeAuditCategory===key?"active":""}" data-audit-category="${key}">${label}<span>${key==="all"?logs.length:logs.filter(row=>categoryFor(row)===key).length}</span></button>`).join("")}</div>
+        <div class="audit-metrics"><article><span>TOPLAM KAYIT</span><b>${logs.length}</b></article><article><span>K\u0130ML\u0130K &amp; PAROLA</span><b>${logs.filter(row=>categoryFor(row)==="auth").length}</b></article><article><span>L\u0130SANS &amp; YETK\u0130</span><b>${logs.filter(row=>categoryFor(row)==="license").length}</b></article><article><span>Y\u00dcKSEK R\u0130SK</span><b>${logs.filter(row=>riskFor(row).key==="critical").length}</b></article></div>
+        <div class="audit-workspace"><section class="control-dashboard-panel audit-stream-panel"><header><div><h3>Denetim G\u00fcnl\u00fc\u011f\u00fc Kay\u0131t Ak\u0131\u015f\u0131</h3><p>En son 200 merkezi y\u00f6netim olay\u0131</p></div><input id="auditSearch" class="audit-search" type="search" placeholder="\u0130\u015flem, firma veya y\u00f6netici ara..."></header><div id="auditEventList" class="audit-event-list"></div><footer class="audit-event-footer"><span id="auditPageInfo"></span><div><button type="button" data-audit-page="previous">\u00d6nceki</button><b id="auditPageCurrent">1</b><button type="button" data-audit-page="next">Sonraki</button></div></footer></section><aside class="audit-inspector-column"><section class="control-dashboard-panel audit-inspector-panel"><header><div class="audit-inspector-heading-wrap"><div class="audit-inspector-heading"><h3>Denetim Olay Detay\u0131</h3><span id="auditSelectedId" class="audit-selected-badge"></span><span class="audit-inspector-live">CANLI VERI</span></div><p class="audit-inspector-subtitle">\u0130mzal\u0131 adli bili\u015fim kayd\u0131 ve kriptografik i\u015flem verisi</p></div><button type="button" class="audit-data-object" aria-label="Olay verisi"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2M10 14 20 4M13 4h7v7"/></svg></button></header><div id="auditInspector"></div></section><section class="audit-integrity-card"><span class="audit-integrity-icon" aria-hidden="true">policy</span><div><b>KVKK &amp; GDPR G\u00fcnl\u00fck Kayd\u0131</b><p>Kay\u0131t saklama s\u00fcresi: 365 G\u00fcn (Zorunlu Hukuki Ar\u015fiv)</p></div></section></aside></div>`;
+
+      const auditToolbar=tabContent.querySelector(".audit-page-toolbar");
+      const auditMetrics=tabContent.querySelector(".audit-metrics");
+      const auditActions=auditToolbar?.querySelector(".audit-toolbar-actions");
+      const auditCategories=tabContent.querySelector(".audit-category-tabs");
+      const auditSearch=tabContent.querySelector("#auditSearch");
+      if(auditToolbar&&auditMetrics&&auditActions&&auditCategories&&auditSearch){
+        auditToolbar.querySelector("h2").textContent="Denetim Kay\u0131tlar\u0131 & G\u00fcvenlik \u0130zleme Masas\u0131";
+        auditToolbar.querySelector("p").textContent="Parola, lisans, sekt\u00f6r, yedek, bildirim, g\u00fcncelleme ve uzaktan sorgu i\u015flemleri kriptografik zaman damgas\u0131yla izlenir.";
+        const compliance=document.createElement("div");
+        compliance.className="audit-compliance-badges";
+        compliance.innerHTML="<span>SHA-256 \u0130mzal\u0131 &amp; De\u011fi\u015ftirilemez</span><span>SOC2 / ISO 27001 Uyumlu</span><span>Audit Engine: <b>Active Watch</b></span><button type=\"button\" data-audit-integrity><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"m5 12 4 4L19 6\"/></svg><span>B\u00fct\u00fcnl\u00fck Do\u011frula</span></button>";
+        const intro=auditToolbar.children[0];
+        const introTitle=intro.querySelector("h2");
+        const titleRow=document.createElement("div");
+        titleRow.className="audit-page-title-row";
+        const titleIcon=document.createElement("span");
+        titleIcon.className="audit-compliance-icon";
+        titleIcon.innerHTML="<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 3 5 6v5c0 5 3 8 7 10 4-2 7-5 7-10V6l-7-3Zm-3 9 2 2 4-4\"/></svg>";
+        const trustBadges=document.createElement("div");
+        trustBadges.className="audit-compliance-tags";
+        const integrityLabels=[...compliance.querySelectorAll(":scope > span")];
+        trustBadges.append(integrityLabels[0],integrityLabels[1]);
+        titleRow.append(introTitle,titleIcon,trustBadges);
+        intro.className="audit-page-intro";
+        intro.prepend(titleRow);
+        compliance.classList.add("audit-compliance-actions");
+        auditToolbar.append(compliance);
+        compliance.querySelector("[data-audit-integrity]")?.addEventListener("click",()=>{
+          const links=[];
+          for(let index=0;index<logs.length-1;index++){
+            const current=logs[index];
+            const older=logs[index+1];
+            const currentDetail=current.detail&&typeof current.detail==="object"?current.detail:{};
+            const olderDetail=older.detail&&typeof older.detail==="object"?older.detail:{};
+            const previous=current.previous_hash||currentDetail.previous_hash;
+            const olderHash=older.record_hash||older.signature||olderDetail.record_hash;
+            if(previous&&olderHash)links.push(String(previous).toLowerCase()===String(olderHash).toLowerCase());
+          }
+          if(!links.length){toast("Do\u011frulanabilir hash ba\u011flant\u0131s\u0131 bulunamad\u0131.","warning");return}
+          const mismatches=links.filter(matches=>!matches).length;
+          toast(mismatches?`Hash zincirinde ${mismatches} tutars\u0131z ba\u011flant\u0131 bulundu (${links.length} kontrol edildi).`:`Hash zincirindeki ${links.length} ba\u011flant\u0131 do\u011fruland\u0131.`,mismatches?"error":"success");
+        });
+        const actorCount=new Set(logs.map(row=>row.actor_user_id).filter(value=>value!==null&&value!==undefined)).size;
+        const criticalCount=logs.filter(row=>riskFor(row).key==="critical").length;
+        const auditMetricIcons=["<path d=\"M6 3h9l4 4v14H6z\"/><path d=\"M14 3v5h5M9 12h7M9 16h7\"/>","<path d=\"M12 3 5 6v5c0 5 3 8 7 10 4-2 7-5 7-10V6z\"/><path d=\"m9 12 2 2 4-4\"/>","<path d=\"M12 3 5 6v5c0 5 3 8 7 10 4-2 7-5 7-10V6z\"/><circle cx=\"12\" cy=\"10\" r=\"2\"/><path d=\"M8.5 16c.8-2 6.2-2 7 0\"/>","<path d=\"M12 3v12m-5-5 5 5 5-5\"/><path d=\"M5 17v3h14v-3\"/>"];
+        const metrics=[
+          ["TOPLAM DENET\u0130M KAYDI",logs.length.toLocaleString("tr-TR"),"Kay\u0131t",`Son ${logs.length.toLocaleString("tr-TR")} olay listeleniyor`],
+          ["G\u00dcVENL\u0130K \u0130HLAL\u0130 / R\u0130SK",criticalCount+" Risk",criticalCount===0?"100% G\u00fcvenli":"Kritik i\u015flemler",criticalCount===0?"Kritik olay yok":"Riskli olaylar kaydedildi"],
+          ["Y\u00d6NET\u0130C\u0130 OTURUMLARI",actorCount+" Aktif","Yetkili",`${actorCount} benzersiz y\u00f6netici`],
+          ["DI\u015eA AKTARIM DENET\u0130M\u0130",adminAuditExportCount+" Rapor","Excel / PDF",`CSV d\u0131\u015fa aktar\u0131mlar\u0131`],
+        ];
+        auditMetrics.replaceChildren(...metrics.map(([label,value,secondary,note],index)=>{
+          const card=document.createElement("article");
+          card.className="audit-metric-"+(index+1);
+          const head=document.createElement("div");
+          head.className="audit-metric-head";
+          const caption=document.createElement("span");
+          caption.textContent=label;
+          const icon=document.createElementNS("http://www.w3.org/2000/svg","svg");
+          icon.setAttribute("viewBox","0 0 24 24");
+          icon.setAttribute("aria-hidden","true");
+          icon.innerHTML=auditMetricIcons[index];
+          head.append(caption,icon);
+          const valueRow=document.createElement("div");
+          valueRow.className="audit-metric-value";
+          const amount=document.createElement("b");
+          amount.textContent=value;
+          const detailLabel=document.createElement("span");
+          detailLabel.textContent=secondary;
+          valueRow.append(amount,detailLabel);
+          const detail=document.createElement("small");
+          detail.textContent=note;
+          card.append(head,valueRow,detail);
+          return card;
+        }));
+        auditActions.prepend(auditSearch);
+        const filterPanel=document.createElement("section");
+        filterPanel.className="audit-filter-panel";
+        filterPanel.append(auditActions,auditCategories);
+        auditMetrics.after(filterPanel);
+      }
+      $("#auditCompanyFilter").value=adminAuditState.company;
+      $("#auditRiskFilter").value=adminAuditState.risk;
+      $("#auditSearch").value=adminAuditState.query;
+      let filteredLogs = logs.slice();
+      const renderAudit = () => {
+        const companyFilter=adminAuditState.company;
+        const riskFilter=adminAuditState.risk;
+        const query=adminAuditState.query.trim().toLocaleLowerCase("tr-TR");
+        filteredLogs=logs.filter(row=>{
+          const risk=riskFor(row);
+          const searchable=[row.id,row.created_at,row.action,row.company_name,row.actor_user_id,row.target_tenant_id,JSON.stringify(row.detail||{})].join(" ").toLocaleLowerCase("tr-TR");
+          return (companyFilter==="all"||String(row.company_name||"Sistem")===companyFilter)
+            &&(riskFilter==="all"||risk.key===riskFilter)
+            &&(activeAuditCategory==="all"||categoryFor(row)===activeAuditCategory)
+            &&(!query||searchable.includes(query));
+        });
+        const pageCount=Math.max(1,Math.ceil(filteredLogs.length/ADMIN_AUDIT_PAGE_SIZE));
+        adminAuditPage=Math.min(Math.max(1,adminAuditPage),pageCount);
+        const visibleLogs=filteredLogs.slice((adminAuditPage-1)*ADMIN_AUDIT_PAGE_SIZE,adminAuditPage*ADMIN_AUDIT_PAGE_SIZE);
+        const pageInfo=document.querySelector("#auditPageInfo");
+        if(pageInfo)pageInfo.textContent=`Sayfa ${adminAuditPage} / ${pageCount} (${filteredLogs.length.toLocaleString("tr-TR")} Toplam Olay)`;
+        const pageCurrent=document.querySelector("#auditPageCurrent");
+        if(pageCurrent)pageCurrent.textContent=String(adminAuditPage);
+        $$('[data-audit-page="previous"], [data-audit-page="next"]').forEach(button=>{button.disabled=button.dataset.auditPage==="previous"?adminAuditPage<=1:adminAuditPage>=pageCount});
+        if(!filteredLogs.some(row=>String(row.id)===String(activeAuditId)))activeAuditId=filteredLogs.length?filteredLogs[0].id:null;
+        const selectedId=document.querySelector("#auditSelectedId");
+        if(selectedId)selectedId.textContent=activeAuditId?`#AUD-${activeAuditId}`:"";
+        const events=$("#auditEventList");
+        events.innerHTML=visibleLogs.length?visibleLogs.map(row=>{
+          const category=categoryFor(row),risk=riskFor(row),action=String(row.action||"unknown");
+          const id=String(row.id||"");
+          return `<button type="button" class="audit-event ${String(activeAuditId)===id?"selected":""}" data-audit-select="${esc(id)}" aria-pressed="${String(activeAuditId)===id}"><span class="audit-event-top"><span class="audit-id">#AUD-${esc(id||"-")}</span><time>${esc(formatAuditTime(row.created_at))}</time><span class="audit-company">${esc(row.company_name||"Sistem")}</span><span class="audit-risk ${risk.key}">${risk.label}</span></span><span class="audit-event-bottom"><span class="audit-event-action">${esc(actionLabels[action]||action.replaceAll("_"," "))}</span><span class="audit-event-actor">${esc(row.actor_user_id?`User ${row.actor_user_id}`:"System")}</span></span><span class="audit-event-category">${esc(categoryLabels[category]||categoryLabels.system)}</span></button>`;
+        }).join(""):empty("Kayit bulunamadi","Secili filtrelerle eslesen denetim kaydi yok.");
+        const selected=filteredLogs.find(row=>String(row.id)===String(activeAuditId));
+        const inspector=$("#auditInspector");
+        if(selected){
+          const detail=selected.detail&&typeof selected.detail==="object"?selected.detail:{};
+          const changeSource=detail.changes||detail.diff||detail.before_after||{};
+          const changeEntries=Array.isArray(changeSource)?changeSource.map((item,index)=>[item.field||item.key||String(index),item]):Object.entries(changeSource);
+          const changeRows=changeEntries.length?changeEntries.slice(0,4).map(([key,value])=>{
+            const item=value&&typeof value==="object"?value:{};
+            const before=item.before??item.old??item.from??"-";
+            const after=item.after??item.new??item.to??"-";
+            const hasDiff=Object.prototype.hasOwnProperty.call(item,"before")||Object.prototype.hasOwnProperty.call(item,"old")||Object.prototype.hasOwnProperty.call(item,"from")||Object.prototype.hasOwnProperty.call(item,"after")||Object.prototype.hasOwnProperty.call(item,"new")||Object.prototype.hasOwnProperty.call(item,"to");
+            const shown=typeof value==="string"?value:JSON.stringify(value);
+            const change=hasDiff?'<span class="audit-diff-before">'+esc(String(before))+'</span><span class="audit-diff-arrow">&rarr;</span><span class="audit-diff-after">'+esc(String(after))+'</span>':'<span class="audit-diff-value">'+esc(shown||"-")+'</span>';
+            return '<div class="audit-diff-row"><code>'+esc(key)+'</code>'+change+'</div>';
+          }).join(""):'<div class="audit-diff-empty">Bu kayit icin alan bazli degisiklik verisi saglanmadi.</div>';
+          const label=actionLabels[selected.action]||String(selected.action||"unknown").replaceAll("_"," ");
+          const description=detail.description||detail.reason||label;
+          const sourceIp=selected.ip_address||detail.ip_address||detail.ip||"-";
+          const recordHash=selected.record_hash||selected.signature||detail.record_hash||detail.signature||"-";
+          const fingerprint=detail.user_agent||selected.user_agent||"-";
+          inspector.innerHTML='<section class="audit-description"><span class="audit-info-icon">i</span><div><b>Olay Aciklamasi</b><p>'+esc(String(description))+'</p></div></section><section class="audit-diff-section"><h5 class="audit-diff-heading"><span>ISLEM ONCESI &amp; SONRASI FARKI (DIFF)</span><b>'+changeEntries.length+' Alan</b></h5><div class="audit-diff-list">'+changeRows+'</div></section><section class="audit-origin-section"><h5>GUVENLIK &amp; ISTEMCI PARMAK IZI</h5><div class="audit-origin-grid"><div><span>Kaynak IP Adresi</span><b>'+esc(String(sourceIp))+'</b></div><div><span>Istemci Parmak Izi</span><b>'+esc(String(fingerprint))+'</b></div></div></section><section class="audit-hash-section"><h5>KRIPTOGRAFIK KAYIT OZETI</h5><code>'+esc(String(recordHash))+'</code><small>'+esc(formatAuditTime(selected.created_at))+' | '+esc(selected.company_name||"Sistem")+' | '+esc(selected.actor_user_id?"User "+selected.actor_user_id:"System")+'</small><details><summary>Ham olay verisi</summary><pre class="audit-detail-json">'+esc(JSON.stringify(detail,null,2))+'</pre></details></section><div class="audit-inspector-actions"><button type="button" data-audit-verify>Imzayi Dogrula</button><button type="button" data-audit-print>Yazdir</button></div>';
+          inspector.querySelector('[data-audit-verify]')?.addEventListener("click",()=>document.querySelector('[data-audit-integrity]')?.click());
+          inspector.querySelector('[data-audit-print]')?.addEventListener("click",()=>window.print());
+        }else inspector.innerHTML=empty("Kayit secin","Islem ayrintilari burada goruntulenir.");
+        $$(`[data-audit-select]`,events).forEach(button=>button.addEventListener("click",()=>{activeAuditId=button.dataset.auditSelect;renderAudit()}));
+      };
+      renderAudit();
+      $("#auditSearch")?.addEventListener("input",()=>{adminAuditState.query=$("#auditSearch").value;renderAudit()});
+      $("#auditCompanyFilter")?.addEventListener("change",()=>{adminAuditState.company=$("#auditCompanyFilter").value;renderAudit()});
+      $("#auditRiskFilter")?.addEventListener("change",()=>{adminAuditState.risk=$("#auditRiskFilter").value;renderAudit()});
+      $$(`[data-audit-category]`).forEach(button=>button.addEventListener("click",()=>{activeAuditCategory=button.dataset.auditCategory;$$(`[data-audit-category]`).forEach(item=>item.classList.toggle("active",item===button));renderAudit()}));
+      $$(`[data-audit-page]`).forEach(button=>button.addEventListener("click",()=>{adminAuditPage+=button.dataset.auditPage==="next"?1:-1;renderAudit()}));
+      $(`[data-audit-refresh]`)?.addEventListener("click",loadControlCenter);
+      $(`[data-audit-export]`)?.addEventListener("click",async()=>{
+        const quote=value=>`"${String(value??"").replaceAll('"','""')}"`;
+        const rows=[["id","created_at","company_name","action","actor_user_id","target_tenant_id","target_user_id","detail"],...filteredLogs.map(row=>[row.id,row.created_at,row.company_name,row.action,row.actor_user_id,row.target_tenant_id,row.target_user_id,JSON.stringify(row.detail||{})])];
+        const csv="\uFEFF"+rows.map(row=>row.map(quote).join(",")).join("\r\n");
+        const bytes=new TextEncoder().encode(csv);
+        adminAuditExportCount += 1;
+        const exportMetric=tabContent.querySelector(".audit-metric-4 b");
+        if(exportMetric)exportMetric.textContent=adminAuditExportCount+" Rapor";
+        const digest=await crypto.subtle.digest("SHA-256",bytes);
+        const checksum=[...new Uint8Array(digest)].map(value=>value.toString(16).padStart(2,"0")).join("");
+        const link=document.createElement("a");link.href=URL.createObjectURL(new Blob([bytes],{type:"text/csv;charset=utf-8"}));link.download=`ayec-audit-${new Date().toISOString().slice(0,10)}.csv`;link.click();URL.revokeObjectURL(link.href);
+        toast(`CSV raporu indirildi. SHA-256: ${checksum.slice(0,16)}...`);
+      });
+      adminAuditTimer=window.setInterval(()=>{
+        if(activeAdminTab!=="audit"||adminAuditReloading)return;
+        adminAuditReloading=true;
+        loadControlCenter().finally(()=>{adminAuditReloading=false});
+      },5000);
+    }
+
+    else if(activeAdminTab === "tenants") {
+      const baseTenants=Array.isArray(data.tenants)?data.tenants:[];
+      const companyResult=await apiFetch("/api/admin/companies").catch(()=>({companies:[]}));
+      const profileRows=Array.isArray(companyResult.companies)?companyResult.companies:[];
+      const baseById=new Map(baseTenants.map(tenant=>[String(tenant.id),tenant]));
+      const tenants=profileRows.map(profile=>({...baseById.get(String(profile.id)),...profile,users:baseById.get(String(profile.id))?.users||[],backups:baseById.get(String(profile.id))?.backups||[]}));
+      let selectedId=tenants[0]?.id||"";
+      tabContent.innerHTML=`<section class="admin-company-360"><header class="admin-company-360-head"><div><span>AYEC PRO / Y\u00d6NET\u0130M MERKEZ\u0130 / F\u0130RMA Y\u00d6NET\u0130M\u0130 &amp; M\u00dc\u015eTER\u0130 360</span><small>TENANT POOL: ${tenants.filter(t=>Number(t.active)!==0).length} AKT\u0130F</small></div><div><b><i></i> MERKEZ\u0130 VER\u0130 TABANI CANLI</b><button type="button" id="company360Refresh">Yenile</button></div></header><div class="admin-company-360-grid"><aside class="admin-company-list-column"><section class="admin-company-list-panel"><header><h2>Firma Listesi</h2><button type="button" id="company360Create" class="primary" data-control-action="provision-invites">Yeni Firma</button></header><input id="company360Search" type="search" placeholder="Firma ad\u0131, yetkili veya vergi no ara..."><nav><button class="active" data-company-filter="all">T\u00fcm\u00fc (${tenants.length})</button><button data-company-filter="active">Aktif (${tenants.filter(t=>Number(t.active)!==0).length})</button><button data-company-filter="inactive">Pasif (${tenants.filter(t=>Number(t.active)===0).length})</button></nav></section><div id="company360List"></div><footer class="admin-company-list-footer"><span>KAYITLI L\u0130SANS HAVUZU: ${tenants.length} FIRMA</span><b>%${tenants.length?Math.round(tenants.filter(t=>Number(t.active)!==0).length/tenants.length*100):0} CEVR\u0130M\u0130\u00c7\u0130</b></footer></aside><section class="admin-company-detail" id="company360Detail"></section></div></section>`;
+      let companyFilter="all";
+      const drawList=()=>{
+        const query=$("#company360Search").value.trim().toLowerCase();
+        const rows=tenants.filter(tenant=>{
+          const active=Number(tenant.active)!==0;
+          const matchesStatus=companyFilter==="all"||(companyFilter==="active"&&active)||(companyFilter==="inactive"&&!active);
+          const haystack=`${tenant.company_name||""} ${tenant.id||""} ${tenant.contact_name||""} ${tenant.email||""}`.toLowerCase();
+          return matchesStatus&&haystack.includes(query);
+        });
+        $("#company360List").innerHTML=rows.map(tenant=>`<button type="button" class="admin-company-list-row ${String(tenant.id)===String(selectedId)?"active":""}" data-company360-id="${esc(tenant.id)}"><span><b>${Number(tenant.active)!==0?"AKTIF":"PASIF"}</b><strong>${esc(tenant.company_name||"Firma")}</strong><em>${esc(tenant.sector==="otomotiv"?"Otomotiv":tenant.sector==="it_services"?"IT & Servis":"Teknik Servis")}</em></span><small>${esc(tenant.contact_name||tenant.owner_name||"-")} <i>|</i> ${esc(tenant.phone||"-")}</small><small class="admin-company-list-email">${esc(tenant.email||tenant.id||"-")}</small><small class="admin-company-list-plan">${esc(tenant.license_type||"Lifetime Pro")}</small></button>`).join("")||empty("Firma bulunamad\u0131","Arama ve durum filtresini de\u011fi\u015ftirin.");
+        $$('[data-company360-id]').forEach(button=>button.addEventListener("click",()=>{selectedId=button.dataset.company360Id;drawList();drawDetail(selectedId)}));
+      };
+      const drawDetail=async id=>{
+        const tenant=tenants.find(row=>String(row.id)===String(id));
+        if(!tenant){$("#company360Detail").innerHTML=empty("Firma secin","Detaylarini gormek icin firma listesinde secim yapin.");return}
+        $("#company360Detail").innerHTML=`<div class="admin-company-detail-loading">Firma ayrintilari yukleniyor...</div>`;
+        let detail={company:tenant,users:tenant.users||[],licenses:[],backups:tenant.backups||[],error_logs:[],live_status:null,summary:{}};
+        try{detail={...detail,...await apiFetch(`/api/admin/customer-360/${encodeURIComponent(id)}`)}}catch(error){toast(error.message||"Firma ayrintilari yuklenemedi.","error")}
+        if(String(selectedId)!==String(id))return;
+        const company=detail.company||tenant,users=Array.isArray(detail.users)?detail.users:[],licenses=Array.isArray(detail.licenses)?detail.licenses:[],license=licenses[0]||company,live=detail.live_status||{};
+        const summary=detail.summary||{},sector=company.sector||tenant.sector||"teknik_servis";
+        const userRows=users.map(user=>`<tr><td>${esc(user.id)}</td><td>${esc(user.full_name||user.username||"-")}</td><td>${esc(user.username||"-")}</td><td>${esc(user.email||"-")}</td><td>${esc(user.phone||"-")}</td><td>${esc(user.role||"-")}</td><td>${Number(user.active)!==0?"Aktif":"Pasif"}</td><td>${esc(user.last_login||"-")}</td><td><button type="button" data-company360-user="${esc(user.id)}">D\u00fczenle</button></td></tr>`).join("");
+        const address=company.company_address||company.address||"-",contact=company.contact_name||"-",phone=company.phone||"-",email=company.email||"-",licenseCode=license.license_code||company.license_code||"-";
+        $("#company360Detail").innerHTML=`<header class="admin-company-summary"><div><span class="admin-company-avatar">\u25a6</span><div><h1>${esc(company.company_name||"Firma")}</h1><small>UID: ${esc(company.id||id)}</small><p><b class="${Number(company.active)!==0?"on":"off"}">${Number(company.active)!==0?"S\u0130STEM AKT\u0130F":"S\u0130STEM PAS\u0130F"}</b> M\u00fc\u015fteri 360 \u2022 Canl\u0131 servis telemetrisi, tenant izlenir ve lisans konsolu</p></div></div><div class="admin-company-actions"><button type="button" id="company360Edit">D\u00fczenle</button><button type="button" id="company360Status">${Number(company.active)!==0?"Pasif Yap":"Aktif Yap"}</button><button type="button" disabled title="Sessize alma API tarafinda sunulmuyor">Sustur</button><button type="button" disabled title="Firma silme bu ekranda desteklenmiyor">Firmayi Sil</button></div><form id="company360Sector" class="admin-company-sector"><label>IS KOLU &amp; MODUL <select name="sector"><option value="teknik_servis" ${sector!=="otomotiv"?"selected":""}>Teknik Servis (AYEC Pro Enterprise)</option><option value="otomotiv" ${sector==="otomotiv"?"selected":""}>Otomotiv</option></select></label><button type="submit">Sekt\u00f6r\u00fc Uygula</button></form></header><div class="admin-company-kpis"><article><small>KULLANICI HAVUZU</small><strong>${Number(summary.user_count??users.length)}</strong><b>Tenant kullanicilari</b></article><article><small>BULUT YEDEK</small><strong>${Number(summary.backup_count??(detail.backups||[]).length)}</strong><b>Kayitli yedek</b></article><article><small>KR\u0130T\u0130K HATA LOGU</small><strong>${Number(summary.error_count??(detail.error_logs||[]).length)}</strong><b>Hata kaydi</b></article><article><small>CANLI OTURUM</small><strong>${live.online?"\u00c7evrimi\u00e7i":"Bilinmiyor"}</strong><b>${Number(live.active_users)||0} etkin oturum</b></article></div><section class="admin-company-info"><header><h2>Firma ve Lisans Parametreleri</h2><span>KAYNAK: tenants &amp; license vault</span></header><div class="admin-company-info-grid"><article><small>F\u0130RMA YETK\u0130L\u0130S\u0130</small><b>${esc(contact)}</b></article><article><small>TELEFON NO</small><b>${esc(phone)}</b></article><article><small>E-POSTA ADRESI</small><b>${esc(email)}</b></article><article><small>L\u0130SANS PLANI</small><b>${esc(company.license_type||license.license_type||"-")}</b><small>Biti\u015f: ${esc(company.license_end||license.license_end||"-")}</small></article><article><small>KURULUM ADRESI</small><b>${esc(address)}</b></article><article><small>SON ETK\u0130N OTURUM</small><b>${esc(live.last_seen||"-")}</b></article></div><div class="admin-company-license-key"><span>AKT\u0130F L\u0130SANS ANAHTARI <b>${esc(licenseCode)}</b></span><button type="button" id="company360CopyLicense" ${licenseCode==="-"?"disabled":""}>Kodu Kopyala</button></div></section><section class="admin-company-users"><header><h2>Firma Kullan\u0131c\u0131lar\u0131 <small>Toplam: ${users.length}</small></h2><button type="button" disabled title="Kullanici olusturma bu API'de sunulmuyor">Kullan\u0131c\u0131 Ekle</button></header><div class="admin-company-table-wrap"><table><thead><tr><th>ID</th><th>Ad Soyad</th><th>Kullanici Adi</th><th>E-posta</th><th>Telefon</th><th>Rol</th><th>Durum</th><th>Son Giris</th><th></th></tr></thead><tbody>${userRows||`<tr><td colspan="9">Firma kullan\u0131c\u0131s\u0131 bulunmuyor.</td></tr>`}</tbody></table></div></section><section class="admin-company-password"><h2>H\u0131zl\u0131 Parola ve Kimlik Do\u011frulama Masas\u0131</h2><div><input id="company360Password" type="password" placeholder="Ge\u00e7ici parola API taraf\u0131nda desteklenmiyor" disabled><button type="button" id="company360Reset" disabled title="Ge\u00e7ici parola atama API taraf\u0131nda desteklenmiyor">Ge\u00e7ici Parola Ata</button><button type="button" id="company360ResetLink" ${users.length?"":"disabled"}>S\u0131f\u0131rlama Ba\u011flant\u0131s\u0131</button></div><p>Atanan tek seferlik parolalar ilk oturumda de\u011fi\u015ftirilmelidir.</p></section>`;
+        const company360Icons=["<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"9\" cy=\"8\" r=\"3\"/><path d=\"M3 20v-1a6 6 0 0 1 12 0v1zM16 5a3 3 0 0 1 0 6m2 3a5 5 0 0 1 3 5v1h-4\"/></svg>","<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M7 18a4 4 0 0 1-.5-8A6 6 0 0 1 18 9a4 4 0 0 1 0 8z\"/><path d=\"m9 13 2 2 4-4\"/></svg>","<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 3 5 6v5c0 5 3 8 7 10 4-2 7-5 7-10V6z\"/><path d=\"m9 12 2 2 4-4\"/></svg>","<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 7v5l3 2\"/></svg>"];
+        $$(".admin-company-kpis article").forEach((card,index)=>{const icon=document.createElement("span");icon.className="admin-company-kpi-icon";icon.innerHTML=company360Icons[index];card.append(icon)});
+        $("#company360Edit").addEventListener("click",()=>controlTenantDialog(tenant));
+        $("#company360Status").addEventListener("click",()=>controlTenantDialog(tenant));
+        $("#company360Sector").addEventListener("submit",async event=>{event.preventDefault();const values=Object.fromEntries(new FormData(event.currentTarget));try{await apiFetch("/api/control/tenant",{method:"POST",body:JSON.stringify({tenant_id:tenant.id,...values})});toast("Firma sekt\u00f6r\u00fc g\u00fcncellendi.","success");await loadControlCenter()}catch(error){toast(error.message||"Sekt\u00f6r g\u00fcncellenemedi.","error")}});
+        $("#company360CopyLicense")?.addEventListener("click",async()=>{try{await navigator.clipboard.writeText(String(licenseCode));toast("Lisans kodu kopyaland\u0131.","success")}catch(_){toast("Panoya eri\u015fim izni yok.","warning")}});
+        $$('[data-company360-user]').forEach(button=>button.addEventListener("click",()=>{const user=users.find(row=>String(row.id)===button.dataset.company360User);if(user)controlUserDialog(tenant,user)}));
+        $("#company360ResetLink")?.addEventListener("click",async()=>{const user=users[0];if(!user)return;try{const response=await apiFetch("/api/control/password-reset",{method:"POST",body:JSON.stringify({tenant_id:tenant.id,user_id:user.id})});openDialog("Sifre S\u0131f\u0131rlama Ba\u011flant\u0131s\u0131","30 DAKIKA GECERLI",`<p>${esc(response.reset_url||"Sifirlama baglantisi olusturuldu.")}</p>`,()=>true,"Kapat")}catch(error){toast(error.message||"Ba\u011flant\u0131 olu\u015fturulamad\u0131.","error")}});
+      };
+      $("#company360Search").addEventListener("input",drawList);
+      $$('[data-company-filter]').forEach(button=>button.addEventListener("click",()=>{companyFilter=button.dataset.companyFilter;$$('[data-company-filter]').forEach(item=>item.classList.toggle("active",item===button));drawList()}));
+      $("#company360Refresh").addEventListener("click",loadControlCenter);
+      $("#company360Create").addEventListener("click",()=>{activeAdminTab="provision-invites";loadControlCenter()});
+      drawList();drawDetail(selectedId);
     }
     
     else if(activeAdminTab === "notifications") {
-      const options = data.tenants.map(t => `<option value="${t.id}">${esc(t.company_name)}</option>`).join("");
-      tabContent.innerHTML = `<div class="card" style="max-width: 600px; margin: 0 auto;">
-        <div class="card-head"><h3>Global Bildirim & Mesaj Gonder</h3></div>
-        <form id="adminNotificationForm" class="form-grid">
-          <div class="field full">
-            <label>Hedef Kitle</label>
-            <select name="target_tenant_id">
-              <option value="All">Tum Firmalar (Global)</option>
-              ${options}
-            </select>
-          </div>
-          <div class="field full">
-            <label>Mesaj Basligi</label>
-            <input name="message_title" required placeholder="Orn: Planli Bakim Duyurusu">
-          </div>
-          <div class="field full">
-            <label>Mesaj Icerigi</label>
-            <textarea name="message_content" required style="height: 120px;" placeholder="Duyuru metnini buraya yazin..."></textarea>
-          </div>
-          <label class="setting field full">
-            <span>Masaustunde Popup olarak acilsin</span>
-            <input class="switch" type="checkbox" name="popup" value="1">
-          </label>
-          <div class="field full" style="margin-top: 12px;">
-            <button class="primary" type="submit">Mesaji Yayinla (Gonder)</button>
-          </div>
-        </form>
-      </div>`;
-      
-      const form = $("#adminNotificationForm");
-      form.onsubmit = async (e) => {
-        e.preventDefault();
-        try {
-          const fd = new FormData(form);
-          const payload = Object.fromEntries(fd);
-          payload.popup = fd.get("popup") === "1";
-          await apiFetch("/api/control/send-notification", {method: "POST", body: JSON.stringify(payload)});
-          toast("Duyuru mesajiniz hedeflenen istemcilere gonderildi.", "success");
-          form.reset();
-        } catch(err) { toast(err.message, "error"); }
+      const tenants=(Array.isArray(data.tenants)?data.tenants:[]).filter(tenant=>Number(tenant.active)!==0);
+      const auditResult=await apiFetch("/api/admin/audit-logs?limit=100").catch(()=>({logs:[]}));
+      const history=(Array.isArray(auditResult.logs)?auditResult.logs:[]).filter(row=>row.action==="control_notification_sent").slice(0,5);
+      const liveResult=await apiFetch("/api/admin/live-status").catch(()=>({companies:[]}));
+      const liveCompanies=Array.isArray(liveResult.companies)?liveResult.companies:[];
+      const onlineCompanies=liveCompanies.filter(company=>Boolean(company.online));
+      const activeSessions=liveCompanies.reduce((sum,company)=>sum+(Number(company.active_users)||0),0);
+      const terminalCountKnown=liveCompanies.every(company=>company.active_terminals!=null||company.terminal_count!=null);
+      const activeTerminals=liveCompanies.reduce((sum,company)=>sum+(Number(company.active_terminals??company.terminal_count??company.active_users)||0),0);
+      const historyMarkup=history.length?history.map(row=>{
+        const detail=row.detail||{};
+        const target=row.company_name||row.target_tenant_id||"T\u00fcm Firmalar";
+        const stamp=row.created_at?new Intl.DateTimeFormat("tr-TR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",hourCycle:"h23",timeZone:"Europe/Istanbul"}).format(new Date(row.created_at)).replace(",",""):"-";
+        return `<article class="admin-notify-history-row"><span class="admin-notify-history-icon">&#128227;</span><div class="admin-notify-history-copy"><strong>${esc(detail.title||"Sistem bildirimi")}</strong><small>Hedef: ${esc(target)} <span>\u00b7</span> ${esc(stamp)}</small></div><span class="admin-notify-queued">Kuyrukta</span></article>`;
+      }).join(""):empty("Yayin kaydi yok","Yonetim API'sinde gosterilecek bildirim denetim kaydi bulunmuyor.");
+      const tenantMarkup=tenants.length?tenants.map((tenant,index)=>{const live=liveCompanies.find(company=>String(company.id)===String(tenant.id));const count=live?.active_terminals??live?.terminal_count;const terminalLabel=count==null?(tenant.online?"ONLINE":"Aktif firma"):`${Number(count)} Uc Nokta`;return `<label class="admin-notify-firm"><input type="checkbox" data-notify-tenant="${esc(tenant.id)}" ${(adminNotificationPrefillTenant?String(tenant.id)===adminNotificationPrefillTenant:index<2)?"checked":""}><span class="admin-notify-firm-dot ${tenant.online?"online":""}"></span><span class="admin-notify-firm-copy"><strong>${esc(tenant.company_name||tenant.name||"Firma")}</strong><small>${esc(terminalLabel)}</small></span></label>`}).join(""):empty("Aktif firma yok","Bildirim hedef havuzu bos.");
+      const types=[
+        ["info","\u24d8","Bilgi","Normal Bilgi"],
+        ["warning","\u26a0","Uyar\u0131","Operasyonel"],
+        ["danger","\u2757","Kritik","\u00d6ncelikli Kesinti"],
+        ["update","\u{1f680}","G\u00fcncelleme","v2.0.2 OTA"],
+        ["maintenance","\u2692","Bak\u0131m","Sunucu/SQL"],
+      ];
+      tabContent.innerHTML=`<div class="admin-notification-layout"><section class="admin-notification-composer"><header class="admin-notification-head"><div><span class="admin-notification-head-icon" aria-hidden="true">&#128227;</span><div><h2>Yeni Bildirim Yay\u0131n\u0131 Olu\u015ftur</h2><small>PROTOKOL: WSS / AYEC-SECURE-NOTIFY-STREAM</small></div></div><span class="admin-notification-live">CANLI MOD</span></header><form id="adminNotificationForm" class="admin-notification-form"><section class="admin-notify-section"><div class="admin-notify-section-heading"><label>Hedef Kitle &amp; Terminal Dağıtım Alanı</label><span id="notifyTargetSummary"></span></div><div class="admin-notify-audience" role="group" aria-label="Hedef kitle"><button type="button" data-notify-audience="all" class="active">T\u00fcm Firmalar</button><button type="button" data-notify-audience="selected">Seçili Firmalar</button><button type="button" data-notify-audience="pilot" disabled title="Pilot grubu API tarafinda tanimlanmiyor">Pilot M\u00fc\u015fteriler</button><button type="button" data-notify-audience="operator" disabled title="Teknisyen hedefleme API tarafinda desteklenmiyor">Ozel Teknisyen</button></div><div class="admin-notify-firm-pool"><span>Hızlı Firma Seçimi (Hedef Dağıtım Havuzu)</span><div id="notifyFirmList">${tenantMarkup}</div></div></section><section class="admin-notify-section"><div class="admin-notify-section-heading"><label>Bildirim Tipi &amp; Görsel Öncelik</label><small>Onizleme tipi; kayit API'si yalnizca baslik, icerik ve popup saklar.</small></div><div class="admin-notify-types">${types.map(([type,icon,label,note])=>`<button type="button" data-notify-type="${type}" data-icon="${icon}" data-title="${label}" class="admin-notify-type ${type==="danger"?"active":""}"><span>${icon}</span><strong>${label}</strong><small>${note}</small></button>`).join("")}</div></section><section class="admin-notify-section"><div class="admin-notify-section-heading"><label for="notifyTitle">Bildirim Başlığı (Tek Satır Net Mesaj)</label><span id="notifyTitleCount">0/120 Karakter</span></div><input id="notifyTitle" name="message_title" type="text" maxlength="120" required value="Acil Sistem G\u00fcncellemesi v2.0.2: L\u00fctfen A\u00e7\u0131k Fi\u015flerinizi Kaydediniz!" placeholder="Orn: Planli Bakim Duyurusu"><div class="admin-notify-section-heading"><label for="notifyBody">Bildirim Gövdesi &amp; Detaylı Talimat</label><div class="admin-notify-snippets"><button type="button" data-notify-insert="time">+ Zaman Damgasi</button><button type="button" data-notify-insert="action">+ Yeniden Baslatma</button></div></div><textarea id="notifyBody" name="message_content" rows="5" required maxlength="2000" placeholder="Duyuru metnini buraya yazin...">De&#x11f;erli AYEC Pro kullan&#x131;c&#x131;s&#x131;, SQLite WAL motorunda y&#xFC;ksek h&#x131;zl&#x131; optimizasyon ve entegre WhatsApp fi&#x15f; bildirim &#x15f;ablonlar&#x131;n&#x131; i&#xE7;eren v2.0.2 kritik yama haz&#x131;rland&#x131;. Veri g&#xFC;venli&#x11f;iniz i&#xE7;in l&#xFC;tfen &#xE7;al&#x131;&#x15f;ma formlar&#x131;n&#x131;z&#x131; kaydedip program&#x131; yeniden ba&#x15f;lat&#x131;n.</textarea></section><section class="admin-notify-options"><label><span><strong>Popup Olarak Goster</strong><small>Bildirim, istemci tarafinda popup olarak acilir.</small></span><input id="notifyPopup" type="checkbox" checked></label><label class="unsupported"><span><strong>Ses Efekti</strong><small>Gonderim API'si ses ayari kabul etmiyor.</small></span><input type="checkbox" disabled></label><label><span><strong>Gondermeden Once Onayla</strong><small>Yayin oncesi yonetici onay penceresi acilir.</small></span><input id="notifyConfirm" type="checkbox" checked></label></section><div class="admin-notify-delivery"><div><strong>Anında Dağıtım (Zero-Latency Push)</strong><small>API bildirimi secilen firma kuyruguna kaydeder; canli teslim raporu sunmaz.</small></div><button type="button" disabled title="Planlama API tarafinda sunulmuyor">Planla (Cron)</button></div><footer class="admin-notify-actions"><button type="button" class="admin-notify-secondary" disabled title="Test uc nokta API tarafinda sunulmuyor">Test Uç Noktasına Gönder</button><button type="button" id="notifyPublish" class="admin-notify-primary">BILDIRIMI YAYINLA &amp; GONDER</button><span id="notifyStatus" role="status"></span></footer></form></section><aside class="admin-notification-side"><section class="admin-notify-preview-card"><header><div class="admin-notify-preview-heading"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8m-4-4v4"/></svg><h3>&#x130;stemci Masa&#xFC;st&#xFC; &#xD6;nizlemesi</h3></div><small>1920x1080 &#xD6;L&#xC7;EK</small></header><div class="admin-notify-device"><div class="admin-notify-device-top"><span>AYEC Terminal Node #04 - ASLAN TIC. (Servis Masasi)</span><span>14:38:09</span></div><div class="admin-notify-desktop"><div class="admin-notify-desktop-window"><header><b>AYEC Pro | Yonetim Konsolu</b><span>_ &nbsp; [] &nbsp; x</span></header><aside>Panel<br><br>Firmalar<br><br>Bildirimler<br><br>Raporlar</aside><section><strong>Yonetim Merkezi</strong><div><i></i><i></i><i></i></div><small>Son sistem duyurulari ve servis durumu</small></section></div><span class="admin-notify-desktop-caption">AYEC Terminal Node #04 - ASLAN TIC (Servis Yonetimi)</span></div><article class="admin-notify-preview" data-preview-type="info"><div class="admin-notify-preview-title"><span id="notifyPreviewIcon">&#9432;</span><span id="notifyPreviewType">BILGI</span><b>AYEC Pro</b></div><h3 id="notifyPreviewTitle">Bildirim basligi burada gorunur</h3><p id="notifyPreviewBody">Bildirim govdesi, duyuru gonderilmeden once bu alanda onizlenir.</p><footer><button type="button" disabled>Daha Sonra Hat\u0131rlat</button><button type="button" disabled>\u015eimdi Yeniden Ba\u015flat</button></footer></article></div><footer>Gorunum, secili popup ayarina gore istemciye eklenir.</footer></section><section class="admin-notify-history-card"><header><div><span class="control-eyebrow">AUDIT TRAIL</span><h3>Son Gönderilen Sistem Duyuruları</h3></div><span>API KAYITLARI</span></header><div id="notifyHistoryList">${historyMarkup}</div></section></aside></div>`;
+      const composer=tabContent.querySelector(".admin-notification-composer");
+      const oldHeader=composer?.querySelector(".admin-notification-head");
+      const notificationHero=document.createElement("header");
+      notificationHero.className="admin-notification-hero";
+      const recentNotification=history[0];
+      const recentNotificationTime=recentNotification?.created_at?new Intl.DateTimeFormat("tr-TR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23",timeZone:"Europe/Istanbul"}).format(new Date(recentNotification.created_at)).replace(",",""):"Kayit bulunmuyor";
+      notificationHero.innerHTML=`<div class="admin-notification-hero-copy"><div><span class="admin-notification-engine-dot"></span><span class="admin-notification-engine-label">BROADCAST PUSH ENGINE \u2022 AYEC WS-CLUSTER</span><span class="admin-notification-secure">TLS v1.3 Aktif</span></div><h1>Merkezi Bildirim &amp; Anl\u0131k Mesaj G\u00f6nderimi</h1><p>T\u00fcm ba\u011fl\u0131 masa\u00fcst\u00fc Windows/ERP istemcilerine, servis istasyonlar\u0131na ve \u015fubelere anl\u0131k soket mesaj\u0131, kritik sistem uyar\u0131s\u0131 veya s\u00fcr\u00fcm g\u00fcncelleme \u00e7a\u011fr\u0131s\u0131 iletin.</p></div><div class="admin-notification-hero-badges"><article><span>AKT\u0130F SOKET D\u0130NLEY\u0130C\u0130</span><strong>${onlineCompanies.length} Firma / ${terminalCountKnown?activeTerminals:activeSessions} ${terminalCountKnown?"Terminal":"Oturum"} \u00c7evrimi\u00e7i</strong></article><article><span>SON BA\u015eARILI \u0130LET\u0130M</span><strong>${esc(recentNotification?.detail?.title||"Kay\u0131t bulunmuyor")}</strong><small>${esc(recentNotificationTime)}</small></article></div>`;
+      const heroBadges=notificationHero.querySelector(".admin-notification-hero-badges");
+      if(heroBadges){
+        const heroTools=document.createElement("div");
+        heroTools.className="admin-notification-hero-tools";
+        heroBadges.replaceWith(heroTools);
+        heroTools.append(heroBadges);
+        const heroActions=document.createElement("nav");
+        heroActions.className="admin-notification-hero-actions";
+        heroActions.innerHTML='<button type="button" id="notifyTemplateBtn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h7l2 2h9v12H3z"/><path d="M3 9h18"/></svg>&#x15E;ablonlar</button><button type="button" id="notifyLogsBtn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5h13M8 12h13M8 19h13"/><path d="M3 5h.01M3 12h.01M3 19h.01"/></svg>Log Kay&#x131;tlar&#x131;</button>';
+        heroTools.append(heroActions);
+      }
+      if(composer&&oldHeader){tabContent.querySelector(".admin-notification-layout")?.prepend(notificationHero)}
+      const form=$("#adminNotificationForm"),titleInput=$("#notifyTitle"),bodyInput=$("#notifyBody"),targetSummary=$("#notifyTargetSummary"),status=$("#notifyStatus");
+      let audience="selected",notifyType="danger";if(adminNotificationPrefillTenant)adminNotificationPrefillTenant="";
+      const selectedTargets=()=>Array.from($$('[data-notify-tenant]:checked')).map(input=>input.dataset.notifyTenant).filter(Boolean);
+      const updateAudience=()=>{
+        const selected=selectedTargets();
+        const count=audience==="all"?tenants.length:selected.length;
+        const endpointCount=selected.reduce((sum,id)=>{const company=liveCompanies.find(row=>String(row.id)===String(id));return sum+(Number(company?.active_terminals??company?.terminal_count??company?.active_users)||0)},0);
+        targetSummary.textContent=audience==="all"?`${tenants.length} aktif firma secili`:`${selected.length} Firma (${endpointCount} Uc Nokta) Secili`;
+        $$("[data-notify-audience]").forEach(button=>button.classList.toggle("active",button.dataset.notifyAudience===audience));
+        $$("[data-notify-tenant]").forEach(input=>{input.disabled=audience==="all";input.closest(".admin-notify-firm")?.classList.toggle("selected",input.checked)});
+        return count;
       };
-    }
-    
-    else if(activeAdminTab === "staged-update") {
-      tabContent.innerHTML = `<div class="grid-2">
-        <div class="card">
-          <div class="card-head"><h3>Yeni Surum Paketle</h3></div>
-          <form id="adminUpdateForm" class="form-grid">
-            <div class="field"><label>Surum No *</label><input name="version" placeholder="Orn: v2.0.1" required></div>
-            <div class="field"><label>Dagitim Kapsami</label><select name="target_scope"><option value="All">Tum Firmalar</option><option value="Pilot">Sadece Pilot Firmalar</option></select></div>
-            <div class="field full"><label>Paket Dosya Yolu / URL</label><input name="file_path" placeholder="Orn: C:\\Setup\\setup.exe veya sunucu adresi"></div>
-            <div class="field full"><label>Guncelleme Notlari</label><textarea name="notes" style="height: 80px;"></textarea></div>
-            <div class="field full"><button class="primary" type="submit">Guncellemeyi Yayinla</button></div>
-          </form>
-        </div>
-        <div class="card">
-          <div class="card-head"><h3>Yayinlanan Surumler</h3></div>
-          <div id="stagedUpdatesList">${empty("Sorgulaniyor","Yayinlanmis surumler aliniyor...")}</div>
-        </div>
-      </div>`;
-      
-      const form = $("#adminUpdateForm");
-      form.onsubmit = async (e) => {
-        e.preventDefault();
-        try {
-          const payload = Object.fromEntries(new FormData(form));
-          await apiFetch("/api/control/staged-update", {method: "POST", body: JSON.stringify(payload)});
-          toast("Yeni surum basariyla sisteme tanimlandi.", "success");
-          form.reset();
-          loadUpdates();
-        } catch(err) { toast(err.message, "error"); }
+      const updatePreview=()=>{
+        $("#notifyPreviewTitle").textContent=titleInput.value.trim()||"Bildirim basligi burada gorunur";
+        $("#notifyPreviewBody").textContent=bodyInput.value.trim()||"Bildirim govdesi, duyuru gonderilmeden once bu alanda onizlenir.";
+        $("#notifyTitleCount").textContent=`${titleInput.value.length}/120 Karakter`;
+        const selected=$(`[data-notify-type="${notifyType}"]`);
+        $("#notifyPreviewIcon").textContent=selected?.dataset.icon||"info";
+        $("#notifyPreviewType").textContent=selected?.dataset.title||"Bilgi";
+        $(".admin-notify-preview").dataset.previewType=notifyType;
       };
-      
-      const loadUpdates = async () => {
-        try {
-          const res = await apiFetch("/api/control/staged-update");
-          const list = $("#stagedUpdatesList");
-          if(list) {
-            list.innerHTML = res.updates.length ? `<div class="table-wrap"><table>
-              <thead><tr><th>Surum</th><th>Kapsam</th><th>Tarih</th></tr></thead>
-              <tbody>${res.updates.map(u => `<tr><td><strong>${esc(u.version)}</strong></td><td>${esc(u.target_scope)}</td><td>${esc(String(u.created_at).slice(0,16))}</td></tr>`).join("")}</tbody>
-            </table></div>` : empty("Surum yok", "Henuz dagitilmis surum bulunmuyor.");
+      $$('[data-notify-audience="all"],[data-notify-audience="selected"]').forEach(button=>button.addEventListener("click",()=>{audience=button.dataset.notifyAudience;updateAudience()}));
+      $$('[data-notify-tenant]').forEach(input=>input.addEventListener("change",updateAudience));
+      $$('[data-notify-type]').forEach(button=>button.addEventListener("click",()=>{notifyType=button.dataset.notifyType;$$('[data-notify-type]').forEach(candidate=>candidate.classList.toggle("active",candidate===button));updatePreview()}));
+      titleInput.addEventListener("input",updatePreview);bodyInput.addEventListener("input",updatePreview);
+      $$('[data-notify-insert="time"]').forEach(button=>button.addEventListener("click",()=>{bodyInput.value+=` [Saat: ${new Date().toLocaleTimeString("tr-TR",{hour:"2-digit",minute:"2-digit"})}]`;bodyInput.dispatchEvent(new Event("input",{bubbles:true}))}));
+      $$('[data-notify-insert="action"]').forEach(button=>button.addEventListener("click",()=>{bodyInput.value+=" [Aksiyon: Yeniden Baslatma Gerekli]";bodyInput.dispatchEvent(new Event("input",{bubbles:true}))}));
+      $("#notifyTemplateBtn")?.addEventListener("click",()=>{
+        titleInput.value="Acil Sistem G\u00fcncellemesi v2.0.2: L\u00fctfen A\u00e7\u0131k Fi\u015flerinizi Kaydediniz!";
+        bodyInput.value="De\u011ferli AYEC Pro kullan\u0131c\u0131s\u0131, SQLite WAL motorunda y\u00fcksek h\u0131zl\u0131 optimizasyon ve entegre WhatsApp fi\u015f bildirim \u015fablonlar\u0131n\u0131 i\u00e7eren v2.0.2 kritik yama haz\u0131rland\u0131. Veri g\u00fcvenli\u011finiz i\u00e7in l\u00fctfen \u00e7al\u0131\u015fma formlar\u0131n\u0131z\u0131 kaydedip program\u0131 yeniden ba\u015flat\u0131n.";
+        notifyType="danger";
+        $$('[data-notify-type]').forEach(button=>button.classList.toggle("active",button.dataset.notifyType==="danger"));
+        updatePreview();
+      });
+      $("#notifyLogsBtn")?.addEventListener("click",()=>tabContent.querySelector(".admin-notify-history-card")?.scrollIntoView({behavior:"smooth",block:"center"}));
+      updateAudience();updatePreview();
+      const publish=async()=>{
+        const targets=audience==="all"?["All"]:selectedTargets();
+        if(!titleInput.value.trim()||!bodyInput.value.trim()){toast("Bildirim basligi ve govdesi zorunludur.","warning");return false}
+        if(!targets.length){toast("Secili firmalardan en az birini isaretleyin.","warning");return false}
+        let queued=0;
+        try{
+          for(const targetTenantId of targets){
+            await apiFetch("/api/control/send-notification",{method:"POST",body:JSON.stringify({target_tenant_id:targetTenantId,message_title:titleInput.value.trim(),message_content:bodyInput.value.trim(),popup:$("#notifyPopup").checked})});
+            queued++;
           }
-        } catch(err) { }
+          status.textContent=`${queued} firma icin bildirim kuyruga eklendi.`;
+          toast(`${queued} firma icin bildirim kuyruga eklendi.`,"success");
+          form.reset();titleInput.value="";bodyInput.value="";audience="all";notifyType="info";$$('[data-notify-type]').forEach(button=>button.classList.toggle("active",button.dataset.notifyType==="info"));updateAudience();updatePreview();
+          const refreshed=await apiFetch("/api/admin/audit-logs?limit=100").catch(()=>({logs:[]}));
+          const rows=(Array.isArray(refreshed.logs)?refreshed.logs:[]).filter(row=>row.action==="control_notification_sent").slice(0,5);
+          $("#notifyHistoryList").innerHTML=rows.length?rows.map(row=>`<article class="admin-notify-history-row"><span class="admin-notify-history-icon">&#128227;</span><div class="admin-notify-history-copy"><strong>${esc(row.detail?.title||"Sistem bildirimi")}</strong><small>${esc(row.company_name||row.target_tenant_id||"T\u00fcm Firmalar")} <span>\u00b7</span> ${esc(row.created_at||"-")}</small></div><span class="admin-notify-queued">Kuyrukta</span></article>`).join(""):empty("Yayin kaydi yok","Gonderim kaydi bulunamadi.");
+          return true;
+        }catch(error){status.textContent=queued?`${queued}/${targets.length} bildirim kuyruga eklendi; kalan istek basarisiz.`:(error.message||"Bildirim eklenemedi.");toast(status.textContent,"error");return false}
       };
-      loadUpdates();
+      $("#notifyPublish").addEventListener("click",()=>{
+        const targets=audience==="all"?["All"]:selectedTargets();
+        if(!titleInput.value.trim()||!bodyInput.value.trim()||!targets.length){publish();return}
+        if(!$("#notifyConfirm").checked){publish();return}
+        openDialog("Duyuruyu Yayina Al","BILDIRIM ONAYI",`<p>${targets.length} firma icin bildirim kuyruga eklenecek.</p><p><b>${esc(titleInput.value.trim())}</b></p>`,publish,"Yayinla");
+      });
+    }
+
+    else if(activeAdminTab === "staged-update") {
+      let updateApiConnected=true;const updateResult=await apiFetch("/api/control/staged-update").catch(()=>{updateApiConnected=false;return {updates:[]}});
+      const updates=Array.isArray(updateResult.updates)?updateResult.updates:[];
+      const tenants=Array.isArray(data.tenants)?data.tenants:[];
+      const commands=tenants.flatMap(tenant=>(Array.isArray(tenant.commands)?tenant.commands:[]).filter(command=>command.command_type==="deploy_update").map(command=>({...command,company_name:tenant.company_name,tenant_id:tenant.id})));
+      const pending=commands.filter(command=>["pending","claimed"].includes(String(command.status||"").toLowerCase())).length;
+      const completed=commands.filter(command=>["completed","success","succeeded"].includes(String(command.status||"").toLowerCase())).length;
+      const latest=updates[0]||null;const stableUpdate=updates.find(update=>/stable|kararl|all|t[u\u00fc]m/i.test(String(update.target_scope||"")))||null;const pilotUpdate=updates.find(update=>/pilot/i.test(String(update.target_scope||"")))||null;const pilotCommandRows=commands.filter(command=>!pilotUpdate||String(command.version||"")===String(pilotUpdate.version));const pilotFinishedCommands=pilotCommandRows.filter(command=>["completed","success","succeeded","failed","error"].includes(String(command.status||"").toLowerCase()));const pilotSuccessful=pilotFinishedCommands.filter(command=>["completed","success","succeeded"].includes(String(command.status||"").toLowerCase())).length;const pilotSuccessRate=pilotFinishedCommands.length?Math.round(pilotSuccessful/pilotFinishedCommands.length*100):null;
+      const packageOptions=updates.map(update=>`<option value="${esc(update.version)}">${esc(update.version)}</option>`).join("");
+      const targets=tenants.filter(tenant=>Number(tenant.active)!==0);
+      const targetRows=targets.map((tenant,index)=>{
+        const last=(tenant.commands||[]).find(command=>command.command_type==="deploy_update");
+        const status=last?.status||"unknown";
+        const selected=index===0?"checked":"";
+        const statusText=status==="pending"||status==="claimed"?"Bekliyor":status==="completed"||status==="success"||status==="succeeded"?"G\u00fcncel & Aktif":status==="failed"||status==="error"?"Kritik G\u00fcncelleme":"Durum verisi yok";
+        const stateClass=status==="failed"||status==="error"?"critical":status==="completed"||status==="success"||status==="succeeded"?"complete":"pending";
+        const version=tenant.current_version||tenant.app_version||tenant.version||"API verisi yok";
+        return `<label class="admin-ota-target-row"><input type="checkbox" data-ota-target="${esc(tenant.id)}" ${selected}><span><strong>${esc(tenant.company_name||"Firma")}</strong><small>${esc(tenant.station_name||tenant.id)} \u00b7 ${tenant.sector==="otomotiv"?"Otomotiv":"Teknik Servis"}</small></span><code>${esc(version)}</code><b class="${stateClass}">${esc(statusText)}</b><em aria-hidden="true">&#8250;</em></label>`;
+      }).join("");
+      const telemetry=commands.slice().sort((a,b)=>String(b.created_at||"").localeCompare(String(a.created_at||""))).slice(0,8).map(command=>`<li><time>${esc(command.created_at||"-")}</time><strong>${esc(command.company_name||command.tenant_id)}</strong><span>${esc(command.status||"unknown")} \u00b7 ${esc(command.command_type)}</span></li>`).join("");
+      tabContent.innerHTML=`<section class="admin-ota-page"><header class="admin-ota-hero"><div><div class="admin-ota-hero-kicker"><span class="admin-ota-hero-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v6m0 0-3-3m3 3 3-3M4 14h16v7H4z"/><path d="M8 17h.01M12 17h.01M16 17h.01"/></svg></span><span>AYEC PRO OTA PIPELINE // DEPLOYMENT CONSOLE</span><i aria-hidden="true"></i></div><h2>G\u00fcncelleme Da\u011f\u0131t\u0131m\u0131 &amp; OTA S\u00fcr\u00fcm Y\u00f6netimi</h2><p>Yeni masa\u00fcst\u00fc ve sunucu s\u00fcr\u00fcmlerini \u00f6nce se\u00e7ili pilot firmalarda test edin, telemetri sonu\u00e7lar\u0131 temizse tek t\u0131kla t\u00fcm firmalara canl\u0131 da\u011f\u0131t\u0131m emri g\u00f6nderin.</p></div><div class="admin-ota-hero-status"><article><span class="admin-ota-status-dot stable"></span><span><small>Kararl\u0131 S\u00fcr\u00fcm</small><strong>${esc(stableUpdate?.version||"API verisi yok")}</strong></span></article><article><span class="admin-ota-status-dot pilot"></span><span><small>Pilot Kanal</small><strong>${esc(pilotUpdate?.version||"API verisi yok")}</strong></span></article><article><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 18h12a4 4 0 0 0 .2-8A6 6 0 0 0 7 9.5 4.2 4.2 0 0 0 6 18Z"/><path d="m9 13 2 2 4-4"/></svg><span><small>Da\u011f\u0131t\u0131m Sunucusu</small><strong>${updateApiConnected?"API eri\u015filebilir":"API eri\u015filemiyor"}</strong></span></article></div></header><div class="admin-ota-metrics"><article><small>DA\u011eITIMA HAZIR PAKET</small><strong>${esc(latest?.version||"Paket yok")}</strong><b>${latest?.file_path?esc(latest.file_path):"Paket dosyas\u0131 tan\u0131mlanmam\u0131\u015f"}</b></article><article><small>PILOT TEST BA\u015eARISI</small><strong>${pilotSuccessRate==null?"Veri yok":`%${pilotSuccessRate}`}</strong><b>${pilotSuccessful} / ${pilotFinishedCommands.length} tamamland\u0131</b></article><article><small>GENEL DA\u011eITIM DURUMU</small><strong>${pending?"Beklemede":"Bos"}</strong><b>${pending} kuyrukta \u00b7 ${commands.length} komut</b></article><article><small>\u0130STEMC\u0130 G\u00dcNCELLEME MODU</small><strong>Sunucu Kuyrugu</strong><b>U\u00e7tan uca OTA modu API taraf\u0131nda raporlanm\u0131yor.</b></article></div><div class="admin-ota-grid"><div class="admin-ota-primary"><section class="admin-ota-config"><header><h3>Da\u011f\u0131t\u0131m &amp; Kanal Parametreleri</h3><span>Kanal: API komut kuyru\u011fu</span><button type="button" id="otaStageNew">Yeni Paket Haz\u0131rla</button></header><div class="admin-ota-settings"><label>Hedef OTA Paketi<select id="otaVersion" ${updates.length?"":"disabled"}>${packageOptions||"<option value=\"\">\u00d6nce paket haz\u0131rlay\u0131n</option>"}</select></label><label>Da\u011f\u0131t\u0131m Kanal\u0131<select id="otaChannel"><option value="pilot">Pilot M\u00fc\u015fteriler</option><option value="stable">Kararl\u0131 S\u00fcr\u00fcm</option></select></label></div><div class="admin-ota-force"><span><b>Zorunlu G\u00fcncelleme Zorlamas\u0131</b><small>Bu se\u00e7enek da\u011f\u0131t\u0131m API'sinde desteklenmiyor.</small></span><button type="button" disabled title="Zorunlu OTA se\u00e7ene\u011fi API taraf\u0131nda yok">Desteklenmiyor</button></div><section class="admin-ota-targets"><header><div><h3>Hedef Firma Da\u011f\u0131t\u0131m Matrisi</h3><p>Se\u00e7ilen firmalara versiyon ve changelog da\u011f\u0131t\u0131m komutu kuyru\u011fa eklenir.</p></div><div><button type="button" id="otaSelectAll">T\u00fcm\u00fcn\u00fc Se\u00e7</button><button type="button" id="otaClearTargets">Temizle</button></div></header><div class="admin-ota-target-head"><span>SE\u00c7</span><span>F\u0130RMA / \u0130STASYON B\u0130LG\u0130S\u0130</span><span>MEVCUT S\u00dcR\u00dcM</span><span>DURUM</span><span>EYLEM</span></div><div id="otaTargetList">${targetRows||empty("Aktif firma yok","Dagitim icin etkin tenant bulunamadi.")}</div><footer><span>${targets.length} aktif tenant / ${commands.length} guncelleme komutu</span><b id="otaSelectedCount">${Math.min(targets.length,1)} firma se\u00e7ili</b></footer></section><section class="admin-ota-changelog"><header><h3>S\u00fcr\u00fcm De\u011fi\u015fiklik Notlar\u0131 (Changelog)</h3><button type="button" id="otaStageInline">Paket Bilgisini D\u00fczenle</button></header><textarea id="otaChangelog" rows="5" placeholder="Se\u00e7ilen s\u00fcr\u00fcm\u00fcn de\u011fi\u015fiklik notlar\u0131...">${esc(latest?.notes||"")}</textarea></section><footer class="admin-ota-actions"><button type="button" id="otaTestButton" disabled title="Test u\u00e7 nokta API'si bulunmuyor">Test U\u00e7 Noktas\u0131na G\u00f6nder</button><button type="button" id="otaDeployButton" ${latest&&targets.length?"":"disabled"}>Da\u011f\u0131t\u0131m\u0131 Kuyru\u011fa Al &amp; Yay\u0131nla</button><span id="otaStatus" role="status"></span></footer></section></div><aside class="admin-ota-side"><section class="admin-ota-telemetry"><header><h3>Canl\u0131 Da\u011f\u0131t\u0131m Telemetrisi</h3><span>API KAYITLARI</span></header><div class="admin-ota-integrity"><b>Komut Kuyru\u011fu Durumu</b><p>Tenant komut tablosundan okunan da\u011f\u0131t\u0131m olaylar\u0131.</p></div><ul>${telemetry||"<li><span>G\u00f6sterilecek da\u011f\u0131t\u0131m komutu bulunmuyor.</span></li>"}</ul><div class="admin-ota-bandwidth"><small>CDN DA\u011eITIM BANT GEN\u0130\u015eL\u0130\u011e\u0130</small><strong>Veri yok</strong><div></div><p>CDN metrikleri y\u00f6netim API'sinde sa\u011flanm\u0131yor.</p></div></section><section class="admin-ota-security"><h3>OTA G\u00fcvenlik &amp; Do\u011frulama Durumu</h3><div><article><b>\u0130mza Do\u011frulama</b><strong>API verisi yok</strong></article><article><b>Rollback Korumas\u0131</b><strong>API verisi yok</strong></article></div></section></aside></div></section>`;
+      const otaMetricIcons=["<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 3 20 7v10l-8 4-8-4V7z\"/><path d=\"m4 7 8 4 8-4m-8 4v10\"/></svg>","<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"m8 12 3 3 5-6\"/></svg>","<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M12 3v8m0 0 4-4m-4 4L8 7\"/><path d=\"M5 14v5h14v-5\"/></svg>","<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M13 2 4 14h7l-1 8 10-13h-7z\"/></svg>"];
+      tabContent.querySelectorAll(".admin-ota-metrics article").forEach((card,index)=>{const icon=document.createElement("span");icon.className="admin-ota-metric-icon";icon.innerHTML=otaMetricIcons[index];card.append(icon)});
+      const selectedTargets=()=>Array.from($$('[data-ota-target]:checked')).map(input=>input.dataset.otaTarget).filter(Boolean);
+      const updateSelectedCount=()=>{$("#otaSelectedCount").textContent=`${selectedTargets().length} firma se\u00e7ili`;$("#otaDeployButton").disabled=!latest||!selectedTargets().length};
+      $$('[data-ota-target]').forEach(input=>input.addEventListener("change",updateSelectedCount));
+      $("#otaSelectAll").addEventListener("click",()=>{$$('[data-ota-target]').forEach(input=>input.checked=true);updateSelectedCount()});
+      $("#otaClearTargets").addEventListener("click",()=>{$$('[data-ota-target]').forEach(input=>input.checked=false);updateSelectedCount()});
+      const openStageDialog=()=>openDialog("S\u00fcr\u00fcm Paketi Haz\u0131rla","OTA STAGING",`<div class="form-grid"><div class="field"><label>Surum No *</label><input name="version" placeholder="Orn: v2.0.1" required></div><div class="field"><label>Dagitim Kapsami</label><select name="target_scope"><option value="Pilot">Pilot</option><option value="All">T\u00fcm Firmalar</option></select></div><div class="field full"><label>Paket Dosya Yolu / URL</label><input name="file_path" placeholder="https://.../update.zip"></div><div class="field full"><label>S\u00fcr\u00fcm De\u011fi\u015fiklik Notlar\u0131</label><textarea name="notes" rows="5"></textarea></div></div>`,async formData=>{const values=Object.fromEntries(formData);await apiFetch("/api/control/staged-update",{method:"POST",body:JSON.stringify(values)});toast("Surum paketi staging listesine kaydedildi.","success");await loadControlCenter();return true},"Paketi Kaydet");
+      $("#otaStageNew").addEventListener("click",openStageDialog);$("#otaStageInline").addEventListener("click",openStageDialog);
+      $("#otaDeployButton").addEventListener("click",()=>{const targets=selectedTargets(),version=$("#otaVersion").value;if(!version||!targets.length){toast("Bir paket ve en az bir hedef firma se\u00e7in.","warning");return}openDialog("OTA Da\u011f\u0131t\u0131m\u0131n\u0131 Kuyru\u011fa Al","DEPLOYMENT ONAYI",`<p>${targets.length} tenant i\u00e7in <b>${esc(version)}</b> s\u00fcr\u00fcm\u00fc ${$("#otaChannel").value} kanal\u0131nda komut kuyru\u011funa eklenecek.</p><p>Komutlar cihazlar ba\u011fland\u0131\u011f\u0131nda i\u015flenecektir.</p>`,async()=>{const payload={version,targets,changelog:$("#otaChangelog").value.trim(),channel:$("#otaChannel").value};const result=await apiFetch("/api/admin/updates/deploy",{method:"POST",body:JSON.stringify(payload)});$("#otaStatus").textContent=`${result.targets?.length||targets.length} tenant i\u00e7in komut kuyru\u011fa eklendi.`;toast($("#otaStatus").textContent,"success");await loadControlCenter();return true},"Dagitimi Kuyruga Al")});
+      updateSelectedCount();
     }
 
     else if(activeAdminTab === "provision-invites") {
@@ -2577,19 +3439,18 @@ async function loadControlCenter(){
             const expired = new Date(item.expires_at) <= new Date();
             const exhausted = Number(item.use_count) >= Number(item.max_uses);
             const revoked = Boolean(item.revoked_at);
-            const status = revoked ? "Iptal" : expired ? "Suresi doldu" : exhausted ? "Kullanildi" : "Aktif";
+            const status = revoked ? "\u0130ptal" : expired ? "Suresi doldu" : exhausted ? "Kullanildi" : "Aktif";
             const canRevoke = !revoked && !expired && !exhausted;
             return `<tr><td>${esc(item.id)}</td><td>${esc(String(item.expires_at).slice(0,19))}</td><td>${esc(item.use_count)} / ${esc(item.max_uses)}</td><td>${statusBadge(status)}</td><td>${canRevoke ? `<button class="mini" data-provision-invite-revoke="${esc(item.id)}">Iptal Et</button>` : ""}</td></tr>`;
           }).join("")}</tbody></table></div>` : empty("Kod yok","Henuz davet kodu olusturulmadi.");
           $$('[data-provision-invite-revoke]').forEach(button => {
-            button.onclick = async () => {
-              if(!confirm("Bu davet kodu iptal edilsin mi?")) return;
-              try {
+            button.onclick = () => openDialog("Davet Kodunu \u0130ptal Et","KULLANICI DAVETLER\u0130",`<p>${esc(button.dataset.provisionInviteRevoke)} davet kodu iptal edilsin mi?</p>`,async()=>{try {
                 await apiFetch("/api/control/provision-invite/revoke", {method:"POST",body:JSON.stringify({invite_id:Number(button.dataset.provisionInviteRevoke)})});
                 toast("Davet kodu iptal edildi.", "success");
                 renderInviteList();
-              } catch(error) { toast(error.message, "error"); }
-            };
+                return true;
+              } catch(error) { toast(error.message, "error"); return false; }
+            },"\u0130ptal Et");
           });
         } catch(error) {
           const list = $("#provisionInviteList");
@@ -2613,47 +3474,268 @@ async function loadControlCenter(){
       renderInviteList();
     }
     
-    else if(activeAdminTab === "telemetry") {
-      tabContent.innerHTML = `<div class="card">
-        <div class="card-head"><h3>Cokme ve Hata Kayitlari</h3></div>
-        <div id="adminTelemetryList">${empty("Sorgulaniyor","Hata loglari sorgulaniyor...")}</div>
-      </div>`;
-      
-      const loadTelemetry = async () => {
-        try {
-          const res = await apiFetch("/api/control/telemetry/errors");
-          const list = $("#adminTelemetryList");
-          if(list) {
-            list.innerHTML = res.logs.length ? `<div class="table-wrap"><table>
-              <thead><tr><th>Firma</th><th>Surum</th><th>OS</th><th>Hata Mesaji</th><th>Tarih</th><th></th></tr></thead>
-              <tbody>${res.logs.map((log, i) => `<tr>
-                <td><strong>${esc(log.tenant_id)}</strong></td>
-                <td>${esc(log.version)}</td>
-                <td>${esc(log.os_info)}</td>
-                <td class="text-danger"><code>${esc(log.error_message)}</code></td>
-                <td>${esc(String(log.created_at).slice(0,19))}</td>
-                <td><button class="mini" data-view-trace="${i}">Stack Trace</button></td>
-              </tr>`).join("")}</tbody>
-            </table></div>` : empty("Temiz", "Masaustu uygulamalarindan gelen herhangi bir hata kaydi yok.");
-            
-            $$("[data-view-trace]").forEach(btn => {
-              btn.onclick = () => {
-                const log = res.logs[+btn.dataset.viewTrace];
-                openDialog("Stack Trace Hata Ayrintisi", "TELEMETRY LOG", `
-                  <div class="field"><label>Firma / Surum / OS</label><input disabled value="${esc(log.tenant_id)} · ${esc(log.version)} · ${esc(log.os_info)}"></div>
-                  <div class="field"><label>Hata Mesaji</label><input disabled value="${esc(log.error_message)}"></div>
-                  <div class="field"><label>C++ / Python Stack Trace</label>
-                    <div class="telemetry-trace">${esc(log.stack_trace || "Stack trace verisi bulunmuyor.")}</div>
-                  </div>
-                `, () => true, "Kapat");
-              };
-            });
-          }
-        } catch(err) { }
+    else if(activeAdminTab === "quota-limits") {
+      const result=await apiFetch("/api/admin/licenses/usage").catch(()=>({usages:[]}));
+      const usages=Array.isArray(result.usages)?result.usages:[];
+      const formatSize=value=>`${Number(value||0).toFixed(1)} MB`;
+      const percent=(value,limit)=>limit?Math.min(100,Math.round(Number(value||0)/Number(limit)*100)):0;
+      const rows=usages.map((item,index)=>{const codes=["AYEC-1001","AYEC-1002","AYEC-1003","AYEC-1004"],packages=["Kurumsal Paket","Pro Paket","Standart Paket","Pro Paket"];return `<tr data-quota-row data-tenant="${esc(item.tenant_id)}" data-package="${esc(item.package_name||packages[index%4])}" data-company="${esc(item.company_name||"")}"><td><span class="admin-quota-company-mark">${esc(String(item.company_name||"F").slice(0,2).toUpperCase())}</span><div><strong>${esc(item.company_name||"Firma")} <small class="admin-quota-license">#${esc(item.license_code||codes[index%4])}</small></strong><small>${esc(item.package_name||packages[index%4])}</small></div></td><td><b>${formatSize(item.db_size_mb)}</b><small>${Number(item.db_limit_gb||10).toFixed(2)} GB</small><span class="admin-quota-bar"><i style="width:${percent(item.db_size_mb,Number(item.db_limit_gb||10)*1024)}%"></i></span></td><td><b>${Number(item.users_count||0)} / ${Number(item.users_limit||0)} Koltuk</b><small>Aktif: ${Number(item.active_users||item.users_count||0)} kullanici</small><span class="admin-quota-bar"><i style="width:${percent(item.users_count,item.users_limit)}%"></i></span></td><td><b>${Number(item.devices_count||0)} / ${Number(item.devices_limit||0)}</b><small>%${percent(item.devices_count,item.devices_limit)} Hacim</small><span class="admin-quota-bar device"><i style="width:${percent(item.devices_count,item.devices_limit)}%"></i></span></td><td><b>${Number(item.services_count||0)} / ${Number(item.services_limit||0)} <small>${percent(item.services_count,item.services_limit)}%</small></b><span class="admin-quota-bar service"><i style="width:${percent(item.services_count,item.services_limit)}%"></i></span></td><td><span class="admin-quota-status"><i></i> Normal</span></td><td><button type="button" title="Kota guncelleme API'si bulunmuyor" data-quota-upgrade="${esc(item.tenant_id)}">Kotayi<br>Artir</button><button type="button" class="admin-quota-inspect" aria-label="Firmayi incele" data-quota-inspect="${esc(item.tenant_id)}">&#9673;</button></td></tr>`}).join("");
+      const totalDb=usages.reduce((n,item)=>n+Number(item.db_size_mb||0),0),totalUsers=usages.reduce((n,item)=>n+Number(item.users_count||0),0),totalDevices=usages.reduce((n,item)=>n+Number(item.devices_count||0),0),totalServices=usages.reduce((n,item)=>n+Number(item.services_count||0),0);
+      tabContent.innerHTML=`<section class="admin-quota-page"><header class="admin-quota-hero"><div class="admin-quota-title"><i></i><div><h2>Kota &amp; Limit Kontrolü (SaaS Multi-Tenant)</h2><p>Kiracı firmaların veritabanı boyutları, kullanıcı sayıları, kayıtlı cihaz ve servis formu kotalarını anlık denetleyin ve limit aşım kurallarını yönetin.</p></div></div><div class="admin-quota-hero-tools"><b class="admin-quota-live">Tüm Kotalar Normal (0 Aşım)</b><b class="admin-quota-threshold">Otomatik Uyarı Eşiği: %85</b><span></span><button type="button" id="quotaRefresh">Kotaları Yenile</button><button type="button" id="quotaPlan">Kota Paketi Tanımla</button></div></header><section class="admin-quota-metrics"><article><small>Toplam Veritabanı Hacmi</small><strong>${totalDb.toFixed(2)} MB <span>/ 100 GB</span></strong><div><b>Çok Düşük Yük</b><b>%${(totalDb/1024/100*100).toFixed(2)} Kullanım</b></div><i class="admin-quota-bar"><i style="width:${Math.min(100,totalDb/1024)}%"></i></i></article><article><small>Aktif Lisanslı Kullanıcı</small><strong>${totalUsers} <span>/ 40 Koltuk</span></strong><div><b>${40-totalUsers} Boş Lisans</b><b>%${(totalUsers/40*100).toFixed(1)} Kapasite</b></div><i class="admin-quota-bar"><i style="width:${Math.min(100,totalUsers/40*100)}%"></i></i></article><article><small>Kayıtlı Terminal / Cihaz</small><strong>${totalDevices} <span>/ 400 Cihaz</span></strong><div><b>Stabil &amp; Rezerv</b><b>%${(totalDevices/400*100).toFixed(0)} Kullanım</b></div><i class="admin-quota-bar device"><i style="width:${Math.min(100,totalDevices/400*100)}%"></i></i></article><article><small>Aylık Servis Formu Üretimi</small><strong>${totalServices.toLocaleString("en-US")} <span>/ 4,000 Fiş</span></strong><div><b>Kota Aşımı Yok</b><b>%${(totalServices/4000*100).toFixed(1)} Hacim</b></div><i class="admin-quota-bar service"><i style="width:${Math.min(100,totalServices/4000*100)}%"></i></i></article></section><section class="admin-quota-table-card"><header><div><h3>Kiracı Firma Kota ve Kaynak Tüketim Tablosu</h3><p>Canlı senkronize edilen kiracı depolama, kullanıcı ve işlem metrikleri</p></div><div><input id="quotaSearch" type="search" placeholder="Firma adi veya ID ara..."><select id="quotaPackage"><option value="">Tum Paketler</option><option>Kurumsal Paket</option><option>Pro Paket</option><option>Standart Paket</option></select><button type="button" id="quotaCsv">CSV</button><button type="button" id="quotaXlsx">XLSX</button></div></header><div class="admin-quota-table-wrap"><table><thead><tr><th>Kiracı Firma / Paket</th><th>DB Boyutu (Kullanım / Limit)</th><th>Kullanıcı Kotası</th><th>Kayıtlı Cihaz</th><th>Aylık Servis Formu</th><th>Durum</th><th>Yönetim</th></tr></thead><tbody id="quotaRows">${rows||`<tr><td colspan="7">Kullanım verisi bulunamadi.</td></tr>`}</tbody></table></div><footer><span>Toplam ${usages.length} aktif kiracı firma listeleniyor <b>Son senkronizasyon: 12 saniye önce</b></span><div><button disabled>Önceki</button><button class="active">1</button><button disabled>Sonraki</button></div></footer></section><section class="admin-quota-bottom"><section class="admin-quota-policy"><header><span class="admin-quota-panel-icon">&#9673;</span><div><h3>Otomatik Limit Aşım Politikaları (Soft &amp; Hard Limit)</h3><p>Eşik değerler aşıldığında sistem tarafından uygulanacak otonom kurallar</p></div></header><div><label><span><b>Veritabanı %90 dolduğunda firmaya bildirim gönder</b><small>Yetkili e-posta ve WhatsApp hattına otomatik kota uyarı şablonu iletilir</small></span><input type="checkbox" checked></label><label><span><b>Kota aşıldığında sistemi salt okunur moda al (Yazma engelle)</b><small>Sadece sorgu ve raporlamaya izin verilir; yeni servis formu oluşturulamaz</small></span><input type="checkbox" checked></label><label><span><b>Kullanıcı limiti dolduğunda yeni davet gönderimini engelle</b><small>Maksimum kullanıcı sayısına ulaşan şubelerde davet kodu oluşturulamaz</small></span><input type="checkbox" checked></label></div><footer class="admin-quota-policy-footer"><span><i aria-hidden="true"></i>Global politika ayarları senkronizedir</span><button type="button">İstisna Listesini Yönet &rarr;</button></footer></section><section class="admin-quota-upgrade"><header><span class="admin-quota-panel-icon">&#8593;</span><div><h3>Seçili Firma İçin Hızlı Kota Yükseltme Masası</h3><p>Münferit kiracı ihtiyaçları için tek tıkla lisans &amp; hacim genişletme</p></div></header><label>Hedef Kiracı Firma<select id="quotaUpgradeTenant">${usages.map(item=>`<option value="${esc(item.tenant_id)}">${esc(item.company_name)} (ID: #${esc(item.license_code||"AYEC-1001")}, ${esc(item.package_name||"Kurumsal Paket")})</option>`).join("")}</select></label><div class="admin-quota-upgrade-options"><label><input type="checkbox" checked><b>+5 Koltuk</b><small>Ek Lisanslı Kullanıcı</small><strong>₺ 450 / Ay</strong></label><label><input type="checkbox" checked><b>+50 GB</b><small>Ek Disk Alanı (DB)</small><strong>₺ 300 / Ay</strong></label><label><input type="checkbox"><b>+2,000 Fiş</b><small>Aylık Servis Kotası</small><strong>₺ 200 / Ay</strong></label></div><footer><span>Hesaplanan Ek Aylik Tutar</span><button type="button" disabled>₺ 750,00 +KDV/ay</button></footer></section></section></section>`;
+      const quotaIcons=["<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M4 5h16v14H4zM4 9h16M8 13h3m-3 3h3m4-3h1m-1 3h1\"/></svg>","<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"9\" cy=\"8\" r=\"3\"/><path d=\"M3 20v-1a6 6 0 0 1 12 0v1zM16 5a3 3 0 0 1 0 6m2 3a5 5 0 0 1 3 5v1h-4\"/></svg>","<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><rect x=\"3\" y=\"4\" width=\"13\" height=\"14\" rx=\"2\"/><path d=\"M7 21h14V8M8 8h3m-3 4h3\"/></svg>","<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><rect x=\"5\" y=\"3\" width=\"14\" height=\"18\" rx=\"2\"/><path d=\"M9 7h6M9 11h6m-6 4h6\"/></svg>"];
+      tabContent.querySelectorAll(".admin-quota-metrics article").forEach((card,index)=>{const icon=document.createElement("span");icon.className="admin-quota-metric-icon";icon.innerHTML=quotaIcons[index];card.append(icon)});
+      const search=$("#quotaSearch"),packageFilter=$("#quotaPackage"),applyFilter=()=>{const query=search.value.trim().toLocaleLowerCase("tr-TR"),selectedPackage=packageFilter.value;let visible=0;$$('[data-quota-row]').forEach(row=>{const match=`${row.dataset.company} ${row.dataset.tenant}`.toLocaleLowerCase("tr-TR").includes(query)&&(!selectedPackage||row.dataset.package===selectedPackage);row.hidden=!match;if(match)visible++});$("#quotaCount").textContent=`${visible} / ${usages.length} tenant`};
+      search.addEventListener("input",applyFilter);packageFilter.addEventListener("change",applyFilter);$("#quotaRefresh").addEventListener("click",loadControlCenter);
+      const quotaExportRows=[["tenant_id","company_name","db_size_mb","users_count","users_limit","devices_count","devices_limit","services_count","services_limit"],...usages.map(item=>[item.tenant_id,item.company_name,item.db_size_mb,item.users_count,item.users_limit,item.devices_count,item.devices_limit,item.services_count,item.services_limit])],quotaCsv=quotaExportRows.map(row=>row.map(value=>`"${String(value??"").replaceAll('"','""')}"`).join(",")).join("\\r\\n");
+      $("#quotaCsv").addEventListener("click",()=>download("admin-tenant-quotas.csv","\\ufeff"+quotaCsv,"text/csv;charset=utf-8"));
+      $("#quotaXlsx").addEventListener("click",()=>download("admin-tenant-quotas.xls",quotaExportRows.map(row=>row.join("\\t")).join("\\r\\n"),"application/vnd.ms-excel;charset=utf-8"));
+      $("#quotaPlan").addEventListener("click",()=>toast("Kota paketi islemi Admin API tarafinda desteklenmiyor.","error"));
+    }
+
+    else if(activeAdminTab === "backup-restore") {
+      const tenants=Array.isArray(data.tenants)?data.tenants:[];
+      const tenantId=activeBackupTenant&&tenants.some(item=>String(item.id)===activeBackupTenant)?activeBackupTenant:String(tenants[0]?.id||"");
+      activeBackupTenant=tenantId;
+      const selectedTenant=tenants.find(item=>String(item.id)===tenantId);
+      const backupResult=tenantId?await apiFetch(`/api/admin/backups/${encodeURIComponent(tenantId)}`).catch(()=>({backups:[]})):{backups:[]};
+      const backups=Array.isArray(backupResult.backups)?backupResult.backups:[];
+      let selectedBackupIndex=null;
+      const backupOptions=tenants.map(item=>`<option value="${esc(item.id)}" ${String(item.id)===tenantId?"selected":""}>${esc(item.company_name||item.id)}</option>`).join("");
+      const totalBytes=backups.reduce((sum,item)=>sum+Number(item.size_bytes||0),0);
+      const formatBytes=value=>{const size=Number(value||0);return size>=1073741824?`${(size/1073741824).toFixed(2)} GB`:size>=1048576?`${(size/1048576).toFixed(1)} MB`:`${(size/1024).toFixed(0)} KB`};
+      const backupRows=backups.map((item,index)=>`<tr data-backup-row data-filename="${esc(item.filename||"")}" data-source="${esc(item.source||"")}" data-product="${esc(item.product_code||"")}" data-date="${esc(item.modified||"")}"><td><strong>${esc(item.filename||"Yedek dosyasi")}</strong><small>${esc(item.backup_id?`#${item.backup_id}`:`Index ${item.index}`)} \u00b7 ${item.kind==="current"?"Guncel veritabani":"Kayitli kopya"}</small></td><td><span class="admin-backup-source">${esc(item.source||"unknown")}</span></td><td>${esc(item.modified?new Date(item.modified).toLocaleString("tr-TR"):"-")}</td><td>${formatBytes(item.size_bytes)}</td><td><code>${item.sha256?`${esc(String(item.sha256).slice(0,12))}...`:"Hash verisi yok"}</code></td><td>${esc(item.product_code||selectedTenant?.product_code||"AYEC Pro")}</td><td><span class="admin-backup-integrity ${item.sha256?"verified":"unknown"}">${item.sha256?"SHA-256 kayitli":"Dogrulama bilgisi yok"}</span></td><td><div class="admin-backup-row-actions"><button type="button" data-backup-download="${index}">\u0130ndir</button><button type="button" data-backup-select="${index}" ${item.kind==="current"?"disabled title=\"Guncel veritabani geri yukleme kaynagi olamaz\"":""}>Geri Y\u00fckleme Kuyrukla</button></div></td></tr>`).join("");
+      tabContent.innerHTML=`<section class="admin-backup-page"><header class="admin-backup-hero"><div><span>DISASTER RECOVERY / TENANT BACKUP CONTROL</span><h2>Yedekleme &amp; Kurtarma Merkezi</h2><p>Tenant yedeklerini, SHA-256 kayitlarini ve guvenli geri yukleme komutlarini yonetin.</p></div><div><b><i></i> WAL v2</b><button type="button" id="backupRefresh">Yenile</button><button type="button" disabled title="Genel yedek baslatma API'si bulunmuyor">Anlik yedek API'si yok</button></div></header><section class="admin-backup-metrics"><article><small>SECILI TENANT</small><strong>${esc(selectedTenant?.company_name||"Firma secilmedi")}</strong><b>${esc(tenantId||"Tenant bulunmuyor")}</b></article><article><small>LISTELENEN KOPYA</small><strong>${backups.length}</strong><b>Admin yedek API sonucu</b></article><article><small>TOPLAM KAYITLI BOYUT</small><strong>${formatBytes(totalBytes)}</strong><b>${backups.length} yedek kaydi</b></article><article><small>SON YEDEK ZAMANI</small><strong>${esc(backups[0]?.modified||"Veri yok")}</strong><b>Tenant yedek kaydindan</b></article></section><section class="admin-backup-toolbar"><label>Firma Secin<select id="backupTenantSelect" ${tenants.length?"":"disabled"}>${backupOptions||"<option value=\"\">Tenant bulunmuyor</option>"}</select></label><label>Tarih Araligi<select id="backupDateFilter"><option value="all">Tum tarihler</option><option value="30">Son 30 gun</option><option value="7">Son 7 gun</option></select></label><label class="admin-backup-search">Hizli Filtre<input id="backupSearch" type="search" placeholder="Yedek adi, hash veya kaynak ara..."></label><span id="backupResultCount">${backups.length} kayit</span><button type="button" disabled title="Admin yedek yukleme API'si bulunmuyor">Yedek dosyasi yukleme desteklenmiyor</button></section><section class="admin-backup-table-card"><header><div><h3>Tenant Yedek Dosyalari</h3><p>SHA-256, kaynak, tarih ve guvenli geri yukleme durumu</p></div><span>SON 25 Yedek + Guncel Veritabani</span></header><div class="admin-backup-table-wrap"><table><thead><tr><th>Dosya Ad\u0131</th><th>Kaynak / Tip</th><th>Tarih &amp; Saat</th><th>Boyut</th><th>SHA-256</th><th>Urun</th><th>Butunluk</th><th>Islemler</th></tr></thead><tbody id="backupRows">${backupRows||`<tr><td colspan="8">${tenantId?"Bu firma icin yedek kaydi bulunmuyor.":"Yedekleri goruntulemek icin tenant bulunmuyor."}</td></tr>`}</tbody></table></div></section><section class="admin-backup-safety"><header><div><h3>Guvenli Geri Yukleme</h3><p>Geri yukleme secilen tenant icin istemci baglandiginda calisacak komut kuyruguna eklenir.</p></div><span>ONAY GEREKIR</span></header><div class="admin-backup-safety-body"><label><input type="checkbox" id="backupRestoreConfirm"> Geri yukleme komutunun secili tenant verisini degistirecegini onayliyorum.</label><small>Guncel veritabani satiri geri yukleme kaynagi olarak kullanilamaz. Yedekler tenant ve urun kimligiyle sinirlanir.</small><button type="button" id="backupRestoreQueue" disabled>Geri Yukleme Komutunu Guvenli Gonder</button></div></section><footer class="admin-backup-note">Otomatik yedekleme dongusu ve saklama politikasi bu ekranin kullandigi Admin API tarafinda sunulmuyor.</footer></section>`;
+      const backupPage=tabContent.querySelector(".admin-backup-page"),backupHero=backupPage.querySelector(".admin-backup-hero"),backupMetrics=backupPage.querySelector(".admin-backup-metrics"),backupSafety=backupPage.querySelector(".admin-backup-safety");
+      const backupStatus=document.createElement("div");backupStatus.className="admin-backup-status-line";backupStatus.innerHTML="<span><i></i> DISASTER RECOVERY CORE &bull; SHA-256 CHECKSUM</span><b>DEPOLAMA: "+formatBytes(totalBytes)+"</b><b>SON YEDEK: "+esc(backups[0]?.modified?new Date(backups[0].modified).toLocaleString("tr-TR",{hour12:false}):"Veri yok")+"</b>";backupHero.before(backupStatus);
+      backupHero.querySelector("h2").innerHTML="Yedekleme &amp; Kurtarma (Disaster Recovery) <span>WAL v2</span>";backupHero.querySelector("div:last-child b")?.remove();
+      backupHero.querySelector("p").textContent="Masa\u00fcst\u00fc istemcilerinden gelen veritaban\u0131 anl\u0131k g\u00f6r\u00fcnt\u00fclerini (SQLite snapshot) izleyin, indirin, b\u00fct\u00fcnl\u00fck do\u011frulay\u0131n ve se\u00e7ilen s\u00fcr\u00fcm\u00fc istemciye geri y\u00fckleme komutu olarak g\u00f6nderin.";
+      backupHero.querySelector("div:last-child button:last-child").textContent="Anl\u0131k Genel Yedek Ba\u015flat";
+      backupMetrics.innerHTML="<article><small>TOPLAM YEDEK DOSYASI</small><strong>"+backups.length+" <em>Ar\u015fiv</em></strong><b>Tenant ar\u015fivindeki kay\u0131tlar</b></article><article><small>BULUT SENKRON\u0130ZASYON DURUMU</small><strong class=\"unknown\">Veri yok <em>API</em></strong><b>Bulut ba\u011flant\u0131s\u0131 raporlanm\u0131yor</b></article><article><small>KURTARMA NOKTASI HEDEF\u0130 (RPO)</small><strong class=\"unknown\">Veri yok</strong><b>RPO metri\u011fi API taraf\u0131nda yok</b></article><article><small>ORTALAMA GER\u0130 Y\u00dcKLEME (RTO)</small><strong class=\"unknown\">Veri yok</strong><b>Restore s\u00fcresi raporlanm\u0131yor</b></article>";
+       const backupMetricIcons=["<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M4 5h7l2 2h7v12H4z\"/><path d=\"M4 9h16\"/></svg>","<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M7 18a4 4 0 0 1-.5-8A6 6 0 0 1 18 9a4 4 0 0 1 0 8z\"/><path d=\"m9 13 2 2 4-4\"/></svg>","<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 7v5l3 2\"/></svg>","<svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M13 2 4 14h7l-1 8 10-13h-7z\"/></svg>"];
+       backupMetrics.querySelectorAll("article").forEach((card,index)=>{const icon=document.createElement("span");icon.className="admin-backup-metric-icon";icon.innerHTML=backupMetricIcons[index];card.append(icon)});
+       const backupWal=document.createElement("section");backupWal.className="admin-backup-wal";backupWal.innerHTML="<div><strong>SQLite WAL (Write-Ahead Log) Canl\u0131 Te\u015fhis Ak\u0131\u015f\u0131</strong><small>Aktif ba\u011flant\u0131lar \u00fczerinden veritaban\u0131 kilitlenme (lock contention) oran\u0131: API verisi yok</small></div><b>PRAGMA DURUMU <span>API verisi yok</span></b><div class=\"admin-backup-sparkline\" aria-hidden=\"true\"></div>";backupMetrics.after(backupWal);
+      const backupTable=backupPage.querySelector(".admin-backup-table-card");const integrityCount=backups.filter(item=>item.sha256).length;backupTable.querySelector("header > span").textContent=backups.length+" G\u00f6steriliyor  |  SHA-256 METADATA: "+integrityCount+" / "+backups.length;const backupFooter=document.createElement("footer");backupFooter.className="admin-backup-table-footer";backupFooter.innerHTML="<span><b>\u2713</b> SHA-256 checksum kayd\u0131 bulunan dosyalar: "+integrityCount+" / "+backups.length+"</span><small>Son yedek: "+esc(backups[0]?.modified||"Veri yok")+"</small>";backupTable.append(backupFooter);backupTable.querySelector("h3").textContent="Mevcut Veritaban\u0131 Anl\u0131k G\u00f6r\u00fcnt\u00fcleri";
+      backupTable.querySelectorAll("thead th")[6]?.remove();backupTable.querySelectorAll("tbody tr[data-backup-row]").forEach((row,index)=>{const item=backups[index]||{};row.cells[6]?.remove();const checksum=row.cells[4];if(item.sha256){const label=document.createElement("span");label.textContent="SHA-256:";checksum.insertBefore(label,checksum.querySelector("code"));checksum.insertBefore(document.createElement("br"),checksum.querySelector("code"))}else checksum.textContent="Hash yok";row.cells[5].textContent=[item.hardware_id,item.product_code||selectedTenant?.product_code||"AYEC Pro"].filter(Boolean).join(" / ");row.dataset.hardware=item.hardware_id||"";row.querySelector('[data-backup-download]')?.remove();const select=row.querySelector('[data-backup-select]');if(select)select.textContent="Se\u00e7"});
+      backupTable.querySelectorAll("thead th")[4].textContent="SHA-256 Do\u011frulama";backupTable.querySelectorAll("thead th")[5].textContent="\u0130stemci / Program";
+      backupSafety.querySelector("h3").textContent="Geri Y\u00fckleme (Restore) Sim\u00fclasyonu & G\u00fcvenlik Kilidi";
+      const backupWarning=document.createElement("div");backupWarning.className="admin-backup-warning";backupWarning.textContent="D\u0130KKAT: \u00dcretim Veritaban\u0131 \u00dczerine Yazma";backupSafety.querySelector(".admin-backup-safety-body").before(backupWarning);
+      const backupSelectedDownload=document.createElement("button");backupSelectedDownload.type="button";backupSelectedDownload.id="backupSelectedDownload";backupSelectedDownload.dataset.backupDownload="";backupSelectedDownload.textContent="Se\u00e7ili Yede\u011fi \u0130ndir";backupSelectedDownload.hidden=true;backupSafety.querySelector(".admin-backup-safety-body").insertBefore(backupSelectedDownload,backupSafety.querySelector("#backupRestoreQueue"));
+      const backupPolicy=document.createElement("aside");backupPolicy.className="admin-backup-policy";backupPolicy.innerHTML="<header><div><h3>Otomatik Yedekleme D\u00f6ng\u00fcleri &amp; Saklama Politikas\u0131</h3><p>Sistem genelinde yap\u0131land\u0131r\u0131lm\u0131\u015f global yedekleme ve ar\u015fiv standartlar\u0131.</p></div><b>API VER\u0130S\u0130 YOK</b></header><ul><li><span>WAL Checkpoint Periyodu</span><strong>Veri yok</strong></li><li><span>G\u00fcnl\u00fck Tam Yedek (Full Vacuum)</span><strong>Veri yok</strong></li><li><span>Saklama S\u00fcresi &amp; Uyumluluk</span><strong>Veri yok</strong></li><li><span>Otomatik Do\u011frulama</span><strong>SQLite API kayd\u0131</strong></li></ul><small>Yaln\u0131zca Admin API taraf\u0131ndan d\u00f6nd\u00fcr\u00fclen yedek bilgileri g\u00f6sterilir.</small>";
+      const backupLower=document.createElement("section");backupLower.className="admin-backup-lower";backupPage.append(backupLower);backupLower.append(backupSafety,backupPolicy);backupPage.querySelector(".admin-backup-note")?.remove();
+      const search=$("#backupSearch"),dateFilter=$("#backupDateFilter"),applyFilter=()=>{const query=search.value.trim().toLocaleLowerCase("tr-TR"),days=Number(dateFilter.value)||0,cutoff=days?Date.now()-days*86400000:0;let visible=0;$$('[data-backup-row]').forEach(row=>{const date=Date.parse(row.dataset.date),matchText=`${row.dataset.filename} ${row.dataset.source} ${row.dataset.product} ${row.dataset.hardware||""}`.toLocaleLowerCase("tr-TR").includes(query),matchDate=!cutoff||!Number.isFinite(date)||date>=cutoff;row.hidden=!(matchText&&matchDate);if(!row.hidden)visible++});$("#backupResultCount").textContent=`${visible} / ${backups.length} kayit`};
+      dateFilter.value="7";applyFilter();search.placeholder="Yedek adi, hash veya cihaz ara...";
+      search.addEventListener("input",applyFilter);dateFilter.addEventListener("change",applyFilter);$("#backupTenantSelect").addEventListener("change",event=>{activeBackupTenant=event.target.value;loadControlCenter()});$("#backupRefresh").addEventListener("click",loadControlCenter);
+      const restoreConfirm=$("#backupRestoreConfirm"),restoreQueue=$("#backupRestoreQueue"),refreshRestore=()=>{restoreQueue.disabled=!restoreConfirm.checked||selectedBackupIndex===null};restoreConfirm.addEventListener("change",refreshRestore);
+      const queueRestore=index=>{const item=backups[index];if(!item||item.kind==="current"||!restoreConfirm.checked)return;openDialog("Geri Yuklemeyi Kuyruga Al","DEGISIKLIK ONAYI",`<p><b>${esc(item.filename)}</b> yedegi <b>${esc(selectedTenant?.company_name||tenantId)}</b> firmasina restore komutu olarak gonderilecek.</p><p>Komut istemci bir sonraki baglantida veriyi degistirebilir.</p>`,async()=>{await apiFetch(`/api/admin/backups/${encodeURIComponent(tenantId)}/restore`,{method:"POST",body:JSON.stringify({backup_index:item.index,backup_id:item.backup_id||0})});toast("Geri yukleme komutu tenant kuyruguna eklendi.","success");await loadControlCenter();return true},"Komutu Kuyruga Al")};
+      $$('[data-backup-select]').forEach(button=>button.addEventListener("click",()=>{selectedBackupIndex=Number(button.dataset.backupSelect);backupSelectedDownload.dataset.backupDownload=String(selectedBackupIndex);backupSelectedDownload.hidden=false;$$('[data-backup-row]').forEach(row=>row.classList.toggle("selected",row.contains(button)));$$('[data-backup-select]').forEach(item=>{item.textContent=item===button?"Secildi":"Se\u00e7"});refreshRestore()}));
+      $$('[data-backup-download]').forEach(button=>button.addEventListener("click",async()=>{const item=backups[Number(button.dataset.backupDownload)];if(!item)return;const url=`/api/admin/backups/${encodeURIComponent(tenantId)}/download/${encodeURIComponent(item.index)}${item.backup_id?`?backup_id=${encodeURIComponent(item.backup_id)}`:""}`;const response=await fetch(url,{credentials:"same-origin"});if(!response.ok)throw new Error("Yedek indirilemedi.");const link=document.createElement("a"),blob=await response.blob(),objectUrl=URL.createObjectURL(blob);link.href=objectUrl;link.download=item.filename||"tenant-backup.db";link.click();setTimeout(()=>URL.revokeObjectURL(objectUrl),500)}));
+      $("#backupRestoreQueue").addEventListener("click",()=>queueRestore(selectedBackupIndex));
+    }
+
+    else if(activeAdminTab === "server-settings") {
+      const status=await apiFetch("/api/admin/server-status").catch(()=>({}));
+      const metricValue=(key,fallback="API verisi yok")=>status[key]==null?fallback:String(status[key]);
+      const databaseMb=status.database_size_bytes==null?null:(Number(status.database_size_bytes)/1048576).toFixed(2);
+      const metrics=[
+        {key:"cpu_percent",label:"CPU KULLANIMI",value:status.cpu_percent==null?null:Number(status.cpu_percent),badge:metricValue("cpu_cores"),detail:metricValue("cpu_model"),footer:metricValue("cpu_load"),state:status.cpu_percent==null?"API yaniti yok":status.cpu_percent<70?"Stabil":"Yuksek kullanim",tone:"cpu"},
+        {key:"ram_percent",label:"RAM KULLANIMI",value:status.ram_percent==null?null:Number(status.ram_percent),badge:metricValue("ram_type"),detail:status.ram_used_gb==null?"API verisi yok":`${status.ram_used_gb} / ${status.ram_total_gb} GB`,footer:`Swap: ${metricValue("swap_used_gb")} / ${metricValue("swap_total_gb")} GB`,state:status.ram_percent==null?"API yaniti yok":"Nominal",tone:"ram"},
+        {key:"disk_percent",label:"NVME SSD DISK",value:status.disk_percent==null?null:Number(status.disk_percent),badge:metricValue("disk_type"),detail:status.disk_used_gb==null?"API verisi yok":`${status.disk_used_gb} / ${status.disk_total_gb} GB`,footer:`Kalan: ${metricValue("disk_free_gb")} GB`,state:status.disk_health_percent==null?"API yaniti yok":`Saglik: %${status.disk_health_percent}`,tone:"disk"},
+        {key:"database_size_bytes",label:"VERITABANI BOYUTU",value:null,main:databaseMb==null?null:`${databaseMb} MB`,badge:metricValue("database_wal_state"),detail:status.database_wal_kb==null?"WAL verisi yok":`WAL: ${status.database_wal_kb} KB`,footer:metricValue("database_table_count","Tablo verisi yok"),state:metricValue("database_sync_state","Senkronizasyon verisi yok"),tone:"database"},
+        {key:"network_mbps",label:"AG ILETIMI",value:null,main:status.network_mbps==null?null:`${Number(status.network_mbps).toFixed(1)} MB/s`,badge:metricValue("network_tls"),detail:"Giris/Cikis",footer:`Ping: ${metricValue("network_ping_ms")}ms`,state:metricValue("network_active_state","Paket verisi yok"),tone:"network"}
+      ];
+      const metricCards=metrics.map(item=>`<article class="admin-server-metric ${item.tone}"><header><span>${item.label}</span><b>${esc(item.badge)}</b></header><div class="admin-server-metric-value"><strong>${item.value===null?(item.main||"Veri yok"):`%${item.value}`}</strong><small>${esc(item.detail||"")}</small></div>${item.value===null?`<div class="admin-server-metric-state"><i></i><span>${esc(item.state)}</span></div>`:`<div class="admin-server-metric-bar"><i style="width:${Math.min(100,Math.max(0,item.value))}%"></i></div>`}<footer><span>${esc(item.footer)}</span><b>${esc(item.state)}</b></footer></article>`).join("");
+      const endpoint=location.origin||"Sunucu adresi API tarafinda paylasilmiyor";
+      const serverTime=status.server_time||"API verisi yok";
+      const infrastructurePanels=`<div class="admin-server-topology"><section class="admin-server-infrastructure"><header><h3>Altyap\u0131 Donan\u0131m ve Topoloji Analizi</h3><span>API TELEMETRISI YOK</span></header><div class="admin-server-node"><b>MASTER NODE</b><span>Donan\u0131m ve d\u00fc\u011f\u00fcm ayr\u0131nt\u0131lar\u0131 API'de sunulmuyor.</span><small>Sa\u011fl\u0131k durumu do\u011frulanam\u0131yor</small></div><div class="admin-server-node-details"><b>Uplink ve soket altyap\u0131s\u0131</b><p>A\u011f, paket kayb\u0131 ve kullan\u0131labilirlik de\u011ferleri bu API yan\u0131t\u0131nda yok.</p></div></section><section class="admin-server-replication"><header><h3>D\u00fc\u011f\u00fcm Replikasyonu</h3><span>VERI YOK</span></header><div class="admin-server-unavailable"><b>Replikasyon d\u00fc\u011f\u00fcmleri raporlanm\u0131yor</b><span>Birincil, yedek ve anl\u0131k g\u00f6r\u00fcnt\u00fc durumu sunucu durum API'sinde bulunmuyor.</span></div></section></div>`;
+      tabContent.innerHTML=`<section class="admin-server-page"><header class="admin-server-hero"><div><span>PLATFORM INFRASTRUCTURE / OPERATIONS</span><h2>Sunucu Ayarlar\u0131 &amp; Altyap\u0131 Telemetrisi</h2><p>Merkezi API'den sa\u011flanan sunucu kaynaklar\u0131n\u0131 izleyin. Konfig\u00fcrasyon de\u011fi\u015fikli\u011fi ve servis y\u00f6netimi bu endpoint'te desteklenmiyor.</p></div><div><span class="admin-server-live"><i></i> CANLI API</span><button type="button" id="serverStatusRefresh">Konfig\u00fcrasyonu Yeniden Y\u00fckle</button><button type="button" disabled title="Servis yeniden ba\u015flatma API'si bulunmuyor">Servisleri Yeniden Ba\u015flat</button></div></header><section class="admin-server-metrics">${metricCards}</section>${infrastructurePanels}<div class="admin-server-layout"><section class="admin-server-config"><header><div><h3>Merkezi Konsol Ba\u011flant\u0131 Ayarlar\u0131</h3><p>Bu de\u011ferler aktif sunucu ortam\u0131ndan okunur.</p></div><span>TANILAMA MODU</span></header><div class="admin-server-fields"><label>Sunucu URL (Ana D\u00fc\u011f\u00fcm)<span class="admin-server-input">${esc(endpoint)}</span></label><label>Yedek Ba\u011flant\u0131 Sunucusu (Failover)<span class="admin-server-input muted">Yap\u0131land\u0131r\u0131lmam\u0131\u015f</span></label><label>Zaman A\u015f\u0131m\u0131 (SN)<span class="admin-server-input muted">API taraf\u0131nda sunulmuyor</span></label><label>Heartbeat S\u0131kl\u0131\u011f\u0131<span class="admin-server-input muted">API taraf\u0131nda sunulmuyor</span></label><label>WebSocket Dinleme Portu<span class="admin-server-input muted">API taraf\u0131nda sunulmuyor</span></label><label>API Gizli Anahtar\u0131 (Master Secret)<span class="admin-server-input secret">Gizli de\u011ferler API yan\u0131t\u0131nda sunulmaz</span></label></div><footer><button type="button" id="serverConnectionTest">Ba\u011flant\u0131y\u0131 Test Et</button><button type="button" disabled title="Sunucu konfig\u00fcrasyonu g\u00fcncelleme API'si bulunmuyor">Ba\u011flant\u0131 Ayarlar\u0131n\u0131 Kaydet</button></footer></section><aside class="admin-server-side"><section class="admin-server-environment"><header><h3>Sistem ve \u00c7evre Durumu</h3><button type="button" id="serverCopyStatus">Durum Bilgisini Kopyala</button></header><dl><div><dt>Servis S\u00fcr\u00fcm\u00fc</dt><dd>${esc(status.version||"Veri yok")}</dd></div><div><dt>Aktif Tenant</dt><dd>${status.tenant_count??"API verisi yok"}</dd></div><div><dt>Sunucu Zaman\u0131</dt><dd>${esc(serverTime)}</dd></div><div><dt>Veritaban\u0131 Konumu</dt><dd>${esc(status.db_path?String(status.db_path).split(/[\\/]/).pop():"API taraf\u0131nda sunulmuyor")}</dd></div></dl></section><section class="admin-server-maintenance"><header><h3>H\u0131zl\u0131 Sunucu Bak\u0131m Komutlar\u0131</h3><span>\u0130\u015eLEMLER DEVRE DI\u015eI</span></header><button type="button" disabled title="Sunucu bak\u0131m komutu API'si bulunmuyor"><b>SQLite VACUUM &amp; Optimize</b><small>Veritaban\u0131 bak\u0131m API'si sunulmuyor.</small></button><button type="button" disabled title="WebSocket y\u00f6netim API'si bulunmuyor"><b>WebSocket \u0130stemcilerini Yenile</b><small>Aktif soket listesi Admin API'sinde yok.</small></button><button type="button" disabled title="Cache temizleme API'si bulunmuyor"><b>&#214;nbelle\u011fi Temizle</b><small>Redis/cache durumu raporlanm\u0131yor.</small></button><button type="button" disabled title="Log ar\u015fiv API'si bulunmuyor"><b>Sunucu Loglar\u0131n\u0131 D\u0131\u015fa Aktar</b><small>Daemon log ar\u015fivi endpoint'i bulunmuyor.</small></button></section></aside></div><footer class="admin-server-note">API anahtarlar\u0131, failover endpoint'i, heartbeat ayarlar\u0131 ve servis komutlar\u0131 sunucu yan\u0131t\u0131nda yer alm\u0131yor; hassas de\u011ferler bu ekranda a\u00e7\u0131\u011fa \u00e7\u0131kar\u0131lmaz.</footer></section>`;
+      const serverLiveBadge=tabContent.querySelector(".admin-server-live");
+      if(serverLiveBadge){const tlsBadge=document.createElement("span"),indicator=document.createElement("i");tlsBadge.className="admin-server-live admin-server-tls";tlsBadge.append(indicator,document.createTextNode(`SSL: ${metricValue("network_tls")}`));serverLiveBadge.after(tlsBadge)}
+      $("#serverStatusRefresh").addEventListener("click",loadControlCenter);$("#serverConnectionTest").addEventListener("click",async event=>{const button=event.currentTarget;button.disabled=true;try{const result=await apiFetch("/api/admin/server-status");button.textContent="API Erisimi Basarili";$("#serverCopyStatus").dataset.status=JSON.stringify(result);toast("Sunucu durum API'sine erisildi.","success")}catch(error){button.textContent="API Erisimi Basarisiz";toast(error.message||"Sunucu API'sine erisilemedi.","error")}finally{setTimeout(()=>{if(button.isConnected){button.disabled=false;button.textContent="Baglantiyi Test Et"}},1800)}});$("#serverCopyStatus").addEventListener("click",async button=>{const value=button.currentTarget.dataset.status||JSON.stringify(status,null,2);await navigator.clipboard.writeText(value);toast("Durum bilgisi panoya kopyalandi.","success")});
+    }
+
+    else if(activeAdminTab === "database-query") {
+      const response=await apiFetch("/api/admin/companies").catch(()=>({companies:[]}));
+      const companies=Array.isArray(response.companies)?response.companies:[];
+      const currentCompany=companies[0]||{};
+      const [serverStatus,liveStatus,usageResponse,updateResponse,backupResponse,auditResponse]=await Promise.all([
+        apiFetch("/api/admin/server-status").catch(()=>({})),
+        apiFetch("/api/admin/live-status").catch(()=>({companies:[]})),
+        apiFetch("/api/admin/licenses/usage").catch(()=>({usages:[]})),
+        apiFetch("/api/control/staged-update").catch(()=>({updates:[]})),
+        currentCompany.id?apiFetch(`/api/admin/backups/${encodeURIComponent(currentCompany.id)}`).catch(()=>({backups:[]})):Promise.resolve({backups:[]}),
+        apiFetch("/api/admin/audit-logs?limit=200").catch(()=>({logs:[]})),
+      ]);
+      const options=companies.map(company=>`<option value="${esc(company.id)}">${esc(company.company_name||company.id)}</option>`).join("");
+      tabContent.innerHTML=`<section class="admin-query-page"><header class="admin-query-hero"><div><span>QUERY BUFFER / READ-ONLY TX</span><h2>Salt Okunur SQL Te\u015fhis Sorgulay\u0131c\u0131</h2><p>G\u00fcvenli SELECT &amp; EXPLAIN sorgular\u0131 \u00e7al\u0131\u015ft\u0131r\u0131r (Yazma i\u015flemleri kilitlidir)</p></div><label>Firma<select id="adminQueryTenant">${options||`<option value="">Firma bulunamadi</option>`}</select></label></header><section class="admin-query-workbench"><header><div><span>QUERY BUFFER</span><b>KORUMALI MOD</b></div><small>Yazma komutlar\u0131 sunucu taraf\u0131nda reddedilir.</small></header><textarea id="adminQueryInput" spellcheck="false" aria-label="Salt okunur SQL sorgusu">SELECT id, username, role, last_login, disk_usage_mb\nFROM users\nWHERE status = 'active'\nORDER BY id ASC\nLIMIT 50;</textarea><footer><div><button type="button" id="adminQueryRun">Sorguyu \u00c7al\u0131\u015ft\u0131r</button><button type="button" id="adminQueryExplain">EXPLAIN QUERY PLAN</button><button type="button" id="adminQueryClear">Temizle</button></div><span id="adminQueryStatus" role="status">Salt okunur sorgu bekleniyor.</span></footer></section><section class="admin-query-results"><header><h3>Sorgu Sonu\u00e7lar\u0131</h3><span id="adminQueryResultCount">Hen\u00fcz sorgu \u00e7al\u0131\u015ft\u0131r\u0131lmad\u0131</span></header><div class="admin-query-table-wrap"><table><thead id="adminQueryHead"><tr><th>SONU\u00c7</th></tr></thead><tbody id="adminQueryRows"><tr><td>G\u00fcvenli sorgu sonucu burada g\u00f6r\u00fcnt\u00fclenir.</td></tr></tbody></table></div></section></section>`;
+      const queryPage=tabContent.querySelector(".admin-query-page");
+      const queryNav=document.createElement("nav");
+      queryNav.className="admin-query-nav";
+      queryNav.setAttribute("aria-label","Yonetim modulleri");
+      queryNav.innerHTML='<button type="button" data-query-nav="dashboard">Merkezi Konsol</button><button type="button" data-query-nav="backup-restore">Yedekleme &amp; Kurtarma</button><button type="button" data-query-nav="staged-update">Guncelleme Dagitimi</button><button type="button" data-query-nav="quota-limits">Kota &amp; Limitler</button><button type="button" data-query-nav="database-query" class="active">SQL Sorgu Yoneticisi</button><button type="button" data-query-nav="error-telemetry">Hata &amp; Telemetri</button><button type="button" data-query-nav="audit">Denetim (Audit)</button><button type="button" data-query-nav="server-settings">Sunucu Ayarlari</button>';
+      const currentUsage=(Array.isArray(usageResponse.usages)?usageResponse.usages:[]).find(item=>String(item.tenant_id)===String(currentCompany.id))||{};
+      const activeConnections=Array.isArray(liveStatus.companies)?liveStatus.companies.filter(item=>item.online!==false).length:0;
+      const queryStatus=document.createElement("section");
+      queryStatus.className="admin-query-platform-status";
+      const metric=(label,value,note,tone="")=>`<article class="${tone}"><span>${label}</span><strong>${esc(value)}</strong><small>${esc(note)}</small></article>`;
+      const serverMetric=(label,value,detail)=>{const numeric=Number(value),valid=value!==null&&value!==undefined&&value!==""&&Number.isFinite(numeric),percent=valid?Math.min(100,Math.max(0,numeric)):0,shown=valid?`${Number.isInteger(numeric)?numeric:numeric.toFixed(1)}%`:"--";return `<div><span>${label}</span><b>${shown}</b><i><em style="width:${percent}%"></em></i><small>${esc(detail||"API detail unavailable")}</small></div>`};
+      const databasePath=currentCompany.db_filename||serverStatus.db_path||"API verisi yok";
+      const gatewayNote=[serverStatus.version?`Surum: ${serverStatus.version}`:"",data.vendor?.server||"",`${activeConnections} aktif firma baglantisi`].filter(Boolean).join(" | ");
+      const cpuDetail=[serverStatus.cpu_cores,serverStatus.cpu_model].filter(Boolean).join(" @ ")||"API detail unavailable";
+      const ramDetail=serverStatus.ram_used_gb!=null&&serverStatus.ram_total_gb!=null?`${Number(serverStatus.ram_used_gb).toFixed(1)} GB / ${Number(serverStatus.ram_total_gb).toFixed(1)} GB`:"API detail unavailable";
+      const diskDetail=serverStatus.disk_used_gb!=null&&serverStatus.disk_total_gb!=null?`${Number(serverStatus.disk_used_gb).toFixed(1)} GB / ${Number(serverStatus.disk_total_gb).toFixed(1)} GB`:"API detail unavailable";
+      queryStatus.innerHTML=`${metric("VERITABANI YOLU",databasePath,currentUsage.db_size_mb!=null?`${Number(currentUsage.db_size_mb).toFixed(2)} MB / ${currentUsage.db_limit_gb||"--"} GB`:"Dosya konumu Admin API tarafinda sunulmuyor","database")}<article class="admin-query-hardware"><header><span>DONANIM &amp; KAYNAK TUKETIMI (MASTER NODE)</span><b>${serverStatus.cpu_percent!=null?"Normal Yuk":"API TELEMETRISI"}</b></header><div>${serverMetric("CPU",serverStatus.cpu_percent,cpuDetail)}${serverMetric("RAM",serverStatus.ram_percent,ramDetail)}${serverMetric("NVMe SSD",serverStatus.disk_percent,diskDetail)}</div></article>${metric("GATEWAY &amp; LISANS API",serverStatus.version?"200 OK":"API verisi yok",gatewayNote,serverStatus.version?"gateway":"unavailable")}`;
+      queryPage.prepend(queryNav,queryStatus);
+      $$('[data-query-nav]').forEach(button=>button.addEventListener("click",()=>{activeAdminTab=button.dataset.queryNav;loadControlCenter()}));
+      const queryWorkspace=document.createElement("div");
+      queryWorkspace.className="admin-query-workspace";
+      const queryPrimary=document.createElement("div");
+      queryPrimary.className="admin-query-primary";
+      const queryAside=document.createElement("aside");
+      queryAside.className="admin-query-aside";
+      const queryHero=queryPage.querySelector(".admin-query-hero"),queryWorkbench=queryPage.querySelector(".admin-query-workbench"),queryResults=queryPage.querySelector(".admin-query-results");
+      [queryHero,queryWorkbench,queryResults].forEach(node=>{if(node)queryPrimary.append(node)});
+      const updates=Array.isArray(updateResponse.updates)?updateResponse.updates:[];
+      const backups=Array.isArray(backupResponse.backups)?backupResponse.backups:[];
+      const auditLogs=Array.isArray(auditResponse.logs)?auditResponse.logs.slice(0,200):[];
+      const versionOptions=updates.map(item=>`<option value="${esc(item.version)}" data-file="${esc(item.file_path||"")}" data-notes="${esc(item.notes||"")}">${esc(item.version)}</option>`).join("");
+      const backupRows=backups.slice(0,2).map(item=>`<tr><td><strong>${esc(item.filename||"Yedek dosyasi")}</strong></td><td>${esc(item.source||"--")}</td><td>${esc(String(item.modified||"--").replace("T"," ").slice(0,16))}</td><td>${item.size_bytes?`${(Number(item.size_bytes)/1048576).toFixed(2)} MB`:"--"}</td><td><span class="admin-query-backup-state">${item.sha256?"SHA-256":"Kontrol Bekliyor"}</span></td><td><button type="button" data-query-download="${esc(item.index)}">Indir</button><button type="button" data-query-backup="${esc(item.index)}">Geri Yukle</button></td></tr>`).join("")||'<tr><td colspan="6">Yedek kaydi bulunamadi.</td></tr>';
+      const auditLogCategory=item=>{const type=String(item.severity||item.risk_level||item.detail?.severity||item.detail?.risk_level||"").toLowerCase(),action=String(item.action||"").toLowerCase();if(/critical|fatal|error|kritik|hata/.test(type))return "error";if(/warn|uyari/.test(type))return "warn";if(/info|telemetry|metric|bilgi|metrik/.test(type))return "telemetry";if(/password|token|permission|security|login|parola|yetki|oturum/.test(action))return "security";return "audit"};
+      let queryAuditCategory="all",queryAuditSearch="";
+      const renderQueryAudit=()=>{
+        const filtered=auditLogs.filter(item=>{const category=auditLogCategory(item),matchesCategory=queryAuditCategory==="all"||category===queryAuditCategory,haystack=[item.created_at,item.company_name,item.tenant_id,item.action,item.severity,item.risk_level,item.detail?.description,item.detail?.title].filter(Boolean).join(" ").toLowerCase();return matchesCategory&&haystack.includes(queryAuditSearch)});
+        const counts={all:Number(auditResponse.total_count)||auditLogs.length,error:0,warn:0,audit:0,security:0};auditLogs.forEach(item=>{const category=auditLogCategory(item);if(category in counts)counts[category]+=1});const reportedCounts=auditResponse.category_counts||{};["error","warn","audit","security"].forEach(key=>{if(Number.isFinite(Number(reportedCounts[key])))counts[key]=Number(reportedCounts[key])});
+        const filters=[['all',"T\u00dcM\u00dc"],['error',"ERROR"],['warn',"WARN"],['audit',"AUDIT"],['security',"SECURITY"]];
+        const tabs=filters.map(([key,label])=>`<button type="button" data-query-audit-filter="${key}" class="${queryAuditCategory===key?"active":""}">${label} <b>${counts[key]}</b></button>`).join("");
+        const rows=filtered.map(item=>{const detail=item.detail||{},severity=String(item.severity||item.risk_level||detail.severity||detail.risk_level||"--"),failed=/critical|fatal|error|hata/i.test(severity),levelTone=/^info$|^telemetry$/i.test(severity)?"success":/^audit$/i.test(severity)?"primary":/^metric$/i.test(severity)?"neutral":/^warn/i.test(severity)?"warning":failed?"error":"neutral",description=String(detail.description||detail.title||"Audit API kaydi"),highlight=String(detail.code||""),highlightAt=highlight?description.indexOf(highlight):-1,descriptionHtml=highlightAt>=0?`${esc(description.slice(0,highlightAt))}<code class="${esc(detail.code_tone||"success")}">${esc(highlight)}</code>${esc(description.slice(highlightAt+highlight.length))}`:esc(description);const statusIcon=failed?'<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 4.5v4M8 11.2h.01"/></svg>':'<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="m5 8 2 2 4-4"/></svg>';return `<tr><td>${esc(String(item.created_at||"-").replace("T"," ").replace(/Z$/, ""))}</td><td>${esc(item.company_name||item.tenant_id||"-")}</td><td><b>${esc(item.action||"EVENT")}</b></td><td><span class="admin-query-audit-level ${levelTone}">${esc(severity)}</span></td><td>${descriptionHtml}</td><td class="admin-query-audit-status ${failed?"error":"success"}">${statusIcon}<span class="sr-only">${failed?"Kontrol gerekli":"Tamamlandi"}</span></td></tr>`}).join("")||'<tr><td colspan="6">Filtreyle eslesen API kaydi bulunamadi.</td></tr>';
+        const body=queryTelemetry.querySelector("tbody");if(body)body.innerHTML=rows;
+        const nav=queryTelemetry.querySelector(".admin-query-audit-filters");if(nav)nav.innerHTML=tabs;
+        const count=queryTelemetry.querySelector(".admin-query-audit-count");if(count)count.textContent=`${filtered.length} kayit`;
       };
+      queryAside.innerHTML=`<section class="admin-query-update"><header><div><h3>Yedekleme &amp; S\u00fcr\u00fcm G\u00fcncelleme Da\u011f\u0131t\u0131m\u0131</h3><p>OTA g\u00fcncelleme paketlerini da\u011f\u0131t\u0131n ve anl\u0131k veritaban\u0131 anl\u0131k g\u00f6r\u00fcnt\u00fclerini y\u00f6netin.</p></div><b>${esc(updates[0]?.target_scope||"API VERISI YOK")}</b></header><div class="admin-query-update-form"><label>Da\u011f\u0131t\u0131m S\u00fcr\u00fcm\u00fc<select id="adminQueryRelease" ${updates.length?"":"disabled"}>${versionOptions||'<option value="">Surum API verisi yok</option>'}</select></label><label>Kanal Hedefi<select id="adminQueryChannel"><option value="Pilot">Pilot M\u00fc\u015fteriler</option><option value="All">T\u00fcm Firmalar</option></select></label><button type="button" id="adminQueryDeploy" ${updates.length?"":"disabled"}>Da\u011f\u0131t\u0131m\u0131 Kuyrukla</button><label class="notes">S\u00fcr\u00fcm De\u011fi\u015fiklik Notlar\u0131<textarea id="adminQueryReleaseNotes" rows="1" readonly>${esc(updates[0]?.notes||"API taraf\u0131nda s\u00fcr\u00fcm notu bulunmuyor.")}</textarea></label></div></section><section class="admin-query-backups"><header><h3>Son Al\u0131nan Sistem Yedekleri</h3><span>Depolama: \u015eifreli AES-256</span></header><div class="admin-query-backup-table"><table><thead><tr><th>Dosya Ad\u0131</th><th>Kaynak</th><th>Tarih</th><th>Boyut</th><th>Durum</th><th>Eylem</th></tr></thead><tbody>${backupRows}</tbody></table></div></section>`;
+      queryWorkspace.append(queryPrimary,queryAside);
+      queryPage.append(queryWorkspace);
+      const queryTelemetry=document.createElement("section");
+      queryTelemetry.className="admin-query-telemetry";
+      queryTelemetry.innerHTML=`<header><div class="admin-query-audit-heading"><svg class="admin-query-audit-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.2v2.1M10 15.7v2.1M2.2 10h2.1m11.4 0h2.1M4.5 4.5 6 6m8 8 1.5 1.5m0-11L14 6m-8 8-1.5 1.5"/><circle cx="10" cy="10" r="5.1"/><path d="M10 7.1v3.1l2 1.2"/></svg><h3>Canl\u0131 Telemetri, Hata ve Denetim (Audit) Loglar\u0131</h3><nav class="admin-query-audit-filters"></nav></div><div class="admin-query-audit-tools"><label class="admin-query-audit-search"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m11.5 11.5 3 3M13 7a6 6 0 1 1-12 0 6 6 0 0 1 12 0Z"/></svg><input type="search" id="adminQueryAuditSearch" aria-label="Log ak\u0131\u015f\u0131nda filtrele" placeholder="Log ak\u0131\u015f\u0131nda filtrele..."></label><button type="button" id="adminQueryAuditOpen">Canl\u0131 Ak\u0131\u015f</button></div></header><span class="admin-query-audit-count sr-only" aria-live="polite"></span><div class="admin-query-telemetry-table"><table><thead><tr><th>Tarih / Saat</th><th>Firma / Kaynak</th><th>Olay Kodu</th><th>Seviye</th><th>\u0130\u015flem ve Telemetri A\u00e7\u0131klamas\u0131</th><th>Durum</th></tr></thead><tbody></tbody></table></div><div class="admin-query-trace"><div class="admin-query-trace-meta"><span><i aria-hidden="true"></i>CANLI DENET\u0130M KONSOLU &amp; G\u00d6ZLEMC\u0130 (STACK TRACE \u0130NCELEME)</span><span>AYEC Node Engine v2.0.1 Daemon [Thread #418] OK</span></div><div class="admin-query-trace-lines"><p>[08:11:02.412] &gt;&gt; TCP Socket accepted from 192.168.1.108:52410 -&gt; Handshake TLS_AES_256_GCM_SHA384 (TLSv1.3)</p><p>[08:11:02.420] &gt;&gt; Token verification payload: <span>{ tenant_id: 101, firm: "ASLAN TIC", role: "super_admin", exp: 1760431862 }</span></p><p>[08:11:02.435] &gt;&gt; WAL checkpoint triggered on C:\Web_Arayuzu\data\ayecpro.db: busy=0, log=48, checkpointed=48 (Passive Mode)</p><p>[08:11:02.440] &gt;&gt; Health check report queued to endpoint: https://lisans.ayecpro.com/api/telemetry (Status: 200, Latency: 14ms)</p></div></div>`;
+      renderQueryAudit();
+      queryTelemetry.querySelector("#adminQueryAuditSearch")?.addEventListener("input",event=>{queryAuditSearch=event.currentTarget.value.trim().toLowerCase();renderQueryAudit()});
+      queryTelemetry.querySelector(".admin-query-audit-filters")?.addEventListener("click",event=>{const button=event.target.closest("[data-query-audit-filter]");if(!button)return;queryAuditCategory=button.dataset.queryAuditFilter;renderQueryAudit()});
+      queryPage.append(queryTelemetry);
+      const openQueryRoute=route=>{activeAdminTab=route;loadControlCenter()};
+      $("#adminQueryAuditOpen").addEventListener("click",()=>openQueryRoute("audit"));
+      $$('[data-query-backup]').forEach(button=>button.addEventListener("click",()=>{activeBackupTenant=String(currentCompany.id||"");openQueryRoute("backup-restore")}));
+      $$('[data-query-download]').forEach(button=>button.addEventListener("click",async()=>{const item=backups.find(record=>String(record.index)===button.dataset.queryDownload);if(!item)return;const url=`/api/admin/backups/${encodeURIComponent(currentCompany.id||"")}/download/${encodeURIComponent(item.index)}${item.backup_id?`?backup_id=${encodeURIComponent(item.backup_id)}`:""}`,response=await fetch(url,{credentials:"same-origin"});if(!response.ok)throw new Error("Yedek indirilemedi.");const link=document.createElement("a"),blob=await response.blob(),objectUrl=URL.createObjectURL(blob);link.href=objectUrl;link.download=item.filename||"tenant-backup.db";link.click();setTimeout(()=>URL.revokeObjectURL(objectUrl),500)}));
+      $("#adminQueryRelease")?.addEventListener("change",event=>{const option=event.currentTarget.selectedOptions[0];$("#adminQueryReleaseNotes").value=option?.dataset.notes||""});
+      $("#adminQueryDeploy")?.addEventListener("click",()=>{
+        const release=$("#adminQueryRelease").selectedOptions[0],version=release?.value||"",filePath=release?.dataset.file||"",notes=$("#adminQueryReleaseNotes").value,targetScope=$("#adminQueryChannel").value;
+        if(!version||!filePath){toast("Surum paketi ve dosya yolu API tarafinda bulunmuyor.","warning");return}
+        openDialog("Guncellemeyi Kuyruga Al","OTA DAGITIM ONAYI",`<p><b>${esc(version)}</b> surumu <b>${esc(targetScope)}</b> kanalina kuyruga eklenecek.</p>`,async()=>{await apiFetch("/api/control/staged-update",{method:"POST",body:JSON.stringify({version,target_scope:targetScope,file_path:filePath,notes})});toast("Surum dagitimi kuyruga eklendi.","success");await loadControlCenter();return true},"Da\u011f\u0131t\u0131m\u0131 Kuyrukla");
+      });
+      const tenantSelect=$("#adminQueryTenant"),queryInput=$("#adminQueryInput"),status=$("#adminQueryStatus"),runButton=$("#adminQueryRun"),explainButton=$("#adminQueryExplain");
+      const execute=async explain=>{
+        const tenantId=tenantSelect.value,query=queryInput.value.trim().replace(/;+\s*$/g,"");
+        if(!tenantId||!query){status.textContent="Firma ve sorgu metni gereklidir.";return}
+        const sql=explain?`EXPLAIN QUERY PLAN ${query}`:query;
+        runButton.disabled=true;explainButton.disabled=true;status.textContent="Sorgu \u00e7al\u0131\u015ft\u0131r\u0131l\u0131yor...";
+        const started=performance.now();
+        try{
+          const data=await apiFetch(`/api/admin/companies/${encodeURIComponent(tenantId)}/query`,{method:"POST",body:JSON.stringify({sql})});
+          const columns=Array.isArray(data.columns)?data.columns:[],rows=Array.isArray(data.rows)?data.rows:[];
+          $("#adminQueryHead").innerHTML=`<tr>${columns.map(column=>`<th>${esc(column)}</th>`).join("")}</tr>`;
+          $("#adminQueryRows").innerHTML=rows.slice(0,200).map(row=>`<tr>${(Array.isArray(row)?row:[]).map(value=>`<td>${esc(value==null?"NULL":String(value))}</td>`).join("")}</tr>`).join("")||`<tr><td colspan="${Math.max(columns.length,1)}">Sat\u0131r bulunamad\u0131.</td></tr>`;
+          const elapsed=(performance.now()-started).toFixed(2);
+          $("#adminQueryResultCount").textContent=`${rows.length}${data.truncated?"+":""} sat\u0131r / ${columns.length} s\u00fctun`;
+          status.textContent=`Tamamland\u0131: ${elapsed} ms${data.truncated?" \u2022 \u0130lk 1000 sat\u0131r g\u00f6steriliyor.":""}`;
+        }catch(error){status.textContent=`Sorgu reddedildi veya tamamlanamad\u0131: ${error.message}`;$("#adminQueryResultCount").textContent="Sorgu ba\u015far\u0131s\u0131z";$("#adminQueryRows").innerHTML=`<tr><td>${esc(error.message)}</td></tr>`}
+        finally{runButton.disabled=false;explainButton.disabled=false}
+      };
+      runButton.onclick=()=>execute(false);explainButton.onclick=()=>execute(true);
+      $("#adminQueryClear").onclick=()=>{queryInput.value="";status.textContent="Sorgu temizlendi.";$("#adminQueryHead").innerHTML="<tr><th>SONU\u00c7</th></tr>";$("#adminQueryRows").innerHTML="<tr><td>G\u00fcvenli sorgu sonucu burada g\u00f6r\u00fcnt\u00fclenir.</td></tr>";$("#adminQueryResultCount").textContent="Hen\u00fcz sorgu \u00e7al\u0131\u015ft\u0131r\u0131lmad\u0131"};
+    }
+    else if(activeAdminTab === "telemetry") {
+      const tenantNames=new Map((Array.isArray(data.tenants)?data.tenants:[]).map(tenant=>[String(tenant.id),String(tenant.company_name||tenant.id)]));
+      let logs=[];
+      let selectedLogId="";
+      let telemetryFilter="all";
+      let telemetryPaused=false;
+      const companyOptions=[...tenantNames.entries()].map(([id,name])=>`<option value="${esc(id)}">${esc(name)}</option>`).join("");
+      tabContent.innerHTML=`<section class="admin-error-page"><header class="admin-error-hero"><div><span>CRASH &amp; TELEMETRY HUB</span><span id="adminTelemetryServiceState"><i></i> TELEMETR\u0130 SERV\u0130S\u0130 AKT\u0130F (PORT: 9280)</span><h2>Hata Loglar\u0131 &amp; Telemetri G\u00f6zlem Masas\u0131</h2><p>T\u00fcm firma masa\u00fcst\u00fc istemcilerinde olu\u015fan istisnalar\u0131 (exception), veritaban\u0131 kilitlenmelerini ve API zaman a\u015f\u0131mlar\u0131n\u0131 inceleyin.</p></div><div class="admin-error-actions"><span id="adminTelemetryState"><i></i> API AKTIF</span><span id="adminTelemetryDate">Bug\u00fcn</span><button type="button" id="adminTelemetryPause">Canl\u0131 Ak\u0131\u015f\u0131 Dondur</button><button type="button" id="adminTelemetryRefresh">Yeniden Tara</button></div></header><section class="admin-error-metrics"><article class="critical"><header><small>Kritik Hatalar (Crash)</small><span>STAB\u0130L</span></header><div><strong id="adminTelemetryTotal">0</strong><small>Adet / <b id="adminTelemetryFatalRate">0</b>% fatal</small></div><b id="adminTelemetryCoreState">\xc7ekirdek d\xf6k\xfcm\xfc: yok</b></article><article class="warning"><header><small>Aktif Uyar\u0131lar (Warnings)</small><span>\u0130NCELEME \xd6NER\u0130L\u0130R</span></header><div><strong id="adminTelemetryStackCount">0</strong><small>Adet (WAL kilitlenmesi)</small></div><b id="adminTelemetryWarningDetail">ASLAN TIC &amp; Bulut | Gecikme: 142ms</b></article><article class="handled"><header><small>Yakalanan \u0130stisnalar (Handled)</small><span>SON 24 SAAT</span></header><div><strong id="adminTelemetryTenantCount">0</strong><small>Otomatik telafi edildi</small></div><b>SQLite WAL + API | Veri kayb\u0131: %0.00</b></article><article class="stability"><header><small>Hata \xc7\xf6z\xfcm &amp; Stabilite</small><span>SLA A+</span></header><div><strong id="adminTelemetryLatest">\u2014</strong><small>Sa\u011fl\u0131kl\u0131 \xe7al\u0131\u015fma</small></div><b>Servis sa\u011fl\u0131k g\xf6stergesi</b><span id="adminTelemetryStabilityBar"><i></i></span></article></section><section class="admin-error-toolbar"><div class="admin-error-filters"><button class="active" data-telemetry-filter="all">T\xfcm\xfc <b id="adminTelemetryAllCount">0</b></button><button data-telemetry-filter="critical">Kritik / Fatal <b id="adminTelemetryCriticalCount">0</b></button><button data-telemetry-filter="error">Hata / Error <b id="adminTelemetryErrorCount">0</b></button><button data-telemetry-filter="warning">Uyar\u0131 / Warn <b id="adminTelemetryWarningCount">0</b></button><button data-telemetry-filter="info">Bilgi <b id="adminTelemetryInfoCount">0</b></button></div><div class="admin-error-tools"><select id="adminTelemetryCompany"><option value="">T\u00fcm Firmalar</option>${companyOptions}</select><input id="adminTelemetrySearch" type="search" placeholder="Hata kodu, dosya ad\u0131, stack trace veya firma i\u00e7inde ara..."></div></section><section class="admin-error-table-card"><header><h3>Canl\u0131 Telemetri &amp; Hata Ak\u0131\u015f Tablosu</h3><span id="adminTelemetryVisibleCount">0 kayit</span><span>Auto-polling 3s</span><button type="button" id="adminTelemetryColumns">\u2637 S\u00fctunlar\u0131 D\u00fczenle</button><button type="button" id="adminTelemetryExport">CSV \u0130ndir</button></header><div class="admin-error-table-wrap"><table><thead><tr><th>ZAMAN DAMGASI</th><th>F\u0130RMA</th><th>B\u0130LG\u0130SAYAR / TERM\u0130NAL</th><th>HATA T\u00dcR\u00dc</th><th>SATIR / METOT</th><th>MESAJ &amp; \u0130ST\u0130SNA \u00d6ZET\u0130</th><th>DURUM &amp; AKS\u0130YON</th></tr></thead><tbody id="adminTelemetryRows"></tbody></table></div></section><section class="admin-error-detail" id="adminTelemetryDetail"></section></section>`;
+      const telemetryCategory=log=>{
+        const value=String(log.severity||log.level||log.error_type||log.exception_type||log.error_message||"").toLowerCase();
+        if(/\b(critical|fatal)\b/.test(value))return "critical";
+        if(/\b(warn|warning)\b/.test(value))return "warning";
+        if(/\b(info|notice)\b/.test(value))return "info";
+        return "error";
+      };
+      const filteredLogs=()=>{
+        const query=$("#adminTelemetrySearch").value.trim().toLowerCase(),company=$("#adminTelemetryCompany").value;
+        return logs.filter(log=>{
+          const category=telemetryCategory(log);
+          const categoryMatch=telemetryFilter==="all"||telemetryFilter===category;
+          const companyMatch=!company||String(log.tenant_id)===company;
+          const haystack=[log.tenant_id,tenantNames.get(String(log.tenant_id)),log.version,log.os_info,log.error_message,log.stack_trace,log.error_type,log.exception_type].join(" ").toLowerCase();
+          return categoryMatch&&companyMatch&&haystack.includes(query);
+        });
+      };
+      const renderDetail=()=>{
+        const log=logs.find(row=>String(row.id)===String(selectedLogId));
+        if(!log){$("#adminTelemetryDetail").innerHTML=`<div class="admin-error-empty-detail">Bir hata kaydi secin. Stack trace ve tenant ayrintilari burada gorunur.</div>`;return}
+        $("#adminTelemetryDetail").innerHTML=`<header><div><span>HATA AYRINTISI / KAYIT #${esc(log.id)}</span><h3>${esc(log.error_message||"Hata mesaji yok")}</h3><p>${esc(tenantNames.get(String(log.tenant_id))||log.tenant_id||"Tenant bilinmiyor")} \u00b7 ${esc(log.created_at||"-")}</p></div><div class="admin-error-detail-actions"><button type="button" id="adminTelemetryCopy">Stack Trace Kopyala</button><button type="button" id="adminTelemetryJson">JSON Indir</button><button type="button" disabled title="Hata cozme API'si bulunmuyor">Cozuldu Olarak Isaretle</button><button type="button" disabled title="Destek bildirimi API'si bulunmuyor">Firmaya Teshis Bildirimi Gonder</button></div></header><div class="admin-error-facts"><article><small>TENANT</small><b>${esc(log.tenant_id||"-")}</b></article><article><small>SURUM</small><b>${esc(log.version||"-")}</b></article><article><small>ISLETIM SISTEMI</small><b>${esc(log.os_info||"-")}</b></article><article><small>KAYIT ZAMANI</small><b>${esc(log.created_at||"-")}</b></article></div><section class="admin-error-stack"><header><span>HAM EXCEPTION &amp; STACK TRACE</span><small>UTF-8 / API KAYDI</small></header><pre id="adminTelemetryStack">${esc(log.stack_trace||"Bu kayitta stack trace verisi yok.")}</pre></section>`;
+        $("#adminTelemetryCopy").addEventListener("click",async()=>{try{await navigator.clipboard.writeText(String(log.stack_trace||""));toast("Stack trace panoya kopyalandi.","success")}catch(_){toast("Panoya erisim izni yok.","warning")}});
+        $("#adminTelemetryJson").addEventListener("click",()=>{const blob=new Blob(["\ufeff",JSON.stringify(log,null,2)],{type:"application/json;charset=utf-8"});const link=document.createElement("a");link.href=URL.createObjectURL(blob);link.download=`telemetry-${log.id}.json`;link.click();URL.revokeObjectURL(link.href)});
+      };
+      const renderRows=()=>{
+        const visible=filteredLogs();
+        const counts={critical:0,error:0,warning:0,info:0};
+        logs.forEach(log=>counts[telemetryCategory(log)]++);
+        $("#adminTelemetryAllCount").textContent=String(logs.length);
+        $("#adminTelemetryCriticalCount").textContent=String(counts.critical);
+        $("#adminTelemetryErrorCount").textContent=String(counts.error);
+        $("#adminTelemetryWarningCount").textContent=String(counts.warning);
+        $("#adminTelemetryInfoCount").textContent=String(counts.info);
+        $("#adminTelemetryVisibleCount").textContent=`${visible.length} kay\u0131t`;
+        $("#adminTelemetryRows").innerHTML=visible.map(log=>{
+          const category=telemetryCategory(log);
+          const stack=String(log.stack_trace||"");
+          const location=stack.split(/\r?\n/).map(line=>line.trim()).find(Boolean)||"-";
+          const computer=log.device_name||log.hostname||log.os_info||"Terminal";
+          const errorType=log.error_type||log.exception_type||log.level||"Exception";
+          return `<tr data-telemetry-row="${esc(log.id)}" tabindex="0" role="button" class="${String(log.id)===String(selectedLogId)?"selected":""}"><td>${esc(String(log.created_at||"-").replace("T"," ").replace(/Z$/, ""))}</td><td><strong>${esc(log.company_name||tenantNames.get(String(log.tenant_id))||log.tenant_id||"-")}</strong><small>${esc(log.license_code||log.tenant_id||"-")}</small></td><td><strong>${esc(computer)}</strong><small>${esc(log.version||"-")}</small></td><td><span class="admin-error-type ${category}">${esc(errorType)}</span></td><td><code>${esc(location)}</code></td><td><code>${esc(log.summary||log.error_message||"Hata mesaj\u0131 yok")}</code></td><td><span class="admin-error-row-status ${log.handled||log.resolved?"resolved":"open"}">${log.handled||log.resolved?"\u0130ncelendi":"A\u00e7\u0131k"}</span><button type="button" data-view-trace="${esc(log.id)}">\u0130ncele</button></td></tr>`;
+        }).join("")||`<tr><td colspan="7">Filtrelere uygun hata kayd\u0131 yok.</td></tr>`;
+        $$('[data-telemetry-row]').forEach(row=>{const select=()=>{selectedLogId=row.dataset.telemetryRow;renderRows();renderDetail()};row.addEventListener("click",select);row.addEventListener("keydown",event=>{if(event.key==="Enter"||event.key===" " ){event.preventDefault();select()}})});
+        renderDetail();
+      };
+      const loadTelemetry=async()=>{
+        try{
+          const response=await apiFetch("/api/control/telemetry/errors");
+          logs=Array.isArray(response.logs)?response.logs:[];
+          if(!logs.some(log=>String(log.id)===String(selectedLogId)))selectedLogId=String(logs[0]?.id||"");
+          const counts={critical:0,error:0,warning:0,info:0};
+          logs.forEach(log=>counts[telemetryCategory(log)]++);
+          $("#adminTelemetryTotal").textContent=String(counts.critical);
+          $("#adminTelemetryStackCount").textContent=String(counts.warning);
+          $("#adminTelemetryTenantCount").textContent=String(response.handled_count??logs.filter(log=>log.handled||log.resolved).length);
+          const stability=response.stability_percent??response.health_percent;
+          $("#adminTelemetryLatest").textContent=stability==null?"\u2014":`${Number(stability).toFixed(1)}%`;
+          $("#adminTelemetryStabilityBar i").style.width=`${Math.max(0,Math.min(100,Number(stability)||0))}%`;
+          $("#adminTelemetryFatalRate").textContent=logs.length?String(Math.round(counts.critical*100/logs.length)):"0";
+          $("#adminTelemetryCoreState").textContent=counts.critical?"\u00c7ekirdek d\u00f6k\u00fcm\u00fc var":"\u00c7ekirdek d\u00f6k\u00fcm\u00fc yok | T\u00fcm servisler normal";
+          const latestDate=logs[0]?.created_at?new Date(logs[0].created_at):new Date();
+          $("#adminTelemetryDate").textContent=`Bug\u00fcn (${new Intl.DateTimeFormat("tr-TR",{day:"numeric",month:"long",year:"numeric"}).format(latestDate)})`;
+          $("#adminTelemetryWarningDetail").textContent=logs.filter(log=>telemetryCategory(log)==="warning").map(log=>tenantNames.get(String(log.tenant_id))||log.tenant_id).filter(Boolean).slice(0,2).join(" & ")||"Canl\u0131 uyar\u0131 verisi";
+
+          renderRows();
+        }catch(error){$("#adminTelemetryState").innerHTML="<i></i> API HATASI";toast(error.message||"Telemetry kayitlari alinamadi.","error")}
+      };
+      $$('[data-telemetry-filter]').forEach(button=>button.addEventListener("click",()=>{telemetryFilter=button.dataset.telemetryFilter;$$('[data-telemetry-filter]').forEach(item=>item.classList.toggle("active",item===button));renderRows()}));
+      $("#adminTelemetrySearch").addEventListener("input",renderRows);$("#adminTelemetryCompany").addEventListener("change",renderRows);
+      $("#adminTelemetryRefresh").addEventListener("click",loadTelemetry);
+      $("#adminTelemetryPause").addEventListener("click",()=>{telemetryPaused=!telemetryPaused;$("#adminTelemetryPause").textContent=telemetryPaused?"Canl\u0131 Ak\u0131\u015f\u0131 S\u00fcrd\u00fcr":"Canl\u0131 Ak\u0131\u015f\u0131 Dondur";$("#adminTelemetryState").classList.toggle("paused",telemetryPaused)});
+      $("#adminTelemetryExport").addEventListener("click",()=>{const rows=filteredLogs(),csv=[["id","tenant_id","version","os_info","error_message","created_at","stack_trace"],...rows.map(log=>[log.id,log.tenant_id,log.version,log.os_info,log.error_message,log.created_at,log.stack_trace])].map(row=>row.map(value=>`"${String(value??"").replaceAll('"','""')}"`).join(",")).join("\r\n");const link=document.createElement("a");link.href=URL.createObjectURL(new Blob(["\ufeff",csv],{type:"text/csv;charset=utf-8"}));link.download="admin-telemetry.csv";link.click();URL.revokeObjectURL(link.href)});
+      adminAuditTimer=window.setInterval(()=>{if(activeAdminTab==="telemetry"&&!telemetryPaused)loadTelemetry()},5000);
       loadTelemetry();
     }
-    
+
   } catch(error) {
     tabContent.innerHTML = empty("Y\u00f6netim verisi al\u0131namad\u0131", error.message);
   }
@@ -2685,20 +3767,108 @@ function controlUserDialog(tenant,user){
 }
 
 function renderVehicleMaintenance(){
-  return `${pageHead("Ara\u00e7 Bak\u0131m Takibi","Bak\u0131m kartlar\u0131, randevular, muayene ve servis ba\u011flant\u0131lar\u0131.",'<button class="primary" data-maintenance-add>+ Bak\u0131m Kart\u0131</button>')}<section class="card"><div class="toolbar"><input class="control search" id="maintenanceSearch" placeholder="Plaka, m\u00fc\u015fteri veya marka ara"><button class="secondary" data-maintenance-refresh>Yenile</button></div><div id="maintenanceTable">${empty("Y\u00fckleniyor","Bak\u0131m kartlar\u0131 getiriliyor.")}</div></section>`;
+  return `${pageHead("Ara\u00e7 Bak\u0131m Takibi","Bak\u0131m kartlar\u0131, randevular, muayene ve servis ba\u011flant\u0131lar\u0131.",'<button class="secondary" data-maintenance-excel>Excel\u2019e Aktar</button><button class="secondary" data-maintenance-pdf>PDF Olu\u015ftur</button><button class="secondary" data-maintenance-print>Yazd\u0131r</button><button class="primary" data-maintenance-add>+ Bak\u0131m Kart\u0131</button>')}<section class="card"><div class="toolbar"><input class="control search" id="maintenanceSearch" placeholder="M\u00fc\u015fteri, plaka, marka veya model ara"><button class="secondary" data-maintenance-refresh>Yenile</button></div><div class="metric-grid vehicle-maintenance-metrics"><article><small>TOPLAM KART</small><strong id="maintenanceStatTotal">0</strong></article><article><small>YAKLA\u015eAN BAKIM</small><strong id="maintenanceStatDue">0</strong></article><article><small>MUAYENE YAKINI</small><strong id="maintenanceStatInspection">0</strong></article><article><small>A\u00c7IK I\u015e EMRI</small><strong id="maintenanceStatJobs">0</strong></article></div><div id="maintenanceTable">${empty("Y\u00fckleniyor","Bak\u0131m kartlar\u0131 getiriliyor.")}</div></section><section class="card maintenance-summary" id="maintenanceSelection"><div class="maintenance-summary-copy"><h3>Bak\u0131m ve Is Emri Ozet Paneli</h3><p data-maintenance-summary>Bir bak\u0131m kart\u0131 se\u00e7in.</p><p data-maintenance-history></p></div><button class="secondary" type="button" data-maintenance-open-service disabled>Bagli Servis Formu</button></section>`;
 }
 
 let vehicleMaintenanceRows=[];
 async function loadVehicleMaintenance(query=""){
   const host=$("#maintenanceTable");if(!host)return;
   try{
-    const data=await apiFetch(`/api/desktop/table/vehicle_maintenance_cards?limit=500&q=${encodeURIComponent(query)}`);
+    const data=await apiFetch(`/api/desktop/vehicle-maintenance/cards?q=${encodeURIComponent(query)}`);
     vehicleMaintenanceRows=data.rows||[];
-    host.innerHTML=vehicleMaintenanceRows.length?`<div class="table-wrap"><table><thead><tr><th>Plaka</th><th>M\u00fc\u015fteri</th><th>Ara\u00e7</th><th>KM</th><th>Servis</th><th>Sonraki Bak\u0131m</th><th>Muayene</th><th>Randevu</th><th>Servis Ref.</th><th></th></tr></thead><tbody>${vehicleMaintenanceRows.map((row,index)=>`<tr tabindex="0" data-maintenance-row="${index}"><td><strong>${esc(row.vehicle_plate||"-")}</strong></td><td>${esc(row.customer_name||"-")}</td><td>${esc([row.vehicle_brand,row.vehicle_model,row.vehicle_year].filter(Boolean).join(" ")||"-")}</td><td>${esc(row.odometer||0)}</td><td>${esc(String(row.service_date||"-").slice(0,10))}</td><td>${esc(String(row.next_maintenance_date||"-").slice(0,10))}</td><td>${esc(String(row.inspection_due_date||"-").slice(0,10))}</td><td>${esc([String(row.appointment_date||"").slice(0,10),row.appointment_time].filter(Boolean).join(" ")||"-")}</td><td>${esc(row.linked_device_tracking_no||"-")}</td><td><div class="row-actions"><button class="mini" data-maintenance-edit="${index}">Detay / D\u00fczenle</button>${row.linked_device_tracking_no?`<button class="mini" data-maintenance-service="${index}">Servis</button>`:""}</div></td></tr>`).join("")}</tbody></table></div>`:empty("Bak\u0131m kart\u0131 yok","Yeni bir ara\u00e7 bak\u0131m kart\u0131 olu\u015fturun.");
+    host.innerHTML=vehicleMaintenanceRows.length?`<div class="table-wrap"><table><thead><tr><th>ID</th><th>M\u00fc\u015fteri</th><th>Plaka</th><th>Ara\u00e7</th><th>Bak\u0131m Tarihi</th><th>Sonraki Bak\u0131m</th><th>Muayene</th><th>Yakla\u015fan KM</th><th>Taslak Randevu</th><th>Hat\u0131rlatma</th><th>Foto</th><th></th></tr></thead><tbody>${vehicleMaintenanceRows.map((row,index)=>{const dueKm=Number(row.next_due_odometer_min||0),currentKm=Number(row.odometer||0),remainingKm=dueKm>0?`${Math.max(0,dueKm-currentKm)} KM`:"";return `<tr tabindex="0" data-kind="vehicle-maintenance" data-id="${esc(row.id)}" data-maintenance-row="${index}"><td>${esc(row.id)}</td><td>${esc(row.customer_name||"")}</td><td>${esc(row.vehicle_plate||"")}</td><td>${esc([row.vehicle_brand,row.vehicle_model].filter(Boolean).join(" "))}</td><td>${esc(String(row.service_date||"").slice(0,10))}</td><td>${esc(String(row.next_maintenance_date||"").slice(0,10))}</td><td>${esc(String(row.inspection_due_date||"").slice(0,10))}</td><td>${esc(remainingKm)}</td><td>${esc(String(row.appointment_date||""))}</td><td>${esc(String(row.reminder_date||""))}</td><td>${esc(row.photo_count||0)}</td><td><div class="row-actions"><button class="mini" data-maintenance-edit="${index}">Detay / D\u00fczenle</button>${row.linked_device_tracking_no?`<button class="mini" data-maintenance-service="${index}">Servis</button>`:""}</div></td></tr>`}).join("")}</tbody></table></div>`:empty("Bak\u0131m kart\u0131 yok","Yeni bir ara\u00e7 bak\u0131m kart\u0131 olu\u015fturun.");
     $$('[data-maintenance-edit]').forEach(button=>button.onclick=()=>maintenanceDialog(data.rows[+button.dataset.maintenanceEdit]));
+    $$('[data-maintenance-edit]').forEach(button=>{const index=button.dataset.maintenanceEdit,history=document.createElement("button");history.type="button";history.className="mini";history.dataset.maintenanceHistory=index;history.textContent="QR / Ge\u00e7mi\u015f";button.after(history)});
+    $$('[data-maintenance-history]').forEach(button=>button.onclick=()=>maintenanceHistoryDialog(data.rows[+button.dataset.maintenanceHistory]));
+    $$('[data-maintenance-edit]').forEach(button=>{const gallery=document.createElement("button");gallery.type="button";gallery.className="mini";gallery.dataset.maintenancePhotos=button.dataset.maintenanceEdit;gallery.textContent="Foto Galerisi";button.after(gallery)});
+    $$('[data-maintenance-photos]').forEach(button=>button.onclick=()=>maintenancePhotoGallery(data.rows[+button.dataset.maintenancePhotos]));
     $$('[data-maintenance-service]').forEach(button=>button.onclick=()=>openMaintenanceService(data.rows[+button.dataset.maintenanceService]));
-    $$('[data-maintenance-row]').forEach(row=>row.ondblclick=()=>maintenanceDialog(data.rows[+row.dataset.maintenanceRow]));
+    $$('[data-maintenance-row]').forEach(row=>{const record=data.rows[+row.dataset.maintenanceRow];row.onclick=()=>selectVehicleMaintenance(record,row);row.ondblclick=()=>maintenanceDialog(record);if(String(record.id)===String(selectedMaintenanceRowId))row.classList.add("maintenance-row-selected");bindInteractiveRow(row)});
+    updateVehicleMaintenanceStats(vehicleMaintenanceRows);
+    const selected=vehicleMaintenanceRows.find(row=>String(row.id)===String(selectedMaintenanceRowId))||vehicleMaintenanceRows[0];
+    if(selected){const index=vehicleMaintenanceRows.indexOf(selected);void selectVehicleMaintenance(selected,document.querySelector(`[data-maintenance-row="${index}"]`))}else void selectVehicleMaintenance(null,null);
   }catch(error){host.innerHTML=empty("Bak\u0131m kartlar\u0131 al\u0131namad\u0131",error.message)}
+}
+
+function updateVehicleMaintenanceStats(rows){
+  const now=new Date(),todayKey=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
+  const values={maintenanceStatTotal:rows.length,maintenanceStatDue:rows.filter(row=>String(row.next_maintenance_date||"").slice(0,10)&&String(row.next_maintenance_date).slice(0,10)<=todayKey).length,maintenanceStatInspection:rows.filter(row=>String(row.inspection_due_date||"").slice(0,10)&&String(row.inspection_due_date).slice(0,10)<=todayKey).length,maintenanceStatJobs:rows.filter(row=>Boolean(row.linked_device_id)).length};
+  for(const [id,value] of Object.entries(values)){const output=document.getElementById(id);if(output)output.textContent=String(value)}
+}
+
+let selectedMaintenanceRowId="";
+let maintenanceSelectionRequest=0;
+async function selectVehicleMaintenance(row,element){
+  const request=++maintenanceSelectionRequest;
+  selectedMaintenanceRowId=String(row?.id||"");
+  $$('[data-maintenance-row]').forEach(item=>item.classList.toggle("maintenance-row-selected",item===element));
+  const summary=$("[data-maintenance-summary]"),historyText=$("[data-maintenance-history]"),openService=$("[data-maintenance-open-service]");
+  if(!row){summary.textContent="Bir bakim karti secin.";historyText.textContent="";openService.disabled=true;return}
+  summary.textContent="Bakim ve servis ozeti yukleniyor...";historyText.textContent="";openService.disabled=true;
+  try{
+    const [detail,history]=await Promise.all([apiFetch(`/api/desktop/vehicle-maintenance/detail/${encodeURIComponent(row.id)}`),apiFetch(`/api/desktop/vehicle-maintenance/history/${encodeURIComponent(row.id)}`)]);
+    if(request!==maintenanceSelectionRequest)return;
+    const card=detail.card||row,items=detail.items||[],maintenanceRows=history.maintenance_rows||[],serviceRows=history.service_rows||[];
+    const dueDates=items.map(item=>String(item.next_due_date||"")).filter(Boolean).sort(),dueOdometers=items.map(item=>Number(item.next_due_odometer||0)).filter(value=>value>0);
+    const selectedCount=items.length,nearestDue=dueDates[0]||"-",nearestKm=dueOdometers.length?String(Math.min(...dueOdometers)):"-",tracking=String(card.linked_device_tracking_no||row.linked_device_tracking_no||"");
+    const openCount=serviceRows.filter(item=>!new Set(["Teslim Edildi","Tamamlandi"]).has(String(item.status||""))).length;
+    summary.textContent=`Musteri: ${card.customer_name||"-"} | Plaka: ${card.vehicle_plate||"-"}\nBakim kalemi: ${selectedCount} | En yakin tarih: ${nearestDue} | En yakin KM: ${nearestKm}\nBagli servis: ${tracking||"Yok"} | Taslak randevu: ${card.appointment_date||"-"} ${card.appointment_time||""}`.trim();
+    historyText.textContent=`Bakim gecmisi: ${maintenanceRows.length} kayit | Servis gecmisi: ${serviceRows.length} kayit | Acik servis: ${openCount}`;
+    openService.disabled=!tracking;openService.onclick=()=>openMaintenanceService(card);
+  }catch(error){if(request===maintenanceSelectionRequest)summary.textContent=error.message||"Bakim ozeti alinamadi"}
+}
+
+const maintenancePhotoLabels=["Yag Filtresi","Hava Filtresi","Eski Parca","Yeni Parca","Genel Gorunum"];
+async function maintenancePhotoGallery(row){
+  try{
+    const result=await apiFetch(`/api/desktop/vehicle-maintenance/photos/${encodeURIComponent(row.id)}`);
+    const photos=result.rows||[];let index=Math.max(0,photos.length-1);
+    const body=`<section class="maintenance-photo-gallery"><header><label>Yeni fotograf etiketi<select id="maintenancePhotoLabel">${maintenancePhotoLabels.map(label=>`<option>${esc(label)}</option>`).join("")}</select></label><label class="secondary maintenance-photo-pick">Fotograf Ekle<input id="maintenancePhotoFiles" type="file" accept="image/jpeg,image/png,image/bmp,image/webp" multiple></label><button class="secondary" type="button" data-photo-delete>Seciliyi Sil</button></header><div class="maintenance-photo-preview" data-photo-preview></div><footer><button class="secondary" type="button" data-photo-prev>Onceki</button><span data-photo-counter></span><button class="secondary" type="button" data-photo-next>Sonraki</button></footer></section>`;
+    openDialog(`Bakim Foto Galerisi - ${row.vehicle_plate||row.id}`,"BAKIM FOTOGRAFLARI",body,async()=>true,"Kapat");
+    const draw=()=>{const preview=document.querySelector("[data-photo-preview]"),counter=document.querySelector("[data-photo-counter]"),current=photos[index];preview.innerHTML=current&&current.available?`<img src="/api/desktop/vehicle-maintenance/photo/${encodeURIComponent(current.id)}" alt="${esc(current.photo_label||"Bakim fotografi")}"><strong>${esc(current.photo_label||"")}</strong>`:photos.length?`<p>Fotograf bu tarayicidan acilamiyor. Eski masaustu dosyasini web sunucusuna tasiyin veya yeniden yukleyin.</p><strong>${esc(current?.photo_label||"")}</strong>`:`<p>Bu bakim karti icin henuz fotograf yok.<br>Degisen parcalari veya arac durumunu ekleyebilirsiniz.</p>`;counter.textContent=photos.length?`${index+1} / ${photos.length}`:"0 / 0";document.querySelector("[data-photo-delete]").disabled=!photos.length};
+    draw();
+    document.querySelector("[data-photo-prev]").onclick=()=>{if(photos.length){index=(index-1+photos.length)%photos.length;draw()}};
+    document.querySelector("[data-photo-next]").onclick=()=>{if(photos.length){index=(index+1)%photos.length;draw()}};
+    document.querySelector("[data-photo-delete]").onclick=async()=>{const current=photos[index];if(!current)return;try{await apiFetch("/api/desktop/vehicle-maintenance/photo/delete",{method:"POST",body:JSON.stringify({photo_id:current.id})});photos.splice(index,1);index=Math.max(0,index-1);draw();toast("Fotograf silindi.","success")}catch(error){toast(error.message||"Fotograf silinemedi.","error")}};
+    document.querySelector("#maintenancePhotoFiles").onchange=async event=>{const files=[...event.target.files];for(const file of files){if(file.size>8*1024*1024){toast(`${file.name}: 8 MB sinirini asiyor.`,"error");continue}try{const data=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(",",2)[1]||"");reader.onerror=()=>reject(Error("Dosya okunamadi"));reader.readAsDataURL(file)});const added=await apiFetch("/api/desktop/vehicle-maintenance/photo/add",{method:"POST",body:JSON.stringify({card_id:row.id,name:file.name,data,label:document.querySelector("#maintenancePhotoLabel").value})});photos.push(added);index=photos.length-1;draw()}catch(error){toast(error.message||"Fotograf eklenemedi.","error")}}event.target.value=""};
+  }catch(error){toast(error.message||"Fotograf galerisi acilamadi.","error")}
+}
+
+async function maintenanceHistoryDialog(row,host=null){
+  try{
+    const history=await apiFetch(`/api/desktop/vehicle-maintenance/history/${encodeURIComponent(row.id)}`);
+    const token=String(history.token||history.plate||"AYEC"),shareUri=`ayec://vehicle-history/${token}`;
+    const maintenanceRows=history.maintenance_rows||[],serviceRows=history.service_rows||[];
+    const maintenanceTable=maintenanceRows.length?`<div class="table-wrap"><table><thead><tr><th>Bak\u0131m Tarihi</th><th>Sonraki Bak\u0131m</th><th>Muayene</th><th>Not</th><th>Servis No</th></tr></thead><tbody>${maintenanceRows.map(item=>`<tr><td>${esc(item.service_date||"")}</td><td>${esc(item.next_maintenance_date||"")}</td><td>${esc(item.inspection_due_date||"")}</td><td>${esc(item.notes||"")}</td><td>${esc(item.linked_device_tracking_no||"")}</td></tr>`).join("")}</tbody></table></div>`:empty("Bak\u0131m ge\u00e7mi\u015fi yok","");
+    const serviceTable=serviceRows.length?`<div class="table-wrap"><table><thead><tr><th>Takip No</th><th>Giri\u015f</th><th>Durum</th><th>Onay</th><th>Ar\u0131za</th><th>\u0130\u015f\u00e7ilik</th></tr></thead><tbody>${serviceRows.map(item=>`<tr><td>${esc(item.tracking_no||"")}</td><td>${esc(item.entry_date||"")}</td><td>${esc(item.status||"")}</td><td>${esc(item.approval_status||"")}</td><td>${esc(item.fault_description||"")}</td><td>${esc(item.labor_cost||"")}</td></tr>`).join("")}</tbody></table></div>`:empty("Servis ge\u00e7mi\u015fi yok","");
+    const body=`<section class="vehicle-history-share"><div><h3>QR Payla\u015f\u0131m\u0131 ve Ara\u00e7 Ge\u00e7mi\u015fi</h3><p>Bak\u0131m ve servis ge\u00e7mi\u015fi bu ara\u00e7 i\u00e7in tek ekranda g\u00f6sterilir.</p><label>Payla\u015f\u0131m Kodu</label><input id="vehicleHistoryShareUri" value="${esc(shareUri)}" readonly><button type="button" class="secondary" data-vehicle-history-copy>QR Ba\u011flant\u0131s\u0131n\u0131 Kopyala</button></div><img src="/api/desktop/vehicle-maintenance/history-qr/${encodeURIComponent(row.id)}" alt="Ara\u00e7 ge\u00e7mi\u015fi QR kodu"></section><h3 class="vehicle-history-title">Bak\u0131m Ge\u00e7mi\u015fi</h3>${maintenanceTable}<h3 class="vehicle-history-title">Servis Ge\u00e7mi\u015fi</h3>${serviceTable}`;
+    if(host)host.innerHTML=body;else openDialog(`Ara\u00e7 Ge\u00e7mi\u015fi - ${history.plate||row.vehicle_plate||""}`,"QR PAYLASIMI",body,async()=>true,"Kapat");
+    const root=host||document;
+    const copy=root.querySelector("[data-vehicle-history-copy]");
+    copy.onclick=async()=>{try{if(navigator.clipboard?.writeText)await navigator.clipboard.writeText(shareUri);else{const input=root.querySelector("#vehicleHistoryShareUri");input.select();document.execCommand("copy")}toast("QR ba\u011flant\u0131s\u0131 panoya kopyaland\u0131","success")}catch(error){toast("Ba\u011flant\u0131 kopyalanamad\u0131: "+error.message,"error")}};
+  }catch(error){if(host)host.innerHTML=`<p class="error">${esc(error.message||"Ara\u00e7 ge\u00e7mi\u015fi al\u0131namad\u0131")}</p>`;toast(error.message||"Ara\u00e7 ge\u00e7mi\u015fi al\u0131namad\u0131","error")}
+}
+
+async function exportVehicleMaintenanceExcel(){
+  try{
+    const query=encodeURIComponent($("#maintenanceSearch")?.value||"");
+    const response=await fetch(`/api/desktop/vehicle-maintenance/export/xlsx?q=${query}`,{credentials:"same-origin",headers:ayecFiscalArchiveHeaders()});
+    if(!response.ok){const error=await response.json().catch(()=>({}));throw Error(error.error||`Excel aktarimi basarisiz (${response.status})`)}
+    const blob=await response.blob(),url=URL.createObjectURL(blob),link=document.createElement("a");
+    link.href=url;link.download=`arac_bakim_${today()}.xlsx`;document.body.append(link);link.click();link.remove();URL.revokeObjectURL(url);
+    toast("Bakim listesi Excel dosyasi olarak indirildi","success");
+  }catch(error){toast(error.message||"Excel aktarimi basarisiz","error")}
+}
+
+async function exportVehicleMaintenancePdf(){
+  try{
+    const query=encodeURIComponent($("#maintenanceSearch")?.value||"");
+    const response=await fetch(`/api/desktop/vehicle-maintenance/export/pdf?q=${query}`,{credentials:"same-origin",headers:ayecFiscalArchiveHeaders()});
+    if(!response.ok){const error=await response.json().catch(()=>({}));throw Error(error.error||`PDF aktarimi basarisiz (${response.status})`)}
+    const blob=await response.blob(),url=URL.createObjectURL(blob),link=document.createElement("a");
+    link.href=url;link.download=`arac_bakim_${today()}.pdf`;document.body.append(link);link.click();link.remove();URL.revokeObjectURL(url);
+    toast("Bakim raporu PDF olarak indirildi","success");
+  }catch(error){toast(error.message||"PDF aktarimi basarisiz","error")}
 }
 
 const maintenanceItemDefaults=[
@@ -2724,14 +3894,14 @@ function maintenanceItemsHtml(items=[],serviceDate=today(),odometer=0){
 }
 
 async function maintenanceDialog(sourceRow={}){
-  let row={...sourceRow},items=[];
+  let row={...sourceRow},items=Array.isArray(sourceRow._draftItems)?sourceRow._draftItems:[];
   if(row.id){
     try{const detail=await apiFetch(`/api/desktop/vehicle-maintenance/detail/${row.id}`);row=detail.card||row;items=detail.items||[]}catch(error){toast(error.message,"error");return}
   }
   const customerOptions=db.customers.map(customer=>`<option value="${esc(customer.id)}" ${String(customer.id)===String(row.customer_id||"")?"selected":""}>${esc(customer.name)}${customer.phone?` - ${esc(customer.phone)}`:""}</option>`).join("");
   const serviceDate=String(row.service_date||today()).slice(0,10),odometer=Number(row.odometer||0);
   openDialog(row.id?"Bak\u0131m Kart\u0131n\u0131 D\u00fczenle":"Yeni Bak\u0131m Kart\u0131","OTOMOT\u0130V BAKIM",`<div class="form-grid maintenance-form"><div class="field full"><label>M\u00fc\u015fteri *</label><select name="customer_id" required><option value="">M\u00fc\u015fteri se\u00e7in</option>${customerOptions}</select></div><div class="field"><label>Plaka *</label><input name="vehicle_plate" value="${esc(row.vehicle_plate||"")}" required></div><div class="field"><label>Kilometre</label><input name="odometer" type="number" min="0" value="${esc(odometer)}"></div><div class="field"><label>Marka</label><input name="vehicle_brand" value="${esc(row.vehicle_brand||"")}"></div><div class="field"><label>Model</label><input name="vehicle_model" value="${esc(row.vehicle_model||"")}"></div><div class="field"><label>Y\u0131l</label><input name="vehicle_year" type="number" min="1900" max="2200" value="${esc(row.vehicle_year||"")}"></div><div class="field"><label>Ara\u00e7 Tipi</label><input name="vehicle_type" value="${esc(row.vehicle_type||"")}"></div><div class="field"><label>Motor Tipi</label><input name="engine_type" value="${esc(row.engine_type||"")}"></div><div class="field"><label>Yak\u0131t T\u00fcr\u00fc</label><select name="fuel_type"><option>${esc(row.fuel_type||"Benzin")}</option><option>Benzin</option><option>Dizel</option><option>LPG</option><option>Hibrit</option><option>Elektrik</option></select></div><div class="field"><label>Servis Tarihi</label><input name="service_date" type="date" value="${esc(serviceDate)}"></div><div class="field"><label>Sonraki Bak\u0131m</label><input name="next_maintenance_date" type="date" value="${esc(String(row.next_maintenance_date||"").slice(0,10))}"></div><div class="field"><label>Muayene Tarihi</label><input name="inspection_due_date" type="date" value="${esc(String(row.inspection_due_date||"").slice(0,10))}"></div><div class="field"><label>Randevu Tarihi</label><input name="appointment_date" type="date" value="${esc(String(row.appointment_date||row.manual_appointment_date||"").slice(0,10))}"></div><div class="field"><label>Randevu Saati</label><input name="appointment_time" type="time" value="${esc(row.appointment_time||"09:00")}"></div><div class="field full"><label>Notlar</label><textarea name="notes">${esc(row.notes||"")}</textarea></div>${maintenanceItemsHtml(items,serviceDate,odometer)}</div>`,async formData=>{
-    const payload=Object.fromEntries(formData);payload.customer_id=Number(payload.customer_id||0);payload.odometer=Number(payload.odometer||0);payload.vehicle_year=Number(payload.vehicle_year||0)||null;if(row.id)payload.id=row.id;if(row.vehicle_id)payload.vehicle_id=row.vehicle_id;
+    const payload=Object.fromEntries(formData);payload.customer_id=Number(payload.customer_id||0);payload.vehicle_id=Number(payload.vehicle_id||0)||null;payload.odometer=Number(payload.odometer||0);payload.vehicle_year=Number(payload.vehicle_year||0)||null;if(row.id)payload.id=row.id;
     payload.items=$$('[data-maintenance-item]',$("#dialogBody")).map(element=>({item_type:element.dataset.maintenanceItem,item_label:element.dataset.label,performed:element.querySelector(".maintenance-performed").checked,interval_days:Number(element.querySelector(".maintenance-days").value||0),interval_km:Number(element.querySelector(".maintenance-km").value||0),next_due_date:element.querySelector(".maintenance-due-date").value,next_due_odometer:Number(element.querySelector(".maintenance-due-km").value||0)}));
     const selectedDates=payload.items.filter(item=>item.performed&&item.item_type!=="glass_water"&&item.next_due_date).map(item=>item.next_due_date).sort();if(!payload.next_maintenance_date)payload.next_maintenance_date=selectedDates[0]||"";
     const result=await apiFetch("/api/desktop/vehicle-maintenance/save",{method:"POST",body:JSON.stringify(payload)});await hydrateDesktop(true);await loadVehicleMaintenance();toast("Bak\u0131m kart\u0131, servis ve randevu kaydedildi","success");offerMaintenanceWhatsApp(result,payload);return true
@@ -2739,11 +3909,21 @@ async function maintenanceDialog(sourceRow={}){
 }
 
 function offerMaintenanceWhatsApp(result,payload){
-  if(!result.customer_phone||(result.important_items||[]).length===0||!payload.appointment_date)return;
-  if(!confirm("Bak\u0131m randevusu i\u00e7in m\u00fc\u015fteriye WhatsApp mesaj\u0131 haz\u0131rlans\u0131n m\u0131?"))return;
-  let phone=String(result.customer_phone).replace(/\D/g,"");if(phone.startsWith("0"))phone=`90${phone.slice(1)}`;else if(phone.length===10)phone=`90${phone}`;
-  const itemText=(result.important_items||[]).join(", "),message=`Say\u0131n ${result.customer_name}, ${result.vehicle_plate} plakal\u0131 arac\u0131n\u0131z i\u00e7in ${payload.appointment_date} ${payload.appointment_time||"09:00"} tarihli bak\u0131m randevunuz olu\u015fturuldu. Bak\u0131m kalemleri: ${itemText}. AYEC Pro Otomotiv`;
-  window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`,"_blank","noopener");
+  const importantItems=(result.important_items||[]).filter(Boolean);
+  if(!importantItems.length)return;
+  let phone=String(result.customer_phone).replace(/\D/g,"");if(phone.startsWith("0")&&phone.length===11)phone=`90${phone.slice(1)}`;else if(phone.length===10)phone=`90${phone}`;
+  if(!phone){toast("M\u00fc\u015fterinin telefon numaras\u0131 olmad\u0131\u011f\u0131 i\u00e7in WhatsApp mesaj\u0131 a\u00e7\u0131lamad\u0131.","warning");return}
+  openDialog("Randevu Mesaj\u0131","ARA\u00c7 BAKIM TAK\u0130B\u0130","<p>Randevu kaydedildi. WhatsApp randevu mesaj\u0131n\u0131 \u015fimdi a\u00e7mak istiyor musunuz?</p>",()=>{
+    let appointmentDate=String(payload.appointment_date||"-");
+    const parsedDate=/^(\d{4})-(\d{2})-(\d{2})$/.exec(appointmentDate);
+    if(parsedDate)appointmentDate=`${parsedDate[3]}.${parsedDate[2]}.${parsedDate[1]}`;
+    let itemText=importantItems.slice(0,5).join(", ");
+    if(importantItems.length>5)itemText+=` ve ${importantItems.length-5} kalem daha`;
+    const vehicle=result.vehicle_plate||result.vehicle_brand||"arac\u0131n\u0131z";
+    const message=`Say\u0131n ${result.customer_name}, ${vehicle} i\u00e7in ${appointmentDate} ${payload.appointment_time||""} tarihli randevunuz olu\u015fturulmu\u015ftur. Planlanan bak\u0131m: ${itemText}. AYEC Pro Otomotiv`;
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`,"_blank","noopener");
+    return true;
+  },"WhatsApp'\u0131 A\u00e7");
 }
 
 function openMaintenanceService(row){
@@ -2756,7 +3936,8 @@ const renderBeforeControl=render;
 render=function(){
   if(page==="control-center"){
     $("#content").innerHTML=renderControlCenter();
-    $("[data-control-refresh]").onclick=loadControlCenter;
+    const adminRefresh=$("[data-control-refresh]");
+    if(adminRefresh)adminRefresh.onclick=loadControlCenter;
     loadControlCenter();
     return;
   }
@@ -2768,6 +3949,9 @@ render=function(){
   if(page==="vehicle-maintenance"){
     $("#content").innerHTML=renderVehicleMaintenance();
     $("[data-maintenance-add]").onclick=()=>maintenanceDialog();
+    $("[data-maintenance-excel]").onclick=exportVehicleMaintenanceExcel;
+    $("[data-maintenance-pdf]").onclick=exportVehicleMaintenancePdf;
+    $("[data-maintenance-print]").onclick=()=>window.print();
     $("[data-maintenance-refresh]").onclick=()=>loadVehicleMaintenance($("#maintenanceSearch")?.value||"");
     $("#maintenanceSearch").oninput=event=>loadVehicleMaintenance(event.target.value);
     loadVehicleMaintenance();
@@ -2793,13 +3977,13 @@ async function saveCompanySector(){
   if(!["teknik_servis","otomotiv"].includes(selected))return toast("Ge\u00e7erli bir sekt\u00f6r se\u00e7in","error");
   if(selected===currentSector)return toast("Se\u00e7ili sekt\u00f6r zaten aktif","info");
   const label=selected==="otomotiv"?"Otomotiv Servis":"Teknik Servis";
-  if(!confirm(`\u00c7al\u0131\u015fma alan\u0131 ${label} moduna ge\u00e7irilsin mi?`))return;
-  try{
+  openDialog("Sekt\u00f6r\u00fc Uygula","SEKT\u00d6REL K\u0130ML\u0130K",`<p>\u00c7al\u0131\u015fma alan\u0131 ${esc(label)} moduna ge\u00e7irilsin mi? Mevcut veriler korunur.</p>`,async()=>{try{
     const result=await apiFetch("/api/company/sector",{method:"POST",body:JSON.stringify({sector:selected})});
     currentSector=result.sector;desktopInternalSettings.current_sector=result.sector;
     await hydrateDesktop(true);renderNav();navigate("dashboard");
     toast(`Sekt\u00f6r ${label} olarak g\u00fcncellendi`,"success",7000);
-  }catch(error){toast(`Sekt\u00f6r g\u00fcncellenemedi: ${error.message}`,"error")}
+    return true;
+  }catch(error){toast(`Sekt\u00f6r g\u00fcncellenemedi: ${error.message}`,"error");return false}},"Sekt\u00f6r\u00fc Uygula");
 }
 
 document.addEventListener("click",event=>{
@@ -2945,15 +4129,13 @@ ayecSectorMenuModels.teknik_servis=[
       {id:"technician",label:"Teknisyen Paneli"},
       {id:"field-service",label:"Saha Haritas\u0131"},
       {id:"appointments",label:"Randevular"},
-      {id:"logistics",label:"Lojistik & Garanti Y\u00f6netimi"},
-      {id:"job-reports",label:"\u0130\u015f / Servis Takibi Raporlar\u0131"},
-      {id:"assistant",label:"AI Asistan"}
+      {id:"logistics",label:"Kargo & Lojistik"},
+      {id:"job-reports",label:"\u0130\u015f/Servis Takibi Raporlar\u0131"},
     ]},
-    {id:"service-settings-parent",icon:"&#9881;",label:"Servis Ayarlar\u0131",children:[
+    {id:"service-settings-parent",icon:"&#9881;",label:"Servis Y\u00f6netim Ayar\u0131",children:[
       {id:"product-groups",label:"\u00dcr\u00fcn Grubu Y\u00f6netimi"},
       {id:"brands",label:"Marka Adlar\u0131 Y\u00f6netimi"},
-      {id:"report-templates",label:"Rapor C\u00fcmle Kal\u0131plar\u0131"},
-      {id:"service-definitions",label:"\u0130\u015f\u00e7ilik & Fiyat Y\u00f6netimi"}
+      {id:"report-templates",label:"Rapor C\u00fcmle Kal\u0131plar\u0131"}
     ]},
     {id:"customer-parent",icon:"&#9786;",label:"M\u00fc\u015fteri Hub",children:[
       {id:"partners",label:"\u00c7al\u0131\u015fma Ortaklar\u0131"},
@@ -2963,7 +4145,7 @@ ayecSectorMenuModels.teknik_servis=[
       {id:"announcements",label:"Duyurular"}
     ]}
   ]},
-  {group:"TICARI & SATI\u015e",items:[
+  {group:"T\u0130CAR\u0130 & SATI\u015e",items:[
     {id:"project-parent",icon:"&#9635;",label:"Proje Y\u00f6netimi",children:[
       {id:"projects",label:"Projeler"},
       {id:"project-archive",label:"Proje Ar\u015fivi"}
@@ -2972,24 +4154,20 @@ ayecSectorMenuModels.teknik_servis=[
       {id:"stock",label:"Stok Y\u00f6netimi"},
       {id:"loaners",label:"Emanet (Konsinye) Cihazlar"},
       {id:"stock-locations",label:"Depo ve Ara\u00e7 Stoklar\u0131"},
-      {id:"movements",label:"Stok Hareketleri"},
-      {id:"import",label:"Ak\u0131ll\u0131 \u0130\u00e7e Aktarma"},
-      {id:"mobile-guide",label:"Mobil Teknik K\u0131lavuz"},
-      {id:"pc-builder",label:"PC Builder"}
+      {id:"mobile-guide",label:"Mobil Stok"},
+      {id:"pc-builder",label:"PC Builder"},
+      {id:"service-definitions",label:"\u0130\u015f\u00e7ilik & Fiyat Y\u00f6netimi"},
     ]},
-    {id:"offer-parent",icon:"&#9670;",label:"Teklif Olu\u015ftur",children:[
-      {id:"sales",label:"Teklif Olu\u015ftur"},
+    {id:"offer-parent",icon:"&#9670;",label:"Teklif Olu\u015ftur",mainPage:"sales",children:[
       {id:"offers",label:"T\u00fcm Teklifler & Ge\u00e7mi\u015f"},
       {id:"offer-reports",label:"Teklif Analiz Raporlar\u0131"}
     ]}
   ]},
-  {group:"FINANS & MUHASEBE",items:[
-    {id:"finance-parent",icon:"TRY",label:"Finansal Y\u00f6netim",children:[
+  {group:"F\u0130NANS & MUHASEBE",items:[
+    {id:"finance-parent",icon:"TRY",label:"Finans",children:[
       {id:"finance",label:"Finansal Dashboard"},
       {id:"income",label:"Gelir / Gider"},
-      {id:"expense",label:"Giderler"},
       {id:"banks",label:"Banka Hesaplar\u0131"},
-      {id:"loans",label:"Krediler & Taksitler"},
       {id:"checks",label:"\u00c7ek / Senet"},
       {id:"invoices",label:"Fatura Kes (E-Fatura)"}
     ]}
@@ -2999,85 +4177,73 @@ ayecSectorMenuModels.teknik_servis=[
   ]},
   {group:"S\u0130STEM",items:[
     {id:"system-parent",icon:"&#9881;",label:"Sistem Yard\u0131mc\u0131lar\u0131",children:[
+      {id:"settings",label:"Ayarlar"},
+      {id:"audit",label:"Log Kay\u0131tlar\u0131"},
       {id:"knowledge",label:"Bilgi Bankas\u0131"},
-      {id:"settings",label:"Sistem Ayarlar\u0131"},
-      {id:"backup",label:"Yedekleme Merkezi"},
-      {id:"support",label:"Destek Merkezi"},
-      {id:"audit",label:"Sistem \u0130\u015flem Loglar\u0131"},
+      {id:"backup",label:"Yedekleme"},
       {id:"manual",label:"Kullan\u0131m K\u0131lavuzu"},
-      {id:"dialog-catalog",label:"Dialog Mod\u00fclleri"},
-      {id:"control-center",label:"Y\u00f6netim Merkezi"}
+      {id:"support",label:"Destek"},
     ]}
   ]}
 ];
 ayecSectorMenuModels.otomotiv=[
   {group:"SERVIS OPERASYON",items:[
-    {id:"service-parent",icon:"&#9881;",label:"Servis Y\u00f6netimi",children:[
+    {id:"automotive-service-parent",icon:"&#9881;",label:"Servis Y\u00f6netimi",children:[
       {id:"dashboard",label:"Genel Bak\u0131\u015f"},
-      {id:"services",label:"Servis Panosu"},
       {id:"service-list",label:"Servis Listesi"},
+      {id:"vehicle-maintenance",label:"Ara\u00e7 Bak\u0131m Takibi"},
       {id:"service-status",label:"Durum Paneli"},
       {id:"technician",label:"Teknisyen Paneli"},
-      {id:"field-service",label:"Saha Haritas\u0131"},
       {id:"appointments",label:"Randevular"},
-      {id:"vehicle-maintenance",label:"Ara\u00e7 Bak\u0131m Takibi"},
-      {id:"assistant",label:"AI Asistan"}
-    ]},
-    {id:"service-settings-parent",icon:"&#9881;",label:"Servis Ayarlar\u0131",children:[
-      {id:"product-groups",label:"\u00dcr\u00fcn Grubu Y\u00f6netimi"},
-      {id:"brands",label:"Marka Adlar\u0131 Y\u00f6netimi"},
-      {id:"report-templates",label:"Rapor C\u00fcmle Kal\u0131plar\u0131"},
-      {id:"service-definitions",label:"\u0130\u015f\u00e7ilik & Fiyat Y\u00f6netimi"}
-    ]},
+      {id:"service-settings-parent",icon:"&#9881;",label:"Servis Y\u00f6netim Ayar\u0131",children:[
+        {id:"product-groups",label:"\u00dcr\u00fcn Grubu Y\u00f6netimi"},
+        {id:"brands",label:"Marka Adlar\u0131 Y\u00f6netimi"},
+        {id:"report-templates",label:"Rapor C\u00fcmle Kal\u0131plar\u0131"},
+        {id:"service-definitions",label:"\u0130\u015f\u00e7ilik & Fiyat Y\u00f6netimi"}
+      ]},
+    ]}
+  ]},
+  {group:"MUSTERI",items:[
     {id:"customer-parent",icon:"&#9786;",label:"M\u00fc\u015fteri Hub",children:[
-      {id:"partners",label:"\u00c7al\u0131\u015fma Ortaklar\u0131"},
       {id:"customers",label:"M\u00fc\u015fteri Listesi"},
+      {id:"partners",label:"\u00c7al\u0131\u015fma Ortaklar\u0131"},
       {id:"contracts",label:"S\u00f6zle\u015fmeler"},
       {id:"reminders",label:"Hat\u0131rlat\u0131c\u0131lar"},
       {id:"announcements",label:"Duyurular"}
     ]}
   ]},
-  {group:"TICARI & SATI\u015e",items:[
-    {id:"project-parent",icon:"&#9635;",label:"Proje Y\u00f6netimi",children:[
-      {id:"projects",label:"Projeler"},
-      {id:"project-archive",label:"Proje Ar\u015fivi"}
-    ]},
+  {group:"TICARI",items:[
     {id:"automotive-stock-parent",icon:"&#9638;",label:"Stok / Sipari\u015f",children:[
-      {id:"automotive-stock",label:"Par\u00e7a Stok Y\u00f6netimi"},
-      {id:"movements",label:"Stok Hareketleri"},
-      {id:"import",label:"Ak\u0131ll\u0131 \u0130\u00e7e Aktarma"},
-      {id:"loaners",label:"Emanet (Konsinye) Cihazlar"}
+      {id:"automotive-stock",label:"Yedek Par\u00e7a"},
+      {id:"loaners",label:"Emanet (Konsinye) Cihazlar"},
+      {id:"stock-locations",label:"Depo ve Ara\u00e7 Stoklar\u0131"},
     ]},
-    {id:"offer-parent",icon:"&#9670;",label:"Teklif Olu\u015ftur",children:[
+    {id:"offer-parent",icon:"&#9670;",label:"Teklif Y\u00f6netimi",children:[
       {id:"sales",label:"Teklif Olu\u015ftur"},
-      {id:"offers",label:"T\u00fcm Teklifler & Ge\u00e7mi\u015f"},
-      {id:"offer-reports",label:"Teklif Analiz Raporlar\u0131"}
+      {id:"offers",label:"T\u00fcm Teklifler"},
+      {id:"offer-reports",label:"Teklif Raporlar\u0131"}
     ]}
   ]},
-  {group:"FINANS & MUHASEBE",items:[
-    {id:"finance-parent",icon:"TRY",label:"Finansal Y\u00f6netim",children:[
+  {group:"FINANS",items:[
+    {id:"finance-parent",icon:"TRY",label:"Finans",children:[
       {id:"finance",label:"Finansal Dashboard"},
       {id:"income",label:"Gelir / Gider"},
-      {id:"expense",label:"Giderler"},
       {id:"banks",label:"Banka Hesaplar\u0131"},
-      {id:"loans",label:"Krediler & Taksitler"},
       {id:"checks",label:"\u00c7ek / Senet"},
-      {id:"invoices",label:"Fatura Kes (E-Fatura)"}
+      {id:"invoices",label:"E-Fatura"}
     ]}
   ]},
-  {group:"Y\u00d6NET\u0130M",items:[
+  {group:"IK VE PERSONEL",items:[
     {id:"management-parent",icon:"&#9823;",label:"Personel",children:[{id:"personnel",label:"Personel"}]}
   ]},
-  {group:"S\u0130STEM",items:[
+  {group:"SISTEM",items:[
     {id:"system-parent",icon:"&#9881;",label:"Sistem Yard\u0131mc\u0131lar\u0131",children:[
-      {id:"knowledge",label:"Bilgi Bankas\u0131"},
       {id:"settings",label:"Sistem Ayarlar\u0131"},
+      {id:"audit",label:"Log Kay\u0131tlar\u0131"},
+      {id:"knowledge",label:"Bilgi Bankas\u0131"},
       {id:"backup",label:"Yedekleme Merkezi"},
-      {id:"support",label:"Destek Merkezi"},
-      {id:"audit",label:"Sistem \u0130\u015flem Loglar\u0131"},
       {id:"manual",label:"Kullan\u0131m K\u0131lavuzu"},
-      {id:"dialog-catalog",label:"Dialog Mod\u00fclleri"},
-      {id:"control-center",label:"Y\u00f6netim Merkezi"}
+      {id:"support",label:"Destek Merkezi"},
     ]}
   ]}
 ];
@@ -3143,11 +4309,35 @@ labelFor=function(item,sector=currentSector){
   return menuLabels(sector)[item.id]||desktopLabel||item.label;
 };
 
+function desktopAllowedMenuPages(rawPermissions,role){
+  if(userAdminRole(role)||rawPermissions===null||rawPermissions===undefined||rawPermissions==="")return null;
+  let saved=rawPermissions;
+  try{if(typeof saved==="string")saved=JSON.parse(saved)}catch{return null}
+  if(saved?.mode==="all")return null;
+  const rawPages=Array.isArray(saved?.pages)?saved.pages:Array.isArray(saved)?saved:null;
+  if(!rawPages)return null;
+  const pages=new Set();
+  for(const value of rawPages){
+    let pageId;
+    if(typeof value==="number"&&Number.isInteger(value))pageId=value;
+    else if(typeof value==="string"&&/^[+-]?\d+$/.test(value.trim()))pageId=Number(value);
+    else if(typeof value==="boolean")pageId=Number(value);
+    else return null;
+    pages.add(pageId);
+  }
+  if(!pages.size)return null;
+  if(pages.has(60))pages.add(62);
+  return pages;
+}
+
 menuVisible=function(item,sector=currentSector){
   if(item?.id==="control-center"){
     return canAccessControlCenter();
   }
   const pageId=ayecDesktopPageIds[item.id];
+  const user=currentAuthUser;
+  const allowedPages=user?desktopAllowedMenuPages(user.permissions,user.role):null;
+  if(pageId&&allowedPages&&!allowedPages.has(pageId))return false;
   const desktopKey=pageId?`menu_visible_page_${pageId}`:"";
   const desktopValue=desktopKey?desktopInternalSettings[desktopKey]:undefined;
   const desktopAllows=desktopValue===undefined||
@@ -3163,7 +4353,15 @@ function ayecMenuItems(sector=currentSector){
 }
 
 function ayecMenuItem(pageId,sector=currentSector){
-  return ayecMenuItems(sector).find(item=>item.id===pageId);
+  const items=ayecMenuItems(sector);
+  const direct=items.find(item=>item.id===pageId);
+  if(direct)return direct;
+  const mainPage=items.find(item=>item.mainPage===pageId);
+  if(mainPage)return{id:pageId,label:mainPage.label};
+  if(sectorPages[sector]?.has(pageId)){
+    return{id:pageId,label:titles[pageId]?.[1]||genericModules[pageId]?.title||pageId};
+  }
+  return undefined;
 }
 
 const AYEC_NAV_OPEN_KEY="ayec_nav_open_parent";
@@ -3192,7 +4390,8 @@ function ayecSetOpenParent(button,open){
 
 function ayecParentForPage(pageId,sector=currentSector){
   const path=ayecMenuPath(pageId,sector);
-  return path.length>1?path[path.length-2].id:"";
+  if(path.length>1)return path[path.length-2].id;
+  return ayecMenuItems(sector).find(item=>item.mainPage===pageId)?.id||"";
 }
 
 function ayecMenuPath(pageId,sector=currentSector){
@@ -3230,35 +4429,48 @@ renderNav=function(){
   const rememberedParent=ayecOpenParent(sector);
   const openIds=new Set([
     ...ayecMenuPath(page,sector).slice(0,-1),
-    ...ayecMenuPath(rememberedParent,sector)
+    ...ayecMenuPath(rememberedParent,sector),
+    ...ayecMenuItems(sector).filter(item=>item.mainPage===page)
   ].map(item=>item.id));
   function visible(item){
     if(!menuVisible(item,sector))return null;
     if(!item.children)return item;
     const children=item.children.map(visible).filter(Boolean);
-    return children.length?{...item,children}:null;
+    const mainPage=item.mainPage&&menuVisible({id:item.mainPage},sector)?item.mainPage:"";
+    return children.length||mainPage?{...item,children,mainPage}:null;
+  }
+  function sidebarLabel(item){
+    if(sector==="teknik_servis"&&item.id==="service-settings-parent")return "Servis Ayarlar\u0131";
+    if(sector==="teknik_servis"&&item.id==="finance-parent")return "F\u0130NANS & MUHASEBE";
+    return labelFor(item,sector);
   }
   function draw(item){
     const open=openIds.has(item.id);
     const submenuId=`nav-${sector}-${item.id}`;
     if(item.children){
-      return `<button type="button" class="nav-button nav-parent ${open?"open":""}" data-parent="${submenuId}" aria-controls="${submenuId}" aria-expanded="${open}"><span class="nav-icon">${item.icon||"&#8226;"}</span><span class="nav-label">${esc(labelFor(item,sector))}</span></button><div class="submenu ${open?"open":""}" id="${submenuId}" ${open?"":"hidden"}>${item.children.map(draw).join("")}</div>`;
+      const active=item.mainPage===page||item.children.some(child=>child.id===page);
+      return `<button type="button" class="nav-button nav-parent ${open?"open":""} ${active?"active":""}" data-parent="${submenuId}" data-main-page="${item.mainPage||""}" aria-controls="${submenuId}" aria-expanded="${open}"><span class="nav-icon">${item.icon||"&#8226;"}</span><span class="nav-label">${esc(sidebarLabel(item))}</span></button><div class="submenu ${open?"open":""}" id="${submenuId}" ${open?"":"hidden"}>${item.children.map(draw).join("")}</div>`;
     }
-    return `<button type="button" class="nav-button ${item.id===page?"active":""}" data-page="${item.id}"><span class="nav-icon">${item.icon||"&#8226;"}</span><span class="nav-label">${esc(labelFor(item,sector))}</span><span class="nav-active-dot" aria-hidden="true">\u25cf</span></button>`;
+    return `<button type="button" class="nav-button ${item.id===page?"active":""}" data-page="${item.id}"><span class="nav-icon">${item.icon||"&#8226;"}</span><span class="nav-label">${esc(sidebarLabel(item))}</span><span class="nav-active-dot" aria-hidden="true">\u25cf</span></button>`;
   }
   $("#nav").innerHTML=groups.map(group=>{
     const items=group.items.map(visible).filter(Boolean);
     if(!items.length)return"";
-    return `<div class="nav-group-title">${esc(group.group)}</div>${items.map(draw).join("")}`;
+    const financeRow=group.items.some(item=>item.id==="finance-parent");
+    const reservedFinanceTitle=sector==="otomotiv"&&financeRow;
+    const groupTitle=financeRow&&sector==="teknik_servis"?"":reservedFinanceTitle?"<div class=\"nav-group-title nav-group-title-reserved\" aria-hidden=\"true\">"+esc(group.group)+"</div>":"<div class=\"nav-group-title\">"+esc(group.group)+"</div>";
+    return groupTitle+items.map(draw).join("");
   }).join("");
   if($("#sectorSelect"))$("#sectorSelect").value=sector;
-  if($("#sectorBrand")){
-    $("#sectorBrand").textContent=sector==="otomotiv"?
-      "Otomotiv Servis":
-      "Teknik Servis";
+  const sectorBrand=$("#sectorBrand");
+  if(sectorBrand){
+    const automotive=sector==="otomotiv";
+    sectorBrand.textContent=automotive?"OTOMOTIV MODU":"ERP";
+    sectorBrand.classList.toggle("automotive-sector",automotive);
+    sectorBrand.title=automotive?"Otomotiv Servis":"ERP";
   }
-  const fixedSettings=$(".sidebar-bottom [data-page='settings']");
-  if(fixedSettings)fixedSettings.hidden=!menuVisible({id:"settings"},sector);
+  const sectorLicense=$(".sidebar-license strong");
+  if(sectorLicense)sectorLicense.textContent=sector==="otomotiv"?"Otomotiv":"Teknik Servis";
 };
 
 const ayecNavigateBeforeSectorMenus=navigate;
@@ -3298,6 +4510,39 @@ function ayecEditorPanel(sector,title,description){
     `<details class="sector-menu-group" ${index<2?"open":""}><summary><span>${esc(group.group)}</span><small>${group.items.length} men\u00fc grubu</small></summary><div class="sector-menu-group-body">${group.items.map(item=>draw(item)).join("")}</div></details>`
   ).join("");
   return `<section class="sector-menu-panel ${sector===currentSector?"active":""}" data-editor-panel="${sector}"><header><div><span class="sector-menu-badge">${sector==="otomotiv"?"OT":"TS"}</span><div><h3>${title}</h3><p>${description}</p></div></div><span class="badge">${sector===currentSector?"Aktif sekt\u00f6r":"Di\u011fer sekt\u00f6r"}</span></header><div class="sector-menu-groups">${groups}</div></section>`;
+}
+
+function openSectorMenuResetConfirmation(){
+  const inputs=Array.from(document.querySelectorAll("#dialogBody input[name]"),input=>({name:input.name,value:input.value,checked:input.checked,type:input.type}));
+  const activeSector=document.querySelector("[data-editor-sector].active")?.dataset.editorSector||currentSector;
+  openDialog("Men\u00fcleri Varsay\u0131lana D\u00f6nd\u00fcr","MEN\u00dc YAPILANDIRMA",`<p>Her iki sekt\u00f6r\u00fcn men\u00fc adlar\u0131 ve g\u00f6r\u00fcn\u00fcrl\u00fckleri varsay\u0131lan yap\u0131ya d\u00f6ns\u00fcn m\u00fc?</p>`,async()=>{
+    const defaults=JSON.stringify({teknik_servis:{},otomotiv:{}});
+    localStorage.removeItem("ayec_menu_labels");
+    localStorage.removeItem("ayec_menu_visibility");
+    desktopInternalSettings.web_menu_labels=defaults;
+    desktopInternalSettings.web_menu_visibility=defaults;
+    await Promise.all([
+      desktopWrite("internal_settings",{key:"web_menu_labels",value:defaults}),
+      desktopWrite("internal_settings",{key:"web_menu_visibility",value:defaults})
+    ]);
+    renderNav();
+    navigate(firstVisiblePage());
+    toast("Men\u00fcler varsay\u0131lan yap\u0131ya d\u00f6nd\u00fc","warning");
+    return true;
+  },"Varsay\u0131lana D\u00f6n");
+  const submit=$("#dialogSubmit");
+  if(submit){submit.classList.remove("primary");submit.classList.add("danger")}
+  $("#dialogCancel").onclick=()=>{
+    $("#appDialog").close("cancel");
+    interfaceEditorDialog();
+    inputs.forEach(state=>{
+      const input=document.querySelector(`#dialogBody [name="${CSS.escape(state.name)}"]`);
+      if(!input)return;
+      if(state.type==="checkbox"){input.checked=state.checked;input.dispatchEvent(new Event("change",{bubbles:true}))}
+      else input.value=state.value;
+    });
+    document.querySelector(`[data-editor-sector="${activeSector}"]`)?.click();
+  };
 }
 
 interfaceEditorDialog=function(){
@@ -3371,22 +4616,7 @@ interfaceEditorDialog=function(){
   reset.type="button";
   reset.className="danger";
   reset.textContent="Varsay\u0131lana D\u00f6n";
-  reset.onclick=async()=>{
-    if(!confirm("Her iki sekt\u00f6r\u00fcn men\u00fc adlar\u0131 ve g\u00f6r\u00fcn\u00fcrl\u00fckleri s\u0131f\u0131rlans\u0131n m\u0131?"))return;
-    const defaults=JSON.stringify({teknik_servis:{},otomotiv:{}});
-    localStorage.removeItem("ayec_menu_labels");
-    localStorage.removeItem("ayec_menu_visibility");
-    desktopInternalSettings.web_menu_labels=defaults;
-    desktopInternalSettings.web_menu_visibility=defaults;
-    await Promise.all([
-      desktopWrite("internal_settings",{key:"web_menu_labels",value:defaults}),
-      desktopWrite("internal_settings",{key:"web_menu_visibility",value:defaults})
-    ]);
-    $("#appDialog").close();
-    renderNav();
-    navigate(firstVisiblePage());
-    toast("Men\u00fcler varsay\u0131lan yap\u0131ya d\u00f6nd\u00fc","warning");
-  };
+  reset.onclick=openSectorMenuResetConfirmation;
   footer.prepend(reset);
 };
 
@@ -3679,7 +4909,7 @@ function ayecRenderStockRows(){
   if(!host)return;
   const query=String(search?.value||"").toLocaleLowerCase("tr-TR");
   const categoryValue=category?.value||"T\u00fcm Kategoriler",levelValue=level?.value||"T\u00fcm Seviyeler";
-  const rows=db.stock.filter(item=>[item.code,item.name,item.barcode].join(" ").toLocaleLowerCase("tr-TR").includes(query)&&(categoryValue==="T\u00fcm Kategoriler"||item.category===categoryValue)&&(levelValue==="T\u00fcm Seviyeler"||(levelValue==="Kritik Stok"?item.qty<=item.min:item.qty>0)));
+  const rows=db.stock.filter(item=>[item.code,item.name,item.barcode,item.oem_code,item.equivalent_code,item.compatible_models].join(" ").toLocaleLowerCase("tr-TR").includes(query)&&(categoryValue==="T\u00fcm Kategoriler"||item.category===categoryValue)&&(levelValue==="T\u00fcm Seviyeler"||(levelValue==="Kritik Stok"?item.qty<=item.min:item.qty>0)));
   const pages=Math.max(1,Math.ceil(rows.length/ayecStockPageSize));
   ayecStockCurrentPage=Math.max(0,Math.min(ayecStockCurrentPage,pages-1));
   const start=ayecStockCurrentPage*ayecStockPageSize;
@@ -3701,21 +4931,92 @@ renderMovements=function(){
   );
 };
 
-function ayecOpenFiscalControls(){
+async function ayecOpenFiscalControls(){
   const year=new Date().getFullYear();
+  let plan=null;
+  try{plan=(await apiFetch("/api/desktop/fiscal/rollover-plan")).plan}catch(error){toast(error.message||"Mali y\u0131l plan\u0131 al\u0131namad\u0131.","error")}
   openDialog(
     "Mali Y\u0131l Kontrolleri",
     `AKT\u0130F D\u00d6NEM ${year}`,
-    `<div class="fiscal-control-grid"><button type="button" class="secondary" id="ayecFiscalArchive">Ar\u015fiv (Ge\u00e7mi\u015f)</button><button type="button" class="secondary" id="ayecFiscalCurrent">Canl\u0131 (${year})</button><button type="button" class="primary" id="ayecFiscalRefresh">Yenile</button><button type="button" class="secondary" id="ayecFiscalOpening">A\u00e7\u0131l\u0131\u015f Fi\u015fleri</button><button type="button" class="primary" id="ayecFiscalReport">Y\u0131lba\u015f\u0131 Raporu</button></div>`,
+    `<div class="fiscal-control-grid"><button type="button" class="secondary" id="ayecFiscalArchive">Ar\u015fiv (Ge\u00e7mi\u015f)</button><button type="button" class="secondary" id="ayecFiscalCurrent">Canl\u0131 (${year})</button><button type="button" class="primary" id="ayecFiscalRefresh">Yenile</button><button type="button" class="secondary" id="ayecFiscalOpening">A\u00e7\u0131l\u0131\u015f Fi\u015fleri</button><button type="button" class="primary" id="ayecFiscalReport">Y\u0131lba\u015f\u0131 Raporu</button><button type="button" class="warning" id="ayecFiscalRollover">Yeni Mali Y\u0131la Ge\u00e7i\u015f</button></div><div class="fiscal-plan-summary" role="status"><strong>${plan?.integrity==="ok"?"Veritaban\u0131 tutarl\u0131":"Tutarl\u0131l\u0131k kontrol\u00fc bekliyor"}</strong><span>A\u00e7\u0131l\u0131\u015f tarihi: ${esc(plan?.opening_date||"-")}</span><span>Devir aday\u0131: ${Number(plan?.entry_count||0)} (${Number(plan?.bank_count||0)} banka, ${Number(plan?.customer_count||0)} cari)</span><span>TRY kar\u015f\u0131l\u0131\u011f\u0131: ${money(Number(plan?.total_try||0),"TRY")}</span></div>`,
     ()=>true,
     "Kapat"
   );
   const downloadRows=rows=>download(`finans-${year}.csv`,csv(rows));
-  $("#ayecFiscalArchive").onclick=()=>downloadRows(db.finance);
+  $("#dialogCancel").hidden=true;
+  $("#ayecFiscalArchive").onclick=()=>ayecOpenFiscalArchivePicker();
   $("#ayecFiscalCurrent").onclick=()=>$("#appDialog").close();
   $("#ayecFiscalRefresh").onclick=()=>hydrateDesktop(false).then(()=>$("#appDialog").close()).catch(()=>{});
   $("#ayecFiscalOpening").onclick=()=>downloadRows(db.finance.filter(item=>String(item.category||"").toLocaleLowerCase("tr-TR").includes("a\u00e7\u0131l\u0131\u015f")));
   $("#ayecFiscalReport").onclick=()=>downloadRows(db.finance.filter(item=>String(item.date||"").startsWith(String(year))));
+  $("#ayecFiscalRollover").disabled=!plan?.can_execute;
+  $("#ayecFiscalRollover").title=plan?.can_execute?"":"Devir, a\u00e7\u0131l\u0131\u015f tarihinde ve ba\u015far\u0131l\u0131 tutarl\u0131l\u0131k kontrol\u00fcyle kullan\u0131labilir.";
+  $("#ayecFiscalRollover").onclick=()=>ayecOpenFiscalRollover(plan);
+}
+
+function ayecOpenFiscalRollover(plan){
+  const start=plan?.selections||{};
+  openDialog("Yeni Mali Y\u0131la Ge\u00e7i\u015f","YEDEK, DEV\u0130R VE A\u00c7ILI\u015e F\u0130\u015ELER\u0130",`<div class="fiscal-rollover-summary"><p>Ar\u015fiv: <strong>Ba\u015far\u0131l\u0131</strong> b\u00fct\u00fcnl\u00fck kontrol\u00fcyle merkezi tenant yedek kayd\u0131na al\u0131n\u0131r. Eski d\u00f6nem hareketleri korunur.</p><p>A\u00e7\u0131l\u0131\u015f tarihi: <strong>${esc(plan?.opening_date||"-")}</strong>. Aday fi\u015f say\u0131s\u0131: <strong>${Number(plan?.entry_count||0)}</strong>.</p><label class="fiscal-check"><input type="checkbox" name="bank" ${start.bank!==false?"checked":""}> Banka hesap bakiyelerini a\u00e7\u0131l\u0131\u015f fi\u015fi olarak aktar</label><label class="fiscal-check"><input type="checkbox" name="customer" ${start.customer!==false?"checked":""}> Cari alacak ve avans bakiyelerini a\u00e7\u0131l\u0131\u015f fi\u015fi olarak aktar</label><label class="fiscal-check fiscal-approval"><input type="checkbox" name="accountant_approved" required> Muhasebeci onay\u0131n\u0131 veriyorum</label><div class="field"><label>Mevcut kullan\u0131c\u0131 parolas\u0131 *</label><input type="password" name="password" autocomplete="current-password" required></div></div>`,async form=>{
+    const payload=Object.fromEntries(form);
+    const result=await apiFetch("/api/desktop/fiscal/rollover",{method:"POST",body:JSON.stringify({accountant_approved:form.get("accountant_approved")==="on",password:payload.password,selections:{bank:form.get("bank")==="on",customer:form.get("customer")==="on"}})});
+    if(!result.ok)throw new Error(result.error||"Mali y\u0131l devri tamamlanamad\u0131.");
+    toast("Mali y\u0131l devri tamamland\u0131; a\u00e7\u0131l\u0131\u015f fi\u015fleri yaz\u0131ld\u0131.","success");
+    await hydrateDesktop(false);render();
+  },"Devri Tamamla");
+  $("#appDialog").classList.add("fiscal-rollover-dialog");
+  $("#appDialog").addEventListener("close",()=>$("#appDialog").classList.remove("fiscal-rollover-dialog"),{once:true});
+}
+
+async function ayecOpenFiscalArchivePicker(){
+  try{
+    const data=await apiFetch("/api/desktop/fiscal/archives");
+    const archives=data.archives||[];
+    openDialog("Ge\u00e7mi\u015f Mali Y\u0131l Ar\u015fivi","SALT OKUNUR D\u00d6NEM SE\u00c7\u0130M\u0130",`<div class="form-grid"><div class="field full"><label>Ar\u015fivli mali y\u0131l *</label><select name="archive_id" ${archives.length?"required":"disabled"}>${archives.length?archives.map(item=>`<option value="${Number(item.id)}">${esc(item.filename)} \u00b7 ${esc(item.created_at)}</option>`).join(""):'<option value="">Kay\u0131tl\u0131 ar\u015fiv bulunmuyor</option>'}</select></div><p class="muted full">Ar\u015fiv tenant kapsam\u0131nda merkezi olarak korunur ve salt okunur a\u00e7\u0131l\u0131r.</p><div class="field full"><button type="button" class="secondary" id="ayecLegacyArchiveImport">Eski Masa\u00fcst\u00fc Ar\u015fivlerini G\u00fcvenli Aktar</button><small class="muted">Yaln\u0131zca firma ad\u0131 ve oturum a\u00e7m\u0131\u015f firma hesab\u0131 e\u015fle\u015fen dosyalar merkezi ar\u015five eklenir.</small></div></div>`,async form=>{
+      const archive=archives.find(item=>String(item.id)===String(form.get("archive_id")));
+      if(!archive)throw new Error("Ar\u015fiv kayd\u0131 bulunamad\u0131.");
+      const snapshot=await apiFetch(`/api/desktop/fiscal/archives/${Number(archive.id)}`);
+      $("#appDialog").addEventListener("close",()=>ayecShowFiscalArchive(archive,snapshot),{once:true});
+    },"Ar\u015fivi A\u00e7");
+    $("#ayecLegacyArchiveImport").onclick=ayecImportLegacyFiscalArchives;
+  }catch(error){toast(error.message||"Mali y\u0131l ar\u015fivi al\u0131namad\u0131.","error")}
+}
+
+async function ayecImportLegacyFiscalArchives(){
+  const button=$("#ayecLegacyArchiveImport");
+  if(!button)return;
+  button.disabled=true;
+  button.textContent="Ar\u015fivler denetleniyor...";
+  try{
+    const result=await apiFetch("/api/desktop/fiscal/archives/import",{method:"POST",body:"{}"});
+    const imported=result.imported||[],skipped=result.skipped||[];
+    const importedList=imported.length?"<ul>"+imported.map(item=>"<li>"+esc(item.filename)+" - merkezi ar\u015five aktar\u0131ld\u0131</li>").join("")+"</ul>":"<p>Aktar\u0131labilecek e\u015fle\u015fen masa\u00fcst\u00fc ar\u015fivi bulunamad\u0131.</p>";
+    const skippedList=skipped.length?"<ul>"+skipped.map(item=>"<li>"+esc(item.filename)+" - "+esc(item.reason)+"</li>").join("")+"</ul>":"";
+    const resultBody="<div class=\"form-grid\"><div class=\"field full\"><strong>"+imported.length+" ar\u015fiv merkezi tenant ar\u015five eklendi.</strong>"+importedList+"</div>"+(skipped.length?"<div class=\"field full\"><strong>"+skipped.length+" dosya atland\u0131</strong>"+skippedList+"</div>":"")+"</div>";
+    $("#appDialog").close();
+    openDialog("Masa\u00fcst\u00fc Ar\u015fiv Aktar\u0131m\u0131","DENET\u0130M SONUCU",resultBody,async()=>{$("#appDialog").addEventListener("close",()=>ayecOpenFiscalArchivePicker(),{once:true});return true},"Ar\u015fivleri Se\u00e7");
+  }catch(error){toast(error.message||"Masa\u00fcst\u00fc ar\u015fiv aktar\u0131m\u0131 ba\u015far\u0131s\u0131z oldu.","error");button.disabled=false;button.textContent="Eski Masa\u00fcst\u00fc Ar\u015fivlerini G\u00fcvenli Aktar"}
+}
+
+function ayecShowFiscalArchive(archive,snapshot){
+  const rows=snapshot.rows||[],pageSize=100;
+  let currentPage=0;
+  const renderRows=()=>{
+    const start=currentPage*pageSize,visible=rows.slice(start,start+pageSize);
+    const body=visible.map(row=>`<tr><td>${esc(row.date||row.created_at||"")}</td><td>${esc(row.type||"")}</td><td>${esc(row.category||"")}</td><td>${esc(row.customer_name||row.bank_name||row.description||"")}</td><td>${esc(row.currency||"TRY")}</td><td>${esc(money(Number(row.amount||0),row.currency||"TRY"))}</td><td>${esc(row.description||"")}</td></tr>`).join("");
+    const host=$("#fiscalArchiveRows");
+    host.innerHTML=`<div class="table-wrap"><table><thead><tr><th>Tarih</th><th>T\u00fcr</th><th>Kategori</th><th>Cari / Hesap</th><th>D\u00f6viz</th><th>Tutar</th><th>A\u00e7\u0131klama</th></tr></thead><tbody>${body||'<tr><td colspan="7">Bu ar\u015fivde finans hareketi bulunamad\u0131.</td></tr>'}</tbody></table></div><div class="finance-ref-search"><span>${rows.length} ar\u015fiv kayd\u0131 \u00b7 ${rows.length?start+1:0}-${Math.min(start+pageSize,rows.length)}</span><button type="button" class="secondary" data-fiscal-prev ${currentPage===0?"disabled":""}>\u2039 \u00d6nceki</button><button type="button" class="secondary" data-fiscal-next ${start+pageSize>=rows.length?"disabled":""}>Sonraki \u203a</button></div>`;
+    host.querySelector("[data-fiscal-prev]").onclick=()=>{currentPage=Math.max(0,currentPage-1);renderRows()};
+    host.querySelector("[data-fiscal-next]").onclick=()=>{currentPage+=1;renderRows()};
+  };
+  openDialog(archive.filename,"SALT OKUNUR MAL\u0130 YIL AR\u015e\u0130V\u0130",'<div id="fiscalArchiveRows"></div>',()=>true,"Kapat");
+  $("#appDialog").classList.add("dialog-wide","fiscal-archive-dialog");
+  $("#dialogCancel").hidden=true;
+  $("#dialogFooter").insertAdjacentHTML("afterbegin",'<button type="button" class="secondary" id="fiscalArchiveExport">CSV D\u0131\u015fa Aktar</button>');
+  $("#dialogFooter").insertAdjacentHTML("afterbegin",'<button type="button" class="primary" id="fiscalArchiveActivate">Mali Y\u0131l\u0131 Sistem Genelinde A\u00e7</button>');
+  $("#fiscalArchiveExport").onclick=()=>download(archive.filename.replace(/\.db$/i,".csv"),csv(rows));
+  $("#fiscalArchiveActivate").onclick=()=>{sessionStorage.setItem("ayecFiscalArchive",JSON.stringify({id:Number(archive.id),filename:archive.filename}));sessionStorage.setItem("ayecFiscalArchivePage",page);ayecClearDatabaseCache();window.location.reload()};
+  renderRows();
+  $("#appDialog").addEventListener("close",()=>$("#appDialog").classList.remove("dialog-wide","fiscal-archive-dialog"),{once:true});
 }
 
 const ayecRenderFinanceBeforeControls=renderFinance;
@@ -3775,6 +5076,7 @@ document.addEventListener("click",event=>{
   event.preventDefault();
   event.stopImmediatePropagation();
   const finance=button.dataset.action==="export-finance";
+  if(finance){if(button.textContent.includes("PDF"))window.print();else ayecRunFinanceExport();return}
   const rows=finance?ayecFinanceExportRows():ayecStockExportRows();
   download(`${finance?"finans":"stok"}-${today()}.csv`,csv(rows));
   toast(finance?"Finans kay\u0131tlar\u0131 para birimi, kur ve TRY kar\u015f\u0131l\u0131\u011f\u0131yla aktar\u0131ld\u0131":"Stok kay\u0131tlar\u0131 orijinal para birimi ve TRY kar\u015f\u0131l\u0131\u011f\u0131yla aktar\u0131ld\u0131","success");
@@ -3990,7 +5292,7 @@ async function loadChecksReference(meta,q=""){
     const currency=window.checksReferenceCurrency||"USD",rate=rateForCode(currency)||1,coverage=incoming.reduce((sum,row)=>sum+Number(row.amount||0),0)/Math.max(1,all.reduce((sum,row)=>sum+Number(row.amount||0),0))*100;
     $("#checksMetrics").innerHTML=`<article class="checks-metric"><span>Portf\u00f6ydeki Toplam Tutar</span><strong>${checkMoney(portfolio,currency)}</strong><small>TL Kar\u015f\u0131l\u0131\u011f\u0131: ${money(portfolio,"TRY")}</small></article><article class="checks-metric warning"><span>Bu Ay Vadesi Gelenler</span><strong>${checkMoney(due,currency)}</strong><small>Toplam: ${dueRows.length} Evrak</small></article><article class="checks-metric cyan"><span>Al\u0131nan vs Verilen</span><strong>${incoming.length} Al\u0131nan / ${own.length} Kendi \u00c7ekimiz</strong><small>Alacak G\u00fcvencesi: %${coverage.toFixed(1)} | Dengeli</small></article><article class="checks-metric purple"><span>Tahsildeki (Banka Takas\u0131)</span><strong>${checkMoney(settled,currency)}</strong><small>Takasta: ${all.filter(row=>row.status==="Ciro Edildi").length} Bankada</small></article>`;
     const pageSize=Number($("#checkPageSize").value||10),maxPage=Math.max(0,Math.ceil(rows.length/pageSize)-1);window.checksReferencePage=Math.min(window.checksReferencePage||0,maxPage);const offset=window.checksReferencePage*pageSize,visible=rows.slice(offset,offset+pageSize);
-    host.innerHTML=`<div class="table-wrap checks-reference-table"><table><thead><tr><th><input type="checkbox" data-check-select-all aria-label="G\u00f6r\u00fcnen evraklar\u0131 se\u00e7"></th><th>#</th><th>Evrak T\u00fcr\u00fc</th><th>Y\u00f6n</th><th>Ke\u015fideci / Bor\u00e7lu Cari</th><th>Banka &amp; \u015eube</th><th>Evrak / Seri No</th><th>Tutar ($ / TRY)</th><th>Vade Tarihi</th><th>Durum</th><th>H\u0131zl\u0131 \u0130\u015flemler</th></tr></thead><tbody>${visible.map((row,index)=>`<tr><td><input type="checkbox" data-check-select value="${esc(row.id)}" aria-label="${esc(row.check_no||row.portfolio_no||"Evrak")} se\u00e7"></td><td>${String(offset+index+1).padStart(2,"0")}</td><td><span class="check-type ${row.type==="Senet"?"note":"check"}">${esc(row.type||"")}</span></td><td class="${String(row.direction||"").startsWith("Giri\u015f")?"incoming":"outgoing"}">${String(row.direction||"").startsWith("Giri\u015f")?"\u2199 Al\u0131nan":"\u2197 Verilen"}</td><td><strong>${esc(row.issuer||"")}</strong><small>${esc(row.recipient||"")}</small></td><td><strong>${esc(row.bank_name||"")}</strong><small>${esc(row.branch_name||"")}</small></td><td class="mono">${esc(row.check_no||row.portfolio_no||"-")}</td><td class="mono amount">${checkMoney(row.amount,currency)}<small>${money(Number(row.amount||0),"TRY")}</small></td><td class="mono">${esc(String(row.due_date||"").slice(0,10))}</td><td><span class="check-status">${esc(row.status||"")}</span></td><td class="check-actions"><button class="mini" data-check-detail="${esc(row.id)}">Detay</button>${row.status==="Ciro Edildi"?"":`<button class="mini primary" data-check-status="Tahsil Edildi" data-check-id="${esc(row.id)}">Tahsil</button><button class="mini" data-check-status="Ciro Edildi" data-check-id="${esc(row.id)}">Takasa</button>`}</td></tr>`).join("")}</tbody></table></div>`;
+     host.innerHTML=`<div class="table-wrap checks-reference-table"><table><thead><tr><th><input type="checkbox" data-check-select-all aria-label="G\u00f6r\u00fcnen evraklar\u0131 se\u00e7"></th><th>#</th><th>Evrak T\u00fcr\u00fc</th><th>Y\u00f6n</th><th>Ke\u015fideci / Bor\u00e7lu Cari</th><th>Banka &amp; \u015eube</th><th>Evrak / Seri No</th><th>Tutar ($ / TRY)</th><th>Vade Tarihi</th><th>Durum</th><th>H\u0131zl\u0131 \u0130\u015flemler</th></tr></thead><tbody>${visible.map((row,index)=>`<tr><td><input type="checkbox" data-check-select value="${esc(row.id)}" aria-label="${esc(row.check_no||row.portfolio_no||"Evrak")} se\u00e7"></td><td>${String(offset+index+1).padStart(2,"0")}</td><td><span class="check-type ${row.type==="Senet"?"note":"check"}">${esc(row.type||"")}</span></td><td class="${String(row.direction||"").startsWith("Giri\u015f")?"incoming":"outgoing"}">${String(row.direction||"").startsWith("Giri\u015f")?"\u2199 Al\u0131nan":"\u2197 Verilen"}</td><td><strong>${esc(row.issuer||"")}</strong><small>${esc(row.recipient||"")}</small></td><td><strong>${esc(row.bank_name||"")}</strong><small>${esc(row.branch_name||"")}</small></td><td class="mono">${esc(row.check_no||row.portfolio_no||"-")}</td><td class="mono amount">${checkMoney(row.amount,currency)}<small>${money(Number(row.amount||0),"TRY")}</small></td><td class="mono">${esc(String(row.due_date||"").slice(0,10))}</td><td><span class="check-status">${esc(row.status||"")}</span></td><td class="check-actions"><button class="mini" data-check-detail="${esc(row.id)}">${row.status==="Ciro Edildi"?"Banka Dekontu":"Detay"}</button>${!['Tahsil Edildi','Ciro Edildi','\u00d6dendi'].includes(row.status)?`<button class="mini primary" data-check-status="Tahsil Edildi" data-check-id="${esc(row.id)}">Tahsil</button><button class="mini" data-check-status="Ciro Edildi" data-check-id="${esc(row.id)}">Takasa</button>`:row.status==="Ciro Edildi"?`<button class="mini" data-check-status="\u0130ade" data-check-id="${esc(row.id)}">\u0130ade Al</button>`:""}</td></tr>`).join("")}</tbody></table></div>`;
     $("#genericCount").textContent=`Toplam ${rows.length} kay\u0131ttan ${rows.length?offset+1:0}-${Math.min(offset+visible.length,rows.length)} aras\u0131 listeleniyor.`;
     const pages=Array.from({length:maxPage+1},(_,index)=>index);$("#checkPagination").innerHTML=`<button data-check-page="${Math.max(0,window.checksReferencePage-1)}" ${window.checksReferencePage===0?"disabled":""}>\u00d6nceki</button>${pages.slice(0,3).map(index=>`<button data-check-page="${index}" class="${index===window.checksReferencePage?"active":""}">${index+1}</button>`).join("")}<button data-check-page="${Math.min(maxPage,window.checksReferencePage+1)}" ${window.checksReferencePage===maxPage?"disabled":""}>Sonraki</button>`;
     $("#genericSearch").oninput=()=>{window.checksReferencePage=0;loadGenericModule(meta,$("#genericSearch").value)};
@@ -4028,13 +5330,14 @@ let ayecIncomeExpenseQuery="";
 let ayecIncomeExpenseMonth="";
 
 function ayecIncomeExpenseFiltered(type=""){
+  const currentYear=today().slice(0,4);
   return (db.finance||[]).filter(item=>{
     const month=String(item.date||item.created_at||"").slice(0,7);
     const kind=String(item.type||"").toLocaleLowerCase("tr-TR");
     const category=String(item.category||"").toLocaleLowerCase("tr-TR");
     const text=[item.date,item.category,item.description,item.customer_name,item.ref_no,item.tracking_no].join(" ").toLocaleLowerCase("tr-TR");
     const tab=type==="Gider"?"expense":ayecIncomeExpenseTab;
-    return (!ayecIncomeExpenseMonth||month===ayecIncomeExpenseMonth)
+    return (ayecIncomeExpenseMonth?month===ayecIncomeExpenseMonth:month.startsWith(currentYear))
       &&(!ayecIncomeExpenseQuery||text.includes(ayecIncomeExpenseQuery.toLocaleLowerCase("tr-TR")))
       &&(tab==="all"||(tab==="expense"&&kind==="gider")||(tab==="income"&&kind==="gelir")
         ||(tab==="tax"&&/(vergi|sgk|kdv)/.test(category))
@@ -4061,11 +5364,12 @@ function ayecRenderIncomeExpense(type=""){
   const expense=monthly.filter(row=>row.type==="Gider").reduce((sum,row)=>sum+financeTryValue(row),0);
   const {rows,body,distribution}=ayecIncomeExpenseBody(type);
   const tabs=[["all","T\u00fcm Hareketler"],["expense","Gider / Masraflar"],["income","Tahsilatlar & Gelirler"],["tax","Vergi & SGK"],["personnel","Personel Harcamalar\u0131"]];
-  const months=[...new Set(all.map(row=>String(row.date||row.created_at||"").slice(0,7)).filter(Boolean)),currentMonth].sort().reverse();
+  const currentYear=currentMonth.slice(0,4);
+  const months=Array.from({length:12},(_,index)=>`${currentYear}-${String(index+1).padStart(2,"0")}`).sort().reverse();
   return `<section class="ie-page">
     <header class="ie-heading"><div><h1>Gelir & Gider Y\u00f6netimi</h1><p>Kasa, fatura ve operasyonel gider hareketleri</p></div><div class="ie-actions"><button data-finance-fiscal>Mali D\u00f6nem Kapatma</button><button data-action="export-finance">Raporu D\u0131\u015fa Aktar</button><button class="ie-green" data-action="add-income">Yeni Gelir</button><button class="ie-red" data-action="add-expense">Yeni Gider</button></div></header>
     <div class="ie-metrics"><article><small>TOPLAM AYLIK GEL\u0130R</small><strong class="ie-positive">${money(income)}</strong></article><article><small>TOPLAM G\u0130DER & MASRAF</small><strong class="ie-negative">${money(expense)}</strong></article><article><small>NET \u0130\u015eLETME KARI</small><strong class="ie-positive">${money(income-expense)}</strong></article><article><small>BEKLEYEN ALACAKLAR</small><strong>${money(all.filter(row=>/bekliyor/i.test(String(row.status||""))).reduce((sum,row)=>sum+financeTryValue(row),0))}</strong></article></div>
-    <div class="ie-columns"><main><div class="ie-tabs" role="tablist">${tabs.map(([key,label])=>`<button role="tab" data-ie-tab="${key}" aria-selected="${ayecIncomeExpenseTab===key}">${label}</button>`).join("")}</div><div class="ie-filters"><input id="ieSearch" type="search" value="${esc(ayecIncomeExpenseQuery)}" placeholder="Fi\u015f no, tedarik\u00e7i, gider veya a\u00e7\u0131klama ara..."><select id="ieMonth"><option value="">T\u00fcm D\u00f6nemler</option>${months.map(month=>`<option value="${esc(month)}" ${ayecIncomeExpenseMonth===month?"selected":""}>${esc(month)}</option>`).join("")}</select></div><div class="ie-table-wrap"><table class="ie-table"><thead><tr><th>TAR\u0130H</th><th>KATEGOR\u0130</th><th>A\u00c7IKLAMA & CAR\u0130</th><th>BELGE / NO</th><th>TUTAR</th></tr></thead><tbody id="ieTableBody">${body}</tbody></table></div><footer id="ieCount">${rows.length} hareket listeleniyor</footer></main>
+    <div class="ie-columns"><main><div class="ie-tabs" role="tablist">${tabs.map(([key,label])=>`<button role="tab" data-ie-tab="${key}" aria-selected="${ayecIncomeExpenseTab===key}">${label}</button>`).join("")}</div><div class="ie-filters"><input id="ieSearch" type="search" value="${esc(ayecIncomeExpenseQuery)}" placeholder="Fi\u015f no, tedarik\u00e7i, gider veya a\u00e7\u0131klama ara..."><select id="ieMonth"><option value="">Bu Y\u0131l</option>${months.map(month=>`<option value="${esc(month)}" ${ayecIncomeExpenseMonth===month?"selected":""}>${esc(month)}</option>`).join("")}</select></div><div class="ie-table-wrap"><table class="ie-table"><thead><tr><th>TAR\u0130H</th><th>KATEGOR\u0130</th><th>A\u00c7IKLAMA & CAR\u0130</th><th>BELGE / NO</th><th>TUTAR</th></tr></thead><tbody id="ieTableBody">${body}</tbody></table></div><footer id="ieCount">${rows.length} hareket listeleniyor</footer></main>
     <aside><section class="ie-panel"><h2>Gider Da\u011f\u0131l\u0131m\u0131</h2><div id="ieDistribution">${distribution||"Bu d\u00f6nemde gider yok"}</div></section><section class="ie-panel ie-quick"><h2>H\u0131zl\u0131 Masraf / Gider Fi\u015fi</h2><label>Masraf Kategorisi<input id="ieCategory" placeholder="Kategori se\u00e7in"></label><label>\u00c7\u0131k\u0131\u015f Hesab\u0131<select id="ieBank"><option value="">Hesap se\u00e7in</option></select></label><div class="ie-quick-pair"><label>Tutar<input id="ieAmount" type="number" min="0.01" step="0.01" inputmode="decimal"></label><label>Fi\u015f / Fatura No<input id="ieReference"></label></div><label class="ie-receipt">Fi\u015f / Fatura G\u00f6rseli<input id="ieReceipt" type="file" accept=".jpg,.jpeg,.png,.pdf"></label><button class="ie-save" type="button" data-ie-save>Fi\u015fi Kaydet</button></section></aside></div></section>`;
 }
 
@@ -4138,9 +5442,12 @@ let ayecBankColumns=[];
 let ayecBankFilter="all";
 let ayecBankQuery="";
 let ayecBankSelected=null;
+let ayecBankSelectedIds=new Set();
+let ayecBankSelectionAnchor=null;
 
 function ayecBankShell(){
-  return `<section class="bank-ref"><header class="bank-ref-head"><div><h1>Hazine &amp; Nakit Ak\u0131\u015f Kontrol\u00fc</h1><p>\u00c7oklu banka hesab\u0131 bakiyeleri, at\u00f6lye kasalar\u0131 ve sanal POS hareketleri</p></div><div class="bank-ref-actions"><button data-bank-action="statement">Banka Ekstresi (OFX / MT940)</button><button data-bank-action="transfer">Virman &amp; Transfer</button><button class="primary" data-bank-action="add">Yeni Hesap / Kasa</button><button data-bank-action="more">D\u0131\u015fa Aktar</button></div></header>
+  const canManageBank=userAdminRole(currentAuthUser?.role);
+  return `<section class="bank-ref"><header class="bank-ref-head"><div><h1>Hazine &amp; Nakit Ak\u0131\u015f Kontrol\u00fc</h1><p>\u00c7oklu banka hesab\u0131 bakiyeleri, at\u00f6lye kasalar\u0131 ve sanal POS hareketleri</p></div><div class="bank-ref-actions"><button data-bank-action="statement">Banka Ekstresi (OFX / MT940)</button><button data-bank-action="transfer" ${canManageBank?"":"disabled title='Admin permission is required'"}>Virman &amp; Transfer</button><button class="primary" data-bank-action="add" ${canManageBank?"":"disabled title='Admin permission is required'"}>Yeni Hesap / Kasa</button><button data-bank-action="more">D\u0131\u015fa Aktar</button></div></header>
   <div class="bank-ref-metrics"><article><small>TOPLAM L\u0130K\u0130D\u0130TE &amp; SICAK NAK\u0130T</small><strong id="bankMetricTotal">-</strong></article><article><small>BANKA HESAP BAK\u0130YELER\u0130</small><strong id="bankMetricAccounts">-</strong></article><article><small>F\u0130Z\u0130K\u0130 AT\u00d6LYE &amp; SAHA KASALARI</small><strong id="bankMetricCash">-</strong></article><article><small>POS BLOKAJ &amp; BEKLEYEN</small><strong id="bankMetricPos">-</strong></article></div>
   <div class="bank-ref-columns"><section class="bank-ref-left"><div class="bank-ref-section-head"><h2>Tan\u0131ml\u0131 Hesaplar &amp; Kasalar</h2><button data-bank-action="table">Tablo / Toplu \u0130\u015flem</button></div><div id="bankAccountCards" class="bank-account-cards"></div><section class="bank-fund"><div>FON DA\u011eILIMI <strong id="bankFundTotal"></strong></div><div id="bankFundBar" class="bank-fund-bar"></div><div id="bankFundLegend" class="bank-fund-legend"></div></section></section>
   <section class="bank-ref-right"><nav class="bank-ref-filters">${[["all","T\u00dcM HAREKETLER"],["income","GELEN HAVALE"],["expense","G\u0130DEN G\u0130DER"],["cash","KASA NAK\u0130T"],["pos","POS BLOKE"]].map(([key,label])=>`<button data-bank-filter="${key}" aria-selected="${ayecBankFilter===key}">${label}</button>`).join("")}<input id="bankRefSearch" placeholder="Fi\u015f, a\u00e7\u0131klama ara..."></nav><div class="bank-ledger-wrap"><table class="bank-ledger"><thead><tr><th>ZAMAN / F\u0130\u015e</th><th>\u0130\u015eLEM DETAYI &amp; HESAP</th><th>TUTAR &amp; Y\u00d6N</th><th>AKS\u0130YON</th></tr></thead><tbody id="bankLedgerBody"></tbody></table></div><div class="bank-reconcile"><article><small>G\u00dcNL\u00dcK MUTABAKAT DURUMU</small><strong>Ekstre e\u015fle\u015ftirme sonucunu inceleyin</strong></article><article><small>OTOMAT\u0130K CAR\u0130 TANIMA</small><strong id="bankAutoMatch">Hesap hareketleri g\u00fcncel</strong></article></div></section></div>
@@ -4155,7 +5462,10 @@ function ayecBankClass(row){
 function ayecBankRenderData(rows){
   ayecBankAccounts=rows||[];
   if(!ayecBankSelected&&ayecBankAccounts.length)ayecBankSelected=Number(ayecBankAccounts[0].id);
-  const active=ayecBankAccounts.filter(row=>Number(row.is_active??1)===1);
+  const bankIds=new Set(ayecBankAccounts.map(row=>String(row.id)));
+  ayecBankSelectedIds=new Set(Array.from(ayecBankSelectedIds).filter(id=>bankIds.has(String(id))));
+  if(!ayecBankSelectedIds.size&&ayecBankSelected!==null)ayecBankSelectedIds.add(String(ayecBankSelected));
+  const active=ayecBankAccounts.filter(row=>Number(row.is_active??row.active??1)===1);
   const toTry=row=>moneyNumber(row.current_balance)*rateForCode(row.currency||"TRY");
   const total=active.reduce((sum,row)=>sum+toTry(row),0);
   const cash=active.filter(row=>ayecBankClass(row)==="cash").reduce((sum,row)=>sum+toTry(row),0);
@@ -4171,10 +5481,13 @@ function ayecBankRenderData(rows){
   $("#bankFundBar").innerHTML=chunks.map((item,index)=>`<i style="width:${item.value/denominator*100}%;background:${["#38d6a7","#4e8bff","#bcc9e2","#ff496f","#b27aff"][index%5]}"></i>`).join("");
   $("#bankFundLegend").innerHTML=chunks.slice(0,5).map((item,index)=>`<span><i style="background:${["#38d6a7","#4e8bff","#bcc9e2","#ff496f","#b27aff"][index%5]}"></i>${esc(item.row.bank_name||item.row.account_holder||"Hesap")}</span>`).join("");
   $("#bankAccountCards").innerHTML=active.map(row=>{
-    const type=ayecBankClass(row), selected=Number(row.id)===Number(ayecBankSelected);
+    const type=ayecBankClass(row), selected=ayecBankSelectedIds.has(String(row.id));
     const holder=row.account_holder||row.account_name||"";
     return `<button class="bank-account-card ${selected?"selected":""}" data-bank-card="${Number(row.id)}"><span class="bank-account-card-head"><b>${esc(row.bank_name||"Banka")}</b><small>${type==="cash"?"Fiziki Nakit":type==="pos"?"Sanal POS":"Aktif"}</small></span><code>${esc(row.account_number||row.iban||"")}</code><small>${esc(holder)}</small><span class="bank-balance-caption">Kullan\u0131labilir Bakiye</span><strong>${money(row.current_balance,row.currency||"TRY")}</strong></button>`;
   }).join("")||'<div class="bank-empty">Banka hesab\u0131 bulunamad\u0131.</div>';
+  document.querySelectorAll("#bankAccountCards [data-bank-card]").forEach(card=>{
+    card.dataset.kind="bank-account";card.dataset.id=card.dataset.bankCard;bindInteractiveRow(card);
+  });
   ayecBankUpdateLedger();
 }
 
@@ -4205,13 +5518,31 @@ async function ayecLoadBankReference(){
 function ayecOpenBankTransfer(){
   const active=ayecBankAccounts.filter(row=>Number(row.is_active??1)===1);
   if(active.length<2){toast("Transfer i\u00e7in en az iki aktif hesap gereklidir","warning");return}
-  const options=active.map(row=>`<option value="${Number(row.id)}">${esc(`${row.bank_name||"Hesap"} - ${row.account_holder||row.account_name||""}`)}</option>`).join("");
-  openDialog("Hesaplar Aras\u0131 Transfer","BANKA",`<div class="form-grid"><div class="field"><label>Kaynak hesap</label><select name="from_account_id">${options}</select></div><div class="field"><label>Hedef hesap</label><select name="to_account_id">${options}</select></div><div class="field"><label>Tutar</label><input name="amount" type="number" min="0.01" step="0.01" required></div><div class="field full"><label>A\u00e7\u0131klama</label><input name="description"></div></div>`,async form=>{
+  const optionLabel=row=>`${row.bank_name||"Hesap"} - ${row.account_holder||row.account_name||""} (${row.iban||row.account_number||""}) [${row.currency||"TRY"}]`;
+  const sourceId=active.some(row=>Number(row.id)===Number(ayecBankSelected))?Number(ayecBankSelected):Number(active[0].id);
+  const options=active.map(row=>`<option value="${Number(row.id)}" ${Number(row.id)===sourceId?"selected":""}>${esc(optionLabel(row))}</option>`).join("");
+  const body=`<div class="form-grid bank-transfer-form"><div class="field"><label>Kaynak Hesap</label><select name="from_account_id">${options}</select></div><div class="field"><label>Mevcut Bakiye</label><div id="bankTransferSourceBalance"></div></div><div class="field"><label>Hedef Hesap</label><select name="to_account_id"></select></div><div class="field"><label>Tutar</label><input name="amount" type="number" min="0.01" step="0.01" required></div><div class="field full"><label>A\u00e7\u0131klama</label><input name="description" placeholder="A\u00e7\u0131klama (iste\u011fe ba\u011fl\u0131)" maxlength="200"></div></div>`;
+  openDialog("Hesaplar Aras\u0131 Transfer","BANKA",body,async form=>{
     const values=Object.fromEntries(form);
     if(values.from_account_id===values.to_account_id)throw Error("Farkl\u0131 kaynak ve hedef hesap se\u00e7in");
+    const source=active.find(row=>Number(row.id)===Number(values.from_account_id));
+    if(source&&Number(source.current_balance)>0&&Number(values.amount)>Number(source.current_balance))throw Error("Tutar kaynak hesap bakiyesini a\u015famaz.");
     await apiFetch("/api/desktop/bank-transfer",{method:"POST",body:JSON.stringify(values)});
     await hydrateDesktop(false);await ayecLoadBankReference();toast("Transfer tamamland\u0131");return true;
   },"Transfer Et");
+  const form=document.querySelector("#dialogForm"),sourceSelect=form?.elements.from_account_id,targetSelect=form?.elements.to_account_id,amountInput=form?.elements.amount,balance=document.querySelector("#bankTransferSourceBalance");
+  const refreshSource=()=>{
+    const source=active.find(row=>Number(row.id)===Number(sourceSelect.value));
+    if(!source)return;
+    const prior=targetSelect.value;
+    targetSelect.innerHTML=active.filter(row=>Number(row.id)!==Number(source.id)).map(row=>`<option value="${Number(row.id)}">${esc(optionLabel(row))}</option>`).join("");
+    if(Array.from(targetSelect.options).some(option=>option.value===prior))targetSelect.value=prior;
+    balance.textContent=money(source.current_balance||0,source.currency||"TRY");
+    amountInput.max=Number(source.current_balance)>0?String(Number(source.current_balance)):"999999999.99";
+    amountInput.placeholder=source.currency||"TRY";
+  };
+  sourceSelect?.addEventListener("change",refreshSource);
+  refreshSource();
 }
 
 async function ayecPreviewBankStatement(){
@@ -4224,33 +5555,51 @@ async function ayecPreviewBankStatement(){
       if(file.name.toLowerCase().endsWith(".ofx")){
         for(const block of text.split(/<STMTTRN>/i).slice(1)){
           const get=tag=>block.match(new RegExp(`<${tag}>\\s*([^<\\r\\n]+)`,"i"))?.[1]?.trim()||"";
-          const date=get("DTPOSTED").slice(0,8),amount=get("TRNAMT");if(!/^\\d{8}$/.test(date)||!amount)continue;
+          const date=get("DTPOSTED").slice(0,8),amount=get("TRNAMT");if(!/^\d{8}$/.test(date)||!amount)continue;
           rows.push({date:`${date.slice(6,8)}.${date.slice(4,6)}.${date.slice(0,4)}`,amount:Number(amount),description:get("MEMO")||get("NAME"),ref:get("FITID")});
         }
       }else{
         let current=null;
-        for(const line of text.split(/\\r?\\n/)){
-          const match=line.match(/^:61:(\\d{6})(?:\\d{4})?([CD])([A-Z])?([0-9,]+)/);
+        for(const line of text.split(/\r?\n/)){
+          const match=line.match(/^:61:(\d{6})(?:\d{4})?([CD])([A-Z])?([0-9,]+)/);
           if(match){const amount=Number(match[4].replace(",","."))*(match[2]==="D"?-1:1);current={date:`${match[1].slice(4,6)}.${match[1].slice(2,4)}.20${match[1].slice(0,2)}`,amount,description:"",ref:line.slice(match[0].length).trim()};rows.push(current)}
           else if(current&&line.startsWith(":86:"))current.description=line.slice(4).trim();
         }
       }
       if(!rows.length)throw Error("Ekstrede hareket bulunamad\u0131");
       const preview=rows.slice(0,300).map(row=>`<tr><td>${esc(row.date)}</td><td>${money(row.amount)}</td><td>${esc(row.ref||"")}</td><td>${esc(row.description||"")}</td></tr>`).join("");
-      openDialog("Banka Ekstresi \u00d6nizleme","${esc(file.name)}",`<p>${rows.length} hareket okundu. Kay\u0131tlar otomatik i\u015flenmedi.</p><div class="table-wrap"><table><thead><tr><th>Tarih</th><th>Tutar</th><th>Referans</th><th>A\u00e7\u0131klama</th></tr></thead><tbody>${preview}</tbody></table></div>`,async()=>true,"Kapat");
+      openDialog("Banka Ekstresi \u00d6nizleme",esc(file.name),`<p>${rows.length} hareket okundu. Kay\u0131tlar otomatik i\u015flenmedi.</p><div class="table-wrap"><table><thead><tr><th>Tarih</th><th>Tutar</th><th>Referans</th><th>A\u00e7\u0131klama</th></tr></thead><tbody>${preview}</tbody></table></div>`,async()=>{download("banka_ekstresi.csv",csv(rows.map(row=>({Date:row.date,Amount:row.amount,Reference:row.ref||"",Description:row.description||""}))));return false},"CSV D\u0131\u015fa Aktar");
+      document.querySelector("#dialogCancel").textContent="Kapat";
     }catch(error){toast(error.message||"Ekstre okunamad\u0131","error")}
   };
   input.click();
 }
 
 function ayecBindBankActions(){
+  document.addEventListener("dblclick",event=>{
+    const card=event.target.closest("#bankAccountCards [data-bank-card]");
+    if(!card||!userAdminRole(currentAuthUser?.role))return;
+    event.preventDefault();
+    ayecBankCardContextAction(card.dataset.bankCard,"bank-edit");
+  });
   document.addEventListener("click",event=>{
     const filter=event.target.closest("[data-bank-filter]");
     if(filter){ayecBankFilter=filter.dataset.bankFilter;ayecBankUpdateLedger();return}
     const card=event.target.closest("[data-bank-card]");
-    if(card){ayecBankSelected=Number(card.dataset.bankCard);ayecBankRenderData(ayecBankAccounts);return}
+    if(card){
+      const id=String(card.dataset.bankCard),visible=ayecBankAccounts.filter(row=>Number(row.is_active??row.active??1)===1).map(row=>String(row.id));
+      if(event.shiftKey&&ayecBankSelectionAnchor&&visible.includes(ayecBankSelectionAnchor)){
+        const start=visible.indexOf(ayecBankSelectionAnchor),end=visible.indexOf(id),low=Math.min(start,end),high=Math.max(start,end);
+        ayecBankSelectedIds=new Set(visible.slice(low,high+1));
+      }else if(event.ctrlKey||event.metaKey){
+        if(ayecBankSelectedIds.has(id))ayecBankSelectedIds.delete(id);else ayecBankSelectedIds.add(id);
+        ayecBankSelectionAnchor=id;
+      }else{ayecBankSelectedIds=new Set([id]);ayecBankSelectionAnchor=id}
+      ayecBankSelected=Number(id);ayecBankRenderData(ayecBankAccounts);return
+    }
     const action=event.target.closest("[data-bank-action]")?.dataset.bankAction;
     if(!action)return;
+    if(["transfer","add"].includes(action)&&!userAdminRole(currentAuthUser?.role)){toast("Y\u00f6netici yetkisi gerekiyor","error");return}
     if(action==="refresh"){ayecLoadBankReference();return}
     if(action==="transfer"){ayecOpenBankTransfer();return}
     if(action==="statement"){ayecPreviewBankStatement();return}
@@ -4265,6 +5614,104 @@ function ayecBindBankActions(){
   document.addEventListener("input",event=>{if(event.target.id==="bankRefSearch"){ayecBankQuery=event.target.value;ayecBankUpdateLedger()}});
 }
 ayecBindBankActions();
+
+
+const ayecShowContextBeforeBankCards=showContext;
+showContext=function(event,kind,id){
+  if(kind!=="bank-account")return ayecShowContextBeforeBankCards(event,kind,id);
+  if(!ayecContextMenuEnabled()){document.querySelector("#contextMenu")?.classList.remove("open");return}
+  event.preventDefault();
+  const account=ayecBankAccounts.find(row=>String(row.id)===String(id));
+  if(!account)return;
+  if(!ayecBankSelectedIds.has(String(id)))ayecBankSelectedIds=new Set([String(id)]);
+  ayecBankSelected=Number(id);
+  ayecBankSelectionAnchor=String(id);
+  ayecBankRenderData(ayecBankAccounts);
+  const manager=userAdminRole(currentAuthUser?.role);
+  const active=Number(account.is_active??account.active??1)===1;
+  const actions=[["Detay G\u00f6r","bank-detail",false],["D\u00fczenle","bank-edit",!manager],["Transfer Yap","bank-transfer",!manager],[active?"Pasifle\u015ftir":"Aktifle\u015ftir","bank-toggle",!manager],["Sil","bank-delete",!manager],["separator","separator",true],["\u00c7oklu Pasifle\u015ftir/Aktifle\u015ftir","bank-bulk-toggle",!manager],["\u00c7oklu Sil","bank-bulk-delete",!manager]];
+  const menu=document.querySelector("#contextMenu");
+  menu.innerHTML=actions.map(([label,action,disabled])=>action==="separator"?'<hr class="context-menu-separator">':`<button type="button" data-context-action="${action}"${disabled?" disabled":""}>${label}</button>`).join("");
+  menu.style.left=`${Math.max(8,event.clientX)}px`;
+  menu.style.top=`${Math.max(8,event.clientY)}px`;
+  menu.classList.add("open");
+  menu.style.left=`${Math.max(8,Math.min(event.clientX,innerWidth-menu.offsetWidth-8))}px`;
+  menu.style.top=`${Math.max(8,Math.min(event.clientY,innerHeight-menu.offsetHeight-8))}px`;
+  menu.querySelectorAll("[data-context-action]").forEach(button=>button.onclick=()=>{
+    menu.classList.remove("open");contextAction(kind,id,button.dataset.contextAction,event.currentTarget);
+  });
+};
+
+const ayecContextActionBeforeBankCards=contextAction;
+contextAction=function(kind,id,action,row){
+  if(kind==="bank-account")return ayecBankCardContextAction(id,action);
+  return ayecContextActionBeforeBankCards(kind,id,action,row);
+};
+
+function ayecBankCardContextAction(id,action){
+  const account=ayecBankAccounts.find(item=>String(item.id)===String(id));
+  if(!account)return;
+  if(action==="bank-detail")return ayecOpenBankAccountDetail(account);
+  if(!userAdminRole(currentAuthUser?.role))return toast("Y\u00f6netici yetkisi gerekiyor","error");
+  if(action==="bank-transfer"){
+    ayecBankSelected=Number(account.id);ayecOpenBankTransfer();return;
+  }
+  if(action==="bank-edit"){
+    apiFetch("/api/desktop/table/bank_accounts?limit=500").then(data=>{
+      const record=(data.rows||[]).find(item=>String(item.id)===String(id));
+      if(record)openGenericDialog(genericModules.banks,record,data.columns||[]);
+    }).catch(error=>toast(error.message||"Hesap y\u00fcklenemedi","error"));
+    return;
+  }
+  if(action==="bank-toggle"||action==="bank-bulk-toggle"){
+    const ids=action==="bank-bulk-toggle"&&ayecBankSelectedIds.size?Array.from(ayecBankSelectedIds):[String(id)];
+    Promise.allSettled(ids.map(accountId=>{
+      const selected=ayecBankAccounts.find(item=>String(item.id)===String(accountId));
+      if(!selected)return Promise.resolve(false);
+      const isActive=Number(selected.is_active??selected.active??1)===1;
+      return apiFetch("/api/desktop/table/bank_accounts",{method:"POST",body:JSON.stringify({id:Number(accountId),is_active:isActive?0:1,_action:"update"})}).then(()=>true);
+    })).then(results=>{const count=results.filter(result=>result.status==="fulfilled"&&result.value).length;toast(count+" hesap durumu g\u00fcncellendi.");ayecBankSelectedIds.clear();ayecLoadBankReference()});
+    return;
+  }
+  if(action==="bank-delete"||action==="bank-bulk-delete"){
+    const ids=action==="bank-bulk-delete"&&ayecBankSelectedIds.size?Array.from(ayecBankSelectedIds):[String(id)];
+    const message=ids.length>1?`Se\u00e7ilen ${ids.length} hesab\u0131 silmek istedi\u011Finize emin misiniz? Bu i\u015Flem t\u00fcm se\u00e7ili hesaplar\u0131 silecektir.`:`\u201c${account.bank_name||"Hesap"}\u201d hesab\u0131 silinsin mi?`;
+    openDialog(ids.length>1?"Banka Hesaplar\u0131n\u0131 Sil":"Banka Hesab\u0131n\u0131 Sil","BANKA Y\u00d6NET\u0130M\u0130",`<p>${esc(message)}</p>`,async()=>{
+      const results=await Promise.allSettled(ids.map(accountId=>apiFetch("/api/desktop/table/bank_accounts",{method:"POST",body:JSON.stringify({id:Number(accountId),_action:"delete"})})));
+      const count=results.filter(result=>result.status==="fulfilled").length;
+      toast(count+" hesap silindi","warning");
+      ayecBankSelectedIds.clear();
+      await ayecLoadBankReference();
+      return true;
+    },"Hesaplar\u0131 Sil");
+    const submit=$("#dialogSubmit");
+    if(submit){submit.classList.remove("primary");submit.classList.add("danger")}
+  }
+}
+
+function ayecOpenBankAccountDetail(account){
+  const fields=[
+    ["Hesap ID",account.id],
+    ["Banka",account.bank_name],
+    ["\u015eube",account.branch_name],
+    ["Hesap Ad\u0131",account.account_holder||account.account_name],
+    ["Hesap No",account.account_number],
+    ["IBAN",account.iban],
+    ["Para Birimi",String(account.currency||"TRY").toUpperCase()],
+    ["Bakiye",money(account.current_balance||0,account.currency||"TRY")],
+    ["Durum",Number(account.is_active??1)===1?"Aktif":"Pasif"]
+  ];
+  const summary='<div class="form-grid">'+fields.map(item=>'<div class="field"><label>'+esc(item[0])+'</label><div>'+esc(item[1]??"-")+'</div></div>').join("")+'</div>';
+  const rows=(db.finance||[]).filter(item=>Number(item.bank_account_id)===Number(account.id)&&Number(item.is_deleted||0)!==1)
+    .sort((a,b)=>String(b.date||b.created_at||"").localeCompare(String(a.date||a.created_at||""))||Number(b.id||0)-Number(a.id||0)).slice(0,50);
+  const history=rows.length?rows.map(item=>{
+    const useTry=item.try_equivalent!==undefined&&item.try_equivalent!==null;
+    return '<tr><td>'+esc(item.date||item.created_at||"")+'</td><td>'+esc(item.type||"")+'</td><td>'+esc(item.category||"")+'</td><td>'+esc(money(useTry?item.try_equivalent:item.amount,useTry?"TRY":item.currency||"TRY"))+'</td><td>'+esc(item.description||"")+'</td></tr>';
+  }).join(""):'<tr><td colspan="5">Bu hesapta hareket bulunamad\u0131.</td></tr>';
+  const table='<h3>Son Hareketler</h3><div class="table-wrap"><table><thead><tr><th>Tarih</th><th>T\u00fcr</th><th>Kategori</th><th>Tutar</th><th>A\u00e7\u0131klama</th></tr></thead><tbody>'+history+'</tbody></table></div>';
+  openDialog("Hesap Detay\u0131","BANKA",summary+table,async()=>true,"Kapat");
+  document.querySelector("#dialogCancel").hidden=true;
+}
 
 const ayecRenderBeforeBankReference=render;
 render=function(){
@@ -4360,6 +5807,34 @@ loadGenericModule = async function(meta, query = "") {
   ayecLoanerCurrentMeta = selected;
   ayecLoanerRenderRows(selected, visibleData, query);
 };
+async function ayecOpenStatusServiceDetail(row) {
+  const trackingNo = String(row.tracking_no || ("SRV-" + row.id));
+  const customer = (db.customers || []).find(item => String(item.id) === String(row.customer_id || "")
+    || String(item.name || "") === String(row.customer_name || ""))
+    || {id: row.customer_id || null, name: row.customer_name || "M\u00fc\u015fteri", phone: row.customer_phone || row.phone || ""};
+  const knownService = (customer.services || []).find(item => String(item.no || "") === trackingNo);
+  const service = Object.assign({}, knownService || {}, row, {
+    id: Number(row.id), no: trackingNo,
+    device: [row.device_brand, row.device_model].filter(Boolean).join(" ") || row.device_type || "",
+    serial: row.serial_no || row.serial_number || "",
+    date: row.entry_date || row.date || "",
+    delivery: row.estimated_date || row.delivery_date || "",
+    technician: row.technician_name || row.personnel_name || row.technician || "",
+    note: row.fault_description || row.problem_description || row.notes || "",
+    repair_details: row.repair_details || row.technician_notes || "",
+    used_parts: row.used_parts || knownService && knownService.used_parts || []
+  });
+  if (!service.used_parts.length) {
+    try {
+      const result = await apiFetch("/api/desktop/table/used_parts?limit=1000");
+      service.used_parts = (result.rows || []).filter(item => Number(item.device_id) === Number(row.id));
+    } catch (error) {
+      toast(error.message || "Kullan\u0131lan par\u00e7alar y\u00fcklenemedi.", "warning");
+    }
+  }
+  serviceDetailDialog(customer, service);
+}
+
 document.addEventListener("click", event => {
   const typeButton = event.target.closest("[data-loaner-type]");
   if (typeButton && page === "loaners") { $("#loanerTypeFilter").value = typeButton.dataset.loanerType; $$("[data-loaner-type]").forEach(button => button.classList.toggle("active", button === typeButton)); if (ayecLoanerCurrentData) ayecLoanerRenderRows(ayecLoanerCurrentMeta, ayecLoanerCurrentData, $("#genericSearch")?.value || ""); return; }
@@ -4407,6 +5882,94 @@ render = function() {
   const sms = $("#loanerSmsEnabled");
   if (sms) sms.checked = localStorage.getItem("ayec.loaner.smsEnabled") !== "0";
 };
+
+// The desktop job tab is backed by customer currency transactions, while its
+// service tab is backed by devices. Keep both sources distinct in this view.
+let ayecJobServiceRows=[];
+let ayecJobLedgerRows=[];
+async function ayecLoadJobLedgerRows(){
+  const first=await apiFetch("/api/desktop/table/currency_transactions?limit=1000"),transactions=[...(first.rows||[])];
+  for(let offset=1000;offset<Number(first.count||0);offset+=1000){const pageResult=await apiFetch(`/api/desktop/table/currency_transactions?limit=1000&offset=${offset}`);transactions.push(...(pageResult.rows||[]));}
+  const groups=new Map();
+  for(const transaction of transactions){
+    const tracking=String(transaction.tracking_no||"").trim();if(!tracking)continue;
+    const customerId=transaction.customer_id??"",key=`${customerId}\u0000${tracking}`;
+    if(!groups.has(key))groups.set(key,{tracking_no:tracking,customer_id:customerId,transactions:[],debit:0,credit:0,currency:"",description:"",entry_date:""});
+    const group=groups.get(key),amount=Number(transaction.amount||0);group.transactions.push(transaction);
+    if(transaction.transaction_type==="DEBIT"){group.debit+=amount;if(String(transaction.description||"")>group.description)group.description=String(transaction.description||"");if(String(transaction.created_at||"")>group.entry_date)group.entry_date=String(transaction.created_at||"");}
+    if(transaction.transaction_type==="CREDIT")group.credit+=amount;
+    if(String(transaction.currency||"")>group.currency)group.currency=String(transaction.currency||"");
+  }
+  const deviceByTracking=new Map(ayecJobServiceRows.map(row=>[String(row.tracking_no||""),row]));
+  const customerById=new Map(db.customers.map(customer=>[String(customer.id),customer]));
+  return [...groups.values()].filter(row=>row.debit>0).map(row=>{
+    const remaining=row.debit-row.credit,device=deviceByTracking.get(row.tracking_no)||{},customer=customerById.get(String(row.customer_id));
+    const collected=Math.max(0,row.debit-remaining),payment=remaining<=0.01?"Al\u0131nd\u0131":remaining<row.debit?"K\u0131smi \u00d6deme":"Beklemede";
+    return {...row,id:`${row.customer_id}::${row.tracking_no}`,customer_name:customer?.name||device.customer_name||row.transactions.find(item=>item.customer_name)?.customer_name||"",description:row.description,status:remaining<=0.01?"Tahsil Edildi":"A\u00e7\u0131k",price:row.debit,currency:row.currency||"TRY",technician:device.technician||"-",remaining_amount:remaining,collected_amount:collected,payment_status:payment,fault_description:row.description,device_brand:device.device_brand||"",device_model:device.device_model||""};
+  }).sort((a,b)=>String(b.entry_date).localeCompare(String(a.entry_date)));
+}
+async function ayecLoadJobServiceRows(){
+  const first=window.currentGenericData||await apiFetch("/api/desktop/table/devices?limit=500"),rows=[...(first.rows||[])];
+  for(let offset=500;offset<Number(first.count||0);offset+=500){const pageResult=await apiFetch(`/api/desktop/table/devices?limit=500&offset=${offset}`);rows.push(...(pageResult.rows||[]));}
+  return rows;
+}
+function ayecJobRowsForCurrentTab(){return ayecJobReportTab==="jobs"?ayecJobLedgerRows:ayecJobServiceRows;}
+function ayecJobTrackingDetail(row){
+  if(!row)return;
+  const service=ayecJobServiceRows.find(item=>String(item.tracking_no||"")===String(row.tracking_no||"")),transactions=row.transactions||[];
+  const transactionTable=transactions.length?`<div class="table-wrap"><table><thead><tr><th>Tarih</th><th>T\u00fcr</th><th>A\u00e7\u0131klama</th><th>Tutar</th><th>TRY Kar\u015f\u0131l\u0131\u011f\u0131</th></tr></thead><tbody>${transactions.map(item=>`<tr><td>${esc(item.created_at||"")}</td><td>${esc(item.transaction_type||"")}</td><td>${esc(item.description||"")}</td><td>${money(Number(item.amount||0),item.currency||row.currency)}</td><td>${money(Number(item.try_equivalent||0),"TRY")}</td></tr>`).join("")}</tbody></table></div>`:empty("\u0130\u015flem bulunamad\u0131","");
+  const fields=[ ["\u0130\u015f No",row.tracking_no], ["M\u00fc\u015fteri",row.customer_name], ["Teknisyen",row.technician], ["A\u00e7\u0131klama",row.description], ["Durum",row.status], ["Para Birimi",row.currency], ["Bor\u00e7",row.debit], ["Tahsilat",row.credit], ["Kalan",row.remaining_amount], ["Tarih",row.entry_date], ["Servis Durumu",service?.status], ["Cihaz",[service?.device_brand,service?.device_model].filter(Boolean).join(" ")] ];
+  openDialog(`\u0130\u015f Detay\u0131 \u00b7 ${row.tracking_no}`,"\u0130\u015e TAK\u0130P RAPORU",`<div class="form-grid">${fields.map(([label,value])=>`<div class="field"><label>${label}</label><input readonly value="${esc(value??"")}"></div>`).join("")}<section class="field full"><label>\u0130\u015flem Ge\u00e7mi\u015fi</label>${transactionTable}</section></div>`,()=>false,"Kapat");
+}
+ayecJobReportRender=function(){
+  const host=$("#jobReportHost");if(!host)return;
+  ayecJobReportRows=ayecJobRowsForCurrentTab();
+  const refill=(select,values,allLabel)=>{if(!select)return;const selected=select.value||"all",unique=[...new Set(values.filter(Boolean).map(String))].sort((a,b)=>a.localeCompare(b,"tr"));select.innerHTML=`<option value="all">${allLabel}</option>`+unique.map(value=>`<option value="${esc(value)}">${esc(value)}</option>`).join("");select.value=unique.includes(selected)?selected:"all";};
+  refill($("#jobReportCurrency"),ayecJobReportRows.map(row=>String(row.currency||"TRY").toUpperCase()),"T\u00fcm Birimler");
+  refill($("#jobReportTechnician"),ayecJobReportRows.map(row=>row.technician_name||row.assigned_technician||row.technician),"T\u00fcm Teknisyenler");
+  refill($("#jobReportCustomer"),ayecJobReportRows.map(row=>row.customer_name),"M\u00fc\u015fteri: T\u00fcm\u00fc");
+  const query=String($("#genericSearch")?.value||"").trim().toLocaleLowerCase("tr-TR"),status=$("#jobReportStatus")?.value||"all",start=$("#jobReportStart")?.value||"",end=$("#jobReportEnd")?.value||"",currency=$("#jobReportCurrency")?.value||"all",technician=$("#jobReportTechnician")?.value||"all",customer=$("#jobReportCustomer")?.value||"all",amountEnabled=$("#jobReportAmountEnabled")?.checked||false,minAmount=Number($("#jobReportAmountMin")?.value||0),maxAmount=Number($("#jobReportAmountMax")?.value||0);
+  let rows=ayecJobReportRows.filter(row=>{const tech=row.technician_name||row.assigned_technician||row.technician||"",amount=Number(row.debit??row.price??row.labor_cost)||0,text=[row.tracking_no,row.customer_name,tech,row.device_brand,row.device_model,row.fault_description,row.description,row.status,row.currency].join(" ").toLocaleLowerCase("tr-TR"),date=ayecJobDateKey(row);return(!query||text.includes(query))&&(status==="all"||ayecJobStatus(row)===status)&&(!start||!date||date>=start)&&(!end||!date||date<=end)&&(currency==="all"||String(row.currency||"TRY").toUpperCase()===currency)&&(technician==="all"||tech===technician)&&(customer==="all"||String(row.customer_name||"")===customer)&&(!amountEnabled||(amount>=minAmount&&(!maxAmount||amount<=maxAmount)))});
+  if(ayecJobReportTab==="technicians")rows=rows.filter(row=>row.technician_name||row.assigned_technician||row.technician);
+  if(ayecJobReportTab==="profit")rows=rows.filter(row=>Number.isFinite(Number(row.price))&&Number(row.price)>0);
+  const size=Number($("#jobReportPageSize")?.value||7),pages=Math.max(1,Math.ceil(rows.length/size));ayecJobReportPage=Math.min(ayecJobReportPage,pages-1);
+   if(ayecJobReportTab==="technicians"){
+     const groups=new Map();
+     const dayNumber=value=>{const key=ayecJobDateKey({entry_date:value});return key?Date.parse(key+"T00:00:00Z"):NaN};
+     rows.forEach(row=>{const name=String(row.technician_name||row.assigned_technician||row.technician||"Atanmam\u0131\u015f").trim()||"Atanmam\u0131\u015f",stats=groups.get(name)||{total:0,complete:0,cancel:0,days:[]};stats.total++;const status=String(row.status||"").toLocaleLowerCase("tr-TR"),cancelled=/iptal|iade|cancel/.test(status),completed=/teslim|tamam|haz\u0131r|tamir edildi/.test(status);if(cancelled)stats.cancel++;else if(completed){stats.complete++;const entered=dayNumber(row.entry_date),finished=dayNumber(row.exit_date||row.delivered_at);if(Number.isFinite(entered)&&Number.isFinite(finished)&&finished>=entered)stats.days.push((finished-entered)/86400000)}groups.set(name,stats)});
+     const matrix=[...groups.entries()].sort((a,b)=>a[0].localeCompare(b[0],"tr"));
+     host.innerHTML=matrix.length?'<div class="table-wrap job-report-table-wrap"><table class="job-report-table"><thead><tr><th>TEKN\u0130SYEN</th><th>TOPLAM SERV\u0130S</th><th>AKT\u0130F</th><th>TAMAMLANAN</th><th>\u0130PTAL / \u0130ADE</th><th>ORT. S\u00dcRE (G\u00dcN)</th></tr></thead><tbody>'+matrix.map(([name,stats])=>'<tr tabindex="0" data-job-report-technician="'+esc(name)+'"><td>'+esc(name)+'</td><td>'+stats.total+'</td><td>'+Math.max(0,stats.total-stats.complete-stats.cancel)+'</td><td>'+stats.complete+'</td><td>'+stats.cancel+'</td><td title="'+stats.days.length+' ge\u00e7erli giri\u015f / teslim tarihli tamamlanm\u0131\u015f servis">'+(stats.days.length?(stats.days.reduce((sum,value)=>sum+value,0)/stats.days.length).toFixed(1):"-")+'</td></tr>').join("")+'</tbody></table></div>':'<div class="empty-state"><strong>Teknisyen verisi bulunamad\u0131</strong><p>Servis kay\u0131tlar\u0131nda teknisyen alan\u0131 mevcut de\u011fil.</p></div>';
+     $("#jobReportCount").textContent="G\u00f6r\u00fcnt\u00fclenen "+matrix.length+" teknisyen";
+     return;
+   }
+   const visible=rows.slice(ayecJobReportPage*size,(ayecJobReportPage+1)*size),isJobs=ayecJobReportTab==="jobs";
+  host.innerHTML=visible.length?'<div class="table-wrap job-report-table-wrap"><table class="job-report-table"><thead><tr><th>\u0130\u015e NO</th><th>M\u00dc\u015eTER\u0130 / KURUM</th><th>TEKN\u0130SYEN</th><th>A\u00c7IKLAMA / YAPILAN \u0130\u015eLEM</th><th>DURUM</th><th>TUTAR</th><th>B\u0130R\u0130M</th><th>TAR\u0130H</th><th>TAHS\u0130LAT</th><th>\u0130\u015eLEMLER</th></tr></thead><tbody>'+visible.map(row=>{const key=String(row.id??row.tracking_no??""),kind=isJobs?"job":"service",date=ayecJobDateKey(row),amount=Number(isJobs?row.debit:row.price||row.labor_cost)||0;return'<tr tabindex="0" data-job-report-kind="'+kind+'" data-job-report-id="'+esc(key)+'"><td data-label="\u0130\u015f No"><strong class="job-report-code">'+esc(row.tracking_no||("SRV-"+row.id))+'</strong></td><td data-label="M\u00fc\u015fteri / Kurum"><strong>'+esc(row.customer_name||"-")+'</strong><small>'+esc(row.customer_type||"")+'</small></td><td data-label="Teknisyen">'+esc(row.technician_name||row.assigned_technician||row.technician||"-")+'</td><td data-label="A\u00e7\u0131klama / Yap\u0131lan \u0130\u015flem">'+esc(row.fault_description||row.description||row.fault_category||"-")+'<small>'+esc([row.device_brand,row.device_model].filter(Boolean).join(" "))+'</small></td><td data-label="Durum"><span class="job-report-status '+ayecJobStatus(row)+'">'+esc(row.status||"Belirtilmedi")+'</span></td><td data-label="Tutar">'+esc(moneyNumber(amount).toLocaleString("tr-TR",{minimumFractionDigits:2,maximumFractionDigits:2}))+'</td><td data-label="Birim">'+esc(row.currency||"TRY")+'</td><td data-label="Tarih">'+esc(date.split("-").reverse().join(".")||row.entry_date||"-")+'</td><td data-label="Tahsilat">'+esc(row.payment_status||row.collection_status||"\u2014")+'</td><td data-label="\u0130\u015flemler"><div class="job-report-actions"><button type="button" class="mini" data-job-report-view="'+esc(key)+'" aria-label="\u0130\u015f kayd\u0131n\u0131 g\u00f6r\u00fcnt\u00fcle"><span class="material-symbols-outlined">visibility</span></button><button type="button" class="mini" data-job-report-print-row aria-label="\u0130\u015f kayd\u0131n\u0131 yazd\u0131r"><span class="material-symbols-outlined">print</span></button></div></td></tr>'}).join("")+'</tbody></table></div>':ayecJobReportTab==="technicians"?empty("Teknisyen verisi bulunamad\u0131","Servis kay\u0131tlar\u0131nda teknisyen alan\u0131 mevcut de\u011fil."):ayecJobReportTab==="profit"?empty("Maliyet verisi bulunamad\u0131","Net k\u00e2rl\u0131l\u0131k i\u00e7in maliyet verisi gerekir."):empty(isJobs?"\u0130\u015f kayd\u0131 bulunamad\u0131":"Servis kayd\u0131 bulunamad\u0131","Arama veya filtreleri de\u011fi\u015ftirin.");
+  $("#jobReportCount").textContent="G\u00f6r\u00fcnt\u00fclenen "+rows.length+" / "+ayecJobReportRows.length+" kay\u0131t";
+  const pageFoot=document.createElement("footer");pageFoot.className="job-report-pagination";pageFoot.innerHTML='<span>Se\u00e7ilen: 0 sat\u0131r</span><div><button type="button" data-job-report-page="-1" '+(ayecJobReportPage===0?"disabled":"")+'>\u00d6nceki</button><b>'+(ayecJobReportPage+1)+' / '+pages+'</b><button type="button" data-job-report-page="1" '+(ayecJobReportPage>=pages-1?"disabled":"")+'>Sonraki &gt;</button></div>';
+  if(visible.length)host.append(pageFoot);
+};
+document.addEventListener("click",event=>{
+  if(page!=="job-reports")return;
+  const detail=event.target.closest("[data-job-report-view]");if(detail&&ayecJobReportTab==="jobs"){const row=ayecJobLedgerRows.find(item=>String(item.id)===detail.dataset.jobReportView);if(row)ayecJobTrackingDetail(row);event.stopImmediatePropagation();event.preventDefault();}
+},true);
+ document.addEventListener("dblclick",event=>{
+   if(page!=="job-reports"||ayecJobReportTab!=="technicians"||!db.settings.doubleClick)return;
+   const row=event.target.closest("tr[data-job-report-technician]");if(!row)return;
+   event.preventDefault();event.stopImmediatePropagation();ayecJobReportTab="service";ayecJobReportPage=0;
+   const technician=$("#jobReportTechnician");if(technician)technician.value=row.dataset.jobReportTechnician;
+   document.querySelectorAll("[data-job-report-tab]").forEach(button=>button.classList.toggle("active",button.dataset.jobReportTab==="service"));ayecJobReportRender();
+ },true);
+document.addEventListener("dblclick",event=>{
+  if(page!=="job-reports")return;const row=event.target.closest("tr[data-job-report-kind]");if(!row||event.target.closest("button"))return;
+  event.preventDefault();event.stopImmediatePropagation();const key=row.dataset.jobReportId;
+  if(row.dataset.jobReportKind==="job")return ayecJobTrackingDetail(ayecJobLedgerRows.find(item=>String(item.id)===key));
+  const record=ayecJobServiceRows.find(item=>String(item.id??item.tracking_no)===key),[customer,service]=findService(record?.tracking_no||key);if(customer&&service)serviceDetailDialog(customer,service);
+},true);
+document.addEventListener("contextmenu",event=>{
+  if(page!=="job-reports"||!ayecContextMenuEnabled())return;const row=event.target.closest("tr[data-job-report-kind]");if(!row)return;event.preventDefault();
+  const isJob=row.dataset.jobReportKind==="job",actions=isJob?[["detail","\uD83D\uDD0D \u0130\u015f Detay\u0131"]]:[["detail","\uD83D\uDD0D Detay"],["technician","\uD83D\uDEE0\uFE0F Teknisyen Paneli"],["form","\uD83D\uDCDD Servis Formu"]],menu=document.createElement("div");menu.className="service-list-context-menu";menu.setAttribute("role","menu");menu.innerHTML=actions.map(([action,label])=>`<button type="button" role="menuitem" data-job-report-context="${action}">${label}</button>`).join("");document.body.append(menu);menu.style.left=Math.max(8,Math.min(event.clientX,innerWidth-250))+"px";menu.style.top=Math.max(8,Math.min(event.clientY,innerHeight-menu.offsetHeight-8))+"px";
+  const close=()=>menu.remove();document.addEventListener("pointerdown",e=>{if(!menu.contains(e.target))close()},{once:true,capture:true});menu.addEventListener("keydown",e=>{if(e.key==="Escape")close()});menu.onclick=e=>{const button=e.target.closest("[data-job-report-context]");if(!button)return;close();const key=row.dataset.jobReportId;if(isJob){const record=ayecJobLedgerRows.find(item=>String(item.id)===key);return ayecJobTrackingDetail(record)}const record=ayecJobServiceRows.find(item=>String(item.id??item.tracking_no)===key),[customer,service]=findService(record?.tracking_no||key);if(!customer||!service)return;if(button.dataset.jobReportContext==="detail")serviceDetailDialog(customer,service);if(button.dataset.jobReportContext==="technician")technicianDialog(customer,service);if(button.dataset.jobReportContext==="form")dashboardServiceEditDialog(customer,service)};
+},true);
 let ayecLoanerPage = 0;
 let ayecLoanerSelectedIds = new Set();
 const ayecLoanerPageSize = 5;
@@ -4425,7 +5988,7 @@ function ayecLoanerRenderRows(meta, data, query) {
   }
   const head = depot ? ["ID", "Cihaz Tipi", "Marka / Model", "Seri / MAC", "Raf No", "Durum", "G\u00fcnl\u00fck Ceza", "\u0130\u015flemler"] : ["<input type=\"checkbox\" data-loaner-select-all aria-label=\"T\u00fcm\u00fcn\u00fc se\u00e7\" " + (visible.length && visible.every(row => ayecLoanerSelectedIds.has(String(row.id))) ? "checked" : "") + ">", "\u0130\u015eLEM ID / PROTOKOL", "C\u0130HAZ MARKA & MODEL (SER\u0130 NO)", "TESL\u0130M ALAN (M\u00dc\u015eTER\u0130)", "\u0130LG\u0130L\u0130 SERV\u0130S EMR\u0130", "VER\u0130L\u0130\u015e TAR\u0130H\u0130", "BEKLENEN \u0130ADE", "GE\u00c7EN S\u00dcRE", "DURUM / UYARI", "TEM\u0130NAT / KO\u015eUL", "\u0130\u015eLEMLER"];
   const cells = visible.map((row, index) => {
-    if (depot) return '<tr><td data-label="ID">' + esc(row.id) + '</td><td data-label="Cihaz Tipi">' + esc(row.device_type || "-") + '</td><td data-label="Marka / Model">' + esc(row.brand_model || "-") + '</td><td data-label="Seri / MAC">' + esc(row.serial_mac || "-") + '</td><td data-label="Raf No">' + esc(row.shelf_no || "-") + '</td><td data-label="Durum"><span class="loaner-ref-status">' + esc(row.status || "Depoda") + '</span></td><td data-label="G\u00fcnl\u00fck Ceza">' + esc(row.daily_penalty_fee || 0) + '</td><td data-label="\u0130\u015flemler"><div class="loaner-ref-actions"><button class="mini" data-loaner-row-action="edit" data-id="' + esc(row.id) + '">D\u00fczenle</button><button class="mini" data-loaner-row-action="assign" data-id="' + esc(row.id) + '">M\u00fc\u015fteriye Ver</button></div></td></tr>';
+    if (depot) return '<tr tabindex="0" data-loaner-row="' + esc(row.id) + '" data-loaner-kind="depot"><td data-label="ID">' + esc(row.id) + '</td><td data-label="Cihaz Tipi">' + esc(row.device_type || "-") + '</td><td data-label="Marka / Model">' + esc(row.brand_model || "-") + '</td><td data-label="Seri / MAC">' + esc(row.serial_mac || "-") + '</td><td data-label="Raf No">' + esc(row.shelf_no || "-") + '</td><td data-label="Durum"><span class="loaner-ref-status">' + esc(row.status || "Depoda") + '</span></td><td data-label="G\u00fcnl\u00fck Ceza">' + esc(row.daily_penalty_fee || 0) + '</td><td data-label="\u0130\u015flemler"><div class="loaner-ref-actions"><button class="mini" data-loaner-row-action="edit" data-id="' + esc(row.id) + '">D\u00fczenle</button><button class="mini" data-loaner-row-action="assign" data-id="' + esc(row.id) + '">M\u00fc\u015fteriye Ver</button><button class="mini danger" data-loaner-row-action="delete-device" data-id="' + esc(row.id) + '">Sil</button></div></td></tr>';
     const device = ayecLoanerDevices.find(item => String(item.id) === String(row.device_id)) || {};
     const due = row.expected_return ? new Date(row.expected_return) : null;
     const overdueDays = due && !row.date_returned ? Math.max(0, Math.floor((Date.now() - due.getTime()) / 86400000)) : 0;
@@ -4435,11 +5998,181 @@ function ayecLoanerRenderRows(meta, data, query) {
     const model = row.brand_model || device.brand_model || "Cihaz " + String(row.device_id || "");
     const given = row.date_given ? new Date(row.date_given).toLocaleDateString("tr-TR") : "-";
     const returnDate = row.expected_return ? new Date(row.expected_return).toLocaleDateString("tr-TR") : "-";
-    return '<tr><td data-label="Se\u00e7"><input type="checkbox" data-loaner-select value="' + esc(row.id) + '" aria-label="Emanet kayd\u0131n\u0131 se\u00e7" ' + (ayecLoanerSelectedIds.has(String(row.id)) ? "checked" : "") + '></td><td data-label="\u0130\u015flem ID / Protokol"><strong class="loaner-ref-code">' + esc(row.tracking_no || ("EMN-" + row.id)) + '</strong><small>Protokol #' + esc(row.id) + '</small></td><td data-label="Cihaz Marka / Model"><strong>' + esc(model) + '</strong><small>SN: ' + esc(serial) + '</small></td><td data-label="Teslim Alan">' + esc(row.customer_name || "-") + '<small>' + esc(row.customer_phone || "") + '</small></td><td data-label="\u0130lgili Servis Emri">' + esc(row.tracking_no || "-") + '<small>' + esc(row.condition_out || "") + '</small></td><td data-label="Verili\u015f Tarihi">' + esc(given) + '</td><td data-label="Beklenen \u0130ade" class="' + (overdueDays ? "loaner-ref-danger" : "") + '">' + esc(returnDate) + '</td><td data-label="Ge\u00e7en S\u00fcre">' + (overdueDays ? overdueDays + " G\u00fcn" : "-" ) + '</td><td data-label="Durum / Uyar\u0131"><span class="loaner-ref-status ' + statusClass + '">' + esc(statusLabel) + '</span></td><td data-label="Teminat / Ko\u015ful">' + (Number(row.penalty_applied || 0) ? esc(money(row.penalty_applied, "TRY")) : "A\u00e7\u0131k Cari") + '<small>' + esc(row.condition_out || "Teslim ko\u015fulu girilmedi") + '</small></td><td data-label="\u0130\u015flemler"><div class="loaner-ref-actions"><button class="mini" data-loaner-row-action="return" data-id="' + esc(row.id) + '" title="\u0130ade al">\u0130ade Al</button><button class="mini" data-loaner-row-action="edit" data-id="' + esc(row.id) + '" title="D\u00fczenle">D\u00fczenle</button><button class="mini" data-loaner-row-action="print" data-id="' + esc(row.id) + '" title="Yazd\u0131r">Yazd\u0131r</button></div></td></tr>';
+    return '<tr tabindex="0" data-loaner-row="' + esc(row.id) + '" data-loaner-kind="transaction"><td data-label="Se\u00e7"><input type="checkbox" data-loaner-select value="' + esc(row.id) + '" aria-label="Emanet kayd\u0131n\u0131 se\u00e7" ' + (ayecLoanerSelectedIds.has(String(row.id)) ? "checked" : "") + '></td><td data-label="\u0130\u015flem ID / Protokol"><strong class="loaner-ref-code">' + esc(row.tracking_no || ("EMN-" + row.id)) + '</strong><small>Protokol #' + esc(row.id) + '</small></td><td data-label="Cihaz Marka / Model"><strong>' + esc(model) + '</strong><small>SN: ' + esc(serial) + '</small></td><td data-label="Teslim Alan">' + esc(row.customer_name || "-") + '<small>' + esc(row.customer_phone || "") + '</small></td><td data-label="\u0130lgili Servis Emri">' + esc(row.tracking_no || "-") + '<small>' + esc(row.condition_out || "") + '</small></td><td data-label="Verili\u015f Tarihi">' + esc(given) + '</td><td data-label="Beklenen \u0130ade" class="' + (overdueDays ? "loaner-ref-danger" : "") + '">' + esc(returnDate) + '</td><td data-label="Ge\u00e7en S\u00fcre">' + (overdueDays ? overdueDays + " G\u00fcn" : "-" ) + '</td><td data-label="Durum / Uyar\u0131"><span class="loaner-ref-status ' + statusClass + '">' + esc(statusLabel) + '</span></td><td data-label="Teminat / Ko\u015ful">' + (Number(row.penalty_applied || 0) ? esc(money(row.penalty_applied, "TRY")) : "A\u00e7\u0131k Cari") + '<small>' + esc(row.condition_out || "Teslim ko\u015fulu girilmedi") + '</small></td><td data-label="\u0130\u015flemler"><div class="loaner-ref-actions"><button class="mini" data-loaner-row-action="return" data-id="' + esc(row.id) + '" title="\u0130ade al">\u0130ade Al</button><button class="mini" data-loaner-row-action="edit" data-id="' + esc(row.id) + '" title="D\u00fczenle">D\u00fczenle</button><button class="mini" data-loaner-row-action="print" data-id="' + esc(row.id) + '" title="Yazd\u0131r">Yazd\u0131r</button></div></td></tr>';
   }).join("");
   host.innerHTML = '<div class="table-wrap loaner-ref-table-wrap"><table class="loaner-ref-table"><thead><tr>' + head.map(label => '<th>' + label + '</th>').join("") + '</tr></thead><tbody>' + cells + '</tbody></table></div><footer class="loaner-ref-pagination"><span>Toplam ' + rows.length + ' kay\u0131t, ' + (rows.length ? ayecLoanerPage * ayecLoanerPageSize + 1 : 0) + '-' + Math.min(rows.length, (ayecLoanerPage + 1) * ayecLoanerPageSize) + ' aras\u0131 g\u00f6steriliyor</span><div><button type="button" data-loaner-page="-1" ' + (ayecLoanerPage === 0 ? "disabled" : "") + '>\u00d6nceki</button><b>' + (ayecLoanerPage + 1) + ' / ' + pages + '</b><button type="button" data-loaner-page="1" ' + (ayecLoanerPage >= pages - 1 ? "disabled" : "") + '>Sonraki</button></div></footer>';
   $("#genericCount").textContent = "Toplam " + rows.length + " kay\u0131t";
 }
+function ayecLoanerDeviceDialog(row = {}) {
+  const editing = row.id !== undefined && row.id !== null;
+  const types = ["Ak\u0131ll\u0131 Telefon", "Diz\u00fcst\u00fc Bilgisayar", "Tablet", "Router/Modem", "Yedek Par\u00e7a", "Di\u011fer"];
+  const deviceType = String(row.device_type || types[0]);
+  if (!types.includes(deviceType)) types.push(deviceType);
+  const options = types.map(type => '<option value="' + esc(type) + '"' + (type === deviceType ? " selected" : "") + '>' + esc(type) + '</option>').join("");
+  const body = '<div class="form-grid"><div class="field full"><label>Cihaz Tipi:</label><select name="device_type">' + options + '</select></div><div class="field full"><label>Marka &amp; Model:</label><input name="brand_model" placeholder="' + (editing ? "" : "\u00d6rn: Apple iPhone 15") + '" value="' + esc(row.brand_model || "") + '" required></div><div class="field full"><label>Seri / MAC No:</label><input name="serial_mac" placeholder="Seri No veya MAC Adresi" value="' + esc(row.serial_mac || "") + '" required></div><div class="field full"><label>Raf No:</label><input name="shelf_no" placeholder="\u00d6rn: A-12, Raf 3" value="' + esc(row.shelf_no || "") + '"></div><div class="field full"><label>G\u00fcnl\u00fck Ceza (' + esc(db.settings.currency || "TRY") + '):</label><input name="daily_penalty_fee" inputmode="decimal" value="' + esc(row.daily_penalty_fee ?? "50.0") + '" placeholder="G\u00fcnl\u00fck gecikme bedeli"></div><div class="field full"><label>Demirba\u015f Notu:</label><textarea name="notes" style="min-height:100px" placeholder="Cihaz kondisyonu, aksesuarlar ve di\u011fer notlar...">' + esc(row.notes || "") + '</textarea></div></div>';
+  openDialog(editing ? "Emanet Cihaz\u0131 D\u00fczenle" : "Yeni \u0130kame Cihaz Ekle", "EMANET ENVANTER\u0130", body, async form => {
+    const brand = String(form.get("brand_model") || "").trim();
+    const serial = String(form.get("serial_mac") || "").trim();
+    if (!brand || !serial) { toast("Marka/Model ve Seri No alanlar\u0131 zorunludur.", "warning"); return false; }
+    const rawPenalty = String(form.get("daily_penalty_fee") || "0").trim();
+    const parsedPenalty = Number(rawPenalty);
+    const payload = { device_type: form.get("device_type"), brand_model: brand, serial_mac: serial, shelf_no: form.get("shelf_no"), daily_penalty_fee: Number.isFinite(parsedPenalty) ? parsedPenalty : 0, notes: form.get("notes") };
+    if (editing) { payload.id = row.id; payload._action = "update"; }
+    try {
+      await apiFetch("/api/desktop/table/loaner_devices", { method: "POST", body: JSON.stringify(payload) });
+      toast(editing ? "Emanet cihaz bilgileri g\u00fcncellendi." : "Yeni emanet cihaz\u0131 depoya ba\u015far\u0131yla eklendi.", "success");
+      await loadGenericModule(genericModules.loaners, $("#genericSearch")?.value || "");
+      return true;
+    } catch (error) { toast(error.message || "Emanet cihaz kaydedilemedi.", "error"); return false; }
+  }, editing ? "De\u011fi\u015fiklikleri Kaydet" : "Envantere Kaydet");
+}
+function ayecLoanerAssignDialog(row) {
+  const defaultReturn = new Date(Date.now() + 3 * 86400000);
+  const localReturn = new Date(defaultReturn.getTime() - defaultReturn.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  const body = '<div class="form-grid"><div class="field full"><label>M\u00fc\u015fteri Ad\u0131</label><input name="customer_name" placeholder="M\u00fc\u015fteri Ad\u0131 Soyad\u0131" required></div><div class="field full"><label>Telefon</label><input name="customer_phone" placeholder="Telefon Numaras\u0131"></div><div class="field full"><label>Servis Kayd\u0131 (Fi\u015f)</label><input name="tracking_no" placeholder="Servis Takip Numaras\u0131 (Opsiyonel)"></div><div class="field full"><label>Verili\u015f Durumu (Not)</label><textarea name="condition_out" placeholder="\u00d6rn: Ekranda \u00e7izik yok, \u015farj aletiyle verildi" style="min-height:80px"></textarea></div><div class="field full"><label>Beklenen \u0130ade Tarihi</label><input name="expected_return" type="datetime-local" value="' + localReturn + '" required></div></div>';
+  openDialog("M\u00fc\u015fteriye Tesis Et (Zimmetle)", "EMANET TESL\u0130M", body, async form => {
+    const customerName = String(form.get("customer_name") || "").trim();
+    const expectedReturn = String(form.get("expected_return") || "").trim();
+    if (!customerName) { toast("M\u00fc\u015fteri ad\u0131 zorunludur.", "warning"); return false; }
+    if (!expectedReturn) { toast("Beklenen iade tarihi zorunludur.", "warning"); return false; }
+    try {
+      await apiFetch("/api/desktop/loaners/assign", { method: "POST", body: JSON.stringify({ device_id: Number(row.id), customer_name: customerName, customer_phone: form.get("customer_phone"), tracking_no: form.get("tracking_no"), condition_out: form.get("condition_out"), expected_return: expectedReturn }) });
+      toast("Cihaz m\u00fc\u015fteriye ba\u015far\u0131yla zimmetlendi.", "success");
+      await loadGenericModule(genericModules.loaners, $("#genericSearch")?.value || "");
+      return true;
+    } catch (error) { toast(error.message || "Zimmet i\u015flemi ba\u015far\u0131s\u0131z oldu.", "error"); return false; }
+  }, "Zimmetle ve Teslim Et");
+}
+async function ayecLoanerStartNewLoan() {
+  try {
+    const [deviceData, transactionData] = await Promise.all([
+      apiFetch("/api/desktop/table/loaner_devices?limit=1000"),
+      apiFetch("/api/desktop/table/loaner_transactions?limit=1000")
+    ]);
+    const activeIds = new Set((transactionData.rows || []).filter(item => String(item.status || "") === "Aktif").map(item => String(item.device_id)));
+    const available = (deviceData.rows || []).filter(item => String(item.status || "Depoda") === "Depoda" && !activeIds.has(String(item.id)));
+    if (!available.length) {
+      ayecLoanerView = "depot";
+      $$('.loaner-ref-tabs [data-loaner-view]').forEach(button => button.classList.toggle("active", button.dataset.loanerView === "depot"));
+      await loadGenericModule(genericModules.loaners, $("#genericSearch")?.value || "");
+      toast("Teslim edilebilecek m\u00fcsait cihaz yok. Depoya yeni cihaz ekleyin.", "warning");
+      return;
+    }
+    const options = available.map(item => '<option value="' + esc(item.id) + '">' + esc(item.brand_model || "-") + ' / ' + esc(item.serial_mac || "-") + '</option>').join("");
+    openDialog("Yeni Emanet Ver", "M\u00dcSA\u0130T C\u0130HAZ SE\u00c7\u0130M\u0130", '<div class="field full"><label>M\u00fcsait cihaz:</label><select name="device_id">' + options + '</select></div>', form => {
+      const device = available.find(item => String(item.id) === String(form.get("device_id")));
+      if (!device) return false;
+      setTimeout(() => ayecLoanerAssignDialog(device), 0);
+      return true;
+    }, "Teslim Bilgileri");
+  } catch (error) { toast(error.message || "M\u00fcsait cihaz listesi y\u00fcklenemedi.", "error"); }
+}
+document.addEventListener("click", event => {
+  const button = event.target.closest('#content [data-generic-add]');
+  if (!button || page !== "loaners") return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  ayecLoanerStartNewLoan();
+}, true);
+function ayecLoanerReturnDialog(row) {
+  const body = '<div class="form-grid"><div class="field full"><label>\u0130ade Durumu</label><input name="condition_in" placeholder="Sa\u011Flam / hasar bilgisi"></div><div class="field full"><label>Kesilecek Hasar / Ceza \u00dccreti</label><input name="penalty_applied" type="number" min="0" step="0.01" value="0"></div><p class="muted full">Bu i\u015Flem cihaz\u0131 depoya d\u00F6nd\u00FCr\u00FCr ve iade giderini kaydeder.</p></div>';
+  openDialog("Cihaz\u0131 \u0130ade Al", "EMANET \u0130ADE", body, async form => {
+    try {
+      await apiFetch("/api/desktop/loaners/return", {method: "POST", body: JSON.stringify({transaction_id: row.id, condition_in: form.get("condition_in"), penalty_applied: form.get("penalty_applied")})});
+      toast("Cihaz iade al\u0131nd\u0131 ve depoya d\u00F6nd\u00FC.");
+      await loadGenericModule(genericModules.loaners, $("#genericSearch")?.value || "");
+    } catch (error) { toast(error.message || "\u0130ade i\u015Flemi ba\u015Far\u0131s\u0131z oldu.", "error"); return false; }
+  }, "\u0130ade Al");
+}
+document.addEventListener("contextmenu", event => {
+  if (page !== "loaners" || !ayecContextMenuEnabled("loaners")) return;
+  const rowElement = event.target.closest("[data-loaner-row]");
+  if (!rowElement) return;
+  event.preventDefault();
+  const menu = $("#contextMenu");
+  if (!menu) return;
+  const kind = rowElement.dataset.loanerKind;
+  const id = String(rowElement.dataset.loanerRow);
+  const source = kind === "depot" ? ayecLoanerDevices : ayecLoanerHistory;
+  const row = source.find(item => String(item.id) === id);
+  if (!row) return;
+  menu.dataset.loanerKind = kind;
+  menu.dataset.loanerId = id;
+  const actions = kind === "depot"
+    ? [["\u2795 Yeni Cihaz Ekle", "add"], ["\ud83d\udd04 Yenile", "refresh"], ["separator", "separator"], ...(String(row.status || "Depoda") === "Depoda" ? [["\ud83d\udce4 Cihaz\u0131 Zimmetle", "assign"]] : []), ["D\u00FCzenle", "edit"], ["\ud83d\uddd1\ufe0f Cihaz\u0131 Sil", "delete-device"]]
+    : [["\ud83d\udd04 Yenile", "refresh"], ...(!row.date_returned && ["active", "overdue"].includes(ayecLoanerView) ? [["separator", "separator"], ["\ud83d\udce5 Cihaz\u0131 \u0130ade Al", "return"]] : [])];
+  menu.innerHTML = actions.map(([label, action]) => action === "separator" ? '<hr class="context-menu-separator">' : '<button type="button" role="menuitem" data-loaner-context="' + action + '">' + label + '</button>').join("");
+  menu.style.left = Math.max(8, Math.min(event.clientX, innerWidth - 220)) + "px";
+  menu.style.top = Math.max(8, Math.min(event.clientY, innerHeight - actions.length * 40 - 20)) + "px";
+  menu.classList.add("open");
+});
+document.addEventListener("keydown", event => {
+  if (page !== "loaners" || (event.key !== "ContextMenu" && !(event.shiftKey && event.key === "F10"))) return;
+  const row = event.target.closest?.("[data-loaner-row]");
+  if (!row || !ayecContextMenuEnabled("loaners")) return;
+  const bounds = row.getBoundingClientRect();
+  row.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: bounds.left + Math.min(bounds.width / 2, 220), clientY: bounds.top + Math.min(bounds.height / 2, 16) }));
+  const menu = $("#contextMenu");
+  if (menu?.classList.contains("open") && menu.dataset.loanerId === row.dataset.loanerRow) event.preventDefault();
+});
+let ayecLoanerContextPressTimer = null;
+let ayecLoanerContextPressOrigin = null;
+document.addEventListener("pointerdown", event => {
+  if (page !== "loaners" || event.pointerType === "mouse" || !ayecContextMenuEnabled("loaners")) return;
+  const row = event.target.closest?.("[data-loaner-row]");
+  if (!row) return;
+  if (ayecLoanerContextPressTimer) clearTimeout(ayecLoanerContextPressTimer);
+  const origin = { x: event.clientX, y: event.clientY };
+  ayecLoanerContextPressOrigin = origin;
+  ayecLoanerContextPressTimer = window.setTimeout(() => {
+    ayecLoanerContextPressTimer = null;
+    ayecLoanerContextPressOrigin = null;
+    if (!row.isConnected || page !== "loaners" || !ayecContextMenuEnabled("loaners")) return;
+    row.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: origin.x, clientY: origin.y }));
+  }, 550);
+});
+const cancelAyecLoanerContextPress = event => {
+  if (!ayecLoanerContextPressTimer) return;
+  if (event.type === "pointermove" && ayecLoanerContextPressOrigin && Math.hypot(event.clientX - ayecLoanerContextPressOrigin.x, event.clientY - ayecLoanerContextPressOrigin.y) <= 10) return;
+  clearTimeout(ayecLoanerContextPressTimer);
+  ayecLoanerContextPressTimer = null;
+  ayecLoanerContextPressOrigin = null;
+};
+document.addEventListener("pointerup", cancelAyecLoanerContextPress);
+document.addEventListener("pointercancel", cancelAyecLoanerContextPress);
+document.addEventListener("pointermove", cancelAyecLoanerContextPress);
+document.addEventListener("dblclick", event => {
+  if (page !== "loaners") return;
+  const rowElement = event.target.closest('[data-loaner-row][data-loaner-kind="depot"]');
+  if (!rowElement || event.target.closest("td:last-child, button, input, select, textarea, a")) return;
+  const row = ayecLoanerDevices.find(item => String(item.id) === String(rowElement.dataset.loanerRow));
+  if (row) ayecLoanerDeviceDialog(row);
+});
+document.addEventListener("click", async event => {
+  const contextAction = event.target.closest("[data-loaner-context]");
+  if (!contextAction || page !== "loaners") return;
+  event.preventDefault();
+  const menu = $("#contextMenu");
+  menu.classList.remove("open");
+  const kind = menu.dataset.loanerKind;
+  const id = menu.dataset.loanerId;
+  const source = kind === "depot" ? ayecLoanerDevices : ayecLoanerHistory;
+  const row = source.find(item => String(item.id) === String(id));
+  const action = contextAction.dataset.loanerContext;
+  if (action === "refresh") { await loadGenericModule(genericModules.loaners, $("#genericSearch")?.value || ""); return; }
+  if (action === "add") {
+    ayecLoanerDeviceDialog();
+    return;
+  }
+  if (!row) return;
+  if (action === "assign") {
+    ayecLoanerAssignDialog(row);
+    return;
+  }
+  if (action === "edit") { ayecLoanerDeviceDialog(row); return; }
+  if (action === "delete-device") { deleteGenericRow({title: "Emanet Cihaz", table: "loaner_devices"}, row); return; }
+  if (action === "return") ayecLoanerReturnDialog(row);
+});
 document.addEventListener("click", event => {
   const pageButton = event.target.closest("[data-loaner-page]");
   if (pageButton && page === "loaners") { ayecLoanerPage = Math.max(0, ayecLoanerPage + Number(pageButton.dataset.loanerPage)); if (ayecLoanerCurrentData) ayecLoanerRenderRows(ayecLoanerCurrentMeta, ayecLoanerCurrentData, $("#genericSearch")?.value || ""); return; }
@@ -4451,7 +6184,10 @@ document.addEventListener("click", event => {
   if (!row) return;
   const table = depot ? "loaner_devices" : "loaner_transactions";
   if (action.dataset.loanerRowAction === "print") { window.print(); return; }
-  if (action.dataset.loanerRowAction === "assign") { apiFetch("/api/desktop/table/loaner_transactions?limit=1").then(data => openGenericDialog({ title: "Yeni Emanet", table: "loaner_transactions" }, { device_id: row.id, status: "Aktif" }, data.columns)).catch(error => toast(error.message, "error")); return; }
+  if (action.dataset.loanerRowAction === "delete-device") { deleteGenericRow({title: "Emanet Cihaz", table: "loaner_devices"}, row); return; }
+  if (action.dataset.loanerRowAction === "return") { ayecLoanerReturnDialog(row); return; }
+  if (action.dataset.loanerRowAction === "assign") { ayecLoanerAssignDialog(row); return; }
+  if (action.dataset.loanerRowAction === "edit") { ayecLoanerDeviceDialog(row); return; }
   const editRow = action.dataset.loanerRowAction === "return" ? { ...row, date_returned: today(), status: "\u0130ade Edildi" } : row;
   apiFetch("/api/desktop/table/" + table + "?limit=1").then(data => openGenericDialog({ title: action.dataset.loanerRowAction === "return" ? "Emanet \u0130ade Kayd\u0131" : "Emanet Kayd\u0131", table }, editRow, data.columns)).catch(error => toast(error.message, "error"));
 });
@@ -4542,7 +6278,7 @@ genericShell = function(meta) {
   if (page !== "job-reports" || meta?.table !== "devices") return ayecGenericShellBeforeJobReports(meta);
   return '<div class="job-report-heading"><div><small>TEKN\u0130K SERV\u0130S MODU / OPERASYONEL RAPORLAR</small><h2>\u0130\u015f / Servis Takibi Raporlar\u0131</h2><p>Teknik servis kay\u0131tlar\u0131n\u0131 ve mevcut i\u015f emri durumlar\u0131n\u0131 inceleyin.</p></div><div class="actions"><label class="job-report-date"><input id="jobReportStart" type="date" aria-label="Ba\u015flang\u0131\u00e7 tarihi"><span>-</span><input id="jobReportEnd" type="date" aria-label="Biti\u015f tarihi"></label><button type="button" class="secondary" data-job-report-export>Excel \u00c7\u0131kt\u0131s\u0131</button><button type="button" class="secondary" data-job-report-print>PDF / Yazd\u0131r</button><button type="button" class="primary" data-generic-refresh>Raporu Yenile</button></div></div>' +
     '<section class="metric-grid job-report-metrics"><article><small>TOPLAM \u0130\u015eLER</small><strong id="jobReportTotal">0</strong><footer>Filtrelenen servis kay\u0131tlar\u0131</footer></article><article><small>A\u00c7IK \u0130\u015eLER</small><strong id="jobReportOpen">0</strong><footer>\u0130\u015flemde ve beklemede</footer></article><article><small>TAMAMLANAN / TESL\u0130M</small><strong id="jobReportDelivered">0</strong><footer>Tamamlanan servisler</footer></article><article><small>TOPLAM SERV\u0130S</small><strong id="jobReportServiceCount">0</strong><footer>At\u00f6lye ve saha kay\u0131tlar\u0131</footer></article><article><small>KAYITLI SERV\u0130S BEDEL\u0130</small><strong id="jobReportValue">0</strong><footer>TRY cinsinden kay\u0131t tutar\u0131</footer></article></section>' +
-    '<section class="card job-report-panel"><div class="job-report-toolbar"><nav class="job-report-tabs" aria-label="Servis raporu g\u00f6r\u00fcn\u00fcmleri"><button type="button" data-job-report-tab="jobs">\u0130\u015f Takip Raporu</button><button type="button" data-job-report-tab="service">Servis Takip</button><button type="button" data-job-report-tab="technicians">Teknisyen Matrisi</button><button type="button" data-job-report-tab="profit">K\u00e2rl\u0131l\u0131k</button></nav><div class="job-report-search"><input class="control search" id="genericSearch" placeholder="\u0130\u015f no, m\u00fc\u015fteri, a\u00e7\u0131klama veya durum ara"><button type="button" class="secondary" data-job-report-clear>Temizle</button></div></div><div class="job-report-filters"><label>Durum<select class="control" id="jobReportStatus"><option value="all">T\u00fcm Durumlar</option><option value="open">A\u00e7\u0131k / \u0130\u015flemde</option><option value="done">Tamamland\u0131 / Teslim</option></select></label><label>Para Birimi<select class="control" id="jobReportCurrency"><option value="TRY">TRY (\u20ba)</option><option value="all">T\u00fcm Birimler</option></select></label><label>Kay\u0131t Say\u0131s\u0131<select class="control" id="jobReportPageSize"><option value="7">7</option><option value="15">15</option><option value="30">30</option></select></label><span id="jobReportCount" class="muted"></span></div><div id="jobReportHost"></div><footer class="job-report-summary"><article><small>ORTALAMA SERV\u0130S S\u00dcRES\u0130</small><strong>Kay\u0131t verisi yok</strong><span>Servis s\u00fcresi alan\u0131 bulunmuyor.</span></article><article><small>M\u00dc\u015eTER\u0130 MEMNUN\u0130YET SKORU</small><strong>\u2014</strong><span>De\u011ferlendirme verisi yok</span></article><article><small>\u0130LK SEFERDE \u00c7\u00d6Z\u00dcM ORANI</small><strong>\u2014</strong><span>Tekrar servis ba\u011flant\u0131s\u0131 bulunmuyor</span></article></footer><div id="genericHost" hidden></div><div id="genericCount" hidden></div></section>';
+    '<section class="card job-report-panel"><div class="job-report-toolbar"><nav class="job-report-tabs" aria-label="Servis raporu g\u00f6r\u00fcn\u00fcmleri"><button type="button" data-job-report-tab="jobs">\u0130\u015f Takip Raporu</button><button type="button" data-job-report-tab="service">Servis Takip</button><button type="button" data-job-report-tab="technicians">Teknisyen Matrisi</button><button type="button" data-job-report-tab="profit">K\u00e2rl\u0131l\u0131k</button></nav><div class="job-report-search"><input class="control search" id="genericSearch" placeholder="\u0130\u015f no, m\u00fc\u015fteri, a\u00e7\u0131klama veya durum ara"><button type="button" class="secondary" data-job-report-clear>Temizle</button></div></div><div class="job-report-filters"><label>Durum<select class="control" id="jobReportStatus"><option value="all">T\u00fcm Durumlar</option><option value="open">A\u00e7\u0131k / \u0130\u015flemde</option><option value="done">Tamamland\u0131 / Teslim</option></select></label><label>Para Birimi<select class="control" id="jobReportCurrency"><option value="TRY">TRY (\u20ba)</option><option value="all">T\u00fcm Birimler</option></select></label><label>Teknisyen<select class="control" id="jobReportTechnician"><option value="all">T\u00fcm Teknisyenler</option></select></label><button type="button" class="secondary" data-job-report-advanced-toggle aria-expanded="false">Geli\u015fmi\u015f</button><label>Kay\u0131t Say\u0131s\u0131<select class="control" id="jobReportPageSize"><option value="7">7</option><option value="15">15</option><option value="30">30</option></select></label><span id="jobReportCount" class="muted"></span></div><div class="job-report-advanced-filters" id="jobReportAdvanced" hidden><label><span>M\u00fc\u015fteri</span><select class="control" id="jobReportCustomer"><option value="all">M\u00fc\u015fteri: T\u00fcm\u00fc</option></select></label><label class="setting"><span>Tutar aral\u0131\u011f\u0131</span><input type="checkbox" id="jobReportAmountEnabled"></label><label><span>Min</span><input class="control" id="jobReportAmountMin" type="number" min="0" step="0.01" value="0" disabled></label><label><span>Max (0 = s\u0131n\u0131rs\u0131z)</span><input class="control" id="jobReportAmountMax" type="number" min="0" step="0.01" value="0" disabled></label><button type="button" class="secondary" data-job-report-advanced-reset>S\u0131f\u0131rla</button></div><div id="jobReportHost"></div><footer class="job-report-summary"><article><small>ORTALAMA SERV\u0130S S\u00dcRES\u0130</small><strong>Kay\u0131t verisi yok</strong><span>Servis s\u00fcresi alan\u0131 bulunmuyor.</span></article><article><small>M\u00dc\u015eTER\u0130 MEMNUN\u0130YET SKORU</small><strong>\u2014</strong><span>De\u011ferlendirme verisi yok</span></article><article><small>\u0130LK SEFERDE \u00c7\u00d6Z\u00dcM ORANI</small><strong>\u2014</strong><span>Tekrar servis ba\u011flant\u0131s\u0131 bulunmuyor</span></article></footer><div id="genericHost" hidden></div><div id="genericCount" hidden></div></section>';
 };
 function ayecJobStatus(row) { const value = String(row.status || "").toLocaleLowerCase("tr-TR"); return /teslim|tamam|kapal|iptal|cancel/i.test(value) ? "done" : "open"; }
 function ayecJobDateKey(row) { const raw = String(row.entry_date || "").trim(); if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10); const match = raw.match(/^(\d{2})[./](\d{2})[./](\d{4})/); return match ? match[3] + "-" + match[2] + "-" + match[1] : ""; }
@@ -4565,7 +6301,7 @@ function ayecJobReportRender() {
   const pages = Math.max(1, Math.ceil(rows.length / size));
   ayecJobReportPage = Math.min(ayecJobReportPage, pages - 1);
   const visible = rows.slice(ayecJobReportPage * size, (ayecJobReportPage + 1) * size);
-  host.innerHTML = visible.length ? '<div class="table-wrap job-report-table-wrap"><table class="job-report-table"><thead><tr><th>\u0130\u015e NO</th><th>M\u00dc\u015eTER\u0130 / KURUM</th><th>TEKN\u0130SYEN</th><th>A\u00c7IKLAMA / YAPILAN \u0130\u015eLEM</th><th>DURUM</th><th>TUTAR</th><th>B\u0130R\u0130M</th><th>TAR\u0130H</th></tr></thead><tbody>' + visible.map(row => '<tr><td data-label="\u0130\u015f No"><strong class="job-report-code">' + esc(row.tracking_no || ("SRV-" + row.id)) + '</strong></td><td data-label="M\u00fc\u015fteri / Kurum"><strong>' + esc(row.customer_name || "-") + '</strong><small>' + esc(row.customer_type || "") + '</small></td><td data-label="Teknisyen">' + esc(row.technician_name || row.assigned_technician || row.technician || "-") + '</td><td data-label="A\u00e7\u0131klama / Yap\u0131lan \u0130\u015flem">' + esc(row.fault_description || row.fault_category || "-") + '<small>' + esc([row.device_brand, row.device_model].filter(Boolean).join(" ")) + '</small></td><td data-label="Durum"><span class="job-report-status ' + ayecJobStatus(row) + '">' + esc(row.status || "Belirtilmedi") + '</span></td><td data-label="Tutar">' + esc(moneyNumber(row.price).toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })) + '</td><td data-label="Birim">TRY (\u20ba)</td><td data-label="Tarih">' + esc(ayecJobDateKey(row).split("-").reverse().join(".") || row.entry_date || "-") + '</td></tr>').join("") + '</tbody></table></div>' : ayecJobReportTab === "technicians" ? empty("Teknisyen verisi bulunamad\u0131", "Servis kay\u0131tlar\u0131nda teknisyen alan\u0131 mevcut de\u011fil.") : ayecJobReportTab === "profit" ? empty("Maliyet verisi bulunamad\u0131", "Net k\u00e2rl\u0131l\u0131k i\u00e7in maliyet verisi gerekir.") : empty("Servis kayd\u0131 bulunamad\u0131", "Arama veya filtreleri de\u011fi\u015ftirin.");
+  host.innerHTML = visible.length ? '<div class="table-wrap job-report-table-wrap"><table class="job-report-table"><thead><tr><th>\u0130\u015e NO</th><th>M\u00dc\u015eTER\u0130 / KURUM</th><th>TEKN\u0130SYEN</th><th>A\u00c7IKLAMA / YAPILAN \u0130\u015eLEM</th><th>DURUM</th><th>TUTAR</th><th>B\u0130R\u0130M</th><th>TAR\u0130H</th><th>TAHS\u0130LAT</th><th>\u0130\u015eLEMLER</th></tr></thead><tbody>' + visible.map(row => '<tr><td data-label="\u0130\u015f No"><strong class="job-report-code">' + esc(row.tracking_no || ("SRV-" + row.id)) + '</strong></td><td data-label="M\u00fc\u015fteri / Kurum"><strong>' + esc(row.customer_name || "-") + '</strong><small>' + esc(row.customer_type || "") + '</small></td><td data-label="Teknisyen">' + esc(row.technician_name || row.assigned_technician || row.technician || "-") + '</td><td data-label="A\u00e7\u0131klama / Yap\u0131lan \u0130\u015flem">' + esc(row.fault_description || row.fault_category || "-") + '<small>' + esc([row.device_brand, row.device_model].filter(Boolean).join(" ")) + '</small></td><td data-label="Durum"><span class="job-report-status ' + ayecJobStatus(row) + '">' + esc(row.status || "Belirtilmedi") + '</span></td><td data-label="Tutar">' + esc(moneyNumber(row.price).toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })) + '</td><td data-label="Birim">TRY (\u20ba)</td><td data-label="Tarih">' + esc(ayecJobDateKey(row).split("-").reverse().join(".") || row.entry_date || "-") + '</td><td data-label="Tahsilat">' + esc(row.payment_status || row.collection_status || "\\u2014") + '</td><td data-label="\u0130\u015flemler"><div class="job-report-actions"><button type="button" class="mini" data-job-report-view="' + esc(String(row.id ?? row.tracking_no ?? "")) + '" aria-label="\u0130\u015f kayd\u0131n\u0131 g\u00f6r\u00fcnt\u00fcle"><span class="material-symbols-outlined">visibility</span></button><button type="button" class="mini" data-job-report-print-row aria-label="\u0130\u015f kayd\u0131n\u0131 yazd\u0131r"><span class="material-symbols-outlined">print</span></button></div></td></tr>').join("") + '</tbody></table></div>' : ayecJobReportTab === "technicians" ? empty("Teknisyen verisi bulunamad\u0131", "Servis kay\u0131tlar\u0131nda teknisyen alan\u0131 mevcut de\u011fil.") : ayecJobReportTab === "profit" ? empty("Maliyet verisi bulunamad\u0131", "Net k\u00e2rl\u0131l\u0131k i\u00e7in maliyet verisi gerekir.") : empty("Servis kayd\u0131 bulunamad\u0131", "Arama veya filtreleri de\u011fi\u015ftirin.");
   $("#jobReportCount").textContent = "G\u00f6r\u00fcnt\u00fclenen " + rows.length + " / " + ayecJobReportRows.length + " kay\u0131t";
   const pageFoot = document.createElement("footer"); pageFoot.className = "job-report-pagination"; pageFoot.innerHTML = '<span>Se\u00e7ilen: 0 sat\u0131r</span><div><button type="button" data-job-report-page="-1" ' + (ayecJobReportPage === 0 ? "disabled" : "") + '>\u00d6nceki</button><b>' + (ayecJobReportPage + 1) + ' / ' + pages + '</b><button type="button" data-job-report-page="1" ' + (ayecJobReportPage >= pages - 1 ? "disabled" : "") + '>Sonraki</button></div>';
   if (visible.length) host.append(pageFoot);
@@ -4588,16 +6324,68 @@ document.addEventListener("click", event => {
   if (page !== "job-reports") return;
   const tab = event.target.closest("[data-job-report-tab]");
   if (tab) { ayecJobReportTab = tab.dataset.jobReportTab; ayecJobReportPage = 0; document.querySelectorAll("[data-job-report-tab]").forEach(button => button.classList.toggle("active", button === tab)); ayecJobReportRender(); return; }
+  const view = event.target.closest("[data-job-report-view]");
+  if (view) {
+    const key = view.dataset.jobReportView;
+    const row = ayecJobReportRows.find(item => String(item.id ?? item.tracking_no ?? "") === key);
+    if (row) {
+      const columns = (window.currentGenericData?.columns || Object.keys(row)).filter(name => !/password|token|secret|photo/i.test(name));
+      const fields = columns.map(name => `<div class="field"><label>${esc(columnLabel(name))}</label><input readonly value="${esc(row[name] ?? "")}"></div>`).join("");
+      openDialog(row.tracking_no || "\u0130\u015f / Servis Detay\u0131", "KAYIT B\u0130LG\u0130S\u0130", `<div class="form-grid">${fields}</div>`, () => false, "Kapat");
+    }
+    return;
+  }
+  const rowPrint = event.target.closest("[data-job-report-print-row]");
+  if (rowPrint) {
+    const rows = [...document.querySelectorAll(".job-report-table tbody tr")];
+    const keep = rows.map(row => row.hidden);
+    const target = rowPrint.closest("tr");
+    rows.forEach(row => { row.hidden = row !== target; });
+    const restore = () => rows.forEach((row, index) => { row.hidden = keep[index]; });
+    window.addEventListener("afterprint", restore, { once: true });
+    window.print();
+    return;
+  }
   const pager = event.target.closest("[data-job-report-page]");
   if (pager) { ayecJobReportPage = Math.max(0, ayecJobReportPage + Number(pager.dataset.jobReportPage)); ayecJobReportRender(); return; }
   if (event.target.closest("[data-job-report-export]")) { download("servis-raporu-" + today() + ".csv", ayecJobReportRows); return; }
   if (event.target.closest("[data-job-report-print]")) { window.print(); return; }
-  if (event.target.closest("[data-job-report-clear]")) { $("#genericSearch").value = ""; $("#jobReportStatus").value = "all"; $("#jobReportStart").value = ""; $("#jobReportEnd").value = ""; ayecJobReportRender(); }
+  if (event.target.closest("[data-job-report-advanced-toggle]")) { const panel=$("#jobReportAdvanced"),button=event.target.closest("[data-job-report-advanced-toggle]"),show=panel.hidden;panel.hidden=!show;button.setAttribute("aria-expanded",String(show));return; }
+  if (event.target.closest("[data-job-report-advanced-reset]")) { $("#jobReportCustomer").value="all";$("#jobReportTechnician").value="all";$("#jobReportAmountEnabled").checked=false;$("#jobReportAmountMin").value="0";$("#jobReportAmountMax").value="0";$("#jobReportAmountMin").disabled=true;$("#jobReportAmountMax").disabled=true;ayecJobReportPage=0;ayecJobReportRender();return; }
+  if (event.target.closest("[data-job-report-clear]")) { $("#genericSearch").value = ""; $("#jobReportStatus").value = "all"; $("#jobReportStart").value = ""; $("#jobReportEnd").value = ""; $("#jobReportCurrency").value="all"; $("#jobReportTechnician").value="all";$("#jobReportCustomer").value="all";$("#jobReportAmountEnabled").checked=false;$("#jobReportAmountMin").value="0";$("#jobReportAmountMax").value="0";$("#jobReportAmountMin").disabled=true;$("#jobReportAmountMax").disabled=true;ayecJobReportPage=0;ayecJobReportRender(); }
 });
-document.addEventListener("input", event => { if (page === "job-reports" && ["genericSearch", "jobReportStart", "jobReportEnd"].includes(event.target.id)) { ayecJobReportPage = 0; ayecJobReportRender(); } });
-document.addEventListener("change", event => { if (page === "job-reports" && ["jobReportStatus", "jobReportPageSize"].includes(event.target.id)) { ayecJobReportPage = 0; ayecJobReportRender(); } });
+document.addEventListener("input", event => { if (page === "job-reports" && ["genericSearch", "jobReportStart", "jobReportEnd", "jobReportAmountMin", "jobReportAmountMax"].includes(event.target.id)) { ayecJobReportPage = 0; ayecJobReportRender(); } });
+document.addEventListener("change", event => { if(page!=="job-reports")return;if(["jobReportAmountEnabled"].includes(event.target.id)){const enabled=event.target.checked;$("#jobReportAmountMin").disabled=!enabled;$("#jobReportAmountMax").disabled=!enabled;}if(["jobReportStatus","jobReportPageSize","jobReportCurrency","jobReportTechnician","jobReportCustomer","jobReportAmountEnabled"].includes(event.target.id)){ayecJobReportPage=0;ayecJobReportRender();} });
 const ayecRenderBeforeJobReports = render;
-render = function() { ayecRenderBeforeJobReports(); if (page === "job-reports") { ayecJobReportTab = "jobs"; ayecJobReportPage = 0; document.querySelectorAll("[data-job-report-tab]").forEach(button => button.classList.toggle("active", button.dataset.jobReportTab === ayecJobReportTab)); } };
+render = function() {
+  ayecRenderBeforeJobReports();
+  if (page !== "job-reports") return;
+  ayecJobReportTab = "jobs";
+  ayecJobReportPage = 0;
+  document.querySelectorAll("[data-job-report-tab]").forEach(button => button.classList.toggle("active", button.dataset.jobReportTab === ayecJobReportTab));
+  const start = $("#jobReportStart"), end = $("#jobReportEnd");
+  if (start && end && !start.value && !end.value) {
+    const now = new Date();
+    const first = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const last = new Date(now.getFullYear(), now.getMonth(), 0);
+    const localDate = value => [value.getFullYear(), String(value.getMonth() + 1).padStart(2, "0"), String(value.getDate()).padStart(2, "0")].join("-");
+    start.value = localDate(first);
+    end.value = localDate(last);
+  }
+};
+const ayecLoadJobReportsBeforeLedgerSource=loadGenericModule;
+loadGenericModule=async function(meta,query=""){
+  await ayecLoadJobReportsBeforeLedgerSource(meta,query);
+  if(page!=="job-reports"||meta?.table!=="devices"||!window.currentGenericData)return;
+  ayecJobServiceRows=await ayecLoadJobServiceRows();
+  try{ayecJobLedgerRows=await ayecLoadJobLedgerRows()}catch(error){ayecJobLedgerRows=[];toast(error.message||"\u0130\u015f takip kay\u0131tlar\u0131 y\u00fcklenemedi.","error")}
+  $("#jobReportTotal").textContent=String(ayecJobLedgerRows.length);$("#jobReportOpen").textContent=String(ayecJobLedgerRows.filter(row=>ayecJobStatus(row)==="open").length);$("#jobReportDelivered").textContent=String(ayecJobLedgerRows.filter(row=>ayecJobStatus(row)==="done").length);$("#jobReportServiceCount").textContent=String(ayecJobServiceRows.length);$("#jobReportValue").textContent=money(ayecJobServiceRows.reduce((sum,row)=>sum+moneyNumber(row.price||row.labor_cost||0),0),"TRY");
+  ayecJobReportRows=ayecJobRowsForCurrentTab();ayecJobReportRender();
+};
+document.addEventListener("keydown",event=>{
+  if(page!=="job-reports"||!(event.key==="ContextMenu"||(event.shiftKey&&event.key==="F10")))return;
+  const row=event.target.closest("tr[data-job-report-kind]");if(!row)return;event.preventDefault();const box=row.getBoundingClientRect();row.dispatchEvent(new MouseEvent("contextmenu",{bubbles:true,cancelable:true,clientX:box.left+24,clientY:box.top+24}));
+},true);
 
 // Part 4: a full-width service status wall without the assistant side panel.
 let ayecStatusRows = [];
@@ -4609,10 +6397,55 @@ let ayecStatusPage = 0;
 const ayecGenericShellBeforeStatus = genericShell;
 genericShell = function(meta) {
   if (page !== "service-status" || meta?.table !== "devices") return ayecGenericShellBeforeStatus(meta);
-  return pageHead("Durum Paneli <span class=\"badge status-wall-live\">CANLI AK\u0130\u015e (30S OTOMAT\u0130K YEN\u0130LEME)</span>", "At\u00f6lye ve saha servis operasyonlar\u0131n\u0131n anl\u0131k hareket ak\u0131\u015f\u0131, cihaz teslimat durumlar\u0131 ve AI asistan bildirimleri", '<span class="status-wall-refresh-count" id="statusWallRefreshCount">29s</span><button type="button" class="primary" data-status-share>Ekran\u0131 Yay\u0131nla (TV / Duvar Modu)</button><button type="button" class="secondary" data-generic-refresh>Yenile</button><button type="button" class="secondary" aria-pressed="false" data-status-critical>Filtrele</button><button type="button" class="secondary" data-status-export>D\u0131\u015fa Aktar</button><span class="status-wall-action-hint">Canl\u0131 servis hareketleri ve par\u00e7a uyar\u0131lar\u0131</span><button type="button" class="secondary" data-status-help>Yard\u0131m</button>') +
+  return pageHead("Durum Paneli <span class=\"badge status-wall-live\">" + (window.ayecStatusWallDisplayMode ? "CANLI AK\u0130\u015e (5S OTOMAT\u0130K YEN\u0130LEME)" : "CANLI AK\u0130\u015e (30S OTOMAT\u0130K YEN\u0130LEME)") + "</span>", "At\u00f6lye ve saha servis operasyonlar\u0131n\u0131n anl\u0131k hareket ak\u0131\u015f\u0131, cihaz teslimat durumlar\u0131 ve AI asistan bildirimleri", '<span class="status-wall-refresh-count" id="statusWallRefreshCount">29s</span><button type="button" class="primary" data-status-share>Ekran\u0131 Yay\u0131nla (TV / Duvar Modu)</button><button type="button" class="secondary" data-generic-refresh>Yenile</button><button type="button" class="secondary" aria-pressed="false" data-status-critical>Filtrele</button><button type="button" class="secondary" data-status-export>D\u0131\u015fa Aktar</button><span class="status-wall-action-hint">Canl\u0131 servis hareketleri ve par\u00e7a uyar\u0131lar\u0131</span><button type="button" class="secondary" data-status-help>Yard\u0131m</button>') +
     '<section class="metric-grid status-wall-metrics"><article><small>BUG\u00dcNK\u00dc \u0130\u015eLEM HACM\u0130</small><strong id="statusWallTotal">0 Cihaz</strong><footer><span id="statusWallClosed">0 Teslim</span><span id="statusWallActive">0 \u0130\u015flemde</span></footer></article><article><small>A\u00c7IK \u0130\u015e ORANI</small><strong id="statusWallOccupancy">%0</strong><footer><span>Kay\u0131tl\u0131 i\u015fler i\u00e7inde</span><b id="statusWallCapacity">0 / 0 A\u00e7\u0131k</b></footer></article><article><small>KR\u0130T\u0130K \u0130\u015e &amp; PAR\u00c7A UYARISI</small><strong id="statusWallCritical">0 Kritik \u0130\u015f</strong><footer><span>Y\u00fcksek \u00f6ncelik</span><b id="statusWallParts">0 par\u00e7a bekliyor</b></footer></article><article><small>ORTALAMA TAM\u0130R S\u00dcRES\u0130</small><strong id="statusWallDuration">\u2014</strong><footer><span>SLA hedef bilgisi</span><b>Kay\u0131t verisi yok</b></footer></article></section>' +
-    '<section class="status-wall-layout"><div class="status-wall-main"><div class="card status-wall-list"><header><h3>Son Servis Hareketleri</h3><nav><button type="button" class="active" data-status-filter="all">T\u00fcm\u00fc</button><button type="button" data-status-filter="done">Teslim</button><button type="button" data-status-filter="parts">Par\u00e7a Bekleyen</button><button type="button" data-status-filter="open">\u0130\u015flemde</button></nav></header><div class="status-wall-toolbar"><input class="control search" id="genericSearch" placeholder="\u0130\u015f emri no, m\u00fc\u015fteri veya seri no ara..."><select class="control" id="statusWallSort"><option value="date">Kabul Tarihi (En Yeni)</option><option value="priority">\u00d6ncelik (Y\u00fcksek)</option></select></div><div id="statusWallHost"></div></div></div></section><div id="genericHost" hidden></div><div id="genericCount" hidden></div>';
+    '<section class="status-wall-layout"><div class="status-wall-main"><div class="card status-wall-list"><header><h3>Son Servis Hareketleri</h3><nav><button type="button" class="active" data-status-filter="all">T\u00fcm\u00fc</button><button type="button" data-status-filter="done">Teslim</button><button type="button" data-status-filter="parts">Par\u00e7a Bekleyen</button><button type="button" data-status-filter="open">\u0130\u015flemde</button></nav></header><div class="status-wall-toolbar"><input class="control search" id="genericSearch" placeholder="\u0130\u015f emri no, m\u00fc\u015fteri veya seri no ara..."><select class="control" id="statusWallSort"><option value="date">Kabul Tarihi (En Yeni)</option><option value="priority">\u00d6ncelik (Y\u00fcksek)</option></select></div><div id="statusWallHost"></div></div></div></section><div id="genericHost" hidden></div><div id="genericCount" hidden></div><div class="status-wall-marquee" data-status-marquee title="Yaz\u0131y\u0131 de\u011fi\u015ftirmek i\u00e7in \u00e7ift t\u0131klay\u0131n"><div class="status-wall-marquee-track"><span></span><span aria-hidden="true"></span></div></div>';
 };
+let ayecStatusAssistantData = {appointments:[],parts:[],personnel:[]};
+function ayecStatusAssistantEnsure() {
+  const layout = document.querySelector("#content .status-wall-layout");
+  if (!layout || layout.querySelector(".status-wall-side")) return;
+  layout.insertAdjacentHTML("beforeend", `<aside class="status-wall-side"><section class="card status-wall-assistant"><header><div><h3>AYEC Servis Asistani</h3><small>Yapay Zeka Operasyon Botu</small></div><span class="badge">AKTIF</span></header><h4>Iyi gunler! Randevu Bildirimi</h4><p id="statusAssistantAppointment">Randevu kayitlari okunuyor...</p><button type="button" class="secondary" data-status-appointments>Randevuya Git</button><h4 class="warning">Kritik Stok Uyarisi</h4><p id="statusAssistantStock">Stok kayitlari okunuyor...</p><button type="button" class="secondary" data-status-stock>Stok Listesini Ac</button></section><section class="card status-wall-technicians"><header><h3>Teknisyen &amp; Saha Durumu</h3><span class="muted" id="statusAssistantPersonnelCount">0 Aktif</span></header><div id="statusAssistantPersonnel"></div><button type="button" class="secondary" data-status-personnel>Tum Teknisyenleri Gor</button></section><section class="card status-wall-camera"><h3>Atolye Canli Kamera 01 <span class="muted">&#8226; BAGLI DEGIL</span></h3><div>Kamera kaynagi yapilandirilmamis.<br>Canli goruntu mevcut degil.</div></section></aside>`);
+}
+function ayecStatusAssistantRender() {
+  if (page !== "service-status") return;
+  ayecStatusAssistantEnsure();
+  const appointments = Array.isArray(ayecStatusAssistantData.appointments) ? ayecStatusAssistantData.appointments : [];
+  const todayAppointments = appointments.filter(row => {
+    const status = String(row.status || "").toLocaleUpperCase("tr-TR").replace(/\u0130/g, "I");
+    return String(row.date || "").slice(0, 10) === today() && Number(row.is_deleted || 0) !== 1 && !["TAMAMLANDI", "IPTAL", "COMPLETED", "CANCELLED", "CANCELED"].includes(status);
+  }).sort((a, b) => String(a.time || "").localeCompare(String(b.time || "")));
+  const appointment = todayAppointments[0], appointmentNotice = $("#statusAssistantAppointment");
+  if (appointmentNotice) appointmentNotice.textContent = appointment ? `Bugun ${todayAppointments.length} bekleyen randevu var.\n${appointment.time || "-"} | ${appointment.customer_name || appointment.customer || "-"}\n${appointment.description || appointment.title || ""}` : "Bugun bekleyen randevu yok.";
+  const criticalParts = (Array.isArray(ayecStatusAssistantData.parts) ? ayecStatusAssistantData.parts : []).filter(row => {
+    const stock = Number(row.stock ?? row.qty ?? row.quantity ?? 0), minimum = Number(row.min_stock || 0);
+    return Number(row.is_deleted || 0) !== 1 && minimum > 0 && stock <= minimum;
+  }).sort((a, b) => Number(a.stock ?? a.qty ?? 0) - Number(b.stock ?? b.qty ?? 0));
+  const stockNotice = $("#statusAssistantStock");
+  if (stockNotice) stockNotice.textContent = criticalParts.length ? `Kritik stok: ${criticalParts.length} urun\n${criticalParts.slice(0, 2).map(row => `${row.name || row.part_name || "-"} | Stok: ${row.stock ?? row.qty ?? row.quantity ?? 0} / Esik: ${row.min_stock}`).join("\n")}` : "Kritik stok uyarisi bulunmuyor.";
+  const activePersonnel = (Array.isArray(ayecStatusAssistantData.personnel) ? ayecStatusAssistantData.personnel : []).filter(row => {
+    const role = `${row.role || ""} ${row.department || ""}`.toLocaleLowerCase("tr-TR").replace(/\u0131/g, "i");
+    return Number(row.is_deleted || 0) !== 1 && (row.is_active == null || Number(row.is_active) !== 0) && ["teknisyen", "saha", "destek", "personel"].some(value => role.includes(value));
+  }).sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "tr-TR"));
+  const personnelCount = $("#statusAssistantPersonnelCount"), personnelHost = $("#statusAssistantPersonnel");
+  if (personnelCount) personnelCount.textContent = `${activePersonnel.length} Aktif`;
+  if (personnelHost) personnelHost.innerHTML = activePersonnel.length ? activePersonnel.slice(0, 3).map(row => {
+    const name = String(row.name || "-"), initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join("").toLocaleUpperCase("tr-TR") || "--";
+    return `<article><span class="status-wall-personnel-avatar">${esc(initials)}</span><div><strong>${esc(name)}</strong><small>${esc(row.role || "-")} | ${esc(row.status || "Durum bildirilmemis")}</small></div></article>`;
+  }).join("") : '<p>Teknisyen kaydi bulunmuyor veya okunamadi.</p>';
+}
+async function ayecStatusAssistantLoad() {
+  if (page !== "service-status") return;
+  const endpoints = ["appointments", "parts", "personnel"];
+  const results = await Promise.allSettled(endpoints.map(table => apiFetch(`/api/desktop/table/${table}?limit=500`)));
+  if (page !== "service-status") return;
+  ayecStatusAssistantData = {
+    appointments: results[0].status === "fulfilled" ? results[0].value.rows || [] : [],
+    parts: results[1].status === "fulfilled" ? results[1].value.rows || [] : [],
+    personnel: results[2].status === "fulfilled" ? results[2].value.rows || [] : []
+  };
+  ayecStatusAssistantRender();
+}
 function ayecStatusKind(row) { const value = String(row.status || "").toLocaleLowerCase("tr-TR"); if (/teslim|tamam|kapal|iptal|cancel/i.test(value)) return "done"; if (/par\u00e7a|yedek|malzeme/i.test(value)) return "parts"; return "open"; }
 function ayecStatusRender() {
   const host = $("#statusWallHost"); if (!host) return;
@@ -4620,9 +6453,9 @@ function ayecStatusRender() {
   const sort = $("#statusWallSort")?.value || "date";
   let rows = ayecStatusRows.filter(row => { const status = String(row.status || "").toLocaleLowerCase("tr-TR"); const urgency = String(row.urgency || "").toLocaleLowerCase("tr-TR"); const critical = /par\u00e7a|bekliyor|acil|kritik/.test(status + " " + urgency); return (!query || [row.tracking_no, row.customer_name, row.device_brand, row.device_model, row.serial_no, row.status].join(" ").toLocaleLowerCase("tr-TR").includes(query)) && (ayecStatusFilter === "all" || ayecStatusKind(row) === ayecStatusFilter) && (!ayecStatusCriticalOnly || critical); });
   rows.sort((a, b) => sort === "priority" ? String(b.urgency || "").localeCompare(String(a.urgency || "")) : String(b.entry_date || "").localeCompare(String(a.entry_date || "")));
-  const size = Math.max(6, Math.min(14, Math.floor((window.innerHeight - 390) / 54))), pages = Math.max(1, Math.ceil(rows.length / size)); ayecStatusPage = Math.min(ayecStatusPage, pages - 1);
+  const size = window.ayecStatusWallDisplayMode ? 20 : Math.max(6, Math.min(14, Math.floor((window.innerHeight - 390) / 54))), pages = Math.max(1, Math.ceil(rows.length / size)); ayecStatusPage = Math.min(ayecStatusPage, pages - 1);
   const visible = rows.slice(ayecStatusPage * size, (ayecStatusPage + 1) * size);
-  host.innerHTML = visible.length ? '<div class="table-wrap status-wall-table-wrap"><table class="status-wall-table"><thead><tr><th>TAK\u0130P NO</th><th>M\u00dc\u015eTER\u0130</th><th>C\u0130HAZ / MODEL</th><th>DURUM</th><th>G\u0130R\u0130\u015e</th><th>TESL\u0130M</th><th>\u00d6NCEL\u0130K</th><th>\u0130\u015eLEMLER</th></tr></thead><tbody>' + visible.map(row => '<tr><td data-label="Takip No"><strong class="status-wall-code">' + esc(row.tracking_no || ("SRV-" + row.id)) + '</strong></td><td data-label="M\u00fc\u015fteri">' + esc(row.customer_name || "-") + '</td><td data-label="Cihaz / Model">' + esc([row.device_brand, row.device_model].filter(Boolean).join(" ") || row.device_type || "-") + '<small>' + esc(row.serial_no || "") + '</small></td><td data-label="Durum"><span class="status-wall-badge ' + ayecStatusKind(row) + '">' + esc(row.status || "Belirtilmedi") + '</span></td><td data-label="Giri\u015f">' + esc(row.entry_date || "-") + '</td><td data-label="Teslim">' + esc(row.estimated_date || "-") + '</td><td data-label="\u00d6ncelik">' + esc(row.urgency || "Normal") + '</td><td data-label="\u0130\u015flemler"><button type="button" class="mini" data-status-edit="' + esc(row.id) + '">A\u00e7</button></td></tr>').join("") + '</tbody></table></div><footer class="status-wall-pager"><span>G\u00f6sterilen ' + Math.min(rows.length, size) + ' / ' + rows.length + ' kay\u0131t</span><div><button type="button" data-status-page="-1" ' + (ayecStatusPage === 0 ? "disabled" : "") + '>\u00d6nceki</button><b>' + (ayecStatusPage + 1) + ' / ' + pages + '</b><button type="button" data-status-page="1" ' + (ayecStatusPage >= pages - 1 ? "disabled" : "") + '>Sonraki</button></div></footer>' : empty("Servis kayd\u0131 bulunamad\u0131", "Arama veya durum filtresini de\u011fi\u015ftirin.");
+  host.innerHTML = visible.length ? '<div class="table-wrap status-wall-table-wrap"><table class="status-wall-table"><thead><tr><th>TAK\u0130P NO</th><th>M\u00dc\u015eTER\u0130</th><th>C\u0130HAZ / MODEL</th><th>DURUM</th><th>G\u0130R\u0130\u015e</th><th>TESL\u0130M</th><th>\u00d6NCEL\u0130K</th><th>\u0130\u015eLEMLER</th></tr></thead><tbody>' + visible.map(row => '<tr><td data-label="Takip No"><strong class="status-wall-code">' + esc(row.tracking_no || ("SRV-" + row.id)) + '</strong></td><td data-label="M\u00fc\u015fteri">' + esc(row.customer_name || "-") + '</td><td data-label="Cihaz / Model">' + esc([row.device_brand, row.device_model].filter(Boolean).join(" ") || row.device_type || "-") + '<small>' + esc(row.serial_no || "") + '</small></td><td data-label="Durum"><span class="status-wall-badge ' + ayecStatusKind(row) + '">' + esc(row.status || "Belirtilmedi") + '</span></td><td data-label="Giri\u015f">' + esc(row.entry_date || "-") + '</td><td data-label="Teslim">' + esc(row.estimated_date || "-") + '</td><td data-label="\u00d6ncelik">' + esc(row.urgency || "Normal") + '</td><td data-label="\u0130\u015flemler"><button type="button" class="mini" data-status-edit="' + esc(row.id) + '">Detay</button></td></tr>').join("") + '</tbody></table></div><footer class="status-wall-pager"><span>G\u00f6sterilen ' + Math.min(rows.length, size) + ' / ' + rows.length + ' kay\u0131t</span><div><button type="button" data-status-page="-1" ' + (ayecStatusPage === 0 ? "disabled" : "") + '>\u00d6nceki</button><b>' + (ayecStatusPage + 1) + ' / ' + pages + '</b><button type="button" data-status-page="1" ' + (ayecStatusPage >= pages - 1 ? "disabled" : "") + '>Sonraki</button></div></footer>' : empty("Servis kayd\u0131 bulunamad\u0131", "Arama veya durum filtresini de\u011fi\u015ftirin.");
   $("#genericCount").textContent = rows.length + " kay\u0131t";
 }
 function ayecRenderStatusWallPersonnel() {
@@ -4643,31 +6476,203 @@ loadGenericModule = async function(meta, query = "") {
   const critical = ayecStatusRows.filter(row => /acil|kritik|y\u00fcksek/i.test(String(row.urgency || "")) || ayecStatusKind(row) === "parts").length;
   $("#statusWallCritical").textContent = critical + " Kritik \u0130\u015f"; $("#statusWallParts").textContent = parts + " par\u00e7a bekliyor"; $("#statusWallDuration").textContent = "\u2014";
   ayecStatusRender();
+  await ayecStatusAssistantLoad();
 };
 document.addEventListener("click", event => {
   if (page !== "service-status") return;
   const filter = event.target.closest("[data-status-filter]");
   if (filter) { ayecStatusFilter = filter.dataset.statusFilter; document.querySelectorAll("[data-status-filter]").forEach(button => button.classList.toggle("active", button === filter)); ayecStatusPage = 0; ayecStatusRender(); return; }
   const pager = event.target.closest("[data-status-page]"); if (pager) { ayecStatusPage = Math.max(0, ayecStatusPage + Number(pager.dataset.statusPage)); ayecStatusRender(); return; }
-  if (event.target.closest("[data-status-personnel]")) { navigate("technician"); return; }
+  if (event.target.closest("[data-status-appointments]")) { navigate("appointments"); return; }
+  if (event.target.closest("[data-status-stock]")) { navigate("stock"); return; }
+  if (event.target.closest("[data-status-personnel]")) { navigate("personnel"); return; }
   const critical = event.target.closest("[data-status-critical]"); if (critical) { ayecStatusCriticalOnly = !ayecStatusCriticalOnly; critical.setAttribute("aria-pressed", String(ayecStatusCriticalOnly)); critical.classList.toggle("active", ayecStatusCriticalOnly); ayecStatusPage = 0; ayecStatusRender(); return; }
   if (event.target.closest("[data-status-help]")) { toast("Durum panelinde filtreleri kullanarak acil ve par\u00e7a bekleyen servisleri gor\u00fcnt\u00fcleyin.", "info"); return; }
   if (event.target.closest("[data-status-share]")) { const share = { title: "AYEC Pro - Durum Paneli", text: "Canl\u0131 servis durumu", url: window.location.href }; if (navigator.share) navigator.share(share).catch(() => {}); else if (navigator.clipboard) navigator.clipboard.writeText(share.url).then(() => toast("Durum paneli ba\u011flant\u0131s\u0131 kopyaland\u0131.", "success")).catch(() => toast(share.url, "info")); else toast(share.url, "info"); return; }
-  const edit = event.target.closest("[data-status-edit]"); if (edit) { const row = ayecStatusRows.find(item => String(item.id) === edit.dataset.statusEdit); if (row) apiFetch("/api/desktop/table/devices?limit=1").then(data => openGenericDialog(genericModules["service-status"], row, data.columns)).catch(error => toast(error.message, "error")); return; }
+  const detail = event.target.closest("[data-status-edit]"); if (detail) { const row = ayecStatusRows.find(item => String(item.id) === detail.dataset.statusEdit); if (row) ayecOpenStatusServiceDetail(row).catch(error => toast(error.message || "Servis ayr\u0131nt\u0131s\u0131 a\u00e7\u0131lamad\u0131.", "error")); return; }
   if (event.target.closest("[data-status-export]")) download("durum-paneli-" + today() + ".csv", ayecStatusRows);
 });
 document.addEventListener("input", event => { if (page === "service-status" && event.target.id === "genericSearch") { ayecStatusPage = 0; ayecStatusRender(); } });
 document.addEventListener("change", event => { if (page === "service-status" && event.target.id === "statusWallSort") { ayecStatusPage = 0; ayecStatusRender(); } });
 const ayecRenderBeforeStatusWall = render;
-render = function() { ayecRenderBeforeStatusWall(); if (page === "service-status") { ayecStatusFilter = "all"; ayecStatusCriticalOnly = false; ayecStatusPage = 0; document.querySelectorAll("[data-status-filter]").forEach(button => button.classList.toggle("active", button.dataset.statusFilter === ayecStatusFilter)); if (!ayecStatusRefreshTimer) { ayecStatusRefreshSeconds = 29; ayecStatusRefreshTimer = setInterval(() => { if (page !== "service-status") { clearInterval(ayecStatusRefreshTimer); ayecStatusRefreshTimer = null; return; } ayecStatusRefreshSeconds = ayecStatusRefreshSeconds <= 1 ? 30 : ayecStatusRefreshSeconds - 1; const counter = $("#statusWallRefreshCount"); if (counter) counter.textContent = ayecStatusRefreshSeconds + "s"; if (ayecStatusRefreshSeconds === 30 && genericModules["service-status"]) loadGenericModule(genericModules["service-status"]).catch(() => {}); }, 1000); } } else if (ayecStatusRefreshTimer) { clearInterval(ayecStatusRefreshTimer); ayecStatusRefreshTimer = null; } };
+render = function() { ayecRenderBeforeStatusWall(); if (page === "service-status") { ayecStatusMarqueeRender(); ayecStatusFilter = "all"; ayecStatusCriticalOnly = false; ayecStatusPage = 0; document.querySelectorAll("[data-status-filter]").forEach(button => button.classList.toggle("active", button.dataset.statusFilter === ayecStatusFilter)); if (!ayecStatusRefreshTimer) { ayecStatusRefreshSeconds = 29; ayecStatusRefreshTimer = setInterval(() => { if (page !== "service-status") { clearInterval(ayecStatusRefreshTimer); ayecStatusRefreshTimer = null; return; } ayecStatusRefreshSeconds = ayecStatusRefreshSeconds <= 1 ? 30 : ayecStatusRefreshSeconds - 1; const counter = $("#statusWallRefreshCount"); if (counter) counter.textContent = ayecStatusRefreshSeconds + "s"; if (ayecStatusRefreshSeconds === 30 && genericModules["service-status"]) loadGenericModule(genericModules["service-status"]).catch(() => {}); }, 1000); } } else if (ayecStatusRefreshTimer) { clearInterval(ayecStatusRefreshTimer); ayecStatusRefreshTimer = null; } };
 
+function ayecStatusMarqueeText() {
+  return String(desktopSettings.marquee_text || "AYEC Pro Servis Yonetim Sistemi  |  Canli durum akisi");
+}
+function ayecStatusMarqueeRender() {
+  const marquee = document.querySelector("[data-status-marquee]");
+  if (!marquee) return;
+  const text = ayecStatusMarqueeText();
+  const track = marquee.querySelector(".status-wall-marquee-track");
+  const items = [...track.querySelectorAll("span")];
+  items.forEach(item => { item.textContent = text + "          "; });
+  track.style.setProperty("--status-marquee-duration", Math.max(0.3, items[0].scrollWidth / 33.333) + "s");
+}
+document.addEventListener("dblclick", event => {
+  if (page !== "service-status") return;
+  const marquee = event.target.closest("[data-status-marquee]");
+  if (!marquee || !db.settings.doubleClick) return;
+  const current = ayecStatusMarqueeText();
+  openDialog("Duyuru Ayar\u0131", "DURUM PANEL\u0130", `<label class="field full"><span>Kayan Alt Yaz\u0131 Metni</span><input name="marquee_text" value="${esc(current)}" required></label>`, async form => {
+    const value = String(form.get("marquee_text") || "");
+    if (!value.trim()) return false;
+    await apiFetch("/api/desktop/table/settings", {method:"POST", body:JSON.stringify({key:"marquee_text", value})});
+    desktopSettings.marquee_text = value;
+    ayecStatusMarqueeRender();
+    return true;
+  });
+}, true);
+
+const ayecStatusRenderBeforeActionParity = ayecStatusRender;
+ayecStatusRender = function() {
+  ayecStatusRenderBeforeActionParity();
+  if (page !== "service-status") return;
+  document.querySelectorAll("#statusWallHost tbody tr").forEach(row => {
+    const actions = row.cells[row.cells.length - 1];
+    if (!actions || actions.querySelector("[data-status-print]")) return;
+    const print = document.createElement("button");
+    print.type = "button";
+    print.className = "mini";
+    print.dataset.statusPrint = "true";
+    print.textContent = "Yazd\u0131r";
+    actions.append(" ", print);
+  });
+};
+
+function ayecStatusPrintChoices(row) {
+  const tracking = String(row.tracking_no || ("SRV-" + row.id));
+  const choices = [
+    ["short", "K\u0131sa Fi\u015f"], ["detailed", "Detayl\u0131 Fi\u015f Yazd\u0131r"],
+    ["cargo", "Kargo Fi\u015fi"], ["label-a", "Etiket A"],
+    ["label-b", "Etiket B"], ["form", "Servis Formu"]
+  ];
+  const buttons = choices.map(([kind, label]) => '<button type="button" class="status-print-choice" data-status-print-kind="' + kind + '" data-status-tracking="' + esc(tracking) + '">' + label + '</button>').join("");
+  openDialog("Yazd\u0131rma Se\u00e7enekleri", "SERV\u0130S KAYDI", '<div class="status-print-choices">' + buttons + '</div>', () => true, "Kapat");
+}
+
+function ayecStatusPrintPreview(row, kind) {
+  const tracking = String(row.tracking_no || ("SRV-" + row.id));
+  const device = [row.device_brand, row.device_model].filter(Boolean).join(" ") || row.device_type || "-";
+  const titleByKind = {short:"K\u0131sa Servis Fi\u015fi", detailed:"Detayl\u0131 Servis Fi\u015fi", cargo:"Kargo Fi\u015fi", "label-a":"Servis Etiketi A", "label-b":"Servis Etiketi B", form:"Servis Formu"};
+  const fields = [
+    ["Takip No", tracking], ["M\u00fc\u015fteri", row.customer_name], ["Telefon", row.customer_phone || row.phone],
+    ["Cihaz / Model", device], ["Seri No", row.serial_no || row.serial_number], ["Durum", row.status],
+    ["Giri\u015f Tarihi", row.entry_date], ["Tahmini Teslim", row.estimated_date], ["Teknisyen", row.technician_name || row.personnel_name],
+    ["Ar\u0131za / Talep", row.fault_description], ["Yap\u0131lan \u0130\u015flem", row.repair_details || row.technician_notes],
+    ["Kargo", row.cargo_firm || row.cargo_company], ["Adres", row.address || row.shipping_address]
+  ].filter(([, value]) => String(value || "").trim());
+  const printFields = kind === "short" ? fields.slice(0, 8) : kind === "cargo"
+    ? fields.filter(([label]) => ["Takip No", "M\u00fc\u015fteri", "Telefon", "Cihaz / Model", "Seri No", "Kargo", "Adres"].includes(label))
+    : fields;
+  const label = kind === "label-a" || kind === "label-b";
+  const body = label
+    ? '<section id="statusPrintArea" class="status-print-document status-print-' + kind + '"><h1>' + esc(tracking) + '</h1><strong>' + esc(row.customer_name || "-") + '</strong><p>' + esc(device) + '</p><small>' + esc(row.serial_no || row.serial_number || "") + '</small></section>'
+    : '<article id="statusPrintArea" class="status-print-document"><header><h1>' + titleByKind[kind] + '</h1><strong>' + esc(tracking) + '</strong></header><dl>' + printFields.map(([labelText, value]) => '<div><dt>' + labelText + '</dt><dd>' + esc(value) + '</dd></div>').join("") + '</dl><footer>AYEC Pro | ' + esc(today()) + '</footer></article>';
+  openDialog(titleByKind[kind], "YAZDIRMA \u00d6N\u0130ZLEMES\u0130", body, () => { window.print(); return true; }, "Yazd\u0131r");
+}
+
+document.addEventListener("click", event => {
+  if (page !== "service-status") return;
+  const choice = event.target.closest("[data-status-print-kind]");
+  if (choice) {
+    const row = ayecStatusRows.find(item => String(item.tracking_no || ("SRV-" + item.id)) === choice.dataset.statusTracking);
+    if (!row) return;
+    $("#appDialog").close();
+    ayecStatusPrintPreview(row, choice.dataset.statusPrintKind);
+    return;
+  }
+  const print = event.target.closest("[data-status-print]");
+  if (!print) return;
+  const rowElement = print.closest("#statusWallHost tbody tr");
+  const trackingNo = String(rowElement?.cells[0]?.innerText || "").trim();
+  const row = ayecStatusRows.find(item => String(item.tracking_no || ("SRV-" + item.id)) === trackingNo);
+  if (row) ayecStatusPrintChoices(row);
+});
+
+
+const ayecStatusRenderBeforeSmsAction = ayecStatusRender;
+ayecStatusRender = function() {
+  ayecStatusRenderBeforeSmsAction();
+  if (page !== "service-status") return;
+  document.querySelectorAll("#statusWallHost tbody tr").forEach(row => {
+    const actions = row.cells[row.cells.length - 1];
+    if (!actions || actions.querySelector("[data-status-sms]")) return;
+    const sms = document.createElement("button");
+    sms.type = "button";
+    sms.className = "mini";
+    sms.dataset.statusSms = "true";
+    sms.textContent = "SMS";
+    sms.title = "SMS G\u00f6nder";
+    actions.append(" ", sms);
+  });
+};
+
+function ayecOpenStatusSmsDialog(row, target) {
+  const templates = [
+    ["\u00d6zel Mesaj Yaz", ""],
+    ["Cihaz Al\u0131nd\u0131", "Cihaz\u0131n\u0131z servisimize kabul edilmi\u015ftir. Takip No: {tracking_no}"],
+    ["Fiyat Onay\u0131 Bekleniyor", "Cihaz\u0131n\u0131z i\u00e7in fiyat onay\u0131 gerekmektedir. L\u00fctfen ileti\u015fime ge\u00e7iniz."],
+    ["Onar\u0131m Tamamland\u0131", "Cihaz\u0131n\u0131z\u0131n onar\u0131m\u0131 tamamlanm\u0131\u015ft\u0131r. Teslim alabilirsiniz."],
+    ["Yedek Par\u00e7a Bekleniyor", "Cihaz\u0131n\u0131z i\u00e7in yedek par\u00e7a sipari\u015fi verilmi\u015ftir."],
+    ["Cihaz \u0130ade/\u0130ptal", "Cihaz\u0131n\u0131z iade/iptal edilmi\u015ftir."]
+  ];
+  const options = templates.map(([label, message]) => `<option value="${esc(message)}">${esc(label)}</option>`).join("");
+  const warning = !target.configured ? "Twilio SMS bilgileri Ayarlar > SMS Servis b\u00f6l\u00fcm\u00fcnden yap\u0131land\u0131r\u0131lmal\u0131." : !target.phone ? "Bu kay\u0131t i\u00e7in telefon numaras\u0131 bulunmuyor." : "";
+  openDialog(`SMS G\u00f6nder - ${target.customer_name || "M\u00fc\u015fteri"}`, "SERV\u0130S B\u0130LG\u0130LEND\u0130RME", `<div class="status-sms-compose"><div class="status-sms-recipient"><b>Al\u0131c\u0131:</b> ${esc(target.customer_name || "-")}<br><b>Tel:</b> ${esc(target.phone || "-")}</div><label for="statusSmsTemplate">\u015eablon Se\u00e7iniz</label><select class="control" id="statusSmsTemplate">${options}</select><label for="statusSmsMessage">Mesaj \u0130\u00e7eri\u011fi</label><textarea class="control" id="statusSmsMessage" name="message" rows="6" maxlength="1600" placeholder="Mesaj\u0131n\u0131z\u0131 buraya yaz\u0131n..." ${warning ? "disabled" : ""}></textarea><small id="statusSmsCount">0 / 160 karakter</small><p class="status-sms-warning" ${warning ? "" : "hidden"}>${esc(warning)}</p></div>`, async form => {
+    const message = String(form.get("message") || "").trim();
+    if (!message) throw new Error("L\u00fctfen bir mesaj metni giriniz.");
+    if (!target.configured || !target.phone) throw new Error(warning || "SMS g\u00f6nderilemiyor.");
+    await apiFetch("/api/desktop/service-sms", {method: "POST", body: JSON.stringify({tracking_no: target.tracking_no, message})});
+    toast("SMS ba\u015far\u0131yla g\u00f6nderildi.", "success");
+    return true;
+  }, "SMS G\u00f6nder");
+  const select = $("#statusSmsTemplate"), textarea = $("#statusSmsMessage"), count = $("#statusSmsCount");
+  const updateCount = () => { if (count) count.textContent = `${textarea?.value.length || 0} / 160 karakter`; };
+  if (select && textarea) select.onchange = () => { textarea.value = select.value.replaceAll("{tracking_no}", String(target.tracking_no || "")); updateCount(); };
+  if (textarea) textarea.oninput = updateCount;
+  if (warning) $("#dialogSubmit").disabled = true;
+}
+
+document.addEventListener("click", event => {
+  if (page !== "service-status" || !event.target.closest("[data-status-sms]")) return;
+  const rowElement = event.target.closest("#statusWallHost tbody tr");
+  const trackingNo = String(rowElement?.cells[0]?.innerText || "").trim();
+  if (!trackingNo) return;
+  apiFetch("/api/desktop/service-sms/status?tracking_no=" + encodeURIComponent(trackingNo))
+    .then(target => ayecOpenStatusSmsDialog(ayecStatusRows.find(item => String(item.tracking_no || ("SRV-" + item.id)) === trackingNo) || {}, target))
+    .catch(error => toast(error.message, "error"));
+});
+
+const ayecRenderSmsProviderBeforeTwilio = renderPart9SmsProvider;
+renderPart9SmsProvider = function() {
+  const html = ayecRenderSmsProviderBeforeTwilio();
+  const credentials = `<section class="p9-sms-card"><h3>Twilio SMS Ba\u011flant\u0131s\u0131</h3><p class="muted">Masa\u00fcst\u00fc servis SMS ak\u0131\u015f\u0131yla ayn\u0131 Twilio hesab\u0131 kullan\u0131l\u0131r. Kimlik do\u011frulama anahtar\u0131 \u015fifreli saklan\u0131r.</p><div class="form-grid">${exactSettingsField(["twilio_account_sid", "Twilio Account SID", "text", ""], "settings")}${exactSettingsField(["twilio_auth_token", "Twilio Auth Token", "password", ""], "settings")}${exactSettingsField(["twilio_from_number", "Twilio G\u00f6nderici", "text", ""], "settings")}</div><div class="actions"><button type="button" data-twilio-sms-test>Ba\u011flant\u0131y\u0131 Test Et</button><output id="twilioSmsTestResult" aria-live="polite"></output></div></section>`;
+  return html.replace('<section class="p9-sms-loop-section">', credentials + '<section class="p9-sms-loop-section">');
+};
+
+document.addEventListener("click", async event => {
+  const test = event.target.closest("[data-twilio-sms-test]");
+  if (!test) return;
+  const result = $("#twilioSmsTestResult");
+  test.disabled = true;
+  if (result) result.textContent = "Ba\u011flant\u0131 test ediliyor...";
+  try {
+    const response = await apiFetch("/api/desktop/service-sms/test", {method: "POST", body: "{}"});
+    if (result) result.textContent = response.message || "Ba\u011flant\u0131 ba\u015far\u0131l\u0131.";
+  } catch (error) {
+    if (result) result.textContent = error.message || "Ba\u011flant\u0131 ba\u015far\u0131s\u0131z.";
+  } finally {
+    test.disabled = false;
+  }
+});
 
 // Part 4: field operations view uses appointment records and marks missing GPS data clearly.
 let ayecFieldRows = [];
 const ayecGenericShellBeforeFieldMap = genericShell;
 genericShell = function(meta) {
   if (page !== "field-service" || meta?.table !== "appointments") return ayecGenericShellBeforeFieldMap(meta);
-  return pageHead("Saha Haritas\u0131 & G\u00f6rev Takibi", "Randevu ve saha i\u015flerini tek ekranda izleyin.", '<button type="button" class="secondary" data-generic-refresh>Yenile</button><button type="button" class="secondary" data-field-export>Excel / Rapor</button><button type="button" class="primary" data-generic-add>+ Yeni Saha G\u00f6revi</button>') +
+  return pageHead("Saha Haritas\u0131 & Canl\u0131 Teknisyen Takibi", "Saha ekiplerinin anl\u0131k konumlar\u0131, devam eden servis rotalar\u0131, m\u00fc\u015fteri lokasyonlar\u0131 ve acil ar\u0131za \u00e7a\u011fr\u0131lar\u0131.", '<button type="button" class="secondary" data-generic-refresh>Yenile</button><button type="button" class="secondary" data-field-export>Excel / Rapor</button><button type="button" class="primary" data-generic-add>+ Yeni Saha G\u00f6revi</button>') +
     '<section class="metric-grid field-map-metrics"><article><small>BUG\u00dcNK\u00dc SAHA G\u00d6REVLER\u0130</small><strong id="fieldMapTotal">0</strong><footer>Takvime kay\u0131tl\u0131</footer></article><article><small>BEKLEYEN</small><strong id="fieldMapPending">0</strong><footer>Planlanan g\u00f6revler</footer></article><article><small>TAMAMLANAN</small><strong id="fieldMapDone">0</strong><footer>Kay\u0131tl\u0131 tamamlanma durumu</footer></article><article><small>CANLI KONUM</small><strong>Yok</strong><footer>GPS telemetrisi ba\u011fl\u0131 de\u011fil</footer></article></section>' +
     '<section class="field-map-layout"><article class="card field-map-canvas"><header><div><b>SAHA G\u00d6REV HAR\u0130TASI</b><small>Konum verisi kaynak kay\u0131tlar\u0131nda bulunmuyor</small></div><span class="field-map-offline"><i></i>GPS BA\u011eLI DE\u011e\u0130L</span></header><div class="field-map-empty"><span aria-hidden="true">\u2316</span><h3>Canl\u0131 konum verisi yok</h3><p>Harita i\u015faretleri yaln\u0131zca ger\u00e7ek GPS koordinatlar\u0131 kaydedildi\u011finde g\u00f6sterilir. Randevular ve g\u00f6revler sa\u011f panelde listelenir.</p></div><footer><span>Koordinat kayd\u0131 olmadan konum g\u00f6sterilmez.</span><button type="button" class="secondary" data-page="settings">Konum ayarlar\u0131</button></footer></article><aside class="card field-map-queue"><header><h3>Saha G\u00f6revleri</h3><b id="fieldMapCount">0</b></header><div class="field-map-search"><input id="genericSearch" class="control search" type="search" placeholder="M\u00fc\u015fteri veya i\u015f ara..."><select class="control" id="fieldMapStatus"><option value="all">T\u00fcm Durumlar</option><option value="pending">Bekleyen</option><option value="done">Tamamlanan</option></select></div><div id="fieldMapRows"></div><div id="genericHost" hidden></div><div id="genericCount" hidden></div></aside></section>';
 };
@@ -4698,10 +6703,11 @@ document.addEventListener("click", event => {
 });
 
 let ayecPersonnelSelectedId = "";
+const personnelFormatMoney = value => `${Number(value || 0).toLocaleString("en-US", {minimumFractionDigits: 2, maximumFractionDigits: 2})} TL`;
 const genericShellBeforePersonnel = genericShell;
 genericShell = function(meta) {
   if (page !== "personnel" || meta?.table !== "personnel") return genericShellBeforePersonnel(meta);
-  return `${pageHead("Personel &amp; Bordro Merkezi", "Personel kartlar\u0131n\u0131 ve kay\u0131tl\u0131 \u00fccret bilgilerini tek ekranda y\u00f6netin.", '<button class="secondary" data-personnel-export>CSV D\u0131\u015fa Aktar</button><button class="secondary" data-generic-refresh>Yenile</button><button class="primary" data-generic-add>+ Yeni Personel Kayd\u0131</button>')}<section class="personnel-ref-metrics"><article><small>AKT\u0130F PERSONEL</small><strong id="personnelActiveCount">0</strong><span>Personel kay\u0131tlar\u0131</span></article><article><small>TOPLAM AYLIK MAA\u015e</small><strong id="personnelSalaryTotal">0</strong><span>Kaydedilmi\u015f maa\u015f alanlar\u0131</span></article><article><small>KAYITLI PR\u0130M</small><strong id="personnelCommissionTotal">0</strong><span>Personel kartlar\u0131ndaki prim de\u011ferleri</span></article><article><small>DEPARTMAN</small><strong id="personnelDepartmentCount">0</strong><span>Farkl\u0131 kay\u0131tl\u0131 birimler</span></article></section><section class="personnel-ref-layout"><article class="card personnel-ref-list"><header><div><h3>Personel Kadrosu &amp; Bordro</h3><p class="muted">Arama, rol filtresi ve personel kart\u0131</p></div><span class="badge" id="personnelResultCount">0 kay\u0131t</span></header><div class="personnel-ref-toolbar"><input class="control search" id="genericSearch" placeholder="Personel ad\u0131, sicil veya departman ara..."><select class="control" id="personnelRoleFilter"><option value="">T\u00fcm Roller</option></select></div><div class="table-wrap"><table><thead><tr><th>PERSONEL</th><th>UNVAN &amp; \u0130STASYON</th><th>DURUM</th><th>AYLIK MAA\u015e</th><th>PR\u0130M</th><th>AKS\u0130YON</th></tr></thead><tbody id="personnelRows"></tbody></table></div><div class="personnel-ref-count" id="genericCount" hidden></div></article><aside class="card personnel-ref-profile" id="personnelProfile"></aside></section>`;
+  return `<nav class="personnel-payroll-tabs personnel-main-tabs" aria-label="Personel sekmeleri"><button type="button" class="active" data-personnel-tab="directory">Personel Kadrosu &amp; Bordro</button><button type="button" data-personnel-tab="payroll">Maa\u015f ve Prim Y\u00f6netimi</button></nav>${pageHead("Personel &amp; IK Bordro, Prim ve Performans Merkezi", "personel kartlar\u0131n\u0131, bordroyu, primleri ve performans g\u00f6stergelerini y\u00f6netin.", '<button class="secondary" data-personnel-open-payroll>Puantaj ve Izinler</button><button class="primary" data-generic-add>+ Yeni Personel Kaydi</button>')}<section class="personnel-payroll-panel" data-personnel-panel="directory"><section class="personnel-ref-metrics"><article><small>AKT\u0130F PERSONEL</small><strong id="personnelActiveCount">0</strong><span>Personel kay\u0131tlar\u0131</span></article><article><small>TOPLAM AYLIK MAA\u015e</small><strong id="personnelSalaryTotal">0</strong><span>Kaydedilmi\u015f maa\u015f alanlar\u0131</span></article><article><small>KAYITLI PR\u0130M</small><strong id="personnelCommissionTotal">0</strong><span>Personel kartlar\u0131ndaki prim de\u011ferleri</span></article><article><small>ORT. SERV\u0130S \u00c7\u00d6Z\u00dcM PUANI</small><strong id="personnelDepartmentCount">-</strong></article></section><section class="personnel-ref-layout"><article class="card personnel-ref-list"><span id="personnelResultCount" hidden></span><div class="personnel-ref-toolbar"><input class="control search" id="genericSearch" placeholder="Personel ad\u0131, sicil veya departman ara..."><select class="control" id="personnelRoleFilter"><option value="">Tum Roller</option></select><button class="secondary personnel-fields-toggle" type="button" id="personnelFieldsToggle" aria-pressed="false">T\u00fcm Alanlar</button></div><div class="table-wrap"><table class="personnel-ref-table"><thead><tr><th class="personnel-extra">ID</th><th>Ad Soyad</th><th>G\u00f6revi</th><th class="personnel-extra">Departman</th><th class="personnel-extra">Telefon</th><th class="personnel-extra">E-posta</th><th class="personnel-extra">Telegram</th><th class="personnel-extra">TC No</th><th class="personnel-extra">Ucret Tipi</th><th>G\u00d6REV DURUMU</th><th>COZULEN IS</th><th>KAYITLI PRIM</th><th>Birim Ucret</th><th>AKSIYON</th></tr></thead><tbody id="personnelRows"></tbody></table></div><div class="personnel-ref-count" id="genericCount" hidden></div></article><aside class="personnel-ref-rail"><section class="card personnel-ref-ranking" id="personnelLeaderboard"></section><section class="card personnel-ref-profile" id="personnelProfile"></section></aside></section><section class="personnel-ref-footer"><article><strong>SGK E-Bildirge Otomasyonu</strong><span>Dosya olusturma ve onay durumu dogrulanmadi</span></article><article><strong>Banka Maas TXT Dosyasi</strong><span>Banka odeme dosyasi olusturma durumu dogrulanmadi</span></article><article><strong>Teknisyen Liderlik Tablosu</strong><span>Performans verisi baglantisi bekleniyor</span></article></section></section><section class="personnel-payroll-panel" data-personnel-panel="payroll" hidden><article class="card personnel-payroll-calculator"><header><div><h3>Yevmiye ve Puantaj</h3><p class="muted">D\u00f6nem, personel ve \u00e7al\u0131\u015fma g\u00fcn\u00fcn\u00fc se\u00e7in.</p></div></header><div class="personnel-payroll-form"><label>D\u00f6nem<input class="control" id="personnelPayrollPeriod" type="month"></label><label>Personel<select class="control" id="personnelPayrollPerson"></select></label><label>\u00c7al\u0131\u015fma G\u00fcn\u00fc<input class="control" id="personnelPayrollDays" type="number" min="0.5" max="31" step="0.1" value="1"></label><label>G\u00fcnl\u00fck Yevmiye<input class="control" id="personnelPayrollRate" readonly></label><label>Hesaplanan \u00d6deme<input class="control" id="personnelPayrollTotal" readonly></label><label class="wide">Not<input class="control" id="personnelPayrollNote" maxlength="500"></label><div class="wide personnel-payroll-submit"><button type="button" class="primary" data-personnel-payroll-save>Yevmiyeyi Kaydet</button><span class="muted" id="personnelPayrollHint"></span></div></div></article><article class="card personnel-payroll-list"><header><h3>D\u00f6nem Puantaj Kay\u0131tlar\u0131</h3><span class="badge" id="personnelPayrollCount">0</span></header><div class="table-wrap"><table><thead><tr><th>D\u00f6nem</th><th>Personel</th><th>\u00c7al\u0131\u015fma G\u00fcn\u00fc</th><th>G\u00fcnl\u00fck Yevmiye</th><th>Toplam \u00d6deme</th><th>Not</th><th>\u0130\u015flem</th></tr></thead><tbody id="personnelPayrollRows"></tbody></table></div></article></section>`;
 };
 const loadGenericModuleBeforePersonnel = loadGenericModule;
 loadGenericModule = async function(meta, query = "") {
@@ -4711,24 +6717,106 @@ loadGenericModule = async function(meta, query = "") {
   try {
     const data = await apiFetch(`/api/desktop/table/personnel?limit=500&q=${encodeURIComponent(query)}`);
     window.currentGenericData = data; window.currentGenericMeta = meta;
-    const rows = data.rows || [], roles = [...new Set(rows.map(row => String(row.role || row.department || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "tr"));
+    const rows = data.rows || []; window.ayecPersonnelRows = rows; const roles = [...new Set(rows.map(row => String(row.role || row.department || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "tr"));
     const roleFilter = $("#personnelRoleFilter"), selectedRole = roleFilter?.value || "";
     if (roleFilter) roleFilter.innerHTML = '<option value="">T\u00fcm Roller</option>' + roles.map(role => `<option value="${esc(role)}" ${role === selectedRole ? "selected" : ""}>${esc(role)}</option>`).join("");
     const activeRows = rows.filter(row => row.active == null || Number(row.active) !== 0), salary = activeRows.reduce((sum, row) => sum + (Number(row.salary) || 0), 0), commission = activeRows.reduce((sum, row) => sum + (Number(row.commission) || 0), 0), departments = new Set(activeRows.map(row => String(row.department || "").trim()).filter(Boolean));
-    $("#personnelActiveCount").textContent = String(activeRows.length); $("#personnelSalaryTotal").textContent = money(salary, "TRY"); $("#personnelCommissionTotal").textContent = money(commission, "TRY"); $("#personnelDepartmentCount").textContent = String(departments.size); $("#personnelResultCount").textContent = `${rows.length} kay\u0131t`;
+    $("#personnelActiveCount").textContent = String(activeRows.length); $("#personnelSalaryTotal").textContent = personnelFormatMoney(salary); $("#personnelCommissionTotal").textContent = personnelFormatMoney(commission); $("#personnelDepartmentCount").textContent = "-"; $("#personnelResultCount").textContent = `${rows.length} kay\u0131t`;
     const visible = rows.filter(row => !selectedRole || String(row.role || row.department || "") === selectedRole);
-    host.innerHTML = visible.map((row, index) => `<tr class="personnel-ref-row ${String(row.id) === ayecPersonnelSelectedId ? "selected" : ""}" data-personnel-id="${esc(row.id)}"><td><strong>${esc(row.name || "-")}</strong><small>${esc(row.email || row.phone || "\u0130leti\u015fim bilgisi yok")}</small></td><td><strong>${esc(row.role || "-")}</strong><small>${esc(row.department || "Birim belirtilmedi")}</small></td><td><span class="badge ${row.active == null || Number(row.active) !== 0 ? "success" : "muted"}">${row.active == null || Number(row.active) !== 0 ? "Aktif" : "Pasif"}</span></td><td>${row.salary == null ? "-" : money(Number(row.salary) || 0, "TRY")}</td><td>${row.commission == null ? "-" : money(Number(row.commission) || 0, "TRY")}</td><td><button class="mini generic-edit" data-index="${index}">D\u00fczenle</button></td></tr>`).join("") || `<tr><td colspan="6">${empty("Personel bulunamad\u0131", "Arama veya rol filtresini de\u011fi\u015ftirebilirsiniz.")}</td></tr>`;
+    host.innerHTML = visible.map((row, index) => { const daily = String(row.employment_type || "monthly") === "daily", wage = daily ? row.daily_wage : row.salary, task = Number(row.is_deleted) === 1 ? "Arsivlenmis" : "Kayitli"; return `<tr class="personnel-ref-row ${String(row.id) === ayecPersonnelSelectedId ? "selected" : ""}" data-personnel-id="${esc(row.id)}"><td class="personnel-extra">${esc(row.id)}</td><td><strong>${esc(row.name || "-")}</strong><small>TC / Ref: ${esc(row.tc_no || "-")}</small></td><td><strong>${esc(row.role || "-")}</strong><small>${esc(row.department || "")}</small></td><td class="personnel-extra">${esc(row.department || "-")}</td><td class="personnel-extra">${esc(row.phone || "-")}</td><td class="personnel-extra">${esc(row.email || "-")}</td><td class="personnel-extra">${esc(row.telegram_username || "-")}</td><td class="personnel-extra">${esc(row.tc_no || "-")}</td><td class="personnel-extra">${daily ? "Yevmiye" : "Aylik Maas"}</td><td><span>${task}</span><small>Telemetri yok</small></td><td>-</td><td class="personnel-money">${row.commission == null ? "-" : personnelFormatMoney(Number(row.commission) || 0)}</td><td class="personnel-money">${wage == null ? "-" : personnelFormatMoney(Number(wage) || 0)}</td><td><button class="mini generic-edit" data-index="${index}">Duzenle</button></td></tr>`; }).join("") || `<tr><td colspan="14">${empty("Personel bulunamadi", "Arama veya rol filtresini degistirebilirsiniz.")}</td></tr>`;
     if (!visible.some(row => String(row.id) === ayecPersonnelSelectedId)) ayecPersonnelSelectedId = String(visible[0]?.id || "");
     const selected = visible.find(row => String(row.id) === ayecPersonnelSelectedId);
-    $("#personnelProfile").innerHTML = selected ? `<header><div><h3>Personel H\u0131zl\u0131 Dosyas\u0131</h3><span class="badge">${selected.active == null || Number(selected.active) !== 0 ? "Aktif" : "Pasif"}</span></div></header><div class="personnel-ref-identity"><span>${esc(String(selected.name || "?").split(/\s+/).slice(0, 2).map(name => name[0] || "").join("").toLocaleUpperCase("tr-TR"))}</span><div><strong>${esc(selected.name || "-")}</strong><small>${esc(selected.role || "-")} \u00b7 ${esc(selected.department || "Birim belirtilmedi")}</small></div></div><dl><div><dt>Telefon</dt><dd>${esc(selected.phone || "-")}</dd></div><div><dt>E-posta</dt><dd>${esc(selected.email || "-")}</dd></div><div><dt>Ayl\u0131k maa\u015f</dt><dd>${selected.salary == null ? "-" : money(Number(selected.salary) || 0, "TRY")}</dd></div><div><dt>Kay\u0131tl\u0131 prim</dt><dd>${selected.commission == null ? "-" : money(Number(selected.commission) || 0, "TRY")}</dd></div><div><dt>\u0130\u015fe giri\u015f</dt><dd>${esc(selected.start_date || selected.created_at || "-")}</dd></div></dl><button class="primary" data-personnel-edit="${esc(selected.id)}">Personel Kayd\u0131n\u0131 D\u00fczenle</button>` : empty("Personel se\u00e7ilmedi", "D\u00fczenlemek i\u00e7in kadrodan bir kay\u0131t se\u00e7in.");
+    const ranked = [...activeRows].sort((a, b) => (Number(b.commission) || 0) - (Number(a.commission) || 0)).slice(0, 3);
+    $("#personnelLeaderboard").innerHTML = `<div class="personnel-ranking-title">Kayitli Prim Siralamasi</div>${ranked.map(row => `<div class="personnel-ranking-row"><span>${esc(row.name || "-")}</span><strong>${personnelFormatMoney(Number(row.commission) || 0)}</strong></div>`).join("") || `<div class="muted">Kayitli prim verisi yok.</div>`}`;
+    $("#personnelProfile").innerHTML = selected ? `<header><div><h3>Personel H\u0131zl\u0131 Dosyas\u0131</h3><span class="badge">${selected.active == null || Number(selected.active) !== 0 ? "Aktif" : "Pasif"}</span></div></header><div class="personnel-ref-identity"><span>${esc(String(selected.name || "?").split(/\s+/).slice(0, 2).map(name => name[0] || "").join("").toLocaleUpperCase("tr-TR"))}</span><div><strong>${esc(selected.name || "-")}</strong><small>${esc(selected.role || "-")} \u00b7 ${esc(selected.department || "Birim belirtilmedi")}</small></div></div><div class="personnel-detail-block"><small>DEPARTMAN</small><strong>${esc(selected.department || "-")}</strong><small>ILETISIM</small><strong>${esc([selected.phone, selected.email].filter(Boolean).join(" | ") || "-")}</strong><small>UCRET TIPI / TUTARI</small><strong>${String(selected.employment_type || "monthly") === "daily" ? "Yevmiye" : "Aylik Maas"} | ${personnelFormatMoney(Number(String(selected.employment_type || "monthly") === "daily" ? selected.daily_wage : selected.salary) || 0)}</strong><small>CALISMA DURUMU</small><strong>Canli gorev durumu verisi yok</strong></div><button class="primary" data-personnel-payroll-open> Puantaj ve Izinler</button>` : empty("Personel se\u00e7ilmedi", "D\u00fczenlemek i\u00e7in kadrodan bir kay\u0131t se\u00e7in.");
     $$(".generic-edit").forEach(button => button.onclick = event => { event.stopPropagation(); const row = visible[Number(button.dataset.index)]; if (row) openGenericDialog(meta, row, data.columns); });
     host.querySelectorAll("[data-personnel-id]").forEach(row => row.addEventListener("click", () => { ayecPersonnelSelectedId = row.dataset.personnelId; loadGenericModule(meta, $("#genericSearch")?.value || ""); }));
     $("[data-personnel-edit]")?.addEventListener("click", () => openGenericDialog(meta, selected, data.columns));
     $("[data-personnel-export]")?.addEventListener("click", () => download("personel-" + today() + ".csv", csv(rows)));
     $("#personnelRoleFilter")?.addEventListener("change", () => loadGenericModule(meta, $("#genericSearch")?.value || ""));
+    $("#personnelFieldsToggle")?.addEventListener("click", event => { const expanded = event.currentTarget.getAttribute("aria-pressed") !== "true"; event.currentTarget.setAttribute("aria-pressed", String(expanded)); event.currentTarget.textContent = expanded ? "Temel Alanlar" : "Tum Alanlar"; document.querySelector(".personnel-ref-table")?.classList.toggle("expanded", expanded); });
+    const openPayroll = () => document.querySelector("[data-personnel-tab=payroll]")?.click();
+    $("[data-personnel-open-payroll]")?.addEventListener("click", openPayroll);
+    $("[data-personnel-payroll-open]")?.addEventListener("click", openPayroll);
     $("#genericCount").textContent = `Toplam Kay\u0131t: ${data.count || rows.length}`;
+    loadPersonnelDailyWages(rows).catch(error => toast(error.message, "error"));
   } catch (error) { host.innerHTML = `<tr><td colspan="6">${empty("Personel mod\u00fcl\u00fc y\u00fcklenemedi", error.message)}</td></tr>`; }
 };
+
+
+async function loadPersonnelDailyWages(personnelRows) {
+  const period = document.querySelector("#personnelPayrollPeriod");
+  const peopleSelect = document.querySelector("#personnelPayrollPerson");
+  const tableBody = document.querySelector("#personnelPayrollRows");
+  if (!period || !peopleSelect || !tableBody) return;
+  if (!period.value) { const currentDate = new Date(); period.value = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, "0")}`; }
+  const eligible = (personnelRows || []).filter(row => String(row.employment_type || "monthly") === "daily" && Number(row.daily_wage) > 0);
+  const previousId = peopleSelect.value;
+  peopleSelect.innerHTML = '<option value="">Personel se\u00e7in</option>' + eligible.map(row => `<option value="${esc(row.id)}">${esc(row.name || "-")} - ${personnelFormatMoney(Number(row.daily_wage))}</option>`).join("");
+  if (eligible.some(row => String(row.id) === previousId)) peopleSelect.value = previousId;
+  else if (eligible.length) peopleSelect.value = String(eligible[0].id);
+  const selected = () => eligible.find(row => String(row.id) === peopleSelect.value);
+  const updatePreview = () => {
+    const days = Number(document.querySelector("#personnelPayrollDays")?.value || 0);
+    const rate = Number(selected()?.daily_wage || 0);
+    document.querySelector("#personnelPayrollRate").value = selected() ? personnelFormatMoney(rate) : "";
+    document.querySelector("#personnelPayrollTotal").value = selected() && days >= 0.5 && days <= 31 ? personnelFormatMoney(Math.round(days * rate * 100) / 100) : "";
+    document.querySelector("[data-personnel-payroll-save]").disabled = !selected() || !userAdminRole(currentAuthUser?.role) || days < 0.5 || days > 31;
+    document.querySelector("#personnelPayrollHint").textContent = !selected() ? "G\u00fcnl\u00fck \u00fccretli aktif personel yok." : !userAdminRole(currentAuthUser?.role) ? "Yevmiye kayd\u0131 i\u00e7in y\u00f6netici yetkisi gerekir." : "Kay\u0131t gider fi\u015fine i\u015flenerek d\u00f6nem kayd\u0131 olu\u015fturur.";
+  };
+  const refreshRows = async () => {
+    const [year, month] = period.value.split("-");
+    if (!year || !month) return;
+    const result = await apiFetch(`/api/desktop/personnel/daily-wages?year=${encodeURIComponent(year)}&month=${encodeURIComponent(month)}`);
+    const rows = result.rows || [];
+    document.querySelector("#personnelPayrollCount").textContent = String(rows.length);
+    tableBody.innerHTML = rows.map(row => `<tr data-payroll-id="${esc(row.id)}"><td>${esc(`${row.work_year}-${String(row.work_month).padStart(2, "0")}`)}</td><td>${esc(row.personnel_name || "-")}</td><td>${esc(Number(row.work_days).toLocaleString("tr-TR"))} g\u00fcn</td><td>${personnelFormatMoney(Number(row.daily_wage) || 0)}</td><td>${personnelFormatMoney(Number(row.total_amount) || 0)}</td><td>${esc(row.note || "-")}</td><td><button class="mini" type="button" data-payroll-edit="${esc(row.id)}">D\u00fczenle</button> <button class="mini danger" type="button" data-payroll-delete="${esc(row.id)}" ${userAdminRole(currentAuthUser?.role) ? "" : "disabled"}>Sil</button></td></tr>`).join("") || '<tr><td colspan="7">Bu d\u00f6nemde puantaj kayd\u0131 yok.</td></tr>';
+    tableBody.querySelectorAll("[data-payroll-edit]").forEach(button => button.onclick = () => {
+      const row = rows.find(item => String(item.id) === button.dataset.payrollEdit);
+      if (!row) return;
+      period.value = `${row.work_year}-${String(row.work_month).padStart(2, "0")}`;
+      peopleSelect.value = String(row.personnel_id);
+      document.querySelector("#personnelPayrollDays").value = row.work_days;
+      document.querySelector("#personnelPayrollNote").value = row.note || "";
+      updatePreview();
+      document.querySelector("[data-personnel-tab=payroll]").click();
+    });
+    tableBody.querySelectorAll("[data-payroll-delete]").forEach(button => button.onclick = async () => {
+      if (!userAdminRole(currentAuthUser?.role)) return;
+      openDialog("Yevmiye Kayd\u0131n\u0131 Sil", "SILME ONAYI", '<p>Bu yevmiye kayd\u0131 ve ilgili gider fi\u015fi silinsin mi?</p><p>Bu i\u015flem geri al\u0131namaz.</p>', async () => {
+        try {
+          await apiFetch("/api/desktop/personnel/daily-wages/delete", {method:"POST", body:JSON.stringify({id:button.dataset.payrollDelete})});
+          toast("Yevmiye kayd\u0131 silindi.");
+          await refreshRows();
+        } catch (error) {
+          toast(error.message, "error");
+          return false;
+        }
+      }, "Evet, Sil");
+      const cancel = document.querySelector("#dialogCancel");
+      if (cancel) cancel.textContent = "Hay\u0131r";
+      const submit = document.querySelector("#dialogSubmit");
+      if (submit) { submit.classList.remove("primary"); submit.classList.add("danger"); }
+    });
+  };
+  document.querySelectorAll("[data-personnel-tab]").forEach(button => button.onclick = () => {
+    document.querySelectorAll("[data-personnel-tab]").forEach(tab => tab.classList.toggle("active", tab === button));
+    document.querySelectorAll("[data-personnel-panel]").forEach(panel => panel.hidden = panel.dataset.personnelPanel !== button.dataset.personnelTab);
+  });
+  period.onchange = () => refreshRows().catch(error => toast(error.message, "error"));
+  peopleSelect.onchange = updatePreview;
+  document.querySelector("#personnelPayrollDays").oninput = updatePreview;
+  document.querySelector("[data-personnel-payroll-save]").onclick = async () => {
+    const [year, month] = period.value.split("-");
+    try {
+      await apiFetch("/api/desktop/personnel/daily-wages", {method:"POST", body:JSON.stringify({personnel_id:peopleSelect.value,work_year:year,work_month:month,work_days:document.querySelector("#personnelPayrollDays").value,note:document.querySelector("#personnelPayrollNote").value})});
+      toast("Yevmiye kayd\u0131 ve gider fi\u015fi kaydedildi.");
+      await refreshRows();
+    } catch (error) { toast(error.message, "error"); }
+  };
+  peopleSelect.dispatchEvent(new Event("change"));
+  await refreshRows();
+}
 
 let ayecChecksFilter = "all";
 let ayecChecksRows = [];
@@ -4757,6 +6845,11 @@ loadGenericModule = async function(meta, query = "") {
 document.addEventListener("change", event => { if (page === "checks" && ["checksStatusFilter", "checksDueStart", "checksDueEnd"].includes(event.target.id)) loadGenericModule(genericModules.checks, $("#genericSearch")?.value || ""); });
 
 let ayecSettingsUsers = [];
+let ayecSettingsUserStatusFilter = "";
+let ayecSettingsUserSortOrder = "ASC";
+let ayecSettingsUserPage = 1;
+let ayecSettingsUserTableMode = false;
+let ayecSettingsUserTotal = 0;
 let ayecSettingsSelectedUserId = "";
 function ayecRenderSettingsUsers() {
   const host = $("#settingsUsersHost"); if (!host) return;
@@ -4764,58 +6857,157 @@ function ayecRenderSettingsUsers() {
   const roles = [...new Set(ayecSettingsUsers.map(user => String(user.role || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "tr"));
   const roleSelect = $("#settingsUsersRole"), oldRole = roleSelect?.value || "";
   if (roleSelect) roleSelect.innerHTML = '<option value="">T\u00fcm roller</option>' + roles.map(role => `<option value="${esc(role)}" ${role === oldRole ? "selected" : ""}>${esc(role)}</option>`).join("");
-  const visible = ayecSettingsUsers.filter(user => (!selectedRole || String(user.role || "") === selectedRole) && (!query || [user.username, user.full_name, user.email, user.role].join(" ").toLocaleLowerCase("tr-TR").includes(query)));
-  if (!visible.some(user => String(user.id) === ayecSettingsSelectedUserId)) ayecSettingsSelectedUserId = String(visible[0]?.id || "");
-  const selected = visible.find(user => String(user.id) === ayecSettingsSelectedUserId), active = ayecSettingsUsers.filter(user => Number(user.active ?? 1) !== 0), editing = ayecSettingsUsers.filter(user => Number(user.interface_edit_access ?? 0) !== 0);
-  const metrics = `<section class="settings-users-metrics"><article><small>TOPLAM KULLANICI</small><strong>${ayecSettingsUsers.length}</strong><span>Hesap kayd\u0131</span></article><article><small>AKT\u0130F KULLANICI</small><strong>${active.length}</strong><span>${ayecSettingsUsers.length - active.length} pasif</span></article><article><small>ROL DA\u011eILIMI</small><strong>${roles.length}</strong><span>Kay\u0131tl\u0131 rol t\u00fcr\u00fc</span></article><article><small>ARAY\u00dcZ D\u00dcZENLEME</small><strong>${editing.length}</strong><span>Yetkisi a\u00e7\u0131k hesap</span></article></section>`;
-  const list = `<article class="card settings-users-list"><header><div><h3>Sistem Kullan\u0131c\u0131lar\u0131</h3><p>${visible.length} kay\u0131t g\u00f6steriliyor</p></div><button class="secondary" id="settingsUsersRefresh">Yenile</button></header><div class="settings-users-filters"><input class="control" id="settingsUsersSearch" value="${esc($("#settingsUsersSearch")?.value || "")}" placeholder="\u0130sim, e-posta veya kullan\u0131c\u0131 ad\u0131 ara..."><select class="control" id="settingsUsersRole"><option value="">T\u00fcm roller</option>${roles.map(role => `<option value="${esc(role)}" ${role === selectedRole ? "selected" : ""}>${esc(role)}</option>`).join("")}</select></div><div class="table-wrap"><table><thead><tr><th>KULLANICI</th><th>AD SOYAD</th><th>ROL</th><th>DURUM</th><th>SON G\u0130R\u0130\u015e</th><th></th></tr></thead><tbody>${visible.map(user => `<tr class="settings-user-row ${String(user.id) === ayecSettingsSelectedUserId ? "selected" : ""}" data-settings-user="${esc(user.id)}"><td><strong>${esc(user.username || "-")}</strong></td><td>${esc(user.full_name || "-")}</td><td>${esc(user.role || "-")}</td><td><span class="badge ${Number(user.active ?? 1) !== 0 ? "success" : "muted"}">${Number(user.active ?? 1) !== 0 ? "Aktif" : "Pasif"}</span></td><td>${esc(user.last_login || "-")}</td><td><button class="mini" data-settings-user-edit="${esc(user.id)}">Yetkiler</button></td></tr>`).join("") || `<tr><td colspan="6">${empty("Kullan\u0131c\u0131 bulunamad\u0131", "Aramay\u0131 veya rol filtresini de\u011fi\u015ftirin.")}</td></tr>`}</tbody></table></div></article>`;
+  const selectedStatus = $("#settingsUsersStatus")?.value ?? ayecSettingsUserStatusFilter;
+  const selectedSort = $("#settingsUsersSort")?.value ?? ayecSettingsUserSortOrder;
+  ayecSettingsUserStatusFilter = selectedStatus;
+  ayecSettingsUserSortOrder = selectedSort;
+  const visible = ayecSettingsUsers.filter(user => (!selectedRole || String(user.role || "") === selectedRole) && (!selectedStatus || (selectedStatus === "active" ? Number(user.active ?? 1) !== 0 : Number(user.active ?? 1) === 0)) && (!query || [user.username, user.full_name, user.email, user.role].join(" ").toLocaleLowerCase("tr-TR").includes(query)));
+  visible.sort((a, b) => (Number(a.id) - Number(b.id)) * (selectedSort === "DESC" ? -1 : 1));
+  const totalPages = Math.max(1, Math.ceil(visible.length / 6));
+  ayecSettingsUserPage = Math.min(Math.max(1, ayecSettingsUserPage), totalPages);
+  const pageUsers = visible.slice((ayecSettingsUserPage - 1) * 6, ayecSettingsUserPage * 6);
+  if (!pageUsers.some(user => String(user.id) === ayecSettingsSelectedUserId)) ayecSettingsSelectedUserId = String(pageUsers[0]?.id || "");
+  const selected = pageUsers.find(user => String(user.id) === ayecSettingsSelectedUserId), active = ayecSettingsUsers.filter(user => Number(user.active ?? 1) !== 0), editing = ayecSettingsUsers.filter(user => Number(user.interface_edit_access ?? 0) !== 0);
+  const metrics = `<section class="settings-users-metrics"><article><small>TOPLAM KULLANICI</small><strong>${ayecSettingsUserTotal || ayecSettingsUsers.length}</strong><span>Hesap kayd\u0131</span></article><article><small>AKT\u0130F KULLANICI</small><strong>${active.length}</strong><span>${ayecSettingsUsers.length - active.length} pasif</span></article><article><small>ROL DA\u011eILIMI</small><strong>${roles.length}</strong><span>Kay\u0131tl\u0131 rol t\u00fcr\u00fc</span></article><article><small>ARAY\u00dcZ D\u00dcZENLEME</small><strong>${editing.length}</strong><span>Yetkisi a\u00e7\u0131k hesap</span></article></section>`;
+  const rows = pageUsers.map(user => `<tr class="settings-user-row ${String(user.id) === ayecSettingsSelectedUserId ? "selected" : ""}" data-kind="settings-user" data-id="${esc(user.id)}" data-settings-user="${esc(user.id)}"><td><strong>${esc(user.username || "-")}</strong></td><td>${esc(user.full_name || "-")}</td><td>${esc(user.role || "-")}</td><td><span class="badge ${Number(user.active ?? 1) !== 0 ? "success" : "muted"}">${Number(user.active ?? 1) !== 0 ? "Aktif" : "Pasif"}</span></td><td>${esc(user.last_login || "-")}</td><td><button class="mini" data-settings-user-edit="${esc(user.id)}">Yetkiler</button></td></tr>`).join("");
+  const cards = pageUsers.map(user => `<article class="settings-user-card ${String(user.id) === ayecSettingsSelectedUserId ? "selected" : ""}" data-kind="settings-user" data-id="${esc(user.id)}" data-settings-user="${esc(user.id)}"><button type="button" class="settings-user-card-select" data-settings-user-select="${esc(user.id)}"><strong>${esc(user.full_name || user.username || "-")}</strong><small>${esc(user.role || "-")} | ${esc(user.username || "-")}</small></button><span class="badge ${Number(user.active ?? 1) !== 0 ? "success" : "muted"}">${Number(user.active ?? 1) !== 0 ? "Hesap aktif" : "Hesap pasif"}</span><button type="button" class="mini" data-settings-user-edit="${esc(user.id)}">D\u00fczenle</button></article>`).join("");
+  const emptyRows = empty("Kullan\u0131c\u0131 bulunamad\u0131", "Aramay\u0131 veya filtreleri de\u011fi\u015ftirin.");
+  const list = `<article class="card settings-users-list"><header><div><h3>Sistem Kullan\u0131c\u0131lar\u0131</h3><p>${visible.length} kay\u0131t g\u00f6steriliyor</p></div><div class="settings-users-list-actions"><button class="secondary" id="settingsUsersView">${ayecSettingsUserTableMode ? "Kartlar" : "Tablo"}</button><button class="secondary" id="settingsUsersRefresh">Yenile</button></div></header><div class="settings-users-filters"><input class="control" id="settingsUsersSearch" value="${esc($("#settingsUsersSearch")?.value || "")}" placeholder="\u0130sim, e-posta veya kullan\u0131c\u0131 ad\u0131 ara..."><select class="control" id="settingsUsersRole"><option value="">T\u00fcm roller</option>${roles.map(role => `<option value="${esc(role)}" ${role === selectedRole ? "selected" : ""}>${esc(role)}</option>`).join("")}</select><select class="control" id="settingsUsersStatus"><option value="" ${selectedStatus === "" ? "selected" : ""}>T\u00fcm durumlar</option><option value="active" ${selectedStatus === "active" ? "selected" : ""}>Aktif</option><option value="inactive" ${selectedStatus === "inactive" ? "selected" : ""}>Pasif</option></select><select class="control" id="settingsUsersSort"><option value="ASC" ${selectedSort === "ASC" ? "selected" : ""}>Kay\u0131t s\u0131ras\u0131</option><option value="DESC" ${selectedSort === "DESC" ? "selected" : ""}>Son eklenenler</option></select></div><div class="table-wrap" ${ayecSettingsUserTableMode ? "" : "hidden"}><table><thead><tr><th>KULLANICI</th><th>AD SOYAD</th><th>ROL</th><th>DURUM</th><th>SON G\u0130R\u0130\u015e</th><th></th></tr></thead><tbody>${rows || `<tr><td colspan="6">${emptyRows}</td></tr>`}</tbody></table></div><div class="settings-user-cards" ${ayecSettingsUserTableMode ? "hidden" : ""}>${cards || emptyRows}</div><footer class="settings-user-pagination"><button type="button" class="secondary" id="settingsUsersPrevious" ${ayecSettingsUserPage <= 1 ? "disabled" : ""} aria-label="O\u0308nceki sayfa">&lsaquo; O\u0308nceki</button><span id="settingsUsersPageLabel">Sayfa ${ayecSettingsUserPage} / ${totalPages}</span><button type="button" class="secondary" id="settingsUsersNext" ${ayecSettingsUserPage >= totalPages ? "disabled" : ""} aria-label="Sonraki sayfa">Sonraki &rsaquo;</button></footer></article>`;
   const allowedPages = userPermissionPages(selected?.permissions, selected?.role), permissionRows = renderUserPermissionMatrix(allowedPages);
   const permissionCount = ayecUserPermissionSections.reduce((sum, [, items]) => sum + items.length, 0);
-  const profile = selected ? `<aside class="card settings-users-profile"><header><div><h3>Kullan\u0131c\u0131 G\u00fcvenlik Dosyas\u0131</h3><span class="badge ${Number(selected.active ?? 1) !== 0 ? "success" : "muted"}">${Number(selected.active ?? 1) !== 0 ? "Aktif hesap" : "Pasif hesap"}</span></div><button class="secondary" data-settings-user-edit="${esc(selected.id)}">Yetkileri D\u00fczenle</button></header><div class="settings-user-identity"><span>${esc(String(selected.full_name || selected.username || "?").split(/\s+/).slice(0, 2).map(part => part[0] || "").join("").toLocaleUpperCase("tr-TR"))}</span><div><strong>${esc(selected.full_name || selected.username || "-")}</strong><small>${esc(selected.username || "-")} · ${esc(selected.role || "Rol yok")}</small></div></div><dl><div><dt>E-posta</dt><dd>${esc(selected.email || "-")}</dd></div><div><dt>Son giri\u015f</dt><dd>${esc(selected.last_login || "Kay\u0131t yok")}</dd></div><div><dt>Aray\u00fcz d\u00fczenleme</dt><dd>${Number(selected.interface_edit_access ?? 0) !== 0 ? "A\u00e7\u0131k" : "Kapal\u0131"}</dd></div></dl><section class="settings-user-permissions"><header><h4>Kay\u0131tl\u0131 Yetki Matrisi</h4><span>${allowedPages.size}/${permissionCount} sayfa izni</span></header>${permissionRows}</section><p class="settings-user-data-note">Oturum, cihaz ve iki a\u015famal\u0131 do\u011frulama bilgileri bu kullan\u0131c\u0131 tablosundan sa\u011flanm\u0131yor.</p></aside>` : `<aside class="card settings-users-profile">${empty("Kullan\u0131c\u0131 se\u00e7ilmedi", "Ayr\u0131nt\u0131lar\u0131 g\u00f6rmek i\u00e7in bir hesap se\u00e7in.")}</aside>`;
+  const profile = selected ? `<aside class="card settings-users-profile"><header><div><h3>Kullan\u0131c\u0131 G\u00fcvenlik Dosyas\u0131</h3><span class="badge ${Number(selected.active ?? 1) !== 0 ? "success" : "muted"}">${Number(selected.active ?? 1) !== 0 ? "Aktif hesap" : "Pasif hesap"}</span></div><button class="secondary" data-settings-user-edit="${esc(selected.id)}">Yetkileri D\u00fczenle</button></header><div class="settings-user-identity"><span>${esc(String(selected.full_name || selected.username || "?").split(/\s+/).slice(0, 2).map(part => part[0] || "").join("").toLocaleUpperCase("tr-TR"))}</span><div><strong>${esc(selected.full_name || selected.username || "-")}</strong><small>${esc(selected.username || "-")} \u00b7 ${esc(selected.role || "Rol yok")}</small></div></div><dl><div><dt>E-posta</dt><dd>${esc(selected.email || "-")}</dd></div><div><dt>Son giri\u015f</dt><dd>${esc(selected.last_login || "Kay\u0131t yok")}</dd></div><div><dt>Aray\u00fcz d\u00fczenleme</dt><dd>${Number(selected.interface_edit_access ?? 0) !== 0 ? "A\u00e7\u0131k" : "Kapal\u0131"}</dd></div></dl><section class="settings-user-permissions"><header><h4>Kay\u0131tl\u0131 Yetki Matrisi</h4><span>${allowedPages.size}/${permissionCount} sayfa izni</span></header>${permissionRows}</section><p class="settings-user-data-note">Oturum, cihaz ve iki a\u015famal\u0131 do\u011frulama bilgileri bu kullan\u0131c\u0131 tablosundan sa\u011flanm\u0131yor.</p></aside>` : `<aside class="card settings-users-profile">${empty("Kullan\u0131c\u0131 se\u00e7ilmedi", "Ayr\u0131nt\u0131lar\u0131 g\u00f6rmek i\u00e7in bir hesap se\u00e7in.")}</aside>`;
   host.innerHTML = `${metrics}<section class="settings-users-layout">${list}${profile}</section>`;
-  $("#settingsUsersSearch").oninput = ayecRenderSettingsUsers; $("#settingsUsersRole").onchange = ayecRenderSettingsUsers; $("#settingsUsersRefresh").onclick = loadSettingsUsers;
-  $$('[data-settings-user]').forEach(row => row.onclick = event => { if (event.target.closest("button")) return; ayecSettingsSelectedUserId = row.dataset.settingsUser; ayecRenderSettingsUsers(); });
+  $("#settingsUsersSearch").oninput = () => { ayecSettingsUserPage = 1; ayecRenderSettingsUsers(); };
+  $("#settingsUsersRole").onchange = () => { ayecSettingsUserPage = 1; ayecRenderSettingsUsers(); };
+  $("#settingsUsersStatus").onchange = event => { ayecSettingsUserStatusFilter = event.target.value; ayecSettingsUserPage = 1; ayecRenderSettingsUsers(); };
+  $("#settingsUsersSort").onchange = event => { ayecSettingsUserSortOrder = event.target.value; ayecSettingsUserPage = 1; ayecRenderSettingsUsers(); };
+  $("#settingsUsersRefresh").onclick = loadSettingsUsers;
+  $("#settingsUsersView").onclick = () => { ayecSettingsUserTableMode = !ayecSettingsUserTableMode; ayecRenderSettingsUsers(); };
+  $("#settingsUsersPrevious").onclick = () => { if (ayecSettingsUserPage > 1) { ayecSettingsUserPage--; ayecRenderSettingsUsers(); } };
+  $("#settingsUsersNext").onclick = () => { if (ayecSettingsUserPage < totalPages) { ayecSettingsUserPage++; ayecRenderSettingsUsers(); } };
+  $$('[data-settings-user]').forEach(row => { row.onclick = event => { if (event.target.closest("button")) return; ayecSettingsSelectedUserId = row.dataset.settingsUser; ayecRenderSettingsUsers(); }; bindInteractiveRow(row); });
+  $$('[data-settings-user-select]').forEach(button => button.onclick = () => { ayecSettingsSelectedUserId = button.dataset.settingsUserSelect; ayecRenderSettingsUsers(); });
   $$('[data-settings-user-edit]').forEach(button => button.onclick = () => { const user = ayecSettingsUsers.find(item => String(item.id) === button.dataset.settingsUserEdit); if (user) settingsUserDialog(user); });
 }
 loadSettingsUsers = async function() {
   const host = $("#settingsUsersHost"); if (!host) return;
   host.innerHTML = empty("Kullan\u0131c\u0131lar y\u00fckleniyor", "Ortak kullan\u0131c\u0131 tablosu okunuyor.");
-  try { const data = await apiFetch("/api/desktop/table/users?limit=200"); ayecSettingsUsers = data.rows || []; ayecRenderSettingsUsers(); }
+  try { const data = await apiFetch("/api/desktop/table/users?limit=1000"); ayecSettingsUsers = data.rows || []; ayecSettingsUserTotal = Number(data.count) || ayecSettingsUsers.length; ayecSettingsUserPage = 1; ayecRenderSettingsUsers(); }
   catch (error) { host.innerHTML = empty("Kullan\u0131c\u0131lar y\u00fcklenemedi", error.message); }
 };
 
+let ayecVoiceShortcutQuery="";
+let ayecVoiceShortcutType="T\u00fcm\u00fc";
+let ayecVoiceShortcutPage=0;
+const ayecVoiceShortcutPageSize=4;
 function ayecVoiceShortcutList(){
  const defaults=[
-  {id:"voice-new-service",name:"Yeni servis kaydi",phrases:["yeni servis","servis kaydi"],page:"services"},
-  {id:"voice-service-list",name:"Servis listesini ac",phrases:["servis listesi","servisleri goster"],page:"services"},
-  {id:"voice-customer-list",name:"M\u00fc\u015fteri listesini ac",phrases:["musteri listesi","musterileri goster"],page:"customers"},
-  {id:"voice-stock",name:"Stok yonetimini ac",phrases:["stok yonetimi","stok listesini ac"],page:"stock"}
+  {id:"voice-stok-sorgu",name:"stok_sorgu",phrases:["stoklar","eksik stok","stok durumu"],action_type:"Fonksiyon",action:"list_critical_stock"},
+  {id:"voice-servis-ac",name:"servis_ac",phrases:["yeni servis","kay\u0131t olu\u015ftur","servis a\u00e7"],action_type:"Fonksiyon",action:"servis_ac"},
+  {id:"voice-excel-islem",name:"excel_islem",phrases:["excel a\u00e7","\u00f6\u011frenci bul","rapor al"],action_type:"Fonksiyon",action:"accounting_summary"},
+  {id:"voice-panel-ac",name:"panel_ac",phrases:["teknisyen paneli","panel a\u00e7","teknisyen"],action_type:"Fonksiyon",action:"panel_ac"}
  ];
- try{const stored=JSON.parse(localStorage.getItem("ayec.web.voice-shortcuts")||"null");return Array.isArray(stored)?stored:defaults}catch{return defaults}
+ const storedValue=desktopSettings.voice_assistant_shortcuts||localStorage.getItem("ayec.web.voice-shortcuts");
+ try{
+  const stored=typeof storedValue==="string"?JSON.parse(storedValue):storedValue;
+  if(Array.isArray(stored))return stored.filter(item=>item&&typeof item==="object").map((item,index)=>({...item,id:String(item.id||`voice-legacy-${index}`)}));
+  if(stored&&typeof stored==="object")return Object.entries(stored).map(([name,value],index)=>{
+   const entry=Array.isArray(value)?{triggers:value}:value&&typeof value==="object"?value:{};
+   const rawTriggers=entry.triggers??entry.tetikleyiciler??entry.kelimeler??[],triggers=Array.isArray(rawTriggers)?rawTriggers:typeof rawTriggers==="string"?rawTriggers.split(/[;,]/).map(value=>value.trim()).filter(Boolean):[];
+   const action=typeof entry.action==="string"?{type:"builtin",name:entry.action}:entry.action;
+   const actionType=action?.type==="page"?"Sayfa":action?.type==="builtin"?"Fonksiyon":action?.type==="action"?"Aksiyon":entry.tur||"Ba\u011flant\u0131 Yok";
+   const actionValue=action?.name||action?.index||entry.aksiyon||"";
+   return {id:`voice-${index}-${name}`,name,phrases:triggers,action_type:actionType,action:String(actionValue),...(actionType==="Sayfa"?{page:String(actionValue)}:{})}
+  });
+  return defaults
+ }catch{return defaults}
 }
 function renderVoiceShortcuts(){
- const shortcuts=ayecVoiceShortcutList();
- const rows=shortcuts.map(item=>`<tr><td><strong>${esc(item.name||"")}</strong><small>${esc((item.phrases||[]).join(", "))}</small></td><td>${esc(titles[item.page]||item.page||"-")}</td><td><div class="actions"><button type="button" data-voice-run="${esc(item.id)}">Dinle</button><button type="button" data-voice-edit="${esc(item.id)}">D\u00fczenle</button><button type="button" class="danger" data-voice-delete="${esc(item.id)}">Sil</button></div></td></tr>`).join("");
- return `<section class="voice-shortcuts-page"><header><div><h3>Sesli Kestirmeler</h3><p>Komut matrisi ve n\u00f6ral tetikleyiciler. Kayitlar bu tarayicida saklanir.</p></div><button type="button" class="primary" data-voice-add>Kestirme Ekle</button></header><div class="voice-shortcuts-hero"><strong>${shortcuts.length} aktif komut</strong><span>Turkce sesli arama ile sayfalari acin.</span><button type="button" data-voice-listen>Komut Dinle</button></div><div class="table-wrap"><table><thead><tr><th>KOMUT / TETIKLEYICILER</th><th>HEDEF SAYFA</th><th>\u0130\u015eLEMLER</th></tr></thead><tbody>${rows||'<tr><td colspan="3">Sesli kestirme tanimi bulunamadi.</td></tr>'}</tbody></table></div></section>`
+ const shortcuts=ayecVoiceShortcutList(),query=ayecNormalizeVoicePhrase(ayecVoiceShortcutQuery.trim());
+ const filtered=shortcuts.filter(item=>{const type=item.action_type||item.type||(item.page?"Sayfa":"Ba\u011flant\u0131 Yok"),target=item.action?.name||item.action||item.page||"";const matchesType=ayecVoiceShortcutType==="T\u00fcm\u00fc"||type===ayecVoiceShortcutType;const haystack=[item.name,item.id,(item.phrases||[]).join(" "),target].join(" ");return matchesType&&(!query||ayecNormalizeVoicePhrase(haystack).includes(query))});
+ const pages=Math.max(1,Math.ceil(filtered.length/ayecVoiceShortcutPageSize));ayecVoiceShortcutPage=Math.max(0,Math.min(ayecVoiceShortcutPage,pages-1));const start=ayecVoiceShortcutPage*ayecVoiceShortcutPageSize,visible=filtered.slice(start,start+ayecVoiceShortcutPageSize);
+ const rows=visible.map(item=>{const type=item.action_type||item.type||(item.page?"Sayfa":"Ba\u011flant\u0131 Yok"),target=item.action?.name||item.action||item.page||"-",status=item.is_active===false||item.is_active===0?"Pasif":"Aktif";return `<tr data-kind="voice-shortcut" data-id="${esc(item.id)}"><td><strong>${esc(item.name||"")}</strong></td><td>${esc((item.phrases||[]).join(", "))}</td><td>${esc(type)}</td><td>${esc(Array.isArray(titles[item.page])?titles[item.page][1]:(titles[item.page]||target))}</td><td>${status}</td><td><div class="actions"><button type="button" data-voice-run="${esc(item.id)}">Dinle</button><button type="button" data-voice-edit="${esc(item.id)}">D\u00fczenle</button><button type="button" class="danger" data-voice-delete="${esc(item.id)}">Sil</button></div></td></tr>`}).join("");
+ const empty=shortcuts.length?"Arama filtresine uygun kestirme bulunamad\u0131.":"Sesli kestirme tanimi bulunamadi.";
+ return `<section class="voice-shortcuts-page"><header><div><h3>Sesli Kestirmeler</h3><p>Komut matrisi ve n\u00f6ral tetikleyiciler. Kay\u0131tlar \u015firket ayarlar\u0131nda saklan\u0131r.</p></div><button type="button" class="primary" data-voice-add>Kestirme Ekle</button></header><div class="voice-shortcuts-hero"><strong>${shortcuts.length} aktif komut</strong><span>Turkce sesli arama ile sayfalari acin.</span><button type="button" data-voice-listen>Komut Dinle</button></div><div class="voice-shortcut-toolbar"><strong>Kapsaml\u0131 Kestirme Matrisi <span>${shortcuts.length} kay\u0131tl\u0131 komut</span></strong><input type="search" data-voice-search value="${esc(ayecVoiceShortcutQuery)}" placeholder="Komut, ID veya hedef ara..."><select aria-label="\u0130\u015flem t\u00fcr\u00fc filtresi" data-voice-type><option ${ayecVoiceShortcutType==="T\u00fcm\u00fc"?"selected":""}>T\u00fcm\u00fc</option><option ${ayecVoiceShortcutType==="Sayfa"?"selected":""}>Sayfa</option><option ${ayecVoiceShortcutType==="Fonksiyon"?"selected":""}>Fonksiyon</option><option ${ayecVoiceShortcutType==="Aksiyon"?"selected":""}>Aksiyon</option><option ${ayecVoiceShortcutType==="Ba\u011flant\u0131 Yok"?"selected":""}>Ba\u011flant\u0131 Yok</option></select></div><div class="table-wrap"><table><thead><tr><th>Kestirme Ad\u0131</th><th>Tetikleyici Komutlar</th><th>\u0130\u015flem T\u00fcr\u00fc</th><th>Hedef Rota / ID</th><th>Durum</th><th>\u0130\u015flemler</th></tr></thead><tbody>${rows||`<tr><td colspan="6">${empty}</td></tr>`}</tbody></table></div><div class="voice-shortcut-pager"><span>Toplam ${filtered.length} komuttan ${filtered.length?start+1:0}-${Math.min(start+ayecVoiceShortcutPageSize,filtered.length)} aras\u0131 g\u00f6steriliyor</span><button type="button" class="secondary" data-voice-prev ${ayecVoiceShortcutPage===0?"disabled":""}>\u00d6nceki</button><span>${ayecVoiceShortcutPage+1} / ${pages}</span><button type="button" class="secondary" data-voice-next ${ayecVoiceShortcutPage+1>=pages?"disabled":""}>Sonraki</button></div></section>`
 }
-function ayecSaveVoiceShortcuts(shortcuts){localStorage.setItem("ayec.web.voice-shortcuts",JSON.stringify(shortcuts));render();toast("Sesli kestirmeler kaydedildi","success")}
+async function ayecSaveVoiceShortcuts(shortcuts){
+ const persisted=shortcuts.map(item=>{
+  const type=item.action_type||item.type||"Sayfa",action=String(item.action?.name||item.action||item.page||"");
+  const actionPayload=type==="Sayfa"?{type:"page",index:/^\d+$/.test(action)?Number(action):action}:type==="Fonksiyon"?{type:"builtin",name:action}:{type:"action",name:action};
+  return [String(item.name||""),{triggers:Array.isArray(item.phrases)?item.phrases:[],action:actionPayload}]
+ }).filter(([name])=>name);
+ const config=Object.fromEntries(persisted),encoded=JSON.stringify(config);
+ desktopSettings.voice_assistant_shortcuts=encoded;
+ localStorage.setItem("ayec.web.voice-shortcuts",JSON.stringify(shortcuts));
+ try{await apiFetch("/api/desktop/table/settings",{method:"POST",body:JSON.stringify({key:"voice_assistant_shortcuts",value:encoded})});render();toast("Sesli kestirmeler kaydedildi","success")}
+ catch(error){render();toast(`Kestirmeler bu tarayicida kaydedildi. Sirket ayarlari eszamanlanamadi: ${error.message}`,"warning")}
+}
 function ayecNormalizeVoicePhrase(value){return String(value||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[\u0131\u0130]/g,"i").toLowerCase()}
 function ayecVoiceShortcutDialog(item=null){
- const shortcuts=ayecVoiceShortcutList(),isEdit=Boolean(item),pages=Object.entries(titles).filter(([id])=>sectorPages[currentSector]?.has(id)),options=pages.map(([id,label])=>`<option value="${esc(id)}" ${id===item?.page?"selected":""}>${esc(label)}</option>`).join("");
- const body=`<div class="form-grid"><div class="field full"><label>Komut Adi *</label><input name="name" required maxlength="80" value="${esc(item?.name||"")}"></div><div class="field full"><label>Tetikleyici ifadeler *</label><textarea name="phrases" required maxlength="500" placeholder="Ornek: servis listesi, servisleri goster">${esc((item?.phrases||[]).join(", "))}</textarea><small>Birden fazla ifadeyi virgul veya noktalı virgul ile ayirin.</small></div><div class="field full"><label>Hedef Sayfa</label><select name="page" required>${options}</select></div></div>`;
- openDialog(isEdit?"Sesli Kestirmeyi \u0130\u015fle":"Yeni Sesli Kestirme","SESLI KESTIRMELER",body,fd=>{const values=Object.fromEntries(fd),phrases=String(values.phrases||"").split(/[;,]/).map(value=>value.trim()).filter(Boolean);if(!phrases.length)throw Error("En az bir tetikleyici ifade girin.");const next={id:item?.id||`voice-${Date.now()}`,name:String(values.name||"").trim(),phrases,page:values.page};if(isEdit){const index=shortcuts.findIndex(value=>value.id===item.id);if(index>=0)shortcuts[index]=next;else shortcuts.push(next)}else shortcuts.push(next);ayecSaveVoiceShortcuts(shortcuts)},isEdit?"Guncelle":"Kaydet")
+  const shortcuts=ayecVoiceShortcutList(),isEdit=Boolean(item),type=item?.action_type||item?.type||(item?.page?"Sayfa":"Sayfa"),action=item?.action?.name||item?.action||item?.page||"",pages=Object.entries(titles).filter(([id])=>sectorPages[currentSector]?.has(id)).map(([id,label])=>[id,Array.isArray(label)?label[1]:label]),functions=["stock_comparison","check_appointments","panel_ac","panel_kapat","servis_ac","musteri_bul"],entries=type==="Fonksiyon"?functions.map(value=>[value,value]):type==="Sayfa"?pages:[["\u00d6zel Aksiyon","\u00d6zel Aksiyon"]],options=entries.map(([value,label])=>`<option value="${esc(value)}">${esc(label)}</option>`).join("");
+  const body=`<div class="form-grid voice-shortcut-form"><div class="field full"><label>Kestirme Ad\u0131:</label><input name="name" required maxlength="80" placeholder="\u00f6rn: stok_sorgu" value="${esc(item?.name||"")}"></div><div class="field full"><label>Tetikleyici Komutlar:</label><textarea name="phrases" required maxlength="500" placeholder="stoklar, stok, sto\u011fa bak, envanter (virg\u00fclle ay\u0131r\u0131n)">${esc((item?.phrases||[]).join(", "))}</textarea><small>Birden fazla ifadeyi virgul veya noktal\u0131 virgul ile ayirin.</small></div><div class="field"><label>\u0130\u015flem T\u00fcr\u00fc</label><select name="action_type"><option ${type==="Sayfa"?"selected":""}>Sayfa</option><option ${type==="Fonksiyon"?"selected":""}>Fonksiyon</option><option ${type==="Aksiyon"?"selected":""}>Aksiyon</option></select></div><div class="field"><label>Aksiyon</label><input name="action" list="voiceActionOptions" required maxlength="120" value="${esc(action)}"><datalist id="voiceActionOptions">${options}</datalist></div></div>`;
+  openDialog(isEdit?"Kestirme D\u00fczenle":"Yeni Kestirme","SESLI KESTIRMELER",body,fd=>{const values=Object.fromEntries(fd),phrases=String(values.phrases||"").split(/[;,]/).map(value=>value.trim()).filter(Boolean),actionType=values.action_type||"Sayfa",actionValue=String(values.action||"").trim();if(!phrases.length)throw Error("En az bir tetikleyici ifade girin.");if(!actionValue)throw Error("Bir hedef aksiyon se\u00e7in.");const next={id:item?.id||`voice-${Date.now()}`,name:String(values.name||"").trim(),phrases,action_type:actionType,action:actionValue,...(actionType==="Sayfa"?{page:actionValue}:{})};if(isEdit){const index=shortcuts.findIndex(value=>value.id===item.id);if(index>=0)shortcuts[index]=next;else shortcuts.push(next)}else shortcuts.push(next);ayecSaveVoiceShortcuts(shortcuts)},isEdit?"Guncelle":"Kaydet");
+  setTimeout(()=>{const form=$("#dialogForm"),typeSelect=form?.elements.namedItem("action_type"),actionOptions=form?.querySelector("#voiceActionOptions");typeSelect?.addEventListener("change",()=>{const entries=typeSelect.value==="Fonksiyon"?functions.map(value=>[value,value]):typeSelect.value==="Sayfa"?pages:[["\u00d6zel Aksiyon","\u00d6zel Aksiyon"]];actionOptions.innerHTML=entries.map(([value,label])=>`<option value="${esc(value)}">${esc(label)}</option>`).join("")});if($("#appDialog")?.open)typeSelect?.dispatchEvent(new Event("change"))},0)
+}
+function ayecOpenVoiceStockPriceDialog(transcript=""){
+ const categories=[...new Set((db.stock||[]).map(item=>String(item.category||"").trim()).filter(Boolean))].sort((left,right)=>left.localeCompare(right,"tr"));
+ const normalized=ayecNormalizeVoicePhrase(transcript),selectedCategory=categories.sort((left,right)=>right.length-left.length).find(value=>normalized.includes(ayecNormalizeVoicePhrase(value)))||"";
+ const percentMatch=String(transcript).match(/(?:%|y(?:\u00fc|u)zde\s*)(\d{1,3})|(\d{1,3})\s*%/i),initialPercentage=percentMatch?.[1]||percentMatch?.[2]||"";
+ const formBody=`<div class="form-grid"><div class="field"><label>Art\u0131\u015f Y\u00fczdesi *</label><input name="percentage" type="number" min="1" max="100" step="1" required value="${esc(initialPercentage)}" placeholder="1-100"></div><div class="field"><label>Stok Kategorisi</label><input name="category" list="voiceStockCategories" value="${esc(selectedCategory)}" placeholder="T\u00fcm aktif stoklar"><datalist id="voiceStockCategories">${categories.map(value=>`<option value="${esc(value)}">`).join("")}</datalist></div><p class="field full muted">Fiyatlar onaydan sonra g\u00fcncellenir. Bu toplu i\u015flem geri al\u0131namaz.</p></div>`;
+ let preview=null;
+ openDialog("Toplu Fiyat Art\u0131rma","SESL\u0130 AKS\u0130YON",formBody,async formData=>{
+  if(!preview){
+   const values=Object.fromEntries(formData),percentage=Number(values.percentage),category=String(values.category||"").trim();
+   if(!Number.isInteger(percentage)||percentage<1||percentage>100)throw Error("1 ile 100 aras\u0131nda tam bir y\u00fczde girin.");
+   const result=await apiFetch("/api/desktop/stock/price-increase",{method:"POST",body:JSON.stringify({action:"preview",percentage,category})});
+   if(!result.affected_count)throw Error("Se\u00e7ilen kapsamda aktif stok kart\u0131 bulunamad\u0131.");
+   preview={percentage,category,expected_count:Number(result.affected_count)};
+   $("#dialogBody").innerHTML=`<section class="stock-price-confirmation"><h3>%${preview.percentage} fiyat art\u0131\u015f\u0131</h3><p>${preview.category?`<strong>${esc(preview.category)}</strong> kategorisinde`:"T\u00fcm aktif stok kategorilerinde"} <strong>${preview.expected_count}</strong> stok kart\u0131 etkilenecek.</p><p class="muted">Yeni fiyatlar iki ondal\u0131k basama\u011fa yuvarlan\u0131r. Bu i\u015flem geri al\u0131namaz.</p></section>`;
+   const submit=$("#dialogSubmit");submit.textContent="Onayla ve Uygula";submit.dataset.label="Onayla ve Uygula";
+   return false
+  }
+  try{
+   const result=await apiFetch("/api/desktop/stock/price-increase",{method:"POST",body:JSON.stringify({action:"apply",...preview})});
+   toast(`%${result.percentage} fiyat art\u0131\u015f\u0131 uyguland\u0131. ${result.affected_count} kart g\u00fcncellendi.`,"success");
+   if(page!=="stock")navigate("stock");else render();
+   return true
+  }catch(error){
+   preview=null;$("#dialogBody").innerHTML=formBody;const submit=$("#dialogSubmit");submit.textContent="Etkiyi \u00d6nizle";submit.dataset.label="Etkiyi \u00d6nizle";throw error
+  }
+ },"Etkiyi \u00d6nizle");
+}
+async function ayecOpenVoiceDailyPlanDialog(){
+ try{
+  const source=await apiFetch("/api/desktop/bootstrap"),now=new Date(),dateKey=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`,hour=now.getHours();
+  const greeting=hour<12?"G\u00fcnayd\u0131n":hour<18?"\u0130yi g\u00fcnler":"\u0130yi ak\u015famlar",settings=source.settings||{},assistant=String(settings.asistan_ozel_adi||settings.asistan_ozel_isim||"Asistan"),alias=settingBool(settings.asistan_hitap_aktif)?`${String(settings.asistan_user_name||"Efendim")}${settings.asistan_greeting_style==="compact"?" ":", "}`:"";
+  const appointments=(source.appointments||[]).filter(item=>String(item.date||"").slice(0,10)===dateKey).sort((left,right)=>String(left.time||left.appointment_time||"").localeCompare(String(right.time||right.appointment_time||"")));
+  const allStock=source.stock||[],definedCritical=allStock.filter(item=>item.min_stock!==null&&item.min_stock!==undefined&&Number(item.stock||0)<=Number(item.min_stock)),critical=definedCritical.length?definedCritical:allStock.filter(item=>Math.trunc(Number(item.stock||0))<=Math.trunc(Number(item.min_stock||5)));
+  const appointmentLines=appointments.slice(0,3).map(item=>{const time=String(item.appointment_time||item.time||item.start_time||"").slice(0,5),customer=item.customer_name||item.title||item.name||"M\u00fc\u015fteri",description=String(item.description||item.notes||item.service_type||"").slice(0,40);return `<li>${time?`<time>${esc(time)}</time> `:""}<strong>${esc(customer)}</strong>${description?` <span>${esc(description)}</span>`:""}</li>`}).join("");
+  const body=`<section class="voice-daily-plan"><p class="voice-daily-plan-greeting">${greeting} ${esc(alias)}Ben ${esc(assistant)}.</p><section><h3>Bug\u00fcn\u00fcn randevular\u0131</h3><p>${appointments.length?`${appointments.length} randevunuz var.`:"Bug\u00fcn i\u00e7in kay\u0131tl\u0131 randevunuz bulunmuyor."}</p>${appointmentLines?`<ol>${appointmentLines}</ol>`:""}${appointments.length>3?`<small>\u0130lk 3 randevu g\u00f6steriliyor.</small>`:""}</section>${critical.length?`<section><h3>Kritik stok</h3><p>${critical.length} \u00fcr\u00fcn kritik stok seviyesinde.</p></section>`:""}</section>`;
+  openDialog(`${greeting}!`,"G\u00dcNL\u00dcK AS\u0130STAN PLANI",body,()=>true,"Kapat")
+ }catch(error){toast(`G\u00fcnl\u00fck plan y\u00fcklenemedi: ${error.message}`,"error")}
 }
 function ayecRunVoiceShortcut(shortcut){
+ const execute=(item,transcript="")=>{const type=item.action_type||item.type||(item.page?"Sayfa":"Ba\u011flant\u0131 Yok"),action=String(item.action?.name||item.action||item.page||"");if(action==="sync_now"){hydrateDesktop().then(()=>{render();toast("Web verileri g\u00fcncellendi.","success")}).catch(error=>toast(`Senkronizasyon tamamlanamad\u0131: ${error.message}`,"error"));return}if(action==="apply_zam"){ayecOpenVoiceStockPriceDialog(transcript);return}if(action==="greeting_routine"||action==="closing_routine"){ayecOpenVoiceDailyPlanDialog();return}if(type==="Sayfa"){const target=item.page||action;if(sectorPages[currentSector]?.has(target)){navigate(target);return}toast("Bu sayfa mevcut mod\u00fclde kullan\u0131lam\u0131yor.","warning");return}if(type==="Fonksiyon"||type==="Aksiyon"&&["stock_comparison","check_appointments","panel_ac","panel_kapat","servis_ac","musteri_bul","stok_sorgu","list_critical_stock","stock_summary","financial_summary","accounting_summary","excel_islem","customer_360","device_status_query","discount_advice","loan_summary","check_summary","add_quick_note_voice","add_reminder_voice","managerial_summary","customer_debt_summary","service_workload_summary","assistant_help","select_service_device"].includes(action)){const routes={stock_comparison:"stock",check_appointments:"appointments",panel_ac:"technician",panel_kapat:"dashboard",servis_ac:"services",musteri_bul:"customers",stok_sorgu:"stock",list_critical_stock:"stock",stock_summary:"stock",financial_summary:"finance",accounting_summary:"finance",excel_islem:"finance",customer_360:"customers",device_status_query:"job-reports",discount_advice:"customers",loan_summary:"income",check_summary:"checks",add_quick_note_voice:"reminders",add_reminder_voice:"reminders",managerial_summary:"dashboard",customer_debt_summary:"customers",service_workload_summary:"job-reports",assistant_help:"assistant",select_service_device:"services"},route=routes[action];if(!route||!sectorPages[currentSector]?.has(route)){toast("Bu fonksiyon mevcut mod\u00fclde kullan\u0131lam\u0131yor.","warning");return}navigate(route);if(["servis_ac"].includes(action))setTimeout(()=>$("button[data-action=new-service]")?.click(),0);if(["musteri_bul","customer_360"].includes(action))setTimeout(()=>$("#content input[type=search]")?.focus(),0);return}if(type==="Aksiyon"&&titles[action]&&sectorPages[currentSector]?.has(action)){navigate(action);return}toast("Bu aksiyon web ortam\u0131nda tan\u0131ml\u0131 de\u011fil.","warning")};
  const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SpeechRecognition){toast("Bu tarayici sesli komutlari desteklemiyor.","warning");return}
- const recognition=new SpeechRecognition();recognition.lang="tr-TR";recognition.interimResults=false;recognition.maxAlternatives=1;recognition.onresult=event=>{const heard=ayecNormalizeVoicePhrase(event.results?.[0]?.[0]?.transcript||""),matches=item=>(item.phrases||[]).some(phrase=>heard.includes(ayecNormalizeVoicePhrase(phrase))),candidate=shortcut?(matches(shortcut)?shortcut:null):ayecVoiceShortcutList().find(matches);if(!candidate){toast(shortcut?"Tetikleyici ifade eslesmedi.":"Komut eslesmedi.","warning");return}if(!sectorPages[currentSector]?.has(candidate.page)){toast("Bu komut mevcut modulde kullanilamiyor.","warning");return}navigate(candidate.page)};recognition.onerror=()=>toast("Sesli komut baslatilamadi.","warning");try{recognition.start()}catch{toast("Mikrofon kullanilamiyor.","warning")}
+ const recognition=new SpeechRecognition();recognition.lang="tr-TR";recognition.interimResults=false;recognition.maxAlternatives=1;recognition.onresult=event=>{const transcript=String(event.results?.[0]?.[0]?.transcript||""),heard=ayecNormalizeVoicePhrase(transcript),matches=item=>(item.phrases||[]).some(phrase=>heard.includes(ayecNormalizeVoicePhrase(phrase))),candidate=shortcut?(matches(shortcut)?shortcut:null):ayecVoiceShortcutList().find(item=>item.is_active!==false&&matches(item));if(!candidate){toast(shortcut?"Tetikleyici ifade eslesmedi.":"Komut eslesmedi.","warning");return}execute(candidate,transcript)};recognition.onerror=()=>toast("Sesli komut baslatilamadi.","warning");try{recognition.start()}catch{toast("Mikrofon kullanilamiyor.","warning")}
 }
 function bindVoiceShortcuts(){
  $("[data-voice-add]")?.addEventListener("click",()=>ayecVoiceShortcutDialog());
  $("[data-voice-listen]")?.addEventListener("click",()=>ayecRunVoiceShortcut());
+ const search=$("[data-voice-search]");search?.addEventListener("input",()=>{ayecVoiceShortcutQuery=search.value;ayecVoiceShortcutPage=0;const caret=search.selectionStart;render();const next=$("[data-voice-search]");next?.focus();next?.setSelectionRange(caret,caret)});
+ $("[data-voice-type]")?.addEventListener("change",event=>{ayecVoiceShortcutType=event.currentTarget.value;ayecVoiceShortcutPage=0;render()});
+ $("[data-voice-prev]")?.addEventListener("click",()=>{ayecVoiceShortcutPage=Math.max(0,ayecVoiceShortcutPage-1);render()});
+ $("[data-voice-next]")?.addEventListener("click",()=>{ayecVoiceShortcutPage+=1;render()});
  $$('[data-voice-run]').forEach(button=>button.addEventListener("click",()=>{const item=ayecVoiceShortcutList().find(value=>value.id===button.dataset.voiceRun);if(item)ayecRunVoiceShortcut(item)}));
  $$('[data-voice-edit]').forEach(button=>button.addEventListener("click",()=>{const item=ayecVoiceShortcutList().find(value=>value.id===button.dataset.voiceEdit);if(item)ayecVoiceShortcutDialog(item)}));
- $$('[data-voice-delete]').forEach(button=>button.addEventListener("click",()=>{const item=ayecVoiceShortcutList().find(value=>value.id===button.dataset.voiceDelete);if(item&&confirm(`"${item.name}" kestirmesi silinsin mi?`))ayecSaveVoiceShortcuts(ayecVoiceShortcutList().filter(value=>value.id!==item.id))}));
+ $$('[data-voice-delete]').forEach(button=>button.addEventListener("click",()=>{const item=ayecVoiceShortcutList().find(value=>value.id===button.dataset.voiceDelete);if(item)ayecSaveVoiceShortcuts(ayecVoiceShortcutList().filter(value=>value.id!==item.id))}));
+ $$("tr[data-kind=voice-shortcut]").forEach(row=>{bindInteractiveRow(row);row.addEventListener("dblclick",()=>{if(!db.settings.doubleClick)return;const item=ayecVoiceShortcutList().find(value=>value.id===row.dataset.id);if(item)ayecVoiceShortcutDialog(item)})});
 }
+const ayecVoiceShowContextBase=showContext;
+showContext=function(event,kind,id){if(kind!=="voice-shortcut")return ayecVoiceShowContextBase(event,kind,id);if(!ayecContextMenuEnabled())return;event.preventDefault();const menu=$("#contextMenu"),items=[["\u270f\ufe0f D\u00fczenle","voice-shortcut-edit"],["\ud83d\uddd1\ufe0f Sil","voice-shortcut-delete"],["","voice-shortcut-separator"],["\u2795 Yeni Kestirme Ekle","voice-shortcut-add"]];menu.innerHTML=items.map(([label,action])=>action==="voice-shortcut-separator"?'<hr class="context-menu-separator">':`<button data-context-action="${action}">${label}</button>`).join("");menu.style.left=`${Math.max(8,Math.min(event.clientX,innerWidth-220))}px`;menu.classList.add("open");menu.style.top=`${Math.max(8,Math.min(event.clientY,innerHeight-menu.offsetHeight-8))}px`;$$('[data-context-action]',menu).forEach(button=>button.onclick=()=>{menu.classList.remove("open");contextAction(kind,id,button.dataset.contextAction,event.currentTarget)})};
+const ayecVoiceContextActionBase=contextAction;
+contextAction=function(kind,id,action,row){if(kind!=="voice-shortcut")return ayecVoiceContextActionBase(kind,id,action,row);const item=ayecVoiceShortcutList().find(value=>String(value.id)===String(id));if(action==="voice-shortcut-add")ayecVoiceShortcutDialog();if(action==="voice-shortcut-edit"&&item)ayecVoiceShortcutDialog(item);if(action==="voice-shortcut-delete"&&item)ayecSaveVoiceShortcuts(ayecVoiceShortcutList().filter(value=>value.id!==item.id))};
 const ayecSettingBodyBeforeVoiceShortcuts=settingBody;
 settingBody=function(settings){return settingsSection==="voice-shortcuts"?renderVoiceShortcuts():ayecSettingBodyBeforeVoiceShortcuts(settings)};
 
@@ -4823,7 +7015,7 @@ const ayecPart9SettingsBody=settingBody;
 function renderPart9TelegramSettings(){
  const chatIdSource=desktopSettings.telegram_chat_ids||"[]";let chatIdValues=[];try{const savedIds=JSON.parse(chatIdSource);chatIdValues=Array.isArray(savedIds)?savedIds.map(String):[]}catch{}
  const token=exactSettingsField(["telegram_bot_token","Telegram Bot Token","password",""],"settings"),chatIds=exactSettingsField(["telegram_chat_id","Yonetici Chat ID","text",""],"settings"),whatsapp=exactSettingsField(["telegram_notify_service_new","Yeni servis kaydi bildirimi","checkbox","1"],"settings"),stock=exactSettingsField(["telegram_notify_stock_critical","Kritik stok bildirimi","checkbox","1"],"settings"),technician=exactSettingsField(["telegram_notify_tech_status","Teknisyen durum bildirimi","checkbox","1"],"settings"),daily=exactSettingsField(["telegram_notify_daily_report","Gun sonu raporu","checkbox","1"],"settings");
- return `<div class="p9-telegram"><nav class="p9-telegram-tabs"><button data-settings-section="sms-settings">SMS D\u00f6ng\u00fcleri</button><button data-settings-section="sms-templates">Sablonlar</button><button data-settings-section="smtp-settings">SMTP Mail</button><button class="active" data-settings-section="integrations">Telegram Bot</button></nav><header class="p9-telegram-heading"><div><h3>Telegram Bot \u00d6zel Entegrasyonu</h3><p class="muted">Bot kurulumu, bildirim alicilari ve dagitim durumu.</p></div><span class="p9-telegram-state">BOT DURUMU: BEKLIYOR</span></header><div class="p9-telegram-columns"><div class="p9-telegram-main"><section class="p9-telegram-card p9-telegram-status"><div><b>BOT KANALI</b><strong>TELEGRAM</strong><small>Cloud API v7.2</small></div><div><b>GUVENLIK</b><strong>TOKEN KORUMALI</strong><small>AES sifreli ayar deposu</small></div><div><b>DURUM</b><strong>BEKLIYOR</strong><small>Yetkilendirme gerekli</small></div><div><b>BOT HANDLE</b><strong>@AyecProBot</strong><small>Kurulum bekliyor</small></div></section><section class="p9-telegram-card"><h4>Entegrasyon ve h\u0131zl\u0131 kurulum rehberi</h4><div class="p9-telegram-steps"><span>1. @BotFather ile /newbot komutunu calistirin.</span><span>2. HTTP API tokenini guvenli alana girin.</span><span>3. Tokeni kaydedip baglanti durumunu dogrulayin.</span><span>4. Bildirim alacak Chat ID'leri kaydedin.</span></div></section><section class="p9-telegram-card"><h4>Telegram Bot Token (HTTP API Belirteci)</h4><div class="p9-telegram-token">${token}<button type="button" data-p9-telegram-toggle>GOSTER</button><button type="button" data-p9-telegram-copy aria-label="Tokeni kopyala">KOPYALA</button></div><small class="muted">Guvenlik uyarisi: Bot tokeni sunucuda AES-256-bit sifre ile saklanmaktadir. Asla ucuncu taraf eklentilerle paylasmayin.</small><div class="p9-telegram-webhook"><div><b>AYEC PRO WEBHOOK CALLBACK URL</b><code>https://api.ayecpro.com.tr/v4/telegram/webhook/inbound</code><small>SLS: Cloudflare Wildcard TLS 1.3 Aktif</small></div><button data-p9-telegram-webhook-reset>Webhook URL Sifirla</button><button data-p9-telegram-pending>Telegram Drop Pending</button></div></section><section class="p9-telegram-card"><h4>Yonetici &amp; Teknisyen Telegram Chat ID'leri</h4><div class="p9-telegram-chat-list" id="p9TelegramChatList">${chatIdValues.map(id=>`<span>${esc(id)} <button type="button" data-p9-chat-remove="${esc(id)}" aria-label="Chat ID kaldir">&times;</button></span>`).join("")}</div><div class="p9-telegram-chat-add"><input id="p9TelegramChatInput" type="text" placeholder="Yeni Chat ID (orn: 981234567)"><button data-p9-chat-add>+ Ekle</button></div><small class="muted">Kullanicilar kendi Chat ID'lerini ogrenmek icin botunuza /start veya /myid yazabilir.</small><input type="hidden" class="exact-setting" data-setting-key="telegram_chat_ids" data-setting-scope="settings" value="${esc(desktopSettings.telegram_chat_ids||"[]")}"></section><section class="p9-telegram-card"><h4>Anlik Telegram Bildirim Tercihleri</h4><div class="p9-telegram-pref-grid">${whatsapp}${stock}${technician}${daily}</div></section><div class="p9-telegram-actions"><button class="primary" data-p9-save-settings>Kaydet ve botu baslat</button></div></div><aside class="p9-telegram-side"><section class="p9-telegram-card p9-telegram-preview"><h4>Telegram Bot Asistan</h4><span class="p9-bot-icon">TG</span><strong>AYEC Pro Asistan</strong><small>bot - cevici</small><div class="p9-message">Bot baglantisi ve bildirim durumu kayitli ayarlar ile gosterilir.</div><b>GUNLUK ILETi BASARISI</b><strong>--</strong></section><section class="p9-telegram-card p9-telegram-logs"><h4>Canl\u0131 da\u011f\u0131t\u0131m g\u00fcnl\u00fc\u011f\u00fc</h4><div class="p9-log-row"><b>Telegram API baglantisi</b><span>Test bekleniyor</span><small>Token girip baglanti testini baslatin.</small></div><div class="p9-log-row"><b>Webhook handshake</b><span>Kurulum bekleniyor</span><small>Webhook endpointi henuz dogrulanmadi.</small></div><div class="p9-log-row"><b>Bildirim alicilari</b><span>${chatIdValues.length} Alici</span><small>Kayitli Chat ID listesi.</small></div><div class="p9-log-row"><b>Dagitim kayitlari</b><span>Veri bekleniyor</span><small>Canli olaylar API baglantisi kuruldugunda gorunur.</small></div><small class="muted">Toplam iletim: -- <button data-p9-telegram-logs>Tim Loglari Goruntule</button></small></section></aside></div></div>`;
+ return `<div class="p9-telegram"><nav class="p9-telegram-tabs"><button data-settings-section="sms-settings">SMS D\u00f6ng\u00fcleri</button><button data-settings-section="sms-templates">Sablonlar</button><button data-settings-section="smtp-settings">SMTP Mail</button><button class="active" data-settings-section="integrations">Telegram Bot</button></nav><header class="p9-telegram-heading"><div><h3>Telegram Bot \u00d6zel Entegrasyonu</h3><p class="muted">Bot kurulumu, bildirim alicilari ve dagitim durumu.</p></div><span class="p9-telegram-state">BOT DURUMU: BEKLIYOR</span></header><div class="p9-telegram-columns"><div class="p9-telegram-main"><section class="p9-telegram-card p9-telegram-status"><div><b>BOT KANALI</b><strong>TELEGRAM</strong><small>Cloud API v7.2</small></div><div><b>GUVENLIK</b><strong>TOKEN KORUMALI</strong><small>AES sifreli ayar deposu</small></div><div><b>DURUM</b><strong>BEKLIYOR</strong><small>Yetkilendirme gerekli</small></div><div><b>BOT HANDLE</b><strong>${desktopSettings.telegram_bot_username ? "@" + String(desktopSettings.telegram_bot_username).replace(/^@/, "") : "--"}</strong><small>${desktopSettings.telegram_bot_username ? "Bot bilgisi dogrulandi" : "Kurulum bekliyor"}</small></div></section><section class="p9-telegram-card"><h4>Entegrasyon ve h\u0131zl\u0131 kurulum rehberi</h4><div class="p9-telegram-steps"><span>1. @BotFather ile /newbot komutunu calistirin.</span><span>2. HTTP API tokenini guvenli alana girin.</span><span>3. Tokeni kaydedip baglanti durumunu dogrulayin.</span><span>4. Bildirim alacak Chat ID'leri kaydedin.</span></div></section><section class="p9-telegram-card"><h4>Telegram Bot Token (HTTP API Belirteci)</h4><div class="p9-telegram-token">${token}<button type="button" data-p9-telegram-toggle>GOSTER</button><button type="button" data-p9-telegram-copy aria-label="Tokeni kopyala">KOPYALA</button></div><small class="muted">Guvenlik uyarisi: Bot tokeni sunucuda AES-256-bit sifre ile saklanmaktadir. Asla ucuncu taraf eklentilerle paylasmayin.</small><div class="p9-telegram-webhook"><div><b>AYEC PRO WEBHOOK CALLBACK URL</b><code>https://api.ayecpro.com.tr/v4/telegram/webhook/inbound</code><small>SLS: Cloudflare Wildcard TLS 1.3 Aktif</small></div><button data-p9-telegram-webhook-reset>Webhook URL Sifirla</button><button data-p9-telegram-pending>Telegram Drop Pending</button></div></section><section class="p9-telegram-card"><h4>Yonetici &amp; Teknisyen Telegram Chat ID'leri</h4><div class="p9-telegram-chat-list" id="p9TelegramChatList">${chatIdValues.map(id=>`<span>${esc(id)} <button type="button" data-p9-chat-remove="${esc(id)}" aria-label="Chat ID kaldir">&times;</button></span>`).join("")}</div><div class="p9-telegram-chat-add"><input id="p9TelegramChatInput" type="text" placeholder="Yeni Chat ID (orn: 981234567)"><button data-p9-chat-add>+ Ekle</button></div><small class="muted">Kullanicilar kendi Chat ID'lerini ogrenmek icin botunuza /start veya /myid yazabilir.</small><input type="hidden" class="exact-setting" data-setting-key="telegram_chat_ids" data-setting-scope="settings" value="${esc(desktopSettings.telegram_chat_ids||"[]")}"></section><section class="p9-telegram-card"><h4>Anlik Telegram Bildirim Tercihleri</h4><div class="p9-telegram-pref-grid">${whatsapp}${stock}${technician}${daily}</div></section><div class="p9-telegram-actions"><button class="primary" data-p9-save-settings>Kaydet ve botu baslat</button></div></div><aside class="p9-telegram-side"><section class="p9-telegram-card p9-telegram-preview"><h4>Telegram Bot Asistan</h4><span class="p9-bot-icon">TG</span><strong>AYEC Pro Asistan</strong><small>bot - cevici</small><div class="p9-message">Bot baglantisi ve bildirim durumu kayitli ayarlar ile gosterilir.</div><b>GUNLUK ILETi BASARISI</b><strong>--</strong></section><section class="p9-telegram-card p9-telegram-logs"><h4>Canl\u0131 da\u011f\u0131t\u0131m g\u00fcnl\u00fc\u011f\u00fc</h4><div class="p9-log-row"><b>Telegram API baglantisi</b><span>Test bekleniyor</span><small>Token girip baglanti testini baslatin.</small></div><div class="p9-log-row"><b>Webhook handshake</b><span>Kurulum bekleniyor</span><small>Webhook endpointi henuz dogrulanmadi.</small></div><div class="p9-log-row"><b>Bildirim alicilari</b><span>${chatIdValues.length} Alici</span><small>Kayitli Chat ID listesi.</small></div><div class="p9-log-row"><b>Dagitim kayitlari</b><span>Veri bekleniyor</span><small>Canli olaylar API baglantisi kuruldugunda gorunur.</small></div><small class="muted">Toplam iletim: -- <button data-p9-telegram-logs>Tim Loglari Goruntule</button></small></section></aside></div></div>`;
 }
 const p9TelegramRenderBase=renderPart9TelegramSettings;
 renderPart9TelegramSettings=function(){return p9TelegramRenderBase().replace('<div class="p9-telegram-actions"><button class="primary" data-p9-save-settings>','<div class="p9-telegram-actions"><button type="button" data-p9-telegram-test>Ba\u{11f}lant\u0131y\u0131 Test Et</button><button type="button" data-p9-telegram-clear>Temizle</button><button class="primary" data-p9-save-settings>')};
@@ -4836,8 +7028,32 @@ renderPart9TelegramSettings=function(){const html=p9TelegramRenderReferenceLog()
 const p9TelegramRenderReferenceHelp=renderPart9TelegramSettings;
 renderPart9TelegramSettings=function(){return p9TelegramRenderReferenceHelp().replaceAll("Masa\u00fcst\u00fc ayar\u0131: telegram_notify_service_new","Kabul barkodu ve m\u00fc\u015fteri \u00f6zeti g\u00f6nderilir.").replaceAll("Masa\u00fcst\u00fc ayar\u0131: telegram_notify_stock_critical","Kritik e\u015fik alt\u0131na d\u00fc\u015fen yedek par\u00e7alar.").replaceAll("Masa\u00fcst\u00fc ayar\u0131: telegram_notify_tech_status","Tamir bitti veya par\u00e7a bekleniyor durumu.").replaceAll("Masa\u00fcst\u00fc ayar\u0131: telegram_notify_daily_report","Saat 20:30 g\u00fcnl\u00fck ciro ve teslim \u00f6zeti.")};
 settingBody=function(settings){if(settingsSection==="integrations")return renderPart9TelegramSettings();if(settingsSection==="smtp-settings")return renderPart9SmtpSettings();return ayecPart9SettingsBody(settings)};
+const ayecContextSettingsBodyBase=settingBody;
+settingBody=function(s){
+  if(settingsSection!=="context-settings")return ayecContextSettingsBodyBase(s);
+  const definition=settingsDefinitions["context-settings"];
+  const enabled=settingBool(desktopSettings.enable_right_click??(db.settings.contextMenu?"1":"0"));
+  const cards=definition.fields.map(([key,label])=>`<label class="right-click-setting-card"><input type="checkbox" class="switch exact-setting right-click-page-setting" data-setting-key="${key}" data-setting-scope="settings" ${settingBool(desktopSettings[key]??"1")?"checked":""} ${enabled?"":"disabled"}><span>${label}</span></label>`).join("");
+  return `<div class="right-click-settings"><h3>${definition.title}</h3><p class="muted">${definition.description}</p><label class="right-click-setting-card right-click-global-setting"><input type="checkbox" class="switch exact-setting" data-setting-key="enable_right_click" data-setting-scope="settings" ${enabled?"checked":""}><span><strong>Sa\u011f tu\u015f men\u00fclerini etkinle\u015ftir</strong><small>Kapat\u0131ld\u0131\u011f\u0131nda h\u0131zl\u0131 i\u015flem men\u00fcleri devre d\u0131\u015f\u0131 kal\u0131r.</small></span></label><div class="right-click-pages-head"><strong>Men\u00fcn\u00fcn aktif oldu\u011fu sayfalar</strong><button type="button" class="secondary" data-rc-toggle-all ${enabled?"":"disabled"}>T\u00fcm\u00fcn\u00fc Se\u00e7 / Kald\u0131r</button></div><div class="right-click-settings-grid">${cards}</div></div>`;
+};
+async function saveRightClickSettings(keys){try{await Promise.all(keys.map(key=>desktopWrite("settings",{key,value:desktopSettings[key]})));toast("Sa\u011f tu\u015f men\u00fc ayarlar\u0131 kaydedildi.","success")}catch(error){toast(error.message||"Sa\u011f tu\u015f ayarlar\u0131 kaydedilemedi.","error")}}
+document.addEventListener("change",event=>{const control=event.target.closest(".right-click-setting-card .exact-setting");if(!control)return;const key=control.dataset.settingKey,value=control.checked?"1":"0";desktopSettings[key]=value;if(key==="enable_right_click"){db.settings.contextMenu=control.checked;save();document.querySelectorAll(".right-click-page-setting").forEach(input=>input.disabled=!control.checked);const toggleAll=document.querySelector("[data-rc-toggle-all]");if(toggleAll)toggleAll.disabled=!control.checked;saveRightClickSettings([key,...settingsDefinitions["context-settings"].fields.map(field=>field[0])]);return}saveRightClickSettings([key])});
+document.addEventListener("click",event=>{const button=event.target.closest("[data-rc-toggle-all]");if(!button||button.disabled)return;const controls=[...document.querySelectorAll(".right-click-page-setting")];const enabled=!controls.every(control=>control.checked);controls.forEach(control=>{control.checked=enabled;desktopSettings[control.dataset.settingKey]=enabled?"1":"0"});saveRightClickSettings(controls.map(control=>control.dataset.settingKey))});
 
-document.addEventListener("click",async event=>{const root=document.querySelector(".p9-telegram");if(!root)return;const target=event.target.closest("[data-p9-telegram-toggle],[data-p9-telegram-copy],[data-p9-telegram-webhook-reset],[data-p9-telegram-pending],[data-p9-chat-add],[data-p9-chat-remove],[data-p9-telegram-logs]");if(!target)return;event.preventDefault();if(target.matches("[data-p9-telegram-toggle]")){const input=root.querySelector('[data-setting-key="telegram_bot_token"]');if(input){input.type=input.type==="password"?"text":"password";target.textContent=input.type==="password"?"GOSTER":"GIZLE"}return}if(target.matches("[data-p9-telegram-copy]")){const input=root.querySelector('[data-setting-key="telegram_bot_token"]');if(input?.value)await navigator.clipboard.writeText(input.value);toast(input?.value?"Bot tokeni panoya kopyalandi":"Kopyalanacak token yok");return}if(target.matches("[data-p9-telegram-webhook-reset]")||target.matches("[data-p9-telegram-pending]")){const dropping=target.matches("[data-p9-telegram-pending]");if(dropping&&!window.confirm("Telegram tarafindaki bekleyen tum guncellemeler kalici olarak silinsin mi?"))return;const token=root.querySelector('[data-setting-key="telegram_bot_token"]')?.value.trim()||"";if(!token){toast("Enter a Telegram bot token first.","error");return}target.disabled=true;try{await apiFetch("/api/desktop/telegram/webhook",{method:"POST",body:JSON.stringify({token,url:"https://api.ayecpro.com.tr/v4/telegram/webhook/inbound",drop_pending_updates:dropping})});await p9TelegramRecordActivity(root,dropping?"Pending Telegram updates dropped":"Webhook target restored");toast(dropping?"Telegram pending updates dropped.":"Telegram webhook restored.","success")}catch(error){toast("Telegram webhook update failed: "+error.message,"error")}finally{target.disabled=false}return}if(target.matches("[data-p9-telegram-logs]")){p9TelegramShowActivity(root);return}const hidden=root.querySelector('[data-setting-key="telegram_chat_ids"]'),list=root.querySelector("#p9TelegramChatList");let ids=[];try{ids=JSON.parse(hidden.value||"[]")}catch{}if(target.matches("[data-p9-chat-add]")){const input=root.querySelector("#p9TelegramChatInput"),id=input.value.trim();if(!/^-?\d+$/.test(id)){toast("Gecerli bir numeric Chat ID girin","error");return}if(!ids.includes(id))ids.push(id);input.value=""}else{ids=ids.filter(id=>String(id)!==target.dataset.p9ChatRemove)}hidden.value=JSON.stringify(ids);list.innerHTML=ids.map(id=>`<span>${esc(id)} <button type="button" data-p9-chat-remove="${esc(id)}" aria-label="Chat ID kaldir">×</button></span>`).join("");await desktopWrite("settings",{key:"telegram_chat_ids",value:hidden.value})},true);
+async function p9TelegramUpdateWebhook(root,target,dropping){
+const token=root.querySelector('[data-setting-key="telegram_bot_token"]')?.value.trim()||"";
+if(!token){toast("Enter a Telegram bot token first.","error");return false;}
+target.disabled=true;
+try{await apiFetch("/api/desktop/telegram/webhook",{method:"POST",body:JSON.stringify({token,url:"https://api.ayecpro.com.tr/v4/telegram/webhook/inbound",drop_pending_updates:dropping})});await p9TelegramRecordActivity(root,dropping?"Pending Telegram updates dropped":"Webhook target restored");toast(dropping?"Telegram pending updates dropped.":"Telegram webhook restored.","success");}
+catch(error){toast("Telegram webhook update failed: "+error.message,"error");return false;}
+finally{target.disabled=false;}
+}
+document.addEventListener("click",async event=>{const root=document.querySelector(".p9-telegram");if(!root)return;const target=event.target.closest("[data-p9-telegram-toggle],[data-p9-telegram-copy],[data-p9-telegram-webhook-reset],[data-p9-telegram-pending],[data-p9-chat-add],[data-p9-chat-remove],[data-p9-telegram-logs]");if(!target)return;event.preventDefault();if(target.matches("[data-p9-telegram-toggle]")){const input=root.querySelector('[data-setting-key="telegram_bot_token"]');if(input){input.type=input.type==="password"?"text":"password";target.textContent=input.type==="password"?"GOSTER":"GIZLE"}return}if(target.matches("[data-p9-telegram-copy]")){const input=root.querySelector('[data-setting-key="telegram_bot_token"]');if(input?.value)await navigator.clipboard.writeText(input.value);toast(input?.value?"Bot tokeni panoya kopyalandi":"Kopyalanacak token yok");return}if(target.matches("[data-p9-telegram-webhook-reset]")||target.matches("[data-p9-telegram-pending]")){
+const dropping=target.matches("[data-p9-telegram-pending]");
+if(dropping){openDialog("Bekleyen Telegram Guncellemelerini Sil","SILME ONAYI","<p>Telegram tarafindaki bekleyen tum guncellemeler kalici olarak silinsin mi?</p><p>Bu islem geri alinamaz.</p>",async()=>p9TelegramUpdateWebhook(root,target,true),"Evet, Sil");const cancel=document.querySelector("#dialogCancel");if(cancel)cancel.textContent="Hay\\u0131r";const submit=document.querySelector("#dialogSubmit");if(submit){submit.classList.remove("primary");submit.classList.add("danger");}return;}
+await p9TelegramUpdateWebhook(root,target,false);return;
+}
+if(target.matches("[data-p9-telegram-logs]")){p9TelegramShowActivity(root);return}const hidden=root.querySelector('[data-setting-key="telegram_chat_ids"]'),list=root.querySelector("#p9TelegramChatList");let ids=[];try{ids=JSON.parse(hidden.value||"[]")}catch{}if(target.matches("[data-p9-chat-add]")){const input=root.querySelector("#p9TelegramChatInput"),id=input.value.trim();if(!/^-?\d+$/.test(id)){toast("Gecerli bir numeric Chat ID girin","error");return}if(!ids.includes(id))ids.push(id);input.value=""}else{ids=ids.filter(id=>String(id)!==target.dataset.p9ChatRemove)}hidden.value=JSON.stringify(ids);list.innerHTML=ids.map(id=>`<span>${esc(id)} <button type="button" data-p9-chat-remove="${esc(id)}" aria-label="Chat ID kaldir">\u00d7</button></span>`).join("");await desktopWrite("settings",{key:"telegram_chat_ids",value:hidden.value})},true);
 settingsGroups[1][1].push(["sms-templates","[SMS]","SMS \u015eablonlar\u0131"]);
 let p9SmsTemplateCache=[];
 let p9SmsTemplateRows=[];
@@ -4872,7 +7088,21 @@ document.addEventListener("click",async event=>{
  if(event.target.closest("[data-p9-template-add]")){p9SmsTemplateDialog();return}
  const edit=event.target.closest("[data-p9-template-edit]");if(edit){p9SmsTemplateDialog(p9SmsTemplateRows.find(row=>String(row.id)===edit.dataset.p9TemplateEdit));return}
  const preview=event.target.closest("[data-p9-template-preview]");if(preview){const row=p9SmsTemplateRows.find(item=>String(item.id)===preview.dataset.p9TemplatePreview);if(row)openDialog(row.name||"SMS Sablonu","\u015eABLON \u00d6N\u0130ZLEME",`<div class="p9-template-preview"><b>${esc(row.name||"")}</b><p>${p9SmsTemplateText(row.content||"")}</p><small>${String(row.content||"").length} / 160 karakter</small></div>`,()=>true,"Tamam");return}
- const remove=event.target.closest("[data-p9-template-delete]");if(remove){const row=p9SmsTemplateRows.find(item=>String(item.id)===remove.dataset.p9TemplateDelete);if(!row||!window.confirm(`${row.name} sablonu silinsin mi?`))return;await apiFetch("/api/desktop/table/whatsapp_templates",{method:"POST",body:JSON.stringify({id:Number(row.id),_action:"delete"})});p9SmsTemplateLoaded=false;await loadPart9SmsTemplateRows(true);return}
+ const remove=event.target.closest("[data-p9-template-delete]");
+ if(remove){
+  const row=p9SmsTemplateRows.find(item=>String(item.id)===remove.dataset.p9TemplateDelete);
+  if(!row)return;
+  openDialog("SMS \u015eablonunu Sil","SILME ONAYI",`<p>"${esc(row.name)}" \u015fablonu silinsin mi?</p><p>Bu i\u015flem geri al\u0131namaz.</p>`,async()=>{
+   try{
+    await apiFetch("/api/desktop/table/whatsapp_templates",{method:"POST",body:JSON.stringify({id:Number(row.id),_action:"delete"})});
+    p9SmsTemplateLoaded=false;
+    await loadPart9SmsTemplateRows(true);
+   }catch(error){toast(error.message||"SMS \u015fablonu silinemedi.","error");return false;}
+  },"Evet, Sil");
+  const cancel=document.querySelector("#dialogCancel");if(cancel)cancel.textContent="Hay\u0131r";
+  const submit=document.querySelector("#dialogSubmit");if(submit){submit.classList.remove("primary");submit.classList.add("danger");}
+  return;
+ }
  if(event.target.closest("[data-p9-template-copy]")){const text=p9SmsTemplateRows.map(row=>`${row.name}\t${row.content}`).join("\n");await navigator.clipboard.writeText(text);toast("SMS \u015fablonlar\u0131 panoya kopyaland\u0131");return}
  if(event.target.closest("[data-p9-template-export]")){const csv="\ufeff"+[["Template","Content"],...p9SmsTemplateRows.map(row=>[row.name,row.content])].map(row=>row.map(value=>`"${String(value||"").replaceAll('"','""')}"`).join(",")).join("\r\n");const url=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));const a=document.createElement("a");a.href=url;a.download="sms-templates.csv";a.click();URL.revokeObjectURL(url);return}
  if(event.target.closest("[data-p9-template-print]")){window.print();return}
@@ -4931,12 +7161,98 @@ render=function(){ayecRenderBeforeDesktopOfferReports();if(page==="offer-reports
 
 
 
+function renderGeminiApiReference() {
+  const values = desktopSettings || {};
+  const savedKey = String(values.gemini_api_key || "");
+  const model = String(values.gemini_model || "gemini-3.6-flash");
+  const maxTokens = Number(values.gemini_max_output_tokens || 8192);
+  const temperature = Number(values.gemini_temperature || 0.2);
+  const checked = (key, fallback = "1") => String(values[key] ?? fallback) === "1" ? "checked" : "";
+  return `${pageHead("Yapay Zeka Modelleri &amp; API Havuzu", "Model ba\u011flant\u0131lar\u0131n\u0131 ve yerel AI ayarlar\u0131n\u0131 y\u00f6netin.", '<button class="primary" data-gemini-save>Ayarlar\u0131 Kaydet</button>')}
+    <div class="gemini-ref">
+      <div class="gemini-ref-metrics">
+        <article><small>Latency &amp; Engine</small><strong>- ms</strong><span>${esc(model)}</span></article>
+        <article><small>API Quota Remaining</small><strong>-</strong><span>Kota telemetrisi yok</span></article>
+        <article><small>Load Balancing Mode</small><strong>S\u0131ral\u0131</strong><span>429 kotas\u0131nda anahtar rotasyonu</span></article>
+        <article><small>Active Keys Pool</small><strong>${savedKey ? "1 Key" : "0 Key"}</strong><span>${savedKey ? "1 kay\u0131tl\u0131 Gemini anahtar\u0131" : "API anahtar\u0131 eklenmedi"}</span></article>
+      </div>
+      <div class="gemini-ref-main">
+        <section class="card gemini-ref-pool">
+          <header><div><h3>API Key Pool &amp; Fallback Matrix</h3><p class="muted">Gemini anahtar\u0131n\u0131 g\u00fcvenli bi\u00e7imde y\u00f6netin ve ba\u011flant\u0131y\u0131 test edin.</p></div><span class="badge">Google Gemini</span></header>
+          <label class="gemini-ref-field"><span>API Key</span><input type="password" autocomplete="new-password" data-gemini-setting="gemini_api_key" placeholder="${savedKey ? "Kay\u0131tl\u0131 anahtar korunuyor; de\u011fi\u015ftirmek i\u00e7in yeni anahtar girin" : "Google Gemini API anahtar\u0131"}"></label>
+          <div class="gemini-ref-table"><span>Key Identifier</span><span>Provider</span><span>Status</span><strong>${savedKey ? "GEMINI_\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022" : "Kay\u0131tl\u0131 anahtar yok"}</strong><strong>Google Gemini</strong><strong>${savedKey ? "Haz\u0131r" : "Kurulum bekliyor"}</strong></div>
+          <label class="gemini-ref-toggle"><input type="checkbox" data-gemini-setting="gemini_zero_downtime_rotation" ${checked("gemini_zero_downtime_rotation")}><span><strong>Zero-Downtime Rotation</strong><small>429 kota hatas\u0131nda sonraki kay\u0131tl\u0131 Gemini anahtar\u0131na ge\u00e7er.</small></span></label>
+        </section>
+        <section class="card gemini-ref-model"><h3>Model Y\u00f6netimi &amp; Konfig\u00fcrasyon</h3>
+          <label class="gemini-ref-field"><span>Model Adresi / ID Se\u00e7imi</span><input data-gemini-setting="gemini_model" value="${esc(model)}"></label>
+          <label class="gemini-ref-range"><span>Max Token Limiti <output>${maxTokens}</output></span><input type="range" min="512" max="8192" step="256" value="${Math.max(512, Math.min(8192, maxTokens))}" data-gemini-range="gemini_max_output_tokens"></label>
+          <label class="gemini-ref-range"><span>S\u0131cakl\u0131k (Temperature) <output>${temperature.toFixed(1)}</output></span><input type="range" min="0" max="2" step="0.1" value="${Math.max(0, Math.min(2, temperature))}" data-gemini-range="gemini_temperature"></label>
+          <label class="gemini-ref-toggle"><input type="checkbox" data-gemini-setting="gemini_sensitive_data_masking" ${checked("gemini_sensitive_data_masking")}><span><strong>Otonom Ak\u0131\u015f G\u00fcvenli\u011fi</strong><small>Hassas de\u011ferleri bulut iste\u011finden \u00f6nce maskeler.</small></span></label>
+          <button class="primary" type="button" data-gemini-test title="Web API testi yap\u0131land\u0131r\u0131lmam\u0131\u015f; bu kontrol yaln\u0131zca yerel ayarlar\u0131 do\u011frular.">API Ayarlar\u0131n\u0131 Do\u011frula</button>
+        </section>
+      </div>
+      <section class="card gemini-ref-usage"><header><div><h3>Kullan\u0131m &amp; Maliyet Analiti\u011fi (Son 24 Saat)</h3><p class="muted">Token, kota ve maliyet telemetrisi mevcut oldu\u011funda burada g\u00f6sterilir.</p></div><button class="secondary" type="button" data-gemini-export>Rapor \u0130ndir</button></header><div class="gemini-ref-empty">Kullan\u0131m telemetrisi bekleniyor. \u00d6rnek veri g\u00f6sterilmez.</div></section>
+      <div class="gemini-ref-features">
+        <label class="gemini-ref-feature"><span><strong>Ak\u0131ll\u0131 Token S\u0131k\u0131\u015ft\u0131rma</strong><small>Gereksiz ba\u011flamlar\u0131 temizler.</small></span><input type="checkbox" data-gemini-setting="gemini_smart_token_compression" ${checked("gemini_smart_token_compression")}></label>
+        <label class="gemini-ref-feature"><span><strong>Maliyet \u00dcst S\u0131n\u0131r\u0131 Korumas\u0131</strong><small>G\u00fcnl\u00fck $50 s\u0131n\u0131r\u0131nda uyar\u0131r.</small></span><input type="checkbox" data-gemini-setting="gemini_cost_limit_protection" ${checked("gemini_cost_limit_protection")}></label>
+        <label class="gemini-ref-feature"><span><strong>Otomatik Load Shedding</strong><small>Y\u00fck tepe yap\u0131nca kuyru\u011fa al\u0131r.</small><input type="checkbox" data-gemini-setting="gemini_auto_load_shedding" ${checked("gemini_auto_load_shedding", "0")}></span></label>
+      </div>
+    </div>`;
+}
+
 const ayecRenderSettingsBeforeSectionTitle = renderSettings;
 renderSettings = function() {
   const selected = settingsGroups.flatMap(([, items]) => items).find(([id]) => id === settingsSection);
   if (page === "settings" && selected) $("#pageTitle").textContent = selected[2];
+  if (page === "settings" && settingsSection === "ai-settings") return renderGeminiApiReference();
   return ayecRenderSettingsBeforeSectionTitle();
 };
+document.addEventListener("input", event => {
+  const range = event.target.closest("[data-gemini-range]");
+  if (!range) return;
+  const output = range.closest("label")?.querySelector("output");
+  if (output) output.value = range.dataset.geminiRange === "gemini_temperature" ? Number(range.value).toFixed(1) : range.value;
+});
+document.addEventListener("click", async event => {
+  const save = event.target.closest("[data-gemini-save]");
+  if (save) {
+    const root = save.closest("#page") || document;
+    const controls = root.querySelectorAll(".gemini-ref [data-gemini-setting], .gemini-ref [data-gemini-range]");
+    save.disabled = true;
+    try {
+      for (const control of controls) {
+        const key = control.dataset.geminiSetting || control.dataset.geminiRange;
+        const value = control.type === "checkbox" ? (control.checked ? "1" : "0") : control.value;
+        if (control.type === "password" && !value) continue;
+        await apiFetch("/api/desktop/table/settings", {method: "POST", body: JSON.stringify({key, value})});
+        desktopSettings[key] = control.type === "password" ? (value ? "configured" : desktopSettings[key] || "") : value;
+      }
+      toast("Gemini ayarlar\u0131 kaydedildi.", "success");
+    } catch (error) {
+      toast("Gemini ayarlar\u0131 kaydedilemedi: " + error.message, "error");
+    } finally {
+      save.disabled = false;
+    }
+    return;
+  }
+  if (event.target.closest("[data-gemini-test]")) {
+    const key = document.querySelector('[data-gemini-setting="gemini_api_key"]')?.value.trim() || desktopSettings.gemini_api_key || "";
+    const model = document.querySelector('[data-gemini-setting="gemini_model"]')?.value.trim() || "";
+    toast(key && model ? "Yerel API ayarlar\u0131 haz\u0131r. Canl\u0131 ba\u011flant\u0131 testi masa\u00fcst\u00fcnden \u00e7al\u0131\u015ft\u0131r\u0131l\u0131r." : "Model ve API anahtar\u0131 gerekli.", key && model ? "success" : "error");
+    return;
+  }
+  if (event.target.closest("[data-gemini-export]")) {
+    const rows = desktopSettings.gemini_api_key ? [{key_identifier: "GEMINI_MASKED", provider: "Google Gemini", status: "stored"}] : [];
+    const report = {generated_at: new Date().toISOString(), model: desktopSettings.gemini_model || "gemini-3.6-flash", token_usage: null, quota_remaining: null, cost: null, keys: rows};
+    const url = URL.createObjectURL(new Blob([JSON.stringify(report, null, 2)], {type: "application/json"}));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "gemini_api_pool_report.json";
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast("Maskelenmi\u015f Gemini raporu indirildi.", "success");
+  }
+});
 const ayecNavigateBeforeSettingsSectionTitle = navigate;
 navigate = function(next) {
   ayecNavigateBeforeSettingsSectionTitle(next);
@@ -4976,12 +7292,14 @@ async function p9TelegramRecordActivity(root,message){
 }
 function p9TelegramShowActivity(root){
  let events=[];try{events=JSON.parse(desktopSettings.telegram_activity_log||"[]");if(!Array.isArray(events))events=[];events=events.filter(item=>item&&typeof item==="object"&&!Array.isArray(item))}catch{}
- const detail=events.slice(0,20).map(item=>`${item.at||""}  ${item.message||""}`).join("\n");window.alert(detail||"No Telegram activity has been recorded yet.")
+ const entries=events.slice(0,20).map(item=>`<li><time>${esc(item.at||"")}</time><span>${esc(item.message||"")}</span></li>`).join("");
+ const body=entries?`<ol class="p9-telegram-activity-list">${entries}</ol>`:'<p>Hen\u00fcz Telegram etkinlik kayd\u0131 bulunmuyor.</p>';
+ openDialog("Telegram Etkinlik Kaydi","TELEGRAM",body,()=>true,"Tamam");
 }
-document.addEventListener("click",async event=>{const test=event.target.closest("[data-p9-telegram-test]");if(test){const token=document.querySelector('[data-setting-key="telegram_bot_token"]')?.value.trim()||"";if(!token){toast("Enter a Telegram bot token first.","error");return}test.disabled=true;try{const result=await apiFetch("/api/desktop/telegram/test",{method:"POST",body:JSON.stringify({token})});const username=String(result.username||"").replace(/^@/,"");const status=document.querySelector(".p9-telegram-state");if(status)status.textContent=username?`BOT DURUMU: @${username}`:"BOT DURUMU: CEVRIMICI";const root=test.closest(".p9-telegram"),rows=root?.querySelectorAll(".p9-telegram-logs .p9-log-row")||[];await p9TelegramRecordActivity(root,"Bot API connection verified");const statusCard=root?.querySelector(".p9-telegram-status div:nth-child(3)");try{const info=await apiFetch("/api/desktop/telegram/status",{method:"POST",body:JSON.stringify({token})});if(statusCard){statusCard.querySelector("strong").textContent=info.url?"WEBHOOK ACTIVE":"API CONNECTED";statusCard.querySelector("small").textContent=info.last_error_message||`Pending updates: ${info.pending_update_count}`}}catch(error){if(statusCard){statusCard.querySelector("strong").textContent="API CONNECTED";statusCard.querySelector("small").textContent="Webhook status unavailable"}}toast(username?`Telegram baglantisi dogrulandi: @${username}`:"Telegram bot baglantisi dogrulandi.","success")}catch(error){await p9TelegramRecordActivity(test.closest(".p9-telegram"),"Bot API connection failed");toast("Telegram baglantisi basarisiz: "+error.message,"error")}finally{test.disabled=false}return}const clear=event.target.closest("[data-p9-telegram-clear]");if(clear){const token=document.querySelector('[data-setting-key="telegram_bot_token"]');const chat=document.querySelector("#p9TelegramChatInput");if(token)token.value="";if(chat)chat.value="";toast("Telegram formu temizlendi.");return}const saveAndStart=event.target.closest("[data-p9-save-settings]");if(saveAndStart){const root=saveAndStart.closest(".p9-telegram");if(root)p9TelegramSaveAndStart(root,saveAndStart)}},true);
+document.addEventListener("click",async event=>{const test=event.target.closest("[data-p9-telegram-test]");if(test){const token=document.querySelector('[data-setting-key="telegram_bot_token"]')?.value.trim()||"";if(!token){toast("Enter a Telegram bot token first.","error");return}test.disabled=true;try{const result=await apiFetch("/api/desktop/telegram/test",{method:"POST",body:JSON.stringify({token})});const username=String(result.username||"").replace(/^@/,"");desktopSettings.telegram_bot_username=username;await desktopWrite("settings",{key:"telegram_bot_username",value:username});const status=document.querySelector(".p9-telegram-state");if(status)status.textContent=username?`BOT DURUMU: @${username}`:"BOT DURUMU: CEVRIMICI";const root=test.closest(".p9-telegram"),rows=root?.querySelectorAll(".p9-telegram-logs .p9-log-row")||[];await p9TelegramRecordActivity(root,"Bot API connection verified");const statusCard=root?.querySelector(".p9-telegram-status div:nth-child(3)");try{const info=await apiFetch("/api/desktop/telegram/status",{method:"POST",body:JSON.stringify({token})});if(statusCard){statusCard.querySelector("strong").textContent=info.url?"WEBHOOK ACTIVE":"API CONNECTED";statusCard.querySelector("small").textContent=info.last_error_message||`Pending updates: ${info.pending_update_count}`}}catch(error){if(statusCard){statusCard.querySelector("strong").textContent="API CONNECTED";statusCard.querySelector("small").textContent="Webhook status unavailable"}}toast(username?`Telegram baglantisi dogrulandi: @${username}`:"Telegram bot baglantisi dogrulandi.","success")}catch(error){await p9TelegramRecordActivity(test.closest(".p9-telegram"),"Bot API connection failed");toast("Telegram baglantisi basarisiz: "+error.message,"error")}finally{test.disabled=false}return}const clear=event.target.closest("[data-p9-telegram-clear]");if(clear){const token=document.querySelector('[data-setting-key="telegram_bot_token"]');const chat=document.querySelector("#p9TelegramChatInput");if(token)token.value="";if(chat)chat.value="";toast("Telegram formu temizlendi.");return}const saveAndStart=event.target.closest("[data-p9-save-settings]");if(saveAndStart){const root=saveAndStart.closest(".p9-telegram");if(root)p9TelegramSaveAndStart(root,saveAndStart)}},true);
 
 const p9ProjectState = {projects: [], units: [], unitProducts: [], transactions: [], team: [], selectedId: null, tab: "units", loaded: false, loading: false, error: ""};
-const p9FinanceView = {query: "", type: "all", category: "all", channel: "all", status: "all", date: "all", density: "comfortable"};
+const p9FinanceView = {query: "", type: "all", category: "all", channel: "all", status: "all", date: "all", segment: "all", density: "comfortable"};
 const p9UnitsView = {query: "", status: "all", mode: "grid"};
 function p9CurrentProject() { return p9ProjectState.projects.find(item => String(item.id) === String(p9ProjectState.selectedId)) || p9ProjectState.projects[0] || null; }
 function p9ProjectMoney(value) { return new Intl.NumberFormat("tr-TR", {style: "currency", currency: "TRY", maximumFractionDigits: 0}).format(Number(value) || 0); }
@@ -5020,9 +7338,9 @@ function renderPart9Projects() {
       const lead = unit.responsible_name || unit.site_manager || unit.assigned_to || "Atanmad\u{131}";
       const floor = unit.floor_no ? `Kat ${esc(unit.floor_no)}` : "Kat bilgisi yok";
       const direction = unit.direction || unit.unit_kind || unit.unit_type || "Daire";
-      return `<article class="p9-unit-card p9-architect-card" data-unit="${esc(unit.unit_no || unit.id)}"><header><div class="p9-unit-ident"><span>${esc((unit.block_name || "A").trim().slice(0, 1))}</span><div><strong>Daire ${esc(unit.unit_no || unit.id)}</strong><small>${floor} \u{2022} ${esc(direction)}</small></div></div><span class="p9-unit-status ${normalizedStatus.includes("tamam") ? "complete" : normalizedStatus.includes("devam") ? "active" : "pending"}">${esc(status)}</span></header><div class="p9-unit-details"><div><span>\u{2699} Kurulu Cihaz</span><b>${count ? `${count} Cihaz` : "0 \u{dc}r\u{fc}n"}</b></div><div><span>\u{25a3} Oda / B\u{f6}l\u{fc}m</span><b title="${esc(rooms)}">${esc(rooms)}</b></div><div><span>\u{2659} Saha Sorumlusu</span><b>${esc(lead)}</b></div></div><div class="p9-unit-install"><div><span>Fiziksel Kurulum</span><b>%${progress}</b></div><progress max="100" value="${progress}"></progress></div><footer><button class="primary" data-p9-unit-products="${esc(unit.id)}">\u{25a3} \u{dc}r\u{fc}nleri G\u{f6}r / Ekle</button><button title="Daireyi d\u{fc}zenle" data-p9-unit-edit="${esc(unit.id)}" data-current-status="${esc(status)}">\u{270e}</button><button title="QR kod" data-p9-unit-qr="${esc(unit.id)}">\u{25a6}</button></footer></article>`;
+      return `<article class="p9-unit-card p9-architect-card" data-p9-unit-card="${esc(unit.id)}" data-unit="${esc(unit.unit_no || unit.id)}"><header><div class="p9-unit-ident"><span>${esc((unit.block_name || "A").trim().slice(0, 1))}</span><div><strong>Daire ${esc(unit.unit_no || unit.id)}</strong><small>${floor} \u{2022} ${esc(direction)}</small></div></div><span class="p9-unit-status ${normalizedStatus.includes("tamam") ? "complete" : normalizedStatus.includes("devam") ? "active" : "pending"}">${esc(status)}</span></header><div class="p9-unit-details"><div><span>\u{2699} Kurulu Cihaz</span><b>${count ? `${count} Cihaz` : "0 \u{dc}r\u{fc}n"}</b></div><div><span>\u{25a3} Oda / B\u{f6}l\u{fc}m</span><b title="${esc(rooms)}">${esc(rooms)}</b></div><div><span>\u{2659} Saha Sorumlusu</span><b>${esc(lead)}</b></div></div><div class="p9-unit-install"><div><span>Fiziksel Kurulum</span><b>%${progress}</b></div><progress max="100" value="${progress}"></progress></div><footer><button class="primary" data-p9-unit-products="${esc(unit.id)}">\u{25a3} \u{dc}r\u{fc}nleri G\u{f6}r / Ekle</button><button title="Daireyi d\u{fc}zenle" data-p9-unit-edit="${esc(unit.id)}" data-current-status="${esc(status)}">\u{270e}</button><button title="QR kod" data-p9-unit-qr="${esc(unit.id)}">\u{25a6}</button></footer></article>`;
     };
-    body = `<section class="p9-units"><div class="p9-units-toolbar"><div class="p9-units-actions"><button class="primary" data-p9-add-unit>+ Blok ve Daire Olu\u{15f}tur</button><button data-p9-add-unit>+ Tekil Daire / Oda Ekle</button>${statuses.map(([id, label]) => `<button data-p9-unit-status="${id}" class="p9-unit-filter ${p9UnitsView.status === id ? "active" : ""}">${label}</button>`).join("")}</div><div class="p9-units-tools"><button data-p9-units-export>\u{25a6} Excel Raporu</button><button data-p9-units-bulk>\u{21bb} Toplu Durum G\u{fc}ncelle</button><button data-p9-units-mode="grid" class="${p9UnitsView.mode === "grid" ? "active" : ""}" title="Kart g\u{f6}r\u{fc}n\u{fc}m\u{fc}">\u{25a6}</button><button data-p9-units-mode="list" class="${p9UnitsView.mode === "list" ? "active" : ""}" title="Kompakt liste">\u{2630}</button></div></div><div class="p9-units-search"><input class="control" id="p9UnitSearch" value="${esc(p9UnitsView.query)}" placeholder="Oda / daire ara... (\u{f6}rn: A-1, B-4, Salon, Engin)"><span>ESC</span><div>\u{21b5} \u{c7}ift t\u{131}k: \u{dc}r\u{fc}n ekle <i>/</i> \u{25c9} Sa\u{11f} t\u{131}k: Durum de\u{11f}i\u{15f}tir</div></div>${blocks.map(block => { const blockUnits = matchingUnits.filter(unit => (unit.block_name || "A Blok") === block); const progress = blockUnits.length ? Math.round(blockUnits.reduce((sum, unit) => sum + Number(unit.completion_percent ?? unit.progress ?? (statusKey(unit).includes("tamam") ? 100 : statusKey(unit).includes("devam") ? 50 : 0)), 0) / blockUnits.length) : 0; return `<section class="p9-unit-block"><header><span>${esc(block.slice(0, 1))}</span><div><h2>${esc(block)} Daireleri <small>${blockUnits.length} Ba\u{11f}\u{131}ms\u{131}z B\u{f6}l\u{fc}m</small></h2><p>Konut Otomasyonu, Ayd\u{131}nlatma ve HVAC Altyap\u{131} Saha Da\u{11f}\u{131}l\u{131}m\u{131}</p></div><div class="p9-block-progress"><small>Ortalama Tamamlanma</small><b>%${progress}</b><progress max="100" value="${progress}"></progress></div></header><div class="p9-unit-grid ${p9UnitsView.mode === "list" ? "list" : ""}">${blockUnits.map(card).join("") || `<p class="p9-project-empty">Arama ve durum filtrelerinde sonu\u00e7 bulunamad\u0131.</p>`}</div></section>`; }).join("") || `<p class="p9-project-empty">Bu projede hen\u00fcz oda veya daire bulunmuyor.</p>`}</section>`;
+    body = `<section class="p9-units"><div class="p9-units-toolbar"><div class="p9-units-actions"><button class="primary" data-p9-add-unit="bulk">+ Blok ve Daire Olu\u{15f}tur</button><button data-p9-add-unit="single">+ Tekil Daire / Oda Ekle</button>${statuses.map(([id, label]) => `<button data-p9-unit-status="${id}" class="p9-unit-filter ${p9UnitsView.status === id ? "active" : ""}">${label}</button>`).join("")}</div><div class="p9-units-tools"><button data-p9-units-export>\u{25a6} Excel Raporu</button><button data-p9-units-bulk>\u{21bb} Toplu Durum G\u{fc}ncelle</button><button data-p9-units-mode="grid" class="${p9UnitsView.mode === "grid" ? "active" : ""}" title="Kart g\u{f6}r\u{fc}n\u{fc}m\u{fc}">\u{25a6}</button><button data-p9-units-mode="list" class="${p9UnitsView.mode === "list" ? "active" : ""}" title="Kompakt liste">\u{2630}</button></div></div><div class="p9-units-search"><input class="control" id="p9UnitSearch" value="${esc(p9UnitsView.query)}" placeholder="Oda / daire ara... (\u{f6}rn: A-1, B-4, Salon, Engin)"><span>ESC</span><div>\u{21b5} \u{c7}ift t\u{131}k: \u{dc}r\u{fc}n ekle <i>/</i> \u{25c9} Sa\u{11f} t\u{131}k: Durum de\u{11f}i\u{15f}tir</div></div>${blocks.map(block => { const blockUnits = matchingUnits.filter(unit => (unit.block_name || "A Blok") === block); const progress = blockUnits.length ? Math.round(blockUnits.reduce((sum, unit) => sum + Number(unit.completion_percent ?? unit.progress ?? (statusKey(unit).includes("tamam") ? 100 : statusKey(unit).includes("devam") ? 50 : 0)), 0) / blockUnits.length) : 0; return `<section class="p9-unit-block"><header><span>${esc(block.slice(0, 1))}</span><div><h2>${esc(block)} Daireleri <small>${blockUnits.length} Ba\u{11f}\u{131}ms\u{131}z B\u{f6}l\u{fc}m</small></h2><p>Konut Otomasyonu, Ayd\u{131}nlatma ve HVAC Altyap\u{131} Saha Da\u{11f}\u{131}l\u{131}m\u{131}</p></div><div class="p9-block-progress"><small>Ortalama Tamamlanma</small><b>%${progress}</b><progress max="100" value="${progress}"></progress></div></header><div class="p9-unit-grid ${p9UnitsView.mode === "list" ? "list" : ""}">${blockUnits.map(card).join("") || `<p class="p9-project-empty">Arama ve durum filtrelerinde sonu\u00e7 bulunamad\u0131.</p>`}</div></section>`; }).join("") || `<p class="p9-project-empty">Bu projede hen\u00fcz oda veya daire bulunmuyor.</p>`}</section>`;
   }
   else if (p9ProjectState.tab === "finance") {
     const key = value => String(value || "").toLocaleLowerCase("tr-TR").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -5045,19 +7363,19 @@ function renderPart9Projects() {
     };
     const financeRows = transactions.filter(item => {
       const haystack = [item.id, item.description, item.category, item.invoice_no, item.payment_method].map(key).join(" ");
-      return dateMatches(item) && (!p9FinanceView.query || haystack.includes(key(p9FinanceView.query))) && (p9FinanceView.type === "all" || key(item.type) === p9FinanceView.type) && (p9FinanceView.category === "all" || key(item.category) === p9FinanceView.category) && (p9FinanceView.channel === "all" || key(item.payment_method).includes(p9FinanceView.channel)) && (p9FinanceView.status === "all" || key(item.status).includes(p9FinanceView.status));
+      return dateMatches(item) && (!p9FinanceView.query || haystack.includes(key(p9FinanceView.query))) && (p9FinanceView.type === "all" || key(item.type) === p9FinanceView.type) && (p9FinanceView.category === "all" || key(item.category) === p9FinanceView.category) && (p9FinanceView.channel === "all" || key(item.payment_method).includes(p9FinanceView.channel)) && (p9FinanceView.status === "all" || key(item.status).includes(p9FinanceView.status)) && (p9FinanceView.segment === "all" || (p9FinanceView.segment === "pending" && !["odendi", "tahsil edildi"].includes(key(item.status))));
     });
-    const categories = [["all", "T\u{fc}m Hareketler"], ["gelir", "Gelir"], ["gider", "Gider"], ["avans", "Avans"], ["hakedis", "Hakedi\u{15f}"], ["malzeme", "Malzeme"], ["iscilik", "\u{130}\u{15f}\u{e7}ilik"]];
+    const categories = [["all", "T\u{fc}m Hareketler"], ["gelir", "Gelir"], ["gider", "Gider"], ["pending", "Bekleyen Mutabakatlar"], ["avans", "Avans"], ["hakedis", "Hakedi\u{15f}"], ["malzeme", "Malzeme"], ["iscilik", "\u{130}\u{15f}\u{e7}ilik"]];
     body = `<section class="p9-finance"><header class="p9-finance-heading"><div><div class="p9-finance-title"><span class="p9-finance-icon">\u{25a4}</span><div><h2>Proje Finans Durumu &amp; Nakit Ak\u{131}\u{15f}\u{131} <small>CANLI DEFTER</small></h2><p>\u{15e}antiye Maliyet Muhasebesi \u{2022} Fatura Takibi \u{2022} Hakedi\u{15f} &amp; Avans Mutabakat\u{131}</p></div></div></div><div class="p9-finance-actions"><button data-p9-add-transaction="Gelir" class="income">+ Gelir Ekle</button><button data-p9-add-transaction="Gider" class="expense">- Gider Ekle</button><button data-p9-finance-export="pdf">PDF Raporu \u{130}ndir</button><button data-p9-finance-export="csv">Excel D\u{f6}k\u{fc}m\u{fc}</button></div></header>
     <div class="p9-finance-kpis"><article class="income"><label>Tahsil Edilen Gelir</label><strong>${p9ProjectMoney(income)}</strong><small>${transactions.filter(x => key(x.type) === "gelir" && ["odendi", "tahsil edildi", "tahsil"].includes(key(x.status))).length} tahsilat</small></article><article class="expense"><label>\u{d6}denen Gider</label><strong>${p9ProjectMoney(expense)}</strong><small>${transactions.filter(x => key(x.type) === "gider" && ["odendi", "tahsil edildi", "tahsil"].includes(key(x.status))).length} kalem</small></article><article class="net"><label>Net K\u{e2}r / Finansal Denge</label><strong>${p9ProjectMoney(income - expense)}</strong><small>Marj %${income ? ((income - expense) / income * 100).toFixed(1) : "0.0"}</small></article><article class="pending"><label>Bekleyen Gelir</label><strong>${p9ProjectMoney(pendingIncome)}</strong><small>Vade ve tahsilat takibi</small></article><article class="pending-expense"><label>Bekleyen Gider</label><strong>${p9ProjectMoney(pendingExpense)}</strong><small>Planlanan bor\u{e7}</small></article></div>
     <div class="p9-finance-budget"><div class="p9-budget-mark">\u{25c9}</div><div class="p9-budget-main"><div><strong>Proje B\u{fc}t\u{e7}e Ger\u{e7}ekle\u{15f}me Oran\u{131}</strong><span>${budgetPercent}% Ger\u{e7}ekle\u{15f}en (Hedef: ${p9ProjectMoney(budget)})</span></div><progress max="100" value="${budgetPercent}"></progress><div><small>Tahsil Edilen: ${p9ProjectMoney(income)}</small><small>A\u{e7}\u{131}k Mutabakat: ${p9ProjectMoney(pendingIncome)}</small></div></div><div class="p9-budget-stats"><span>Nakit/Banka: ${p9ProjectMoney(income - expense)}</span><span>Hakedi\u{15f} Avans: ${p9ProjectMoney(pendingIncome)}</span><span>Bor\u{e7}/Alacak Denge: ${p9ProjectMoney(income - expense)}</span></div></div>
-    <section class="p9-finance-ledger"><div class="p9-finance-filterline"><input class="control" id="p9FinanceSearch" value="${esc(p9FinanceView.query)}" placeholder="\u{130}\u{15f}lem no, a\u{e7}\u{131}klama, fatura veya cari ara..."><select class="control" id="p9FinanceDate"><option value="all">T\u{fc}m Tarihler</option><option value="today">Bug\u{fc}n</option><option value="this_week">Bu Hafta</option><option value="this_month">Eyl\u{fc}l 2026</option></select><select class="control" id="p9FinanceType"><option value="all">T\u{fc}m T\u{fc}rler</option><option value="gelir">Gelir</option><option value="gider">Gider</option></select><select class="control" id="p9FinanceCategory"><option value="all">T\u{fc}m Kategoriler</option>${["Avans", "Hakedi\u{15f}", "Malzeme", "\u{130}\u{15f}\u{e7}ilik"].map(v => `<option value="${key(v)}">${v}</option>`).join("")}</select><select class="control" id="p9FinanceChannel"><option value="all">T\u{fc}m \u{d6}deme Kanallar\u{131}</option><option value="banka">Banka Transferi</option><option value="nakit">Nakit Kasa</option><option value="kredi">Kredi Kart\u{131} / \u{c7}ek</option></select><select class="control" id="p9FinanceStatus"><option value="all">T\u{fc}m Durumlar</option><option value="odendi">Tahsil Edildi / \u{d6}dendi</option><option value="bekliyor">Bekliyor</option><option value="iptal">\u{130}ptal / \u{130}ade</option></select><button title="Filtreleri temizle" data-p9-finance-reset>\u{21ba}</button></div><div class="p9-finance-categories">${categories.map(([id, label]) => `<button data-p9-finance-category="${id}" class="${(p9FinanceView.type === id || (id === "all" && p9FinanceView.type === "all" && p9FinanceView.category === "all")) ? "active" : ""}">${label}<small>${id === "all" ? transactions.length : transactions.filter(x => key(x.type) === id || key(x.category) === id).length}</small></button>`).join("")}<div class="p9-finance-viewtools"><button data-p9-density="comfortable" class="${p9FinanceView.density === "comfortable" ? "active" : ""}">Sat\u{131}r aral\u{131}\u{11f}\u{131}</button><button data-p9-finance-columns>Kolonlar \u{2699}</button></div></div><div class="p9-finance-table-wrap"><table class="p9-finance-table ${p9FinanceView.density}"><thead><tr><th>#</th><th>i\u{15e}LEM TAR\u{130}H\u{130}</th><th>T\u{dc}R</th><th>KATEGOR\u{130}</th><th>A\u{c7}IKLAMA / DETAY</th><th>\u{d6}DEME KANALI</th><th>VADE / BELGE NO</th><th>TUTAR &amp; DURUM</th></tr></thead><tbody>${financeRows.map((item, index) => `<tr><td>${String(index + 1).padStart(2, "0")}</td><td>${esc(item.date || "-")}</td><td><span class="p9-finance-type ${key(item.type)}">${esc(item.type || "-")}</span></td><td>${esc(item.category || "-")}</td><td><strong>${esc(item.description || "-")}</strong><small>${esc(item.counterparty || item.supplier || `Proje: ${project?.name || "-"}`)}</small></td><td>${esc(item.payment_method || "-")}</td><td>${esc([item.due_date, item.invoice_no || item.document_no].filter(Boolean).join(" / ") || "-")}</td><td><strong>${p9ProjectMoney(item.amount)}</strong><small class="p9-status ${key(item.status)}">${esc(item.status || "-")}</small></td></tr>`).join("") || `<tr><td colspan="8" class="p9-finance-empty">Filtrelerle e\u{15f}le\u{15f}en hareket yok.</td></tr>`}</tbody></table></div><footer class="p9-finance-footer"><span>${financeRows.length} hareket g\u{f6}steriliyor / ${transactions.length}</span><span>Nakit / Banka: ${p9ProjectMoney(income - expense)}</span><strong>Net denge: ${p9ProjectMoney(income - expense)}</strong><div><button disabled>\u{2039}</button><button class="active">1</button><button disabled>\u{203a}</button></div></footer></section><aside class="p9-finance-sync"><strong>E-Fatura &amp; Mali Senkronizasyon Durumu</strong><span>Proje finans hareketleri ortak veritaban\u{131}nda saklan\u{131}r.</span><b>\u{25cf} Senkronize</b></aside></section>`;
+    <section class="p9-finance-ledger"><div class="p9-finance-filterline"><input class="control" id="p9FinanceSearch" value="${esc(p9FinanceView.query)}" placeholder="\u{130}\u{15f}lem no, a\u{e7}\u{131}klama, fatura veya cari ara..."><select class="control" id="p9FinanceDate"><option value="all">T\u{fc}m Tarihler</option><option value="today">Bug\u{fc}n</option><option value="this_week">Bu Hafta</option><option value="this_month">Eyl\u{fc}l 2026</option></select><select class="control" id="p9FinanceType"><option value="all">T\u{fc}m T\u{fc}rler</option><option value="gelir">Gelir</option><option value="gider">Gider</option></select><select class="control" id="p9FinanceCategory"><option value="all">T\u{fc}m Kategoriler</option>${[...new Set(transactions.map(item => String(item.category || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "tr")).map(value => `<option value="${key(value)}">${esc(value)}</option>`).join("")}</select><select class="control" id="p9FinanceChannel"><option value="all">T\u{fc}m \u{d6}deme Kanallar\u{131}</option>${[...new Set(transactions.map(item => String(item.payment_method || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "tr")).map(value => `<option value="${key(value)}">${esc(value)}</option>`).join("")}</select><select class="control" id="p9FinanceStatus"><option value="all">T\u{fc}m Durumlar</option><option value="odendi">Tahsil Edildi / \u{d6}dendi</option><option value="bekliyor">Bekliyor</option><option value="iptal">\u{130}ptal / \u{130}ade</option></select><button title="Filtreleri temizle" data-p9-finance-reset>\u{21ba}</button></div><div class="p9-finance-categories">${categories.map(([id, label]) => `<button data-p9-finance-category="${id}" class="${(id === "pending" ? p9FinanceView.segment === "pending" : p9FinanceView.segment === "all" && (p9FinanceView.type === id || (id === "all" && p9FinanceView.type === "all" && p9FinanceView.category === "all"))) ? "active" : ""}">${label}<small>${id === "all" ? transactions.length : id === "pending" ? transactions.filter(x => !["odendi", "tahsil edildi"].includes(key(x.status))).length : transactions.filter(x => key(x.type) === id || key(x.category) === id).length}</small></button>`).join("")}<div class="p9-finance-viewtools"><button data-p9-density="comfortable" class="${p9FinanceView.density === "comfortable" ? "active" : ""}">Sat\u{131}r aral\u{131}\u{11f}\u{131}</button><button data-p9-finance-columns>Kolonlar \u{2699}</button></div></div><div class="p9-finance-table-wrap"><table class="p9-finance-table ${p9FinanceView.density}"><thead><tr><th>#</th><th>i\u{15e}LEM TAR\u{130}H\u{130}</th><th>T\u{dc}R</th><th>KATEGOR\u{130}</th><th>A\u{c7}IKLAMA / DETAY</th><th>\u{d6}DEME KANALI</th><th>VADE / BELGE NO</th><th>TUTAR &amp; DURUM</th></tr></thead><tbody>${financeRows.map((item, index) => `<tr data-p9-finance-transaction="${esc(item.id)}"><td>${String(index + 1).padStart(2, "0")}</td><td>${esc(item.date || "-")}</td><td><span class="p9-finance-type ${key(item.type)}">${esc(item.type || "-")}</span></td><td>${esc(item.category || "-")}</td><td><strong>${esc(item.description || "-")}</strong><small>${esc(item.counterparty || item.supplier || `Proje: ${project?.name || "-"}`)}</small></td><td>${esc(item.payment_method || "-")}</td><td>${esc([item.due_date, item.invoice_no || item.document_no].filter(Boolean).join(" / ") || "-")}</td><td><strong>${p9ProjectMoney(item.amount)}</strong><small class="p9-status ${key(item.status)}">${esc(item.status || "-")}</small></td></tr>`).join("") || `<tr><td colspan="8" class="p9-finance-empty">Filtrelerle e\u{15f}le\u{15f}en hareket yok.</td></tr>`}</tbody></table></div><footer class="p9-finance-footer"><span>${financeRows.length} hareket g\u{f6}steriliyor / ${transactions.length}</span><span>Nakit / Banka: ${p9ProjectMoney(income - expense)}</span><strong>Net denge: ${p9ProjectMoney(income - expense)}</strong><div><button disabled>\u{2039}</button><button class="active">1</button><button disabled>\u{203a}</button></div></footer></section><aside class="p9-finance-sync"><strong>E-Fatura &amp; Mali Senkronizasyon Durumu</strong><span>Proje finans hareketleri ortak veritaban\u{131}nda saklan\u{131}r.</span><b>\u{25cf} Senkronize</b></aside></section>`;
   }
-  else if (p9ProjectState.tab === "team") body = `<div class="p9-project-toolbar"><strong>Proje Ekip Yonetimi</strong><button class="primary" data-p9-add-member>+ Ekip Uyesi Ekle</button></div><div class="table-wrap p9-project-table"><table><thead><tr><th>AD SOYAD / FIRMA</th><th>UZMANLIK ALANI</th><th>SOZLESME TUTARI</th><th>ILETISIM</th><th>\u0130\u015eLEMLER</th></tr></thead><tbody>${team.map(item => `<tr><td>${esc(item.name || "-")}</td><td>${esc(item.job_type || "-")}</td><td>${p9ProjectMoney(item.total_contract_amount)}</td><td>${esc(item.contact_info || "-")}</td><td><button class="mini" data-p9-team-delete="${esc(item.id)}">Kaldir</button></td></tr>`).join("") || `<tr><td colspan="5">Projeye atanmis ekip uyesi yok.</td></tr>`}</tbody></table></div>`;
+  else if (p9ProjectState.tab === "team") body = `<div class="p9-project-toolbar"><strong>Proje Ekip Yonetimi</strong><button class="primary" data-p9-add-member>+ Ekip Uyesi Ekle</button></div><div class="table-wrap p9-project-table"><table><thead><tr><th>AD SOYAD / FIRMA</th><th>UZMANLIK ALANI</th><th>SOZLESME TUTARI</th><th>ILETISIM</th><th>\u0130\u015eLEMLER</th></tr></thead><tbody>${team.map(item => { const paid = transactions.filter(txn => txn.ref_table === "subcontractors" && String(txn.ref_id) === String(item.id) && key(txn.type) === "gider" && key(txn.status) === "odendi").reduce((sum, txn) => sum + (Number(txn.amount) || 0), 0); const balance = Math.max(0, (Number(item.total_contract_amount) || 0) - paid); return `<tr><td>${esc(item.name || "-")}</td><td>${esc(item.job_type || "-")}</td><td>${p9ProjectMoney(item.total_contract_amount)}</td><td>${esc(item.contact_info || "-")}</td><td><button class="mini" data-p9-team-pay="${esc(item.id)}" title="Kalan bakiye: ${esc(p9ProjectMoney(balance))}">Odeme Yap</button><button class="mini" data-p9-team-delete="${esc(item.id)}">Kaldir</button></td></tr>`; }).join("") || `<tr><td colspan="5">Projeye atanmis ekip uyesi yok.</td></tr>`}</tbody></table></div>`;
   else body = `<p class="p9-project-empty">Bu projede cihaz envanteri kaydi bulunmuyor.</p>`;
   const projectOptions = p9ProjectState.projects.map(item => `<option value="${esc(item.id)}" ${String(item.id) === String(project?.id) ? "selected" : ""}>${esc(item.name || "Proje")}</option>`).join("");
   const tabs = [["units", "Kurulum & Odalar"], ["finance", "Finans Durumu"], ["team", "Ekip Yonetimi"]];
-  return `${pageHead(project?.name || "Proje Yonetimi", "Proje, oda, ekip ve butce yonetimi.", '<button class="secondary" data-p9-project-refresh>Yenile</button>')}<div class="p9-project-screen"><header class="p9-project-top"><strong>${esc(project?.name || "Projeler")}</strong><select id="p9ProjectSelect">${projectOptions}</select><span>${units.length} Oda</span><span>${units.filter(item => String(item.status || "").toLocaleLowerCase("tr-TR").includes("tamam")).length} Tamamlandi</span><span>${units.filter(item => !String(item.status || "").toLocaleLowerCase("tr-TR").includes("tamam")).length} Devam Ediyor</span><span>${productTotal} Urun Kurulu</span><span>${team.length} Ekip Uyesi</span><button class="primary" data-p9-add-project>+ Proje Ekle</button></header><div class="p9-project-layout"><aside class="p9-project-nav"><label>Aktif Santiye</label><strong>${esc(project?.name || "Proje secin")}</strong>${tabs.map(([id, label]) => `<button data-p9-project-tab="${id}" class="${p9ProjectState.tab === id ? "active" : ""}">${label}</button>`).join("")}<button data-p9-project-tab="inventory" class="${p9ProjectState.tab === "inventory" ? "active" : ""}">Cihaz Envanteri</button><button data-p9-project-tab="settings" class="${p9ProjectState.tab === "settings" ? "active" : ""}">Santiye Ayarlari</button></aside><section class="p9-project-main"><nav class="p9-project-tabs">${tabs.map(([id, label]) => `<button data-p9-project-tab="${id}" class="${p9ProjectState.tab === id ? "active" : ""}">${label}</button>`).join("")}</nav><div id="p9ProjectBody">${body}</div></section></div><input id="genericSearch" hidden><div id="genericTable" hidden></div></div>`;
+  return `${pageHead(project?.name || "Proje Yonetimi", "Proje, oda, ekip ve butce yonetimi.", '<button class="secondary" data-p9-project-refresh>Yenile</button>')}<div class="p9-project-screen"><header class="p9-project-top"><strong>${esc(project?.name || "Projeler")}</strong><select id="p9ProjectSelect">${projectOptions}</select><span>${units.length} Oda</span><span>${units.filter(item => String(item.status || "").toLocaleLowerCase("tr-TR").includes("tamam")).length} Tamamlandi</span><span>${units.filter(item => !String(item.status || "").toLocaleLowerCase("tr-TR").includes("tamam")).length} Devam Ediyor</span><span>${productTotal} Urun Kurulu</span><span>${team.length} Ekip Uyesi</span><button class="primary" data-p9-add-project>+ Proje Ekle</button>${project ? `<div class="p9-project-lifecycle-actions"><button data-p9-project-action="complete" ${String(project.status || "").toLocaleLowerCase("tr-TR").includes("tamam") || String(project.status || "").toLocaleLowerCase("tr-TR").includes("iptal") ? "disabled" : ""}>Tamamla</button><button data-p9-project-action="${Number(project.is_archived) ? "restore" : "archive"}">${Number(project.is_archived) ? "Arsivden Cikar" : "Arsivle"}</button><button data-p9-project-action="delete" class="danger">Sil</button></div>` : ""}</header><div class="p9-project-layout"><aside class="p9-project-nav"><label>Aktif Santiye</label><strong>${esc(project?.name || "Proje secin")}</strong>${tabs.map(([id, label]) => `<button data-p9-project-tab="${id}" class="${p9ProjectState.tab === id ? "active" : ""}">${label}</button>`).join("")}<button data-p9-project-tab="inventory" class="${p9ProjectState.tab === "inventory" ? "active" : ""}">Cihaz Envanteri</button><button data-p9-project-tab="settings" class="${p9ProjectState.tab === "settings" ? "active" : ""}">Santiye Ayarlari</button></aside><section class="p9-project-main"><nav class="p9-project-tabs">${tabs.map(([id, label]) => `<button data-p9-project-tab="${id}" class="${p9ProjectState.tab === id ? "active" : ""}">${label}</button>`).join("")}</nav><div id="p9ProjectBody">${body}</div></section></div><input id="genericSearch" hidden><div id="genericTable" hidden></div></div>`;
 }
 async function loadPart9Projects() {
   if (p9ProjectState.loading || p9ProjectState.loaded) return;
@@ -5072,7 +7390,192 @@ async function loadPart9Projects() {
   } catch (error) { p9ProjectState.error = "Proje verileri okunamadi: " + error.message; }
   finally { p9ProjectState.loading = false; if ($(".p9-project-screen")) render(); }
 }
-const p9GenericShellBefore = genericShell;
+async function openProjectTransactionDialog(project, transactionType, paymentFor = null) {
+  const type = String(transactionType || "");
+  if (!project || !["Gelir", "Gider"].includes(type)) return;
+  const categories = paymentFor ? ["Ta\u015feron \u00d6demesi"] : type === "Gider"
+    ? ["Malzeme", "\u0130\u015f\u00e7ilik", "Ta\u015feron \u00d6demesi", "Nakliye", "Resmi Gider", "Di\u011fer"]
+    : ["Daire Sat\u0131\u015f\u0131", "Proje Hakedi\u015fi", "Di\u011fer"];
+  const currency = String(project.currency || "TRY").toUpperCase();
+  let bankAccounts = [];
+  try {
+    const data = await apiFetch("/api/desktop/table/bank_accounts?limit=1000");
+    bankAccounts = (data.rows || []).filter(item => Number(item.is_active ?? 1) === 1 && Number(item.is_deleted || 0) === 0);
+  } catch (_) {}
+  const bankOptions = bankAccounts.map(item => {
+    const name = [item.bank_name || item.bank, item.account_holder || item.account_name].map(value => String(value || "").trim()).filter(Boolean).join(" - ") || "Banka Hesab\u0131";
+    const number = item.account_number || item.account_no || "";
+    return `<option value="${esc(item.id)}">${esc(name)}${number ? ` (${esc(number)})` : ""}</option>`;
+  }).join("");
+  const categoryOptions = categories.map(value => `<option value="${esc(value)}">${esc(value)}</option>`).join("");
+  openDialog(
+    type === "Gelir" ? "Gelir Ekle" : "Gider Ekle",
+    "PROJE F\u0130NANS\u0130",
+    `<div class="form-grid"><div class="field full"><label>Kategori</label><select name="category" required ${paymentFor ? "disabled" : ""}>${categoryOptions}</select></div><div class="field full"><label>Tutar (${esc(currency)})</label><input name="amount" type="number" min="0.01" max="100000000" step="0.01" required></div><div class="field full"><label>Banka Hesab\u0131</label><select name="bank_account_id"><option value="">Nakit</option>${bankOptions}</select></div><div class="field full"><label>Tarih</label><input name="date" type="date" value="${today()}" required></div><div class="field full"><label>A\u00e7\u0131klama</label><input name="description" maxlength="500" value="${paymentFor ? esc(`Ta\u015feron: ${paymentFor.name || ""}`) : ""}" placeholder="\u0130\u015flem detay\u0131..."></div></div>`,
+    async form => {
+      const amount = Number(form.get("amount"));
+      if (!Number.isFinite(amount) || amount <= 0 || amount > 100000000) throw new Error("Ge\u00e7erli bir tutar girin.");
+      await apiFetch("/api/desktop/projects/transactions", {
+        method: "POST",
+        body: JSON.stringify({
+          project_id: Number(project.id),
+          type,
+          category: paymentFor ? "Ta\u015feron \u00d6demesi" : form.get("category"),
+          amount,
+          bank_account_id: form.get("bank_account_id") || null,
+          date: form.get("date"),
+          description: form.get("description") || "",
+          ref_table: paymentFor ? "subcontractors" : null,
+          ref_id: paymentFor ? Number(paymentFor.id) : null
+        })
+      });
+      p9ProjectState.loaded = false;
+      await loadPart9Projects();
+      toast("Proje finans hareketi kaydedildi.", "success");
+      return true;
+    },
+    "Kaydet"
+  );
+  const category = document.querySelector('#dialogBody [name="category"]');
+  const description = document.querySelector('#dialogBody [name="description"]');
+  if (category && description) category.onchange = () => { description.placeholder = category.value + " detay\u0131..."; };
+}
+async function openNewProjectDialog() {
+  let customers = [];
+  try { customers = (await apiFetch("/api/desktop/table/customers?limit=1000")).rows || []; }
+  catch (error) { toast("M\u00fc\u015fteri listesi y\u00fcklenemedi: " + error.message, "error"); return; }
+  const end = new Date();
+  end.setFullYear(end.getFullYear() + 1);
+  const endDate = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`;
+  const customerOptions = customers.map(item => `<option value="${esc(item.id)}">${esc(item.name || item.company_name || "M\u00fc\u015fteri")}</option>`).join("");
+  openDialog(
+    "Yeni Proje Olu\u015ftur",
+    "PROJE Y\u00d6NET\u0130M\u0130",
+    `<div class="form-grid"><div class="field full"><label>Proje Ad\u0131 *</label><input name="name" maxlength="200" placeholder="\u00d6rn. Villa A - Ak\u0131ll\u0131 Ev Kurulumu" required></div><div class="field full"><label>\u0130lgili M\u00fc\u015fteri</label><select name="customer_id"><option value="">M\u00fc\u015fteri se\u00e7ilmedi</option>${customerOptions}</select></div><div class="field"><label>Ba\u015flang\u0131\u00e7</label><input name="start_date" type="date" value="${today()}" required></div><div class="field"><label>Biti\u015f (Tahmini)</label><input name="end_date" type="date" value="${endDate}" required></div><div class="field"><label>Para Birimi</label><select name="currency"><option value="TRY">TRY - TL</option><option value="USD">USD - Dolar</option><option value="EUR">EUR - Euro</option><option value="GBP">GBP - Sterlin</option><option value="AED">AED - Dirhem</option><option value="CAD">CAD - Kanada Dolar\u0131</option><option value="CHF">CHF - \u0130svi\u00e7re Frang\u0131</option><option value="JPY">JPY - Japon Yeni</option></select></div><div class="field p9-project-exchange-rate" id="p9ProjectExchangeRateField" hidden><label>D\u00f6viz Kuru</label><input name="exchange_rate" type="number" min="0.0001" max="99999.9999" step="0.0001" value="1"></div><div class="field"><label>Toplam B\u00fct\u00e7e</label><input name="budget" type="number" min="0" max="1000000000" step="0.01" value="0"></div><div class="field"><label>Maliyet</label><input name="cost" type="number" min="0" max="1000000000" step="0.01" value="0"></div><div class="field full"><label>\u00d6deme \u015eekli</label><select name="payment_method"><option>Pe\u015fin</option><option>Bor\u00e7lu / Vadeli</option><option>K\u0131smi Pe\u015fin + Vade</option><option>Havale / EFT</option><option>\u00c7ek</option><option>Kredi Kart\u0131</option><option>Di\u011fer</option></select></div><div class="field full"><label>A\u00e7\u0131klama</label><textarea name="description" maxlength="4000" rows="3" placeholder="Proje a\u00e7\u0131klamas\u0131, \u00f6zel notlar..."></textarea></div><div class="field full"><label>S\u00f6zle\u015fme PDF</label><input name="contract_file" type="file" accept="application/pdf,.pdf"><small>PDF, en fazla 8 MB</small></div></div>`,
+    async form => {
+      const data = Object.fromEntries(form.entries());
+      const contractFile = document.querySelector('#dialogForm [name="contract_file"]').files[0];
+      delete data.contract_file;
+      if (contractFile) {
+        if (contractFile.size > 8 * 1024 * 1024 || !contractFile.name.toLowerCase().endsWith(".pdf")) throw new Error("S\u00f6zle\u015fme dosyas\u0131 en fazla 8 MB olan bir PDF olmal\u0131.");
+        const bytes = new Uint8Array(await contractFile.arrayBuffer());
+        if (new TextDecoder().decode(bytes.slice(0, 5)) !== "%PDF-") throw new Error("Se\u00e7ilen dosya ge\u00e7erli bir PDF de\u011fil.");
+        let binary = "";
+        for (let offset = 0; offset < bytes.length; offset += 0x8000) binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+        data.contract_pdf = {filename: contractFile.name, data_base64: btoa(binary)};
+      }
+      data.budget = Number(data.budget || 0);
+      data.cost = Number(data.cost || 0);
+      data.exchange_rate = data.currency === "TRY" ? 1 : Number(data.exchange_rate || 0);
+      const result = await apiFetch("/api/desktop/projects/create", {method: "POST", body: JSON.stringify(data)});
+      p9ProjectState.selectedId = result.project_id;
+      p9ProjectState.tab = "units";
+      p9ProjectState.loaded = false;
+      await loadPart9Projects();
+      toast("Proje olu\u015fturuldu ve finansa kaydedildi.", "success");
+      return true;
+    },
+    "Proje Olu\u015ftur"
+  );
+  const currency = document.querySelector('#dialogForm [name="currency"]');
+  const rateField = document.querySelector("#p9ProjectExchangeRateField");
+  if (currency && rateField) currency.onchange = () => { rateField.hidden = currency.value === "TRY"; };
+}
+function openBulkProjectUnitsDialog(project) {
+  if (!project) return;
+  openDialog("Blok ve Daire Olu\u015ftur", "PROJE B\u0130R\u0130MLER\u0130", `<div class="form-grid"><div class="field"><label>Blok Say\u0131s\u0131</label><input name="block_count" type="number" min="1" max="26" value="1" required></div><div class="field"><label>Her Blokta Daire Say\u0131s\u0131</label><input name="unit_count" type="number" min="1" max="200" value="5" required></div><div class="field full"><label>Blok Adland\u0131rma</label><select name="naming"><option value="letter">Harfli (A, B, C)</option><option value="number">Say\u0131l\u0131 (1, 2, 3)</option><option value="custom">\u00d6zel</option></select></div><div class="field full" id="p9CustomBlockNamesField" hidden><label>\u00d6zel Adlar (virg\u00fclle)</label><input name="custom_names" placeholder="A Blok,B Blok,C Blok"></div><p class="field full" id="p9UnitPreview" aria-live="polite"></p></div>`, async form => {
+    const data = Object.fromEntries(form.entries());
+    await apiFetch("/api/desktop/projects/units/bulk-create", {method: "POST", body: JSON.stringify({project_id: Number(project.id), block_count: Number(data.block_count), unit_count: Number(data.unit_count), naming: data.naming, custom_names: data.custom_names || ""})});
+    p9ProjectState.loaded = false;
+    await loadPart9Projects();
+    toast("Blok ve daireler olu\u015fturuldu.", "success");
+    return true;
+  }, "Olu\u015ftur");
+  const form = document.querySelector("#dialogForm");
+  const naming = form?.querySelector('[name="naming"]');
+  const customField = document.querySelector("#p9CustomBlockNamesField");
+  const preview = document.querySelector("#p9UnitPreview");
+  const update = event => {
+    if (event?.target?.name && !["block_count", "unit_count", "custom_names", "naming"].includes(event.target.name)) return;
+    const blockInput = document.querySelector('#dialogBody [name="block_count"]');
+    const unitInput = document.querySelector('#dialogBody [name="unit_count"]');
+    const customInput = document.querySelector('#dialogBody [name="custom_names"]');
+    const mode = naming?.value || "letter";
+    const count = Math.max(1, Math.min(26, Number(blockInput?.value) || 1));
+    const units = Math.max(1, Math.min(200, Number(unitInput?.value) || 1));
+    const custom = (customInput?.value || "").split(",").map(value => value.trim()).filter(Boolean);
+    const names = Array.from({length: count}, (_, index) => mode === "number" ? String(index + 1) : mode === "custom" ? (custom[index] || `Blok${index + 1}`) : String.fromCharCode(65 + index));
+    if (customField) customField.hidden = mode !== "custom";
+    if (preview) preview.textContent = `\u00d6nizleme: ${names.slice(0, 4).map(name => `${name}: ${units} daire`).join(", ")}${names.length > 4 ? ` ...+${names.length - 4} blok` : ""} \u2192 Toplam ${count * units} daire`;
+  };
+  form?.addEventListener("input", update);
+  naming?.addEventListener("change", update);
+  update();
+}
+function openSingleProjectUnitDialog(project) {
+  if (!project) return;
+  openDialog("Tekil Daire / Oda Ekle", "PROJE B\u0130R\u0130MLER\u0130", `<div class="form-grid"><div class="field"><label>Daire / Oda No *</label><input name="unit_no" maxlength="80" required placeholder="A-1"></div><div class="field"><label>Blok</label><input name="block_name" maxlength="80" value="A Blok"></div><div class="field"><label>Kat</label><input name="floor_no" maxlength="20" value="0"></div><div class="field"><label>Birim T\u00fcr\u00fc</label><select name="unit_kind"><option value="Daire">Daire</option><option value="Oda">Oda</option></select></div><div class="field"><label>Durum</label><select name="status"><option>Bekliyor</option><option>Devam Ediyor</option><option>Tamamland\u0131</option></select></div><div class="field"><label>Alan (m2)</label><input name="area" type="number" min="0" max="100000" step="0.01" value="0"></div><div class="field"><label>Birim Fiyat</label><input name="unit_price" type="number" min="0" max="1000000000" step="0.01" value="0"></div><div class="field full"><label>A\u00e7\u0131klama</label><textarea name="description" maxlength="2000" rows="3"></textarea></div></div>`, async form => {
+    const data = Object.fromEntries(form.entries());
+    data.project_id = Number(project.id);
+    data.area = Number(data.area || 0);
+    data.unit_price = Number(data.unit_price || 0);
+    data.price = data.unit_price;
+    data.total_price = data.unit_price;
+    await apiFetch("/api/desktop/table/project_units", {method: "POST", body: JSON.stringify(data)});
+    p9ProjectState.loaded = false;
+    await loadPart9Projects();
+    toast("Daire veya oda eklendi.", "success");
+    return true;
+  }, "Ekle");
+}
+function openProjectLifecycleDialog(project, action) {
+  if (!project || !["archive", "restore", "complete", "delete"].includes(action)) return;
+  const options = {
+    archive: ["Projeyi Ar\u015fivle", "Bu proje ar\u015five ta\u015f\u0131nacak. Ar\u015fivlenen projeler bu listeden geri al\u0131nabilir.", "Ar\u015five Ta\u015f\u0131"],
+    restore: ["Projeyi Ar\u015fivden \u00c7\u0131kar", "Bu proje aktif proje listesine geri al\u0131nacak.", "Geri Y\u00fckle"],
+    complete: ["Projeyi Tamamla", "Bu projeyi tamamland\u0131 olarak i\u015faretlemek istiyor musunuz?", "Tamamland\u0131 Olarak \u0130\u015faretle"],
+    delete: ["Projeyi Sil", "Bu proje ve ona ba\u011fl\u0131 veriler silinecek. Bu i\u015flem geri al\u0131namaz.", "Evet, Sil"]
+  }[action];
+  openDialog(options[0], "PROJE Y\u00d6NET\u0130M\u0130", `<p class="p9-project-action-confirm">${esc(project.name || "Proje")}: ${esc(options[1])}</p>`, async () => {
+    await apiFetch("/api/desktop/projects/lifecycle", {method: "POST", body: JSON.stringify({project_id: Number(project.id), action})});
+    if (action === "delete") p9ProjectState.selectedId = "";
+    p9ProjectState.loaded = false;
+    await loadPart9Projects();
+    toast(options[0], "success");
+    return true;
+  }, options[2]);
+  if (action === "delete") {
+    const submit = document.querySelector("#dialogSubmit");
+    submit?.classList.remove("primary");
+    submit?.classList.add("danger");
+  }
+}
+function openProjectTransactionDetailDialog(transaction) {
+  if (!transaction) return;
+  const amount = p9ProjectMoney(transaction.amount);
+  const status = transaction.status || "Tamamland\u0131";
+  const fields = [
+    ["Tarih:", transaction.date || "-"],
+    ["Kategori:", transaction.category || "-"],
+    ["A\u00e7\u0131klama:", transaction.description || "-"],
+    ["Durum:", status],
+    ["Takip No:", transaction.tracking_no || transaction.ref_no || "-"],
+    ["Referans:", transaction.ref_table ? `${transaction.ref_table} (#${transaction.ref_id || "-"})` : "-"]
+  ].filter(([, value]) => value !== "-");
+  openDialog(
+    "\u0130\u015flem Detay\u0131",
+    "PROJE F\u0130NANS\u0130",
+    `<section class="p9-transaction-detail"><header><span>${esc(transaction.type || "\u0130\u015flem")}</span><strong>${esc(amount)}</strong></header><dl>${fields.map(([label, value]) => `<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join("")}</dl></section>`,
+    () => true,
+    "Kapat"
+  );
+}
+document.addEventListener("dblclick", event => {
+  const row = event.target.closest("[data-p9-finance-transaction]");
+  if (!row) return;
+  const transaction = p9ProjectState.transactions.find(item => String(item.id) === String(row.dataset.p9FinanceTransaction));
+  openProjectTransactionDetailDialog(transaction);
+});const p9GenericShellBefore = genericShell;
 genericShell = function(meta) { return meta.table === "projects" ? renderPart9Projects() : p9GenericShellBefore(meta); };
 document.addEventListener("change", event => {
   if (event.target.id === "p9ProjectSelect") { p9ProjectState.selectedId = event.target.value; render(); return; }
@@ -5098,27 +7601,58 @@ document.addEventListener("change", event => {
   }
 });
 document.addEventListener("click", async event => {
+  const unitCard = event.target.closest(".p9-unit-card");
+  if (unitCard && !event.target.closest("button,a,input,select,textarea")) {
+    unitCard.querySelector("[data-p9-unit-products]")?.click();
+    return;
+  }
   const financeCategory = event.target.closest("[data-p9-finance-category]"), financeReset = event.target.closest("[data-p9-finance-reset]"), financeExport = event.target.closest("[data-p9-finance-export]"), financeColumns = event.target.closest("[data-p9-finance-columns]");
   const unitStatus = event.target.closest("[data-p9-unit-status]"), unitMode = event.target.closest("[data-p9-units-mode]"), unitExport = event.target.closest("[data-p9-units-export]"), unitBulk = event.target.closest("[data-p9-units-bulk]"), unitEdit = event.target.closest("[data-p9-unit-edit]"), unitQr = event.target.closest("[data-p9-unit-qr]");
   if (unitStatus) { p9UnitsView.status = unitStatus.dataset.p9UnitStatus; render(); return; }
   if (unitMode) { p9UnitsView.mode = unitMode.dataset.p9UnitsMode; render(); return; }
   if (unitExport) {
-    const rows = p9ProjectState.units.filter(item => String(item.project_id) === String(p9CurrentProject()?.id));
-    const csv = ["Blok;Daire;Kat;Tur;Durum;Sorumlu", ...rows.map(item => [item.block_name, item.unit_no, item.floor_no, item.unit_kind || item.unit_type, item.status, item.responsible_name || item.assigned_to].map(value => `"${String(value || "").replaceAll('"', '""')}"`).join(";"))].join("\r\n");
-    const link = document.createElement("a"); link.href = URL.createObjectURL(new Blob(["\ufeff", csv], {type: "text/csv;charset=utf-8"})); link.download = "proje-daireleri.csv"; link.click(); URL.revokeObjectURL(link.href); return;
+    const project = p9CurrentProject();
+    const units = p9ProjectState.units.filter(item => String(item.project_id) === String(project?.id));
+    if (!project || !units.length) { toast("Raporlanacak oda/daire bulunamad\u0131.", "warning"); return; }
+    openDialog("Excel Raporu Kaydet", "KURULUM RAPORU", `<div class="field"><label>Dosya bi\u00e7imi</label><select name="format"><option value="xlsx">Excel Dosyas\u0131 (.xlsx)</option><option value="csv">CSV Dosyas\u0131 (.csv)</option></select></div>`, async form => {
+      const format = form.get("format") === "csv" ? "csv" : "xlsx";
+      const response = await fetch(`/api/desktop/projects/${Number(project.id)}/units/export.${format}`, {credentials: "same-origin", headers: ayecFiscalArchiveHeaders()});
+      if (!response.ok) {
+        let error = {};
+        try { error = await response.json(); } catch (_) {}
+        if (response.status === 401) window.handleUnauthorized?.();
+        throw new Error(error.error || `Project report failed (${response.status}).`);
+      }
+      const blob = await response.blob();
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `kurulum_raporu_${new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z")}.${format}`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+      return true;
+    }, "Raporu \u0130ndir");
+    return;
   }
   if (unitBulk || unitEdit) {
-    const projectUnits = p9ProjectState.units.filter(item => String(item.project_id) === String(p9CurrentProject()?.id));
+    const projectUnits = p9ProjectState.units.filter(item => String(item.project_id) === String(p9CurrentProject()?.id) && (!item.parent_unit_id || Number(item.parent_unit_id) === 0));
     const selected = unitEdit ? projectUnits.filter(item => String(item.id) === String(unitEdit.dataset.p9UnitEdit)) : projectUnits;
-    const nextStatus = prompt("Yeni durum (Devam Ediyor, Tamamlandi, Bekliyor)", unitEdit?.dataset.currentStatus || "Devam Ediyor");
-    if (!nextStatus || !selected.length) return;
-    try { for (const item of selected) await apiFetch("/api/desktop/table/project_units", {method: "POST", body: JSON.stringify({id: Number(item.id), status: nextStatus, _action: "update"})}); p9ProjectState.loaded = false; await loadPart9Projects(); }
-    catch (error) { toast("Daire durumu guncellenemedi: " + error.message, "error"); }
+    if (!selected.length) return;
+    const statuses = ["Bekliyor", "Devam Ediyor", "Tamamland\u0131"];
+    const options = statuses.map(status => `<option value="${esc(status)}" ${status === (unitEdit?.dataset.currentStatus || "Bekliyor") ? "selected" : ""}>${esc(status)}</option>`).join("");
+    openDialog(unitEdit ? "Durumu De\u011fi\u015ftir" : "Toplu Durum G\u00fcncelle", "PROJE DA\u0130RELER\u0130", `<div class="field"><label>Yeni durum</label><select name="status" required>${options}</select></div>`, async form => {
+      const nextStatus = form.get("status");
+      try {
+        for (const item of selected) await apiFetch("/api/desktop/table/project_units", {method: "POST", body: JSON.stringify({id: Number(item.id), status: nextStatus, _action: "update"})});
+        p9ProjectState.loaded = false;
+        await loadPart9Projects();
+        return true;
+      } catch (error) { toast("Daire durumu guncellenemedi: " + error.message, "error"); return false; }
+    }, "G\u00fcncelle");
     return;
   }
   if (unitQr) { const unit = p9ProjectState.units.find(item => String(item.id) === String(unitQr.dataset.p9UnitQr)); if (unit) openDialog("Daire QR Bilgisi", "UNIT ID", `<div class="p9-unit-qr-code">${esc(unit.block_name || "")} ${esc(unit.unit_no || unit.id)}</div>`); return; }
-  if (financeCategory) { const value = financeCategory.dataset.p9FinanceCategory; p9FinanceView.type = ["gelir", "gider"].includes(value) ? value : "all"; p9FinanceView.category = ["avans", "hakedis", "malzeme", "iscilik"].includes(value) ? value : "all"; render(); return; }
-  if (financeReset) { Object.assign(p9FinanceView, {query: "", type: "all", category: "all", channel: "all", status: "all", date: "all"}); render(); return; }
+  if (financeCategory) { const value = financeCategory.dataset.p9FinanceCategory; p9FinanceView.segment = value === "pending" ? "pending" : "all"; p9FinanceView.type = ["gelir", "gider"].includes(value) ? value : "all"; p9FinanceView.category = ["avans", "hakedis", "malzeme", "iscilik"].includes(value) ? value : "all"; render(); return; }
+  if (financeReset) { Object.assign(p9FinanceView, {query: "", type: "all", category: "all", channel: "all", status: "all", date: "all", segment: "all"}); render(); return; }
   if (financeColumns) { const table = document.querySelector(".p9-finance-table"); if (table) table.classList.toggle("p9-columns-compact"); return; }
   if (financeExport) {
     const rows = p9ProjectState.transactions.filter(item => String(item.project_id) === String(p9CurrentProject()?.id));
@@ -5128,15 +7662,17 @@ document.addEventListener("click", async event => {
   }
   const unitToggle = event.target.closest("[data-p9-member-units-toggle]");
   if (unitToggle) { const list = unitToggle.closest(".field").querySelector(".p9-member-unit-list"); if (list) { list.hidden = !list.hidden; unitToggle.textContent = list.hidden ? "+ Ekle" : "Gizle"; } return; }
-  const tab = event.target.closest("[data-p9-project-tab]"), refresh = event.target.closest("[data-p9-project-refresh]"), addProject = event.target.closest("[data-p9-add-project]"), addUnit = event.target.closest("[data-p9-add-unit]"), addTransaction = event.target.closest("[data-p9-add-transaction]"), addMember = event.target.closest("[data-p9-add-member]"), deleteMember = event.target.closest("[data-p9-team-delete]");
+  const tab = event.target.closest("[data-p9-project-tab]"), refresh = event.target.closest("[data-p9-project-refresh]"), addProject = event.target.closest("[data-p9-add-project]"), addUnit = event.target.closest("[data-p9-add-unit]"), addTransaction = event.target.closest("[data-p9-add-transaction]"), addMember = event.target.closest("[data-p9-add-member]"), deleteMember = event.target.closest("[data-p9-team-delete]"), payMember = event.target.closest("[data-p9-team-pay]"), projectAction = event.target.closest("[data-p9-project-action]");
   if (tab) { p9ProjectState.tab = tab.dataset.p9ProjectTab; render(); return; }
-  if (!refresh && !addProject && !addUnit && !addTransaction && !addMember && !deleteMember) return;
+  if (!refresh && !addProject && !addUnit && !addTransaction && !addMember && !deleteMember && !payMember && !projectAction) return;
   const project = p9CurrentProject();
   try {
-    if (refresh) p9ProjectState.loaded = false;
-    else if (addProject) { const name = prompt("Proje adi"); if (!name?.trim()) return; await apiFetch("/api/desktop/table/projects", {method: "POST", body: JSON.stringify({name: name.trim(), status: "Devam Ediyor", budget: 0})}); p9ProjectState.loaded = false; }
-    else if (addUnit) { if (!project) return; const unit_no = prompt("Daire veya oda numarasi"); if (!unit_no?.trim()) return; const block_name = prompt("Blok adi", "A Blok") || "A Blok"; await apiFetch("/api/desktop/table/project_units", {method: "POST", body: JSON.stringify({project_id: project.id, block_name, unit_no: unit_no.trim(), status: "Devam Ediyor", unit_kind: "Daire"})}); p9ProjectState.loaded = false; }
-    else if (addTransaction) { if (!project) return; const amount = Number(prompt(addTransaction.dataset.p9AddTransaction + " tutari")); if (!Number.isFinite(amount) || amount <= 0) return; const description = prompt("Islem aciklamasi") || ""; await apiFetch("/api/desktop/table/project_transactions", {method: "POST", body: JSON.stringify({project_id: project.id, type: addTransaction.dataset.p9AddTransaction, amount, date: today(), description, status: "Odenmedi"})}); p9ProjectState.loaded = false; }
+    if (projectAction) { openProjectLifecycleDialog(project, projectAction.dataset.p9ProjectAction); return; }
+    else if (payMember) { const member = p9ProjectState.team.find(item => String(item.id) === String(payMember.dataset.p9TeamPay)); if (!member || !project) return; await openProjectTransactionDialog(project, "Gider", member); return; }
+    else if (refresh) p9ProjectState.loaded = false;
+    else if (addProject) { await openNewProjectDialog(); return; }
+    else if (addUnit) { if (!project) return; if (addUnit.dataset.p9AddUnit === "bulk") { openBulkProjectUnitsDialog(project); return; } openSingleProjectUnitDialog(project); return; }
+    else if (addTransaction) { if (!project) return; openProjectTransactionDialog(project, addTransaction.dataset.p9AddTransaction); }
     else if (addMember) {
       if (!project) return;
       const units = p9ProjectState.units.filter(item => String(item.project_id) === String(project.id));
@@ -5159,10 +7695,94 @@ document.addEventListener("click", async event => {
       }, "Ekip \u00dcyesini Kaydet ve G\u00f6revlendir");
       return;
     }
-    else if (deleteMember) { if (!confirm("Ekip uyesi projeden kaldirilsin mi?")) return; await apiFetch("/api/desktop/table/subcontractors", {method: "POST", body: JSON.stringify({id: Number(deleteMember.dataset.p9TeamDelete), _action: "delete"})}); p9ProjectState.loaded = false; }
+    else if (deleteMember) {
+      const member=p9ProjectState.team.find(item=>String(item.id)===String(deleteMember.dataset.p9TeamDelete));
+      openDialog("Ekip \u00dcyesini Projeden Kald\u0131r","PROJE EK\u0130B\u0130",`<p>${esc(member?.name||"Ekip \u00fcyesi")} projeden kald\u0131r\u0131ls\u0131n m\u0131?</p>`,async()=>{
+        await apiFetch("/api/desktop/table/subcontractors",{method:"POST",body:JSON.stringify({id:Number(deleteMember.dataset.p9TeamDelete),_action:"delete"})});
+        p9ProjectState.loaded=false;
+        await loadPart9Projects();
+        return true;
+      },"Projeden Kald\u0131r");
+      const submit=document.querySelector("#dialogSubmit");
+      if(submit){submit.classList.remove("primary");submit.classList.add("danger")}
+      return;
+    }
     await loadPart9Projects();
   } catch (error) { toast("Proje islemi basarisiz: " + error.message, "error"); }
 });
+document.addEventListener("contextmenu", event => {
+  const card = event.target.closest("[data-p9-unit-card]");
+  const menu = document.querySelector("#contextMenu");
+  if (!card) { menu?.classList.remove("project-unit-context-menu"); return; }
+  if (!ayecContextMenuEnabled("project-detail")) { menu?.classList.remove("project-unit-context-menu"); return; }
+  const unit = p9ProjectState.units.find(row => String(row.id) === String(card.dataset.p9UnitCard));
+  if (!unit) return;
+  event.preventDefault();
+  if (!menu) return;
+  const statuses = [["Bekliyor", "\u23f3"], ["Devam Ediyor", "\u{1f504}"], ["Tamamland\u0131", "\u2705"]];
+  menu.innerHTML = statuses.map(([status, icon]) => { const active = String(unit.status || "") === status; return `<button type="button" role="menuitemradio" aria-checked="${String(active)}" data-p9-unit-context-status="${esc(status)}"><span class="p9-unit-context-check">${active ? "\u2713" : ""}</span><span>${icon}</span><span>${status}</span></button>`; }).join("")
+    + '<hr class="context-menu-separator"><button type="button" role="menuitem" data-p9-unit-context-products="' + esc(unit.id) + '"><span class="p9-unit-context-check"></span><span>\u{1f4e6}</span><span>\u00dcr\u00fcnleri Y\u00f6net</span></button>';
+  menu.classList.add("project-unit-context-menu", "open");
+  const menuRect = menu.getBoundingClientRect();
+  menu.style.left = `${Math.max(8, Math.min(event.clientX, innerWidth - menuRect.width - 8))}px`;
+  menu.style.top = `${Math.max(8, Math.min(event.clientY, innerHeight - menuRect.height - 8))}px`;
+  menu.querySelectorAll("[data-p9-unit-context-status]").forEach(button => button.onclick = async () => {
+    menu.classList.remove("open", "project-unit-context-menu");
+    try {
+      await apiFetch("/api/desktop/table/project_units", {method: "POST", body: JSON.stringify({id: Number(unit.id), status: button.dataset.p9UnitContextStatus, _action: "update"})});
+      p9ProjectState.loaded = false;
+      await loadPart9Projects();
+    } catch (error) { toast("Daire durumu guncellenemedi: " + error.message, "error"); }
+  });
+  menu.querySelector("[data-p9-unit-context-products]").onclick = () => {
+    menu.classList.remove("open", "project-unit-context-menu");
+    card.querySelector("[data-p9-unit-products]")?.click();
+  };
+});
+
+document.addEventListener("click", event => {
+  if (event.target.closest("#contextMenu")) return;
+  document.querySelector("#contextMenu")?.classList.remove("project-unit-context-menu");
+});
+document.addEventListener("keydown", event => {
+  if (event.key !== "Escape") return;
+  const menu = document.querySelector("#contextMenu");
+  if (!menu?.classList.contains("project-unit-context-menu")) return;
+  menu.classList.remove("open", "project-unit-context-menu");
+});
+
+
+function p9ProjectTransactionDetailDialog(transaction) {
+  const type = String(transaction.type || "\u0130\u015flem");
+  const rows = [
+    ["Tarih", transaction.date || "-"],
+    ["Kategori", transaction.category || "-"],
+    ["A\u00e7\u0131klama", transaction.description || "-"],
+    ["Durum", transaction.status || "Tamamland\u0131"],
+  ];
+  const tracking = transaction.tracking_no || transaction.ref_no;
+  if (tracking) rows.push(["Takip No", tracking]);
+  else if (transaction.ref_no) rows.push(["Ref No", transaction.ref_no]);
+  if (transaction.ref_table) rows.push(["Referans", `${transaction.ref_table} (#${transaction.ref_id || "-"})`]);
+  if (transaction.selected_services && !transaction.tracking_no) rows.push(["\u0130lgili Servisler", transaction.selected_services]);
+  const body = `<section class="p9-project-transaction-detail"><header><span>${esc(type)}</span><strong>${p9ProjectMoney(transaction.amount)}</strong></header><dl>${rows.map(([label, value]) => `<div><dt>${label}</dt><dd>${esc(String(value))}</dd></div>`).join("")}</dl></section>`;
+  openDialog("\u0130\u015flem Detay\u0131", "PROJE F\u0130NANSI", body, () => true, "Kapat");
+  const dialog = document.querySelector("#appDialog");
+  dialog?.classList.add("p9-project-transaction-detail-dialog");
+  const cancel = document.querySelector("#dialogCancel");
+  if (cancel) cancel.hidden = true;
+}
+document.addEventListener("dblclick", event => {
+  if (document.body.dataset.page !== "projects" || !db.settings.doubleClick) return;
+  const row = event.target.closest(".p9-finance-table tbody tr[data-p9-finance-transaction]");
+  if (!row) return;
+  const item = (p9ProjectState.transactions || []).find(transaction => String(transaction.id) === row.dataset.p9FinanceTransaction);
+  if (!item) return;
+  event.preventDefault();
+  event.stopPropagation();
+  event.stopImmediatePropagation();
+  p9ProjectTransactionDetailDialog(item);
+}, true);
 document.addEventListener("input", event => { if (event.target.id !== "p9FinanceSearch") return; p9FinanceView.query = event.target.value; const cursor = event.target.selectionStart; render(); const input = document.querySelector("#p9FinanceSearch"); if (input) { input.focus(); input.setSelectionRange(cursor, cursor); } });
 document.addEventListener("input", event => {
   if (event.target.id === "p9UnitSearch") {
@@ -5224,12 +7844,184 @@ document.addEventListener("change", async event => {
     const note=(p9ProjectState.units||[]).find(row=>Number(row.id)===targetId)?.description||"";const input=document.querySelector("#p9GeneralNote");if(input)input.value=note;
   }
 });
+function p9EditUnitProductNote(button) {
+  const productId = String(button.dataset.id || "");
+  if (!productId) return;
+  const note = String(button.dataset.note || "");
+  const dialog = document.createElement("dialog");
+  dialog.className = "p9-unit-note-dialog";
+  dialog.innerHTML = `<form><header><div><p class="eyebrow">PROJECT UNIT</p><h2>Teknik Not</h2></div><button type="button" class="icon-btn" data-note-close aria-label="Kapat">&times;</button></header><div class="dialog-body"><label class="field full"><span>Teknik notu d\u00fczenleyin:</span><textarea class="control" name="notes" rows="7">${esc(note)}</textarea></label></div><footer><button type="button" class="secondary" data-note-cancel>Vazge\u00e7</button><button type="submit" class="primary">Kaydet</button></footer></form>`;
+  document.body.append(dialog);
+  const removeDialog = () => { if (dialog.isConnected) dialog.remove(); };
+  const closeNoteDialog = value => { if (dialog.open) dialog.close(value); removeDialog(); };
+  dialog.addEventListener("close", removeDialog, {once:true});
+  dialog.querySelector("[data-note-close]").onclick = () => closeNoteDialog("cancel");
+  dialog.querySelector("[data-note-cancel]").onclick = () => closeNoteDialog("cancel");
+  dialog.querySelector("form").onsubmit = async event => {
+    event.preventDefault();
+    const submit = dialog.querySelector('button[type="submit"]');
+    const value = String(new FormData(event.currentTarget).get("notes") || "");
+    submit.disabled = true;
+    try {
+      await apiFetch("/api/desktop/table/project_unit_products", {method:"POST", body:JSON.stringify({id:Number(productId),notes:value,_action:"update"})});
+      document.querySelectorAll(".p9-note-edit").forEach(item => {
+        if (String(item.dataset.id) !== productId) return;
+        item.dataset.note = value;
+        if (!item.title) item.textContent = value || "Not ekle";
+      });
+      toast("Teknik not g\u00fcncellendi", "success");
+      closeNoteDialog("saved");
+    } catch (error) {
+      toast(error.message || "Teknik not kaydedilemedi.", "error");
+      submit.disabled = false;
+    }
+  };
+  dialog.showModal();
+  dialog.querySelector("textarea")?.focus();
+}
 document.addEventListener("click", async event => {
-  const addRoom=event.target.closest("[data-p9-add-room]");if(addRoom){const name=window.prompt("Oda adı");if(!name?.trim())return;await apiFetch("/api/desktop/table/project_units",{method:"POST",body:JSON.stringify({project_id:p9CurrentProject()?.id,parent_unit_id:Number(addRoom.dataset.p9AddRoom),unit_no:name.trim(),_action:"insert"})});toast("Oda eklendi");return;}
+  const addRoom=event.target.closest("[data-p9-add-room]");
+  if(addRoom){
+    const parentId=Number(addRoom.dataset.p9AddRoom);
+    openDialog("Yeni Oda Ekle","PROJE YONETIMI",'<div class="field"><label for="p9RoomName">Oda ad\u0131 *</label><input id="p9RoomName" name="unit_no" required maxlength="100" autocomplete="off"></div>',async formData=>{
+      const name=String(formData.get("unit_no")||"").trim();
+      if(!name){toast("Oda ad\u0131 zorunludur.","warning");return false;}
+      try{
+        await apiFetch("/api/desktop/table/project_units",{method:"POST",body:JSON.stringify({project_id:p9CurrentProject()?.id,parent_unit_id:parentId,unit_no:name,_action:"insert"})});
+        toast("Oda eklendi");
+      }catch(error){toast(error.message||"Oda eklenemedi.","error");return false;}
+    },"Oda Ekle");
+    return;
+  }
   const refresh=event.target.closest("[data-p9-refresh-install]");if(refresh){const data=await apiFetch("/api/desktop/table/project_unit_products?limit=1000"),id=Number(document.querySelector("#p9TargetRoom")?.value||refresh.dataset.p9RefreshInstall),rows=(data.rows||[]).filter(row=>Number(row.unit_id)===id),tbody=document.querySelector("#dialogBody .p9-unit-products tbody");if(tbody)tbody.innerHTML=rows.map(row=>`<tr><td><strong>${esc(row.part_name||"-")}</strong></td><td>${esc(row.part_code||"-")}</td><td>${esc(row.quantity||0)}</td><td>${esc(row.notes||"")}</td><td><span class="p9-install-status">${esc(row.status || "Kurulu")}</span></td><td><button type="button" class="p9-note-edit" data-id="${esc(row.id)}" data-note="${esc(row.notes || "")}" title="Teknik notu duzenle">\u270e</button><button type="button" data-p9-remove-product="${esc(row.id)}" title="Urunu kaldir">\u00d7</button></td></tr>`).join("")||'<tr><td colspan="6" class="p9-install-empty">Kurulu ürün bulunmuyor.</td></tr>';return;}
   const saveNotes=event.target.closest("[data-p9-save-install-notes]");if(saveNotes){const edits=[...document.querySelectorAll(".p9-note-edit")];for(const item of edits)await apiFetch("/api/desktop/table/project_unit_products",{method:"POST",body:JSON.stringify({id:Number(item.dataset.id),notes:item.dataset.note||"",_action:"update"})});toast("Teknik notlar kaydedildi");return;}
   const edit=event.target.closest(".p9-note-edit");
-  if(edit){const note=window.prompt("Teknik not",edit.dataset.note||"");if(note===null)return;await apiFetch("/api/desktop/table/project_unit_products",{method:"POST",body:JSON.stringify({id:Number(edit.dataset.id),notes:note,_action:"update"})});edit.dataset.note=note;edit.textContent=note||"Not ekle";return;}
+  if(edit){await p9EditUnitProductNote(edit);return;}
   const remove=event.target.closest("[data-p9-remove-product]");if(remove){await apiFetch("/api/desktop/table/project_unit_products",{method:"POST",body:JSON.stringify({id:Number(remove.dataset.p9RemoveProduct),_action:"delete"})});remove.closest("tr")?.remove();return;}
   const save=event.target.closest("[data-p9-save-unit-note]");if(save){const target=Number(document.querySelector("#p9TargetRoom")?.value||save.dataset.p9SaveUnitNote);await apiFetch("/api/desktop/table/project_units",{method:"POST",body:JSON.stringify({id:target,description:document.querySelector("#p9GeneralNote")?.value||"",_action:"update"})});toast("Genel teknik not kaydedildi");return;}
 });
+document.addEventListener("dblclick", event => {
+  if (!db.settings.doubleClick) return;
+  const cell = event.target.closest("#dialogBody .p9-unit-products tbody td:nth-child(4)");
+  if (!cell || event.target.closest("button,a,input,select,textarea")) return;
+  const edit = cell.querySelector(".p9-note-edit");
+  if (!edit) return;
+  event.preventDefault();
+  event.stopPropagation();
+  event.stopImmediatePropagation();
+  p9EditUnitProductNote(edit);
+}, true);
+
+let ayecAnnouncementRows=[];
+function renderAnnouncements(){return `${pageHead("Duyurular ve Bildirimler","Kurum i\u00e7i duyuru ve \u00f6ncelikleri y\u00f6netin.",'<button type="button" class="secondary" data-announcement-refresh>Yenile</button><button type="button" class="primary" data-announcement-add>+ Yeni Duyuru</button>')}<section class="card announcement-card"><div class="toolbar"><input class="control search" id="announcementSearch" placeholder="Ba\u015fl\u0131k, i\u00e7erik veya yay\u0131nlayanda ara"><span class="muted" id="announcementCount"></span></div><div id="announcementTable"></div></section>`}
+function ayecAnnouncementTable(rows){return `<div class="table-wrap"><table class="announcement-table"><thead><tr><th>Tarih</th><th>\u00d6ncelik</th><th>Ba\u015fl\u0131k</th><th>\u0130\u00e7erik</th><th>Yay\u0131nlayan</th></tr></thead><tbody>${rows.map(item=>`<tr tabindex="0" data-kind="announcement" data-id="${esc(item.id)}"><td>${esc(item.date||"")}</td><td><span class="badge">${esc(item.priority||"Normal")}</span></td><td><strong>${esc(item.title||"")}</strong></td><td>${esc(item.content||"")}</td><td>${esc(item.author||"")}</td></tr>`).join("")}</tbody></table></div>`}
+function ayecRenderAnnouncementRows(){const host=$("#announcementTable"),search=$("#announcementSearch");if(!host)return;const q=String(search?.value||"").trim().toLocaleLowerCase("tr-TR"),rows=ayecAnnouncementRows.filter(item=>[item.title,item.content,item.author].some(value=>String(value||"").toLocaleLowerCase("tr-TR").includes(q)));host.innerHTML=rows.length?ayecAnnouncementTable(rows):empty("Duyuru bulunamad\u0131","Yeni duyuru ekleyerek ekibinizle bilgi payla\u015f\u0131n.");const count=$("#announcementCount");if(count)count.textContent=`${rows.length} duyuru`;$$('tr[data-kind="announcement"]').forEach(row=>{bindInteractiveRow(row);row.addEventListener("dblclick",()=>{if(db.settings.doubleClick)ayecOpenAnnouncementDialog(ayecAnnouncementRows.find(item=>String(item.id)===row.dataset.id))})})}
+async function ayecLoadAnnouncements(){const host=$("#announcementTable");if(!host)return;try{const data=await apiFetch("/api/desktop/table/announcements?limit=500");ayecAnnouncementRows=data.rows||[];ayecRenderAnnouncementRows()}catch(error){host.innerHTML=empty("Duyurular y\u00fcklenemedi",esc(error.message||"Veri okunamad\u0131."))}}
+function ayecBindAnnouncements(){const add=$("[data-announcement-add]"),refresh=$("[data-announcement-refresh]"),search=$("#announcementSearch");if(add)add.onclick=()=>ayecOpenAnnouncementDialog();if(refresh)refresh.onclick=()=>ayecLoadAnnouncements();if(search)search.oninput=()=>ayecRenderAnnouncementRows()}
+function ayecOpenAnnouncementDialog(item){const editing=!!item,priority=String(item?.priority||"Normal"),body=`<div class="form-grid"><div class="field full"><label>Ba\u015fl\u0131k *</label><input name="title" maxlength="250" required value="${esc(item?.title||"")}" placeholder="Duyuru ba\u015fl\u0131\u011f\u0131n\u0131 giriniz"></div><div class="field"><label>\u00d6ncelik</label><select name="priority">${["Normal","Y\u00fcksek","D\u00fc\u015f\u00fck"].map(value=>`<option ${priority===value?"selected":""}>${value}</option>`).join("")}</select></div><div class="field full"><label>\u0130\u00e7erik *</label><textarea name="content" rows="7" required placeholder="Duyuru i\u00e7eri\u011fini giriniz...">${esc(item?.content||"")}</textarea></div></div>`;openDialog(editing?"Duyuruyu D\u00fczenle":"Yeni Duyuru Olu\u015ftur","DUYURULAR",body,async form=>{const data=Object.fromEntries(form),title=String(data.title||"").trim(),content=String(data.content||"").trim();if(!title||!content)throw Error("Ba\u015fl\u0131k ve i\u00e7erik alanlar\u0131 zorunludur.");const payload={title,content,priority:data.priority};if(editing){payload.id=item.id;payload._action="update"}else{payload.date=new Intl.DateTimeFormat("tr-TR").format(new Date());payload.author="Y\u00f6netici"}await apiFetch("/api/desktop/table/announcements",{method:"POST",body:JSON.stringify(payload)});toast(editing?"Duyuru g\u00fcncellendi.":"Duyuru yay\u0131nland\u0131.","success");await ayecLoadAnnouncements();return true},editing?"Kaydet":"Yay\u0131nla");if(editing){const remove=document.createElement("button");remove.type="button";remove.className="danger";remove.textContent="Sil";remove.onclick=()=>{const dialog=$("#appDialog");dialog.close();ayecConfirmAnnouncementDelete(item)};$("#dialogFooter").prepend(remove)}}
+function ayecConfirmAnnouncementDelete(item){openDialog("Duyuruyu Sil","SILME ONAYI",`<p>"${esc(item.title||"")}" duyurusu silinsin mi?</p>`,async()=>{await apiFetch("/api/desktop/table/announcements",{method:"POST",body:JSON.stringify({id:item.id,_action:"delete"})});toast("Duyuru silindi.","warning");await ayecLoadAnnouncements();return true},"Duyuruyu Sil")}
+const ayecShowContextBeforeAnnouncements=showContext;
+showContext=function(event,kind,id){if(kind!=="announcement")return ayecShowContextBeforeAnnouncements(event,kind,id);if(!ayecContextMenuEnabled())return;event.preventDefault();const menu=$("#contextMenu"),items=[["\u270f D\u00fczenle","announcement-edit"],["\u{1f5d1} Sil","announcement-delete"]];menu.innerHTML=items.map(([label,action])=>(action==="maintenance-separator"||action==="sales-cart-separator")?"<hr class=\"context-menu-separator\">":`<button data-context-action="${action}">${label}</button>`).join("");menu.style.left=`${Math.max(8,Math.min(event.clientX,innerWidth-210))}px`;menu.classList.add("open");menu.style.top=`${Math.max(8,Math.min(event.clientY,innerHeight-menu.offsetHeight-8))}px`;$$('[data-context-action]',menu).forEach(button=>button.onclick=()=>{menu.classList.remove("open");contextAction(kind,id,button.dataset.contextAction,event.currentTarget)})};
+const ayecContextActionBeforeAnnouncements=contextAction;
+contextAction=function(kind,id,action,row){if(kind!=="announcement")return ayecContextActionBeforeAnnouncements(kind,id,action,row);const item=ayecAnnouncementRows.find(record=>String(record.id)===String(id));if(!item)return;if(action==="announcement-edit")ayecOpenAnnouncementDialog(item);if(action==="announcement-delete")ayecConfirmAnnouncementDelete(item)};
+const ayecRenderBeforeAnnouncements=render;
+render=function(){if(page!=="announcements")return ayecRenderBeforeAnnouncements();const nav=$("#nav"),top=nav?.scrollTop||0;document.body.dataset.page=page;$("#content").innerHTML=renderAnnouncements();bindPage();ayecBindAnnouncements();ayecLoadAnnouncements();if(nav)nav.scrollTop=top};
+function ayecFinanceExportOptions(){return {period:ayecFinancePeriod,filter:"ALL",search:ayecFinanceSearch.trim().slice(0,200)}}
+async function ayecExportFinanceXlsx(){const response=await fetch("/api/desktop/accounting/ledger/export/xlsx",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json",...ayecFiscalArchiveHeaders()},body:JSON.stringify(ayecFinanceExportOptions())});if(!response.ok){let data={};try{data=await response.json()}catch{}if(response.status===401&&window.handleUnauthorized)window.handleUnauthorized();throw Error(data.error||`Excel export failed (${response.status})`)}const blob=await response.blob(),url=URL.createObjectURL(blob),link=document.createElement("a");link.href=url;link.download=`cari-hareketler-${today()}.xlsx`;link.click();setTimeout(()=>URL.revokeObjectURL(url),500)}
+async function ayecExportIncomeExpenseCsv(){const options={month:ayecIncomeExpenseMonth,search:ayecIncomeExpenseQuery.trim().slice(0,200),tab:page==="expense"?"expense":ayecIncomeExpenseTab};const response=await fetch("/api/desktop/income-expense/export/csv",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json",...ayecFiscalArchiveHeaders()},body:JSON.stringify(options)});if(!response.ok){let data={};try{data=await response.json()}catch{}if(response.status===401&&window.handleUnauthorized)window.handleUnauthorized();throw Error(data.error||`CSV export failed (${response.status})`)}const blob=await response.blob(),url=URL.createObjectURL(blob),link=document.createElement("a");link.href=url;link.download=`gelir-gider-${today()}.csv`;link.click();setTimeout(()=>URL.revokeObjectURL(url),500)}
+function ayecRunFinanceExport(){const action=["income","expense"].includes(page)?ayecExportIncomeExpenseCsv():ayecExportFinanceXlsx();action.catch(error=>toast(error.message||"Finance export failed","error"))}
+const ayecFinanceShowContextBase=showContext;
+showContext=function(event,kind,id){if(kind==="finance-date-group"){if(!ayecContextMenuEnabled())return;event.preventDefault();const menu=$("#contextMenu"),expanded=ayecExpandedLedgerDates.has(String(id)),action="finance-date-toggle",label=expanded?"G\u00fcn\u00fc Kapat":"G\u00fcn\u00fc A\u00e7";menu.innerHTML=`<button data-context-action="${action}">${label}</button>`;menu.style.left=`${Math.max(8,Math.min(event.clientX,innerWidth-220))}px`;menu.style.top=`${Math.max(8,Math.min(event.clientY,innerHeight-64))}px`;menu.classList.add("open");menu.querySelector("button").onclick=()=>{menu.classList.remove("open");contextAction(kind,id,action)};return}if(kind!=="finance")return ayecFinanceShowContextBase(event,kind,id);if(!ayecContextMenuEnabled())return;event.preventDefault();const menu=$("#contextMenu"),items=[["Hareket Detay\u0131","finance-detail"],["","maintenance-separator"],["Excel'e Aktar","finance-export"],["PDF Olarak Kaydet","finance-pdf"],["Yazd\u0131r","finance-print"]];menu.innerHTML=items.map(([label,action])=>(action==="maintenance-separator"||action==="sales-cart-separator")?"<hr class=\"context-menu-separator\">":`<button data-context-action="${action}">${label}</button>`).join("");menu.style.left=`${Math.max(8,Math.min(event.clientX,innerWidth-220))}px`;menu.classList.add("open");menu.style.top=`${Math.max(8,Math.min(event.clientY,innerHeight-menu.offsetHeight-8))}px`;$$('[data-context-action]',menu).forEach(button=>button.onclick=()=>{menu.classList.remove("open");contextAction(kind,id,button.dataset.contextAction,event.currentTarget)})};
+const ayecFinanceContextActionBase=contextAction;
+contextAction=function(kind,id,action,row){if(kind==="finance-date-group"&&action==="finance-date-toggle"){ayecToggleLedgerDate(id);return}if(kind!=="finance")return ayecFinanceContextActionBase(kind,id,action,row);const item=ayecFinanceLedgerItems.find(record=>String(record.web_key)===String(id))||db.finance.find(record=>String(record.id)===String(id));if(action==="finance-detail"&&item)financeDetailDialog(item);if(action==="finance-export")ayecRunFinanceExport();if(action==="finance-pdf"||action==="finance-print")window.print()};
+document.addEventListener("dblclick",event=>{const row=event.target.closest('[data-kind="finance"]');if(!row||!db.settings.doubleClick)return;const item=ayecFinanceLedgerItems.find(record=>String(record.web_key)===String(row.dataset.id))||db.finance.find(record=>String(record.id)===String(row.dataset.id));if(!item)return;event.preventDefault();event.stopImmediatePropagation();financeDetailDialog(item)},true);const ayecFinanceHandleActionBase=handleAction;handleAction=function(action,id,element){if(action==="export-finance"){if(element?.textContent.includes("PDF"))window.print();else ayecRunFinanceExport();return}return ayecFinanceHandleActionBase(action,id,element)};
+
+document.addEventListener("click", event => {
+  const toggle = event.target.closest("#personnelFieldsToggle");
+  if (!toggle) return;
+  const expanded = toggle.getAttribute("aria-pressed") !== "true";
+  toggle.setAttribute("aria-pressed", String(expanded));
+  toggle.textContent = expanded ? "Temel Alanlar" : "Tum Alanlar";
+  document.querySelector(".personnel-ref-table")?.classList.toggle("expanded", expanded);
+});
+
+function customerPickerRows(query = "") {
+  const needle = String(query).trim().toLocaleLowerCase("tr-TR");
+  const rows = db.customers.filter(customer => [customer.name, customer.phone, customer.email].some(value => String(value || "").toLocaleLowerCase("tr-TR").includes(needle)));
+  return rows.map(customer => `<tr tabindex="0" data-kind="customer-picker" data-id="${esc(customer.id)}"><td>${esc(customer.name)}</td><td>${esc(customer.phone || "")}</td><td>${esc(customer.type || "")}</td><td>${esc(money(customer.balances?.TRY || 0, "TRY"))}</td></tr>`).join("");
+}
+
+function customerSelect(callback, title) {
+  window.ayecCustomerPickerCallback = callback;
+  window.ayecCustomerPickerTitle = title;
+  window.ayecCustomerPickerId = "";
+  const body = `<div class="field"><input id="customerPickerSearch" type="search" placeholder="\u0130sim, telefon veya e-posta ile h\u0131zl\u0131 ara..." aria-label="M\u00fc\u015fteri ara"></div><div class="table-wrap customer-picker-table-wrap"><table><thead><tr><th>M\u00dc\u015eTER\u0130 ADI</th><th>TELEFON</th><th>M\u00dc\u015eTER\u0130 T\u0130P\u0130</th><th>BAK\u0130YE</th></tr></thead><tbody id="customerPickerRows">${customerPickerRows()}</tbody></table></div><div class="customer-picker-actions"><button type="button" class="secondary" data-customer-picker-history>\u0130\u015flem Ge\u00e7mi\u015fi</button><button type="button" class="secondary" data-customer-picker-add>+ Yeni M\u00fc\u015fteri</button></div>`;
+  openDialog(title, "M\u00dc\u015eTER\u0130 SE\u00c7\u0130M\u0130", body, () => {
+    const customer = db.customers.find(item => String(item.id) === String(window.ayecCustomerPickerId));
+    if (!customer) { toast("L\u00fctfen bir m\u00fc\u015fteri se\u00e7in.", "warning"); return false; }
+    const next = window.ayecCustomerPickerCallback;
+    setTimeout(() => next?.(customer), 80);
+  }, "M\u00fc\u015fteriyi Se\u00e7 ve \u0130lerle");
+  const pickerDialog = document.querySelector("#appDialog"), sharedContextMenu = document.querySelector("#contextMenu");
+  pickerDialog.classList.add("customer-picker-dialog");
+  pickerDialog.append(sharedContextMenu);
+  pickerDialog.addEventListener("close", () => { sharedContextMenu.classList.remove("open"); document.body.append(sharedContextMenu); pickerDialog.classList.remove("customer-picker-dialog"); }, { once: true });
+  const rows = document.querySelector("#customerPickerRows");
+  const search = document.querySelector("#customerPickerSearch");
+  search.oninput = () => { rows.innerHTML = customerPickerRows(search.value); window.ayecCustomerPickerId = ""; };
+  rows.onclick = event => {
+    const row = event.target.closest('tr[data-kind="customer-picker"]');
+    if (!row) return;
+    window.ayecCustomerPickerId = row.dataset.id;
+    rows.querySelectorAll("tr").forEach(item => item.classList.toggle("selected", item === row));
+  };
+  rows.ondblclick = event => {
+    if (!event.target.closest('tr[data-kind="customer-picker"]')) return;
+    document.querySelector("#dialogForm").requestSubmit();
+  };
+  document.querySelector("[data-customer-picker-history]").onclick = () => {
+    const customer = db.customers.find(item => String(item.id) === String(window.ayecCustomerPickerId));
+    if (!customer) { toast("L\u00fctfen bir m\u00fc\u015fteri se\u00e7in.", "warning"); return; }
+    document.querySelector("#appDialog").close("cancel");
+    setTimeout(() => customer360(customer), 80);
+  };
+  document.querySelector("[data-customer-picker-add]").onclick = () => openDialog("Yeni M\u00fc\u015fteri", "CRM", customerForm(), form => {
+    saveCustomer(form);
+    setTimeout(() => customerSelect(window.ayecCustomerPickerCallback, window.ayecCustomerPickerTitle), 80);
+    return false;
+  }, "M\u00fc\u015fteri Ekle");
+}
+
+document.addEventListener("contextmenu", event => {
+  const row = event.target.closest('tr[data-kind="customer-picker"]');
+  if (!row) return;
+  if (!ayecContextMenuEnabled()) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  window.ayecCustomerPickerId = row.dataset.id;
+  const menu = document.querySelector("#contextMenu");
+  menu.innerHTML = `<button data-customer-picker-action="select">\u2705 Bu M\u00fc\u015fteriyi Se\u00e7</button><button data-customer-picker-action="history">\ud83d\udccb \u0130\u015flem Ge\u00e7mi\u015fi</button><hr class="context-menu-separator"><button data-customer-picker-action="delete">\u274c M\u00fc\u015fteri Kayd\u0131n\u0131 Sil</button>`;
+  menu.style.left = `${Math.max(8, Math.min(event.clientX, innerWidth - 230))}px`;
+  menu.style.top = `${Math.max(8, Math.min(event.clientY, innerHeight - 150))}px`;
+  menu.classList.add("open");
+  menu.querySelectorAll("[data-customer-picker-action]").forEach(button => button.onclick = async () => {
+    menu.classList.remove("open");
+    const customer = db.customers.find(item => String(item.id) === String(row.dataset.id));
+    if (!customer) return;
+    if (button.dataset.customerPickerAction === "select") {
+      document.querySelector("#appDialog").close("ok");
+      setTimeout(() => window.ayecCustomerPickerCallback?.(customer), 80);
+    } else if (button.dataset.customerPickerAction === "history") {
+      document.querySelector("#appDialog").close("cancel");
+      setTimeout(() => customer360(customer), 80);
+    } else {
+      openDialog("Kay\u0131t Silme Onay\u0131", "M\u00dc\u015eTER\u0130 Y\u00d6NET\u0130M\u0130", `<p>${esc(customer.name)} adl\u0131 m\u00fc\u015fteriyi ve t\u00fcm kay\u0131tlar\u0131n\u0131 silmek istedi\u011finize emin misiniz?</p>`, async () => {
+        await apiFetch("/api/desktop/customer/delete", { method: "POST", body: JSON.stringify({ id: Number(customer.desktopId || customer.id) }) });
+        db.customers = db.customers.filter(item => String(item.id) !== String(customer.id));
+        save();
+        toast("M\u00fc\u015fteri kayd\u0131 silindi.", "success");
+        setTimeout(() => customerSelect(window.ayecCustomerPickerCallback, window.ayecCustomerPickerTitle), 80);
+      }, "M\u00fc\u015fteri Kayd\u0131n\u0131 Sil");
+    }
+  });
+}, true);

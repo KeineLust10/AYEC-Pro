@@ -434,10 +434,12 @@ class TransactionPageBehaviorMixin:
         self.cart_table.blockSignals(False)
 
         # Show/Hide
-        if not self.cart_items:
-            self.cart_content_stack.setCurrentWidget(self.cart_empty_state)
-        else:
-            self.cart_content_stack.setCurrentWidget(self.cart_table)
+        cart_stack = getattr(self, "cart_content_stack", None)
+        if cart_stack is not None:
+            if not self.cart_items:
+                cart_stack.setCurrentWidget(self.cart_empty_state)
+            else:
+                cart_stack.setCurrentWidget(self.cart_table)
 
 
 
@@ -505,11 +507,10 @@ class TransactionPageBehaviorMixin:
         self.update_totals()
         self.refresh_cart_ui()
 
-        # Show empty state if cart is now empty
-        if not self.cart_items:
-            self.cart_content_stack.setCurrentWidget(self.cart_empty_state)
-        else:
-            self.cart_content_stack.setCurrentWidget(self.cart_table)
+        # Show the legacy stack when present; reference pages refresh their own cart widgets.
+        cart_stack = getattr(self, "cart_content_stack", None)
+        if cart_stack is not None:
+            cart_stack.setCurrentWidget(self.cart_empty_state if not self.cart_items else self.cart_table)
 
     def clear_cart(self):
         """Sepeti temizle"""
