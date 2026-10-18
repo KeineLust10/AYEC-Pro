@@ -30,7 +30,12 @@ def test_security_settings_api_hashes_passwords_and_keeps_tenant_user_scope(monk
     with module.closing(module.db_connect()) as connection:
         module.ensure_web_schema(connection)
         connection.execute(
-            "INSERT INTO users (id,username,password,role,auto_login) VALUES (1,'admin','unused','Admin',0)"
+            "INSERT INTO users (id,username,password,role,auto_login) VALUES (1,'admin',?,'Admin',0)",
+            (module.password_hash("Current-Password-4321"),),
+        )
+        connection.execute(
+            "INSERT INTO users (id,username,password,role,auto_login) VALUES (2,'other-user',?,'User',0)",
+            (module.password_hash("Other-Password-4321"),),
         )
         connection.commit()
 
@@ -69,6 +74,7 @@ def test_security_settings_api_hashes_passwords_and_keeps_tenant_user_scope(monk
                 "tech_lock_active": True,
                 "tech_password": "Valid-Tech-Password-4321",
                 "auto_login": True,
+                "current_password": "Current-Password-4321",
                 "security_question": "City of birth",
                 "security_answer": "Example City",
             }).encode(),
@@ -83,7 +89,9 @@ def test_security_settings_api_hashes_passwords_and_keeps_tenant_user_scope(monk
             assert stored != "Valid-Password-4321"
             assert stored.startswith(("$2a$", "$2b$", "$2y$"))
             user = connection.execute("SELECT auto_login FROM users WHERE id=1").fetchone()
+            other_user = connection.execute("SELECT auto_login FROM users WHERE id=2").fetchone()
             assert user[0] == 1
+            assert other_user[0] == 0
 
         with urllib.request.urlopen(root + "/api/desktop/security-settings") as response:
             state = json.load(response)
@@ -93,6 +101,20 @@ def test_security_settings_api_hashes_passwords_and_keeps_tenant_user_scope(monk
         assert state["tech_password_configured"] is True
         assert state["auto_login"] is True
         assert state["security_question"] == "City of birth"
+        unauthorized_toggle = urllib.request.Request(
+            root + "/api/desktop/security-settings",
+            data=json.dumps({"auto_login": False, "current_password": "Wrong-Password-4321"}).encode(),
+            headers={"Content-Type": "application/json", "Origin": root},
+            method="POST",
+        )
+        try:
+            urllib.request.urlopen(unauthorized_toggle)
+            assert False, "automatic login change should require the current password"
+        except urllib.error.HTTPError as error:
+            assert error.code == 401
+        with module.closing(module.db_connect()) as connection:
+            assert connection.execute("SELECT auto_login FROM users WHERE id=1").fetchone()[0] == 1
+            assert connection.execute("SELECT auto_login FROM users WHERE id=2").fetchone()[0] == 0
         assert "app_password" not in state
 
         wrong_lock_password = urllib.request.Request(
@@ -136,6 +158,30 @@ def test_security_settings_api_hashes_passwords_and_keeps_tenant_user_scope(monk
         )
         with urllib.request.urlopen(valid_tech_password) as response:
             assert json.load(response) == {"ok": True, "required": True}
+
+        checked = []
+        module.desktop_stock_action_password_valid = lambda password, user_id: checked.append((password, user_id)) or password == "Valid-Password-4321"
+        invalid_action_password = urllib.request.Request(
+            root + "/api/desktop/security-settings/verify-action",
+            data=json.dumps({"password": "Wrong-Password-4321"}).encode(),
+            headers={"Content-Type": "application/json", "Origin": root},
+            method="POST",
+        )
+        try:
+            urllib.request.urlopen(invalid_action_password)
+            assert False, "wrong action password should be rejected"
+        except urllib.error.HTTPError as error:
+            assert error.code == 401
+
+        valid_action_password = urllib.request.Request(
+            root + "/api/desktop/security-settings/verify-action",
+            data=json.dumps({"password": "Valid-Password-4321"}).encode(),
+            headers={"Content-Type": "application/json", "Origin": root},
+            method="POST",
+        )
+        with urllib.request.urlopen(valid_action_password) as response:
+            assert json.load(response) == {"ok": True}
+        assert checked[-1] == ("Valid-Password-4321", 1)
     finally:
         server.shutdown()
         server.server_close()

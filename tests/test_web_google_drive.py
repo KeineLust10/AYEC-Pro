@@ -1,3 +1,5 @@
+import hashlib
+import io
 import json
 import sqlite3
 from datetime import datetime, timedelta, timezone
@@ -178,5 +180,103 @@ def test_connect_route_encrypts_client_config_and_creates_tenant_bound_state(mon
     with sqlite3.connect(registry_db) as conn:
         state_record = conn.execute("SELECT tenant_id,user_id FROM google_drive_oauth_states").fetchone()
     assert state_record == ("tenant-a", 17)
+
+
+def test_upload_route_archives_and_uploads_active_tenant_backup(monkeypatch, tmp_path):
+    tenant_db = tmp_path / "tenant.db"
+    with sqlite3.connect(tenant_db) as conn:
+        conn.execute("CREATE TABLE settings(key TEXT PRIMARY KEY,value TEXT)")
+        web_main._google_drive_setting(conn, "google_drive_token", '{"access_token":"tenant-token"}')
+    actor = {"id": 17, "role": "Admin", "_tenant_id": "tenant-a"}
+    captured = {}
+    monkeypatch.setattr(web_main, "clear_tenant_context", lambda: None)
+    monkeypatch.setattr(web_main, "_desktop_backup_context", lambda user: ({}, "tenant-a", "teknik_servis"))
+    monkeypatch.setattr(web_main, "db_connect", lambda: sqlite3.connect(tenant_db))
+    monkeypatch.setattr(web_main, "desktop_create_backup", lambda user, source: {"backup_id": 41, "source": source})
+    monkeypatch.setattr(web_main, "desktop_download_backup", lambda user, backup_id: (b"tenant-a-snapshot", "sha256", "tenant-a.db"))
+
+    def upload(token_json, filename, payload):
+        captured.update(token=token_json, filename=filename, payload=payload)
+        return "drive-file-41", '{"access_token":"refreshed-token"}'
+
+    monkeypatch.setattr(web_main, "upload_google_drive_backup", upload)
+    responses = []
+    handler = object.__new__(web_main.AYECRequestHandler)
+    handler.path = "/api/desktop/backups/google-drive"
+    handler.headers = {"Content-Length": "2"}
+    handler.current_user = lambda: actor
+    handler.same_origin = lambda: True
+    handler.read_json = lambda: {}
+    handler.send_json = lambda payload, status=200, headers=None: responses.append((payload, status))
+
+    handler.do_POST()
+
+    assert responses == [({"ok": True, "backup_id": 41, "file_id": "drive-file-41", "filename": "tenant-a.db"}, 201)]
+    assert captured == {"token": '{"access_token":"tenant-token"}', "filename": "tenant-a.db", "payload": b"tenant-a-snapshot"}
+    with sqlite3.connect(tenant_db) as conn:
+        refreshed = conn.execute("SELECT value FROM settings WHERE key='google_drive_token'").fetchone()[0]
+        revealed = web_main._google_drive_setting(conn, "google_drive_token")
+    assert "refreshed-token" not in refreshed
+    assert revealed == '{"access_token":"refreshed-token"}'
+
+
+def test_google_drive_callback_exchanges_one_time_tenant_bound_state(monkeypatch, tmp_path):
+    tenant_db = tmp_path / "tenant.db"
+    registry_db = tmp_path / "registry.db"
+    state = "single-use-state"
+    actor = {"id": 17, "role": "Admin", "_tenant_id": "tenant-a"}
+    with sqlite3.connect(tenant_db) as conn:
+        conn.execute("CREATE TABLE settings(key TEXT PRIMARY KEY,value TEXT)")
+        web_main._google_drive_setting(conn, "google_drive_client_config", json.dumps({"web": {
+            "client_id": "tenant.apps.googleusercontent.com", "client_secret": "secret"
+        }}))
+    with sqlite3.connect(registry_db) as conn:
+        conn.execute(
+            "CREATE TABLE google_drive_oauth_states ("
+            "state_hash TEXT PRIMARY KEY,tenant_id TEXT NOT NULL,user_id INTEGER NOT NULL,created_at TEXT NOT NULL)"
+        )
+        conn.execute(
+            "INSERT INTO google_drive_oauth_states VALUES(?,?,?,?)",
+            (hashlib.sha256(state.encode("utf-8")).hexdigest(), "tenant-a", 17, web_main.utc_now().isoformat()),
+        )
+
+    monkeypatch.setattr(web_main, "clear_tenant_context", lambda: None)
+    monkeypatch.setattr(web_main, "set_tenant_context", lambda tenant: None)
+    monkeypatch.setattr(web_main, "_tenant_record_required", lambda tenant_id: {"id": tenant_id, "product_code": "teknik_servis"})
+    monkeypatch.setattr(web_main, "db_connect", lambda: sqlite3.connect(tenant_db))
+    def open_registry():
+        connection = sqlite3.connect(registry_db)
+        connection.row_factory = sqlite3.Row
+        return connection
+
+    monkeypatch.setattr(web_main, "registry_connect", open_registry)
+    monkeypatch.setattr(web_main, "_google_drive_redirect_uri", lambda: "https://panel.example.test/api/desktop/backups/google-drive/callback")
+
+    def exchange(client_config, redirect_uri, callback_url, callback_state):
+        assert client_config["web"]["client_id"] == "tenant.apps.googleusercontent.com"
+        assert redirect_uri == "https://panel.example.test/api/desktop/backups/google-drive/callback"
+        assert f"code=authorization-code" in callback_url
+        assert callback_state == state
+        return '{"refresh_token":"tenant-refresh-token"}'
+
+    monkeypatch.setattr(web_main, "exchange_google_drive_authorization", exchange)
+    headers = []
+    handler = object.__new__(web_main.AYECRequestHandler)
+    handler.path = "/api/desktop/backups/google-drive/callback?code=authorization-code&state=" + state
+    handler.headers = {}
+    handler.current_user = lambda: actor
+    handler.send_response = lambda status: headers.append(("status", status))
+    handler.send_header = lambda name, value: headers.append((name, value))
+    handler.end_headers = lambda: None
+    handler.wfile = io.BytesIO()
+
+    handler.do_GET()
+
+    assert ("status", 303) in headers
+    assert ("Location", "/#backup") in headers
+    with sqlite3.connect(tenant_db) as conn:
+        token = web_main._google_drive_setting(conn, "google_drive_token")
+    assert token == '{"refresh_token":"tenant-refresh-token"}'
+    assert web_main._consume_google_drive_state(state) is None
 
 

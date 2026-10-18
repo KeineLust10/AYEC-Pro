@@ -1,6 +1,57 @@
 .reminders-reference {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 190px);
   padding: 0;
   overflow: hidden;
+}
+
+body[data-page="reminders"] {
+  font-family: "Segoe UI", sans-serif;
+}
+
+html[data-theme="midnight"] body[data-page="reminders"],
+html[data-theme="midnight"] body[data-page="reminders"] #content {
+  background: #080e1a;
+}
+
+html[data-theme="midnight"] body[data-page="reminders"] .reminders-page-head {
+  background: transparent;
+}
+
+html[data-theme="midnight"] body[data-page="reminders"] .reminders-reference {
+  background: #080e1a;
+  border: 0;
+  border-radius: 0;
+}
+
+html[data-theme="midnight"] body[data-page="reminders"] .reminder-pane {
+  background: #080e1a;
+}
+
+html[data-theme="midnight"] body[data-page="reminders"] .reminder-form fieldset,
+html[data-theme="midnight"] body[data-page="reminders"] .reminder-form input,
+html[data-theme="midnight"] body[data-page="reminders"] .reminder-form select,
+html[data-theme="midnight"] body[data-page="reminders"] .reminder-form textarea {
+  background: #0d1829;
+}
+
+html[data-theme="midnight"] body[data-page="reminders"] #reminderListHost .table-wrap {
+  background: #0d1829;
+  border-color: #1b2a42;
+}
+
+html[data-theme="midnight"] body[data-page="reminders"] .reminder-table th {
+  background: #101a2b;
+}
+
+body[data-page="reminders"] .reminders-page-head h2 {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.reminders-page-head {
+  margin-bottom: 16px;
 }
 
 .reminder-tabs {
@@ -13,9 +64,10 @@
 .reminder-tabs [role="tab"] {
   flex: 1 1 0;
   min-width: 160px;
+  height: 44px;
   min-height: 44px;
-  margin: 2px 0 0;
-  padding: 12px 30px;
+  margin: 0;
+  padding: 10px 30px;
   border: 1px solid silver;
   border-bottom: 0;
   border-radius: 8px 8px 0 0;
@@ -31,7 +83,7 @@
 }
 
 .reminder-tabs [role="tab"].active {
-  margin-top: 0;
+  margin: 0;
   border-color: darkorange;
   border-bottom: 1px solid orange;
   color: white;
@@ -39,8 +91,66 @@
 }
 
 .reminder-pane {
-  min-height: 420px;
-  padding: 18px 16px;
+  min-height: 0;
+  padding: 18px 13px 0;
+}
+
+.reminder-pane:not([hidden]) {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+.reminder-pane[data-reminder-pane="add"] {
+  padding: 32px 17px 0;
+}
+
+.reminder-pane[data-reminder-pane="add"] #reminderCreateForm {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.reminder-pane[data-reminder-pane="add"] .reminder-form fieldset {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  min-height: 0;
+  padding-top: 22px;
+}
+
+.reminder-pane[data-reminder-pane="add"] .reminder-fields {
+  margin-bottom: 26px;
+}
+
+.reminder-pane[data-reminder-pane="add"] .reminder-fields .field {
+  gap: 20px;
+}
+
+.reminder-pane[data-reminder-pane="add"] .reminder-description {
+  flex: 0 0 auto;
+  min-height: 0;
+  gap: 14px;
+}
+
+.reminder-pane[data-reminder-pane="add"] .reminder-description textarea {
+  flex: 0 0 191px;
+  height: 191px;
+  min-height: 191px;
+  resize: none;
+}
+
+.reminder-pane[data-reminder-pane="list"] #reminderListHost {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.reminder-pane[data-reminder-pane="list"] #reminderListHost .table-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .reminder-pane[hidden] {
@@ -65,7 +175,7 @@
 
 .reminder-fields {
   display: grid;
-  grid-template-columns: minmax(0, 6fr) minmax(180px, 2fr) minmax(145px, 1fr);
+  grid-template-columns: minmax(0, 6.3fr) minmax(0, 2.1fr) minmax(0, 1.5fr);
   gap: 16px;
   align-items: end;
   margin-bottom: 16px;
@@ -114,15 +224,33 @@
   resize: vertical;
 }
 
+.reminder-form input::placeholder,
+.reminder-form textarea::placeholder {
+  color: #64748b;
+  opacity: 1;
+}
+
 .reminder-form-actions {
   display: flex;
   justify-content: flex-end;
-  padding-top: 14px;
+  padding-top: 19px;
 }
 
 .reminder-form-actions button {
   min-width: 220px;
   min-height: 48px;
+}
+
+.reminder-form-actions [data-reminder-save] {
+  color: #071b18;
+  background: #4edea3;
+  border-color: #4edea3;
+}
+
+.reminder-form-actions [data-reminder-save]:hover {
+  color: #071b18;
+  background: #34d399;
+  border-color: #34d399;
 }
 
 .reminder-list-actions {
@@ -136,8 +264,16 @@
 .reminder-list-actions [data-reminder-delete] {
   color: #fff;
   background: var(--brand);
+  border-color: var(--brand);
   height: 38px;
   min-height: 38px;
+  min-width: 136px;
+}
+
+.reminder-list-actions [data-generic-refresh] {
+  height: 38px;
+  min-height: 38px;
+  min-width: 82px;
 }
 
 .reminder-list-actions [data-reminder-delete]:hover {
@@ -182,12 +318,14 @@
 .reminder-table td:nth-child(2),
 .reminder-table td:nth-child(4),
 .reminder-table td:nth-child(6) { white-space: nowrap; }
+.reminder-table td:nth-child(3) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .reminder-table th {
   font-size: 11px;
 }
 
 .reminder-table tbody tr {
+  height: 30px;
   cursor: pointer;
 }
 
@@ -198,7 +336,6 @@
 
 .reminder-row-title {
   min-width: 0;
-  font-weight: 650;
 }
 
 .reminder-row-description {
@@ -209,6 +346,15 @@
 }
 
 @media (max-width: 680px) {
+  .reminder-pane[data-reminder-pane="add"] {
+    padding: 18px 13px 0;
+  }
+
+  .reminder-pane[data-reminder-pane="add"] .reminder-description textarea {
+    flex-basis: 140px;
+    height: 140px;
+    min-height: 140px;
+  }
   .reminder-fields {
     grid-template-columns: 1fr;
     gap: 12px;

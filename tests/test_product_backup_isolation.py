@@ -1,5 +1,6 @@
 """Cross-product backup and restore contracts with disposable databases."""
 from contextlib import closing
+import json
 import sqlite3
 from pathlib import Path
 
@@ -35,6 +36,45 @@ def test_identical_backup_bytes_are_isolated_by_product_device_and_tenant(monkey
     assert len({r["product_backup_path"] for r in results}) == 4
     duplicate = web.support_store_backup(actor, raw, product_code="barkod_okuyucu", hardware_id="pc-1")
     assert duplicate["backup_id"] == results[0]["backup_id"]
+
+
+def test_control_center_snapshot_is_tenant_scoped_and_audited(monkeypatch, tmp_path):
+    actor, tenant_path = _setup_tenant(monkeypatch, tmp_path)
+    result = web.control_create_backup(actor, {"tenant_id": "tenant-1"})
+
+    assert result["ok"] is True
+    assert result["tenant_id"] == "tenant-1"
+    assert result["product_code"] == "teknik_servis"
+    with closing(web.registry_connect()) as conn:
+        backup = conn.execute(
+            "SELECT * FROM support_backups WHERE id=? AND tenant_id=?",
+            (result["backup_id"], "tenant-1"),
+        ).fetchone()
+        audit = conn.execute(
+            "SELECT action,detail_json FROM support_audit "
+            "WHERE target_tenant_id=? ORDER BY id DESC LIMIT 1",
+            ("tenant-1",),
+        ).fetchone()
+        assert conn.execute(
+            "SELECT COUNT(*) FROM support_backups WHERE tenant_id=?", ("tenant-2",)
+        ).fetchone()[0] == 0
+    assert backup["source"] == "control-center"
+    assert backup["product_code"] == "teknik_servis"
+    assert backup["hardware_id"] == "platform"
+    assert Path(web.SUPPORT_BACKUP_ROOT / "tenant-1" / backup["filename"]).is_file()
+    raw = web.admin_download_support_backup(actor, "tenant-1", result["backup_id"])[0]
+    with closing(sqlite3.connect(":memory:")) as snapshot:
+        snapshot.deserialize(raw)
+        assert snapshot.execute("SELECT username FROM users ORDER BY id LIMIT 1").fetchone()[0] == "customer-admin"
+    assert audit["action"] == "admin_tenant_backup_created"
+    assert json.loads(audit["detail_json"])["backup_id"] == result["backup_id"]
+    assert tenant_path.is_file()
+
+    with pytest.raises(PermissionError):
+        web.control_create_backup({"id": 1, "_tenant_id": "tenant-1", "role": "Admin"},
+                                  {"tenant_id": "tenant-1"})
+    with pytest.raises(LookupError):
+        web.control_create_backup(actor, {"tenant_id": "missing-tenant"})
 
 
 def test_restore_only_reaches_matching_product_and_device(monkeypatch, tmp_path):

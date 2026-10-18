@@ -38,6 +38,9 @@ def test_contracts_reference_uses_desktop_controls_and_columns():
     assert 'data-contract-file-select' in source and 'uploadContractFiles(result.id, files' in source
     assert 'event.target.closest(".contract-attachment-row")' in source
     assert 'openLink.click()' in source
+    assert 'data-contract-attachment-select' in source
+    assert 'data-contract-attachment-open' in source
+    assert 'window.currentContractAttachmentSelection = attachmentId' in source
     assert '#appDialog.contract-create-dialog{width:min(650px' in styles
     assert 'height:min(752px' in styles and 'flex:1 1 auto' in styles
 
@@ -49,3 +52,16 @@ def test_contracts_reference_layout_is_full_width_and_mobile_adaptive():
     assert ".contracts-reference-table{min-width:0" in styles
     assert "@media(max-width:760px)" in styles
     assert "grid-template-columns:minmax(0,1fr)" in styles
+
+
+def test_contract_metrics_keep_unmeasured_sla_response_time_as_placeholder():
+    source = (WEB / "contracts-reference.js").read_text(encoding="utf-8")
+    start = source.index("function contractTable(")
+    end = source.index("window.renderContractsReference", start)
+    contract_table = source[start:end]
+    desktop = (ROOT / "src" / "ui" / "pages" / "contracts_page.py").read_text(encoding="utf-8")
+    assert '"ORTALAMA SLA YANIT S\\u00dcRES\\u0130", "-"' in desktop
+    assert "metricValues[0].textContent" in contract_table
+    assert "metricValues[1].textContent" in contract_table
+    assert "metricValues[2].textContent" in contract_table
+    assert "metricValues[3].textContent" not in contract_table

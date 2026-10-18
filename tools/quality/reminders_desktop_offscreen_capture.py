@@ -51,6 +51,12 @@ def main() -> None:
     report = {
         "form": str(form_path),
         "list": str(list_path),
+        "tabs": {
+            "widget": [page.tabs.x(), page.tabs.y(), page.tabs.width(), page.tabs.height()],
+            "bar": [page.tabs.tabBar().x(), page.tabs.tabBar().y(), page.tabs.tabBar().width(), page.tabs.tabBar().height()],
+            "buttons": [[page.tabs.tabBar().tabRect(index).x(), page.tabs.tabBar().tabRect(index).y(), page.tabs.tabBar().tabRect(index).width(), page.tabs.tabBar().tabRect(index).height()] for index in range(page.tabs.count())],
+            "page": [page.tabs.currentWidget().x(), page.tabs.currentWidget().y(), page.tabs.currentWidget().width(), page.tabs.currentWidget().height()],
+        },
         "table": {
             "width": table.width(),
             "height": table.height(),

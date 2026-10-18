@@ -68,7 +68,7 @@ class CompanyInfoStep(QWidget):
         right.addLayout(self._fgroup("🏛️", "Vergi Dairesi", False, "tax_office", "Örn: Kadıköy VD"))
         right.addLayout(self._fgroup("#️⃣", "Vergi Numarası", False, "tax_number", "Örn: 1234567890"))
 
-        addr_lbl = QLabel("📍  Adres")
+        addr_lbl = QLabel("\U0001F4CD  Adres *")
         addr_lbl.setStyleSheet("color:#334155; font-size:13px; font-weight:600; background:transparent; border:none;")
         right.addWidget(addr_lbl)
 
@@ -78,7 +78,7 @@ class CompanyInfoStep(QWidget):
         self.address.setStyleSheet(_fstyle())
         right.addWidget(self.address)
 
-        self.location_button = QPushButton("Haritadan Kurulum Konumu Sec *")
+        self.location_button = QPushButton("Haritadan Konum Sec")
         self.location_button.setMinimumHeight(44)
         self.location_button.setStyleSheet(
             "QPushButton{background:#4F46E5;color:white;border:none;border-radius:10px;"
@@ -87,7 +87,7 @@ class CompanyInfoStep(QWidget):
         )
         self.location_button.clicked.connect(self._pick_location)
         right.addWidget(self.location_button)
-        self.location_status = QLabel("Konum secimi zorunludur.")
+        self.location_status = QLabel("Konum adresinizden otomatik belirlenir.")
         self.location_status.setWordWrap(True)
         self.location_status.setStyleSheet(
             "color:#DC2626;font-size:11px;background:transparent;border:none;"
@@ -162,6 +162,11 @@ class CompanyInfoStep(QWidget):
                 f.setFocus()
                 return False
 
+        if not self.address.toPlainText().strip():
+            self._err("Lutfen firma adresini girin.")
+            self.address.setFocus()
+            return False
+
         ph = self.phone.text().strip()
         if not ph:
             self._err("Lütfen telefon numarasını girin.")
@@ -181,10 +186,6 @@ class CompanyInfoStep(QWidget):
         if not re.match(r"^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$", em):
             self._err("Geçerli e-posta girin. Örnek: info@sirket.com")
             self.email.setFocus()
-            return False
-        if self.installation_lat is None or self.installation_lng is None:
-            self._err("Lutfen haritadan kurulum konumunu secin.")
-            self.location_button.setFocus()
             return False
         return True
 

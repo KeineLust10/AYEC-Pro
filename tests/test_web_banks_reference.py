@@ -106,9 +106,31 @@ def test_bank_cards_support_desktop_account_context_and_detail_history():
     assert '["D\\u00fczenle","bank-edit",!manager],["Transfer Yap","bank-transfer",!manager]' in code
     assert '["separator","separator",true]' in code
     assert 'disabled?" disabled":""' in code
-    assert 'const rows=(db.finance||[]).filter(item=>Number(item.bank_account_id)===Number(account.id)' in code
-    assert '.slice(0,50)' in code
+    assert 'const accountTransactions=(db.finance||[]).filter(item=>(Number(item.bank_account_id)===Number(account.id)||Number(item.related_account_id)===Number(account.id))' in code
+    assert 'data-bank-tx-search' in code and 'data-bank-tx-size' in code
+    assert 'data-bank-tx-prev' in code and 'data-bank-tx-next' in code
     assert 'document.querySelector("#dialogCancel").hidden=true' in code
+
+
+def test_bank_account_details_mirror_desktop_tabs_and_scoped_workflows():
+    source = APP.read_text(encoding="utf-8")
+    start = source.index("function ayecOpenBankAccountDetail(account){")
+    end = source.index("const ayecRenderBeforeBankReference=render;", start)
+    code = source[start:end]
+    for tab in ("general", "loans", "transactions", "analytics", "extra"):
+        assert f'data-bank-tab="{tab}"' in code
+        assert f'data-bank-panel="{tab}"' in code
+    for control in ("data-bank-tx-search", "data-bank-tx-type", "data-bank-tx-date", "data-bank-tx-from", "data-bank-tx-to", "data-bank-tx-min", "data-bank-tx-max", "data-bank-tx-size", "data-bank-tx-prev", "data-bank-tx-next", "data-bank-tx-reset"):
+        assert control in code
+    assert 'ayecFetchAllDesktopTableRows("loans")' in code
+    assert 'ayecFetchAllDesktopTableRows("loan_installments")' in code
+    assert 'ayecFetchAllDesktopTableRows("accounting")' in code
+    assert "data-bank-analytics-content" in code and "Kategorilere G\\u00f6re Harcama Da\\u011f\\u0131l\\u0131m\\u0131" in code
+    assert "window.ayecSetBankTransactions" in code
+    helper_start = source.index("async function ayecFetchAllDesktopTableRows(")
+    helper_end = source.index("function ayecOpenBankAccountDetail(", helper_start)
+    helper = source[helper_start:helper_end]
+    assert '"?limit=1000&offset="+offset' in helper and "data.count" in helper
 
 
 def test_bank_context_menu_supports_selection_bulk_actions_and_status_reactivation():

@@ -12,6 +12,20 @@ from PyQt6.QtWidgets import QApplication
 from pages import companies as companies_module
 
 
+def test_company_product_filter_is_sent_to_admin_api(monkeypatch):
+    requests = []
+    monkeypatch.setattr(
+        companies_module.api_client,
+        "companies",
+        lambda search, product_code: requests.append((search, product_code)) or [],
+    )
+
+    worker = companies_module._FetchCompanies("ASLAN", "barkod_okuyucu")
+    worker.run()
+
+    assert requests == [("ASLAN", "barkod_okuyucu")]
+
+
 def test_company_filters_metrics_and_license_copy(monkeypatch):
     app = QApplication.instance() or QApplication([])
     rows = [

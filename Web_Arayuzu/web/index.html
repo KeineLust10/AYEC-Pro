@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="tr" data-theme="midnight">
 <head>
   <meta charset="utf-8">
@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0b1020">
   <title>AYEC Pro &mdash; Teknik Servis Y&#246;netimi</title>
   <link rel="stylesheet" href="reference-fonts.css?v=20261002-1">
-<link rel="stylesheet" href="styles.css?v=20261016-company-location-picker-1">
+<link rel="stylesheet" href="styles.css?v=20261018-sidebar-footer-1">
 <link rel="stylesheet" href="personnel-payroll-reference.css?v=20261014-1">
 <link rel="stylesheet" href="knowledge-base-reference.css?v=20261014-2">
 <link rel="stylesheet" href="external-tracking-reference.css?v=20261016-status-tones-1">
@@ -15,14 +15,14 @@
 <link rel="stylesheet" href="voice-command-reference.css?v=20261011-3">
   <link rel="stylesheet" href="control-center.css?v=20261016-admin-reference-79">
   <link rel="stylesheet" href="reference-navigation.css?v=20261008-3">
-  <link rel="stylesheet" href="service-list-reference.css?v=20261014-7">
-<link rel="stylesheet" href="midnight-reference.css?v=20261015-customer-type-1">
+  <link rel="stylesheet" href="service-list-reference.css?v=20261018-service-list-native-typography-2">
+<link rel="stylesheet" href="midnight-reference.css?v=20261018-job-report-row-origin-1">
 <link rel="stylesheet" href="announcements-reference.css?v=20261013-5">
 <link rel="stylesheet" href="reminders-reference.css?v=20261013-2">
 <link rel="stylesheet" href="backup-reference.css?v=20261013-2">
   <link rel="stylesheet" href="gemini-reference.css?v=20261012-1">
   <link rel="stylesheet" href="automotive-parity.css?v=20261015-6">
-  <link rel="stylesheet" href="desktop-parity.css?v=20261016-sidebar-brand-mark-1">
+<link rel="stylesheet" href="desktop-parity.css?v=20261018-job-description-font-1">
   <link rel="stylesheet" href="loan-bulk-payment.css?v=20261014-1">
   <link rel="stylesheet" href="service-status-sms.css?v=20261013-1">
   <link rel="stylesheet" href="service-status-reference.css?v=20261015-assistant-2">
@@ -30,21 +30,26 @@
   <link rel="stylesheet" href="check-notes-parity.css?v=20261014-3">
   <link rel="stylesheet" href="finance-dialog-parity.css?v=20261013-1">
   <link rel="stylesheet" href="collection-payment-parity.css?v=20261014-1">
-  <link rel="stylesheet" href="dashboard-parity.css?v=20261016-16">
-  <link rel="stylesheet" href="contracts-reference.css?v=20261014-10">
-  <link rel="stylesheet" href="contract-detail-reference.css?v=20261013-1">
+  <link rel="stylesheet" href="dashboard-parity.css?v=20261018-shortcut-vertical-fit-verified-1">
+  <link rel="stylesheet" href="contracts-reference.css?v=20261017-12">
+  <link rel="stylesheet" href="contract-detail-reference.css?v=20261017-4">
   <link rel="stylesheet" href="messaging-reference.css?v=20261012-3">
   <link rel="stylesheet" href="autonomous-reference.css?v=20261012-1">
   <link rel="stylesheet" href="light-theme-parity.css?v=20261013-1">
   <link rel="stylesheet" href="customer-history-parity.css?v=20261013-customer-history-1">
   <link rel="stylesheet" href="customer-context-parity.css?v=20261013-customer-context-1">
   <link rel="stylesheet" href="service-catalog-context-parity.css?v=20261015-service-catalog-4">
-  <link rel="stylesheet" href="pc-builder-reference.css?v=20261014-1">
+<link rel="stylesheet" href="pc-builder-reference.css?v=20261018-pc-builder-price-input-font-1">
+<link rel="stylesheet" href="pc-builder-horizontal-access.css?v=20261018-1">
+  <link rel="stylesheet" href="smart-home-sales-reference.css?v=20261017-1">
   <link rel="stylesheet" href="assistant-reference.css?v=20261014-1">
+  <link rel="stylesheet" href="desktop-assistant-panel.css?v=20261017-1">
+  <link rel="stylesheet" href="desktop-shortcuts-header.css?v=20261017-1">
   <link rel="stylesheet" href="mobile-guide-reference.css?v=20261014-1">
-  <link rel="stylesheet" href="manual-reference.css?v=20261014-1">
-  <link rel="stylesheet" href="automotive-stock-reference.css?v=20261014-1">
-  <link rel="stylesheet" href="field-service-parity.css?v=20261014-11">
+  <link rel="stylesheet" href="manual-reference.css?v=20261018-native-tab-geometry-3">
+  <link rel="stylesheet" href="support-reference.css?v=20261018-support-reference-1">
+  <link rel="stylesheet" href="automotive-stock-reference.css?v=20261018-automotive-part-fields-1">
+  <link rel="stylesheet" href="field-service-parity.css?v=20261018-28">
   <link rel="stylesheet" href="partners-reference.css?v=20261014-1">
   <link rel="stylesheet" href="bulk-sales-selection.css?v=20261014-1">
 </head>
@@ -53,17 +58,26 @@
   <div class="app-shell" id="appShell">
       <header class="topbar">
         <button type="button" class="icon-btn mobile-only" id="menuToggle" aria-expanded="false" aria-label="Men&#252;y&#252; a&#231;">&#9776;</button>
+        <button type="button" class="header-back" id="headerBackBtn" disabled aria-label="Geri">&#8592;<span>Geri</span></button>
+        <span class="header-app-logo" aria-hidden="true">&#9679;</span>
+        <span class="header-app-name">AYEC Pro</span>
         <div><p class="eyebrow" id="breadcrumb">Genel Bak&#305;&#351;</p><h1 id="pageTitle">Kontrol Merkezi</h1></div>
         <div class="top-actions">
-          <label class="global-search"><span>&#8981;</span><input id="globalSearch" placeholder="M&#252;&#351;teri, stok veya servis ara..."></label>
-          <button class="topbar-tool global-search-voice" id="globalSearchVoice" type="button" aria-label="Sesli arama ba&#351;lat" title="Sesli arama">&#127908;</button>
+          <div class="global-search-wrap">
+            <label class="global-search"><span>&#8981;</span><input id="globalSearch" placeholder="Sistem genelinde ara (Marka, Seri No, ...)"></label>
+            <button class="topbar-tool global-search-voice" id="globalSearchVoice" type="button" aria-label="Sesli arama ba&#351;lat" title="Sesli arama">&#127908;</button>
+          </div>
           <button class="topbar-tool" id="syncNowBtn" type="button" aria-label="Sunucu verilerini e&#351;itle ve yenile" title="Sunucu verilerini e&#351;itle ve yenile"><span aria-hidden="true">&#8635;</span><b>Senkronize Et</b></button>
-          <button class="topbar-tool" id="managementCenterBtn" type="button" hidden aria-label="Y&#246;netim Merkezi"><span aria-hidden="true">&#9635;</span><b>Y&#246;netim</b></button>
+          <button class="topbar-tool" id="managementCenterBtn" type="button" aria-label="Y&#246;netim Merkezi"><span aria-hidden="true">&#9881;</span><b>Y&#246;netim</b></button>
           <button class="topbar-tool" id="interfaceEditBtn" type="button" aria-label="Aray&#252;z&#252; ve men&#252; isimlerini d&#252;zenle"><span aria-hidden="true">&#9998;</span><b>Aray&#252;z D&#252;zenle</b></button>
+          <button class="topbar-tool" id="headerSettingsBtn" type="button" aria-label="Ayarlar">&#9881;</button>
+          <button class="topbar-tool" id="headerShortcutsBtn" type="button" aria-label="Genel Bak&#305;&#351; k&#305;sayollar&#305;" title="Genel Bak&#305;&#351; k&#305;sayollar&#305;">&#9733;</button>
+          <select id="headerThemePicker" aria-label="Tema"></select>
           <button class="topbar-tool" id="themeBtn" type="button" aria-label="Temay&#305; de&#287;i&#351;tir"><span aria-hidden="true">&#9680;</span><b>Tema</b></button>
           <button class="icon-btn" id="notificationBtn" aria-label="Bildirimler">&#128276;<span class="notification-dot" id="notificationDot"></span></button>
-          <button class="primary" data-action="quick-add">&#65291; H&#305;zl&#305; &#304;&#351;lem</button>
+          <details id="headerProfileActions" class="header-profile-actions"><summary aria-label="Profil eylemleri">&#128100;</summary><div class="header-profile-menu"><button type="button" data-header-action="profile">Profil bilgileri</button></div></details>
         </div>
+        <button type="button" class="header-assistant" id="assistantHeaderBtn" aria-label="Yard&#305;mc&#305;">&#10024;</button>
       </header>
         <aside class="sidebar" id="sidebar">
       <div class="brand"><span class="brand-mark"><img id="brandLogo" alt="Firma logosu"><span id="brandInitial">A</span></span><div><strong id="brandCompanyName">AYEC Pro</strong><small id="brandProductName">Servis Y&#246;netimi</small></div><span class="brand-sector" id="sectorBrand">ERP</span> <button type="button" class="sidebar-pin" id="sidebarPin" aria-label="Sol men&#252; sabitle" aria-pressed="true" title="Sol men&#252; sabit"><svg class="sidebar-pin-glyph" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 3 12 12-3 3-4-2-4 4-1-1 4-4-2-4-5-5 3-3zM9 15l-6 6"/></svg></button></div>
@@ -92,19 +106,19 @@
   <input type="file" id="fileInput" hidden accept=".json,.csv,.xlsx,.xls,.png,.jpg,.jpeg,.pdf">
   <input type="file" id="companyLogoInput" hidden accept="image/png,image/jpeg,image/webp">
 <script src="audit-reference.js?v=20261013-1"></script>
-<script src="app.js?v=20261016-admin-reference-79"></script>
+<script src="app.js?v=20261018-job-report-search-action-1"></script>
 <script src="global-search-reference.js?v=20261014-1"></script>
 <script src="user-management-reference.js?v=20261013-1"></script>
 <script src="google-auth.js?v=20260912-1"></script>
-  <script src="automotive-parity.js?v=20261015-intake-photo-upload-1"></script>
-<script src="appointment-workflow.js?v=20261013-appointments-6"></script>
-  <script src="service-list-reference.js?v=20261014-dashboard-service-context-19"></script>
+  <script src="automotive-parity.js?v=20261018-automotive-part-fields-1"></script>
+<script src="appointment-workflow.js?v=20261018-appointment-hour-native-parity-1"></script>
+  <script src="service-list-reference.js?v=20261018-service-list-native-typography-1"></script>
 <script src="loans.js?v=20261013-loan-context-1"></script>
 <script src="report-templates.js?v=20261015-context-menu-1"></script>
 <script src="product-groups.js?v=20261007-1"></script>
-<script src="appointments-reference.js?v=20261015-appointment-layout-7"></script>
+<script src="appointments-reference.js?v=20261018-planned-status-normalization-1"></script>
 <script src="dashboard-parity.js?v=20261015-7"></script>
-<script src="contracts-reference.js?v=20261015-14"></script>
+<script src="contracts-reference.js?v=20261017-15"></script>
 <script src="settings-theme-reference.js?v=20261016-company-location-picker-1"></script>
 <script src="voice-command-reference.js?v=20261011-3"></script>
 <script src="messaging-reference.js?v=20261012-2"></script>
@@ -116,24 +130,31 @@
 <script src="check-notes-parity.js?v=20261014-5"></script>
 <script src="external-tracking-reference.js?v=20261016-status-tones-1"></script>
 <script src="customer-history-parity.js?v=20261013-customer-history-1"></script>
-<script src="customer-context-parity.js?v=20261015-customer-context-pdf-2"></script>
+<script src="customer-context-parity.js?v=20261018-customer-select-all-1"></script>
 <script src="service-catalog-context-parity.js?v=20261016-service-catalog-pdf-1"></script>
 <script src="personnel-context-parity.js?v=20261014-personnel-context-2"></script>
-<script src="pc-builder-reference.js?v=20261014-1"></script>
+<script src="pc-builder-reference.js?v=20261018-pc-builder-horizontal-access-1"></script>
+<script src="smart-home-sales-reference.js?v=20261017-1"></script>
 <script src="assistant-reference.js?v=20261014-1"></script>
+<script src="desktop-assistant-panel.js?v=20261017-1"></script>
+<script src="desktop-shortcuts-header.js?v=20261017-1"></script>
 <script src="mobile-guide-reference.js?v=20261014-1"></script>
-<script src="manual-reference.js?v=20261014-1"></script>
-<script src="automotive-stock-reference.js?v=20261014-1"></script>
+<script src="manual-reference.js?v=20261018-table-parity-1"></script>
+<script src="automotive-stock-reference.js?v=20261018-automotive-part-fields-3"></script>
 <script src="service-status-reference.js?v=20261014-1"></script>
 <script src="stock-context-parity.js?v=20261016-2"></script>
-<script src="field-service-parity.js?v=20261014-11"></script>
+<script src="field-service-parity.js?v=20261018-23"></script>
 <script src="bulk-sales-selection.js?v=20261014-1"></script>
 <script src="stock-history-delete-confirm.js?v=20261014-2"></script>
 <script src="stock-movements-page.js?v=20261016-1"></script>
 <script src="partners-reference.js?v=20261014-1"></script>
-<script src="navigation-icons.js?v=20261014-sidebar-svg-icons-1"></script>
+<script src="navigation-icons.js?v=20261017-sidebar-icons-render-2"></script>
 <script src="finance-pdf-parity.js?v=20261016-1"></script>
 <script src="brand-export-parity.js?v=20261016-1"></script>
 <script src="product-groups-export-parity.js?v=20261016-1"></script>
+<script src="proforma-template-editor.js?v=20261017-1"></script>
+<script src="support-reference.js?v=20261018-support-reference-1"></script>
 </body>
 </html>
+
+

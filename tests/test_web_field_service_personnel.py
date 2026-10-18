@@ -21,6 +21,8 @@ def test_field_service_map_renders_all_located_personnel_markers():
     assert "window.L.polyline" in script
     assert "/api/desktop/field-service/geocode" in script
     assert "/api/desktop/field-service/route" in script
+    assert 'result.reason === "missing_key"' in script and 'result.reason === "no_route"' in script
+    assert "Taslak rota kullan\\u0131l\\u0131yor" in script and 'toast(message, "warning")' in script
     assert "/api/desktop/field-service/traffic/{z}/{x}/{y}" in script
     assert "data-field-traffic-toggle" in script
     assert "/api/desktop/field-service/location" in script
@@ -265,6 +267,7 @@ def test_field_service_personnel_and_finish_duty_use_active_tenant(monkeypatch, 
     route_url = base_url + "/api/desktop/field-service/route"
     traffic_url = base_url + "/api/desktop/field-service/traffic/12/2310/1400"
     vector_url = base_url + "/api/desktop/field-service/vector-resource/maps/orbis/style?language=tr-TR"
+    tomtom_key_url = base_url + "/api/desktop/field-service/tomtom-key"
     try:
         assert requests.get(personnel_url).status_code == 401
         assert requests.post(finish_url, json={"id": 93001}).status_code == 401
@@ -275,6 +278,7 @@ def test_field_service_personnel_and_finish_duty_use_active_tenant(monkeypatch, 
         assert requests.post(route_url, json={"points": []}).status_code == 401
         assert requests.get(traffic_url).status_code == 401
         assert requests.get(vector_url).status_code == 401
+        assert requests.get(tomtom_key_url).status_code == 401
         session = requests.Session()
         session.headers["Origin"] = base_url
         login = session.post(
@@ -286,13 +290,27 @@ def test_field_service_personnel_and_finish_duty_use_active_tenant(monkeypatch, 
             },
         )
         assert login.status_code == 200
+        import src.utils.local_secret_store as secret_store
+
+        saved_keys = {}
+        monkeypatch.setattr(secret_store, "load_secret", lambda name: saved_keys.get(name, ""))
+        monkeypatch.setattr(secret_store, "save_secret", lambda name, value: saved_keys.__setitem__(name, value))
+        assert session.get(tomtom_key_url).json() == {"status": "missing"}
+        saved = session.post(tomtom_key_url, json={"api_key": "tenant-private-key"})
+        assert saved.status_code == 200
+        assert saved.json() == {"status": "configured"}
+        assert "tenant-private-key" not in saved.text
+        assert list(saved_keys) == [web_main._field_service_tomtom_secret_name("tenant-1")]
+        assert web_main._field_service_tomtom_secret_name("tenant-1") != web_main._field_service_tomtom_secret_name("tenant-2")
+        assert session.get(tomtom_key_url).json() == {"status": "configured"}
+        assert session.post(tomtom_key_url, json={"api_key": "bad"}, headers={"Origin": "http://example.com"}).status_code == 403
         vector_page = session.get(base_url + "/field-vector-map-dist/index.html")
         assert vector_page.status_code == 200
         assert "qrc:///qtwebchannel/qwebchannel.js" not in vector_page.text
         assert "./assets/index-" in vector_page.text
         vector_target = {}
 
-        def fake_vector_resource(target_url):
+        def fake_vector_resource(target_url, **_kwargs):
             vector_target["url"] = target_url
             return b"map-resource", "application/json"
 
@@ -337,13 +355,13 @@ def test_field_service_personnel_and_finish_duty_use_active_tenant(monkeypatch, 
         monkeypatch.setattr(
             web_main,
             "desktop_field_service_road_route",
-            lambda points: {"ok": True, "count": len(points)},
+            lambda points, **_kwargs: {"ok": True, "count": len(points)},
         )
         routed = session.post(route_url, json={"points": [{"lat": 39.6, "lng": 27.8}]})
         assert routed.status_code == 200
         assert routed.json() == {"ok": True, "count": 1}
         tile_bytes = b"\x89PNG\r\n\x1a\nmock-tile"
-        monkeypatch.setattr(web_main, "desktop_field_service_traffic_tile", lambda *_args: tile_bytes)
+        monkeypatch.setattr(web_main, "desktop_field_service_traffic_tile", lambda *_args, **_kwargs: tile_bytes)
         tile_response = session.get(traffic_url)
         assert tile_response.status_code == 200
         assert tile_response.headers["Content-Type"] == "image/png"
@@ -374,6 +392,12 @@ def test_field_service_personnel_and_finish_duty_use_active_tenant(monkeypatch, 
             assert connection.execute(
                 "SELECT status FROM personnel WHERE id=93001"
             ).fetchone()[0] == "Bo\u015fta"
+        with sqlite3.connect(tenant_path) as connection:
+            connection.execute("UPDATE users SET role='Teknisyen' WHERE id=2")
+            connection.commit()
+        assert session.get(tomtom_key_url).status_code == 403
+        assert session.post(tomtom_key_url, json={"api_key": "unauthorized-key"}).status_code == 403
+        assert list(saved_keys.values()) == ["tenant-private-key"]
     finally:
         server.shutdown()
         server.server_close()

@@ -375,6 +375,8 @@ def main() -> int:
     app.processEvents()
     if window._top_bar.height() != 48 or window._top_bar.property("referenceStyle") != "license":
         return 114
+    if window._global_search.x() != 4 or window._global_search.width() != 256:
+        return 115
     license_page = window._pages["license_requests"]
     if license_page.worker:
         license_page.worker.wait(3000)
@@ -487,7 +489,7 @@ def main() -> int:
         time.sleep(0.05)
     notification_dom = []
     notification_page._view.page().runJavaScript(
-        "JSON.stringify({text:document.body?.innerText||'',bridge:window.notifyReady===true,firms:document.querySelectorAll('.firm-checkbox').length,companyIds:Array.from(document.querySelectorAll('.firm-checkbox')).map(x=>x.dataset.id),icons:Array.from(document.querySelectorAll('.material-symbols-outlined')).map(x=>x.textContent.trim())})",
+        "JSON.stringify({viewport:window.innerWidth,text:document.body?.innerText||'',bridge:window.notifyReady===true,statusDisplay:getComputedStyle(document.getElementById('admin-notify-status')).display,firms:document.querySelectorAll('.firm-checkbox').length,companyIds:Array.from(document.querySelectorAll('.firm-checkbox')).map(x=>x.dataset.id),icons:Array.from(document.querySelectorAll('.material-symbols-outlined')).map(x=>x.textContent.trim()),main:(()=>{const e=document.querySelector('main'),r=e?.getBoundingClientRect(),s=e?getComputedStyle(e):null;return {left:r?.left,width:r?.width,height:r?.height,marginLeft:s?.marginLeft,font:s?.fontFamily,iconFont:getComputedStyle(document.querySelector('.material-symbols-outlined')||document.body).fontFamily}})(),layout:(()=>{const e=[...document.querySelectorAll('main .grid')].find(n=>n.classList.contains('lg:grid-cols-12')),r=e?.getBoundingClientRect(),s=e?getComputedStyle(e):null;return {left:r?.left,top:r?.top,width:r?.width,height:r?.height,display:s?.display,columns:s?.gridTemplateColumns}})()})",
         notification_dom.append,
     )
     deadline = time.monotonic() + 3
@@ -504,16 +506,49 @@ def main() -> int:
         return 16
     if not notification_state["bridge"]:
         return 18
+    if notification_state["statusDisplay"] != "none":
+        return 20
+    if (
+        notification_state["viewport"] != 1440
+        or notification_state["main"]["left"] != 288
+        or notification_state["main"]["width"] != 1152
+        or notification_state["main"]["marginLeft"] != "288px"
+        or notification_state["layout"]["left"] != 304
+        or notification_state["layout"]["width"] != 1120
+        or notification_state["layout"]["display"] != "grid"
+        or len(notification_state["layout"]["columns"].split()) != 12
+    ):
+        return 19
     if notification_state["firms"] != 4 or notification_state["companyIds"] != ["tenant-1", "tenant-2", "tenant-3", "tenant-4"]:
         return 17
     time.sleep(0.15)
     app.processEvents()
+    paint_ready = []
+    notification_page._view.page().runJavaScript(
+        "new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))",
+        paint_ready.append,
+    )
+    paint_deadline = time.monotonic() + 2
+    while not paint_ready and time.monotonic() < paint_deadline:
+        app.processEvents()
+        time.sleep(0.01)
     notification_image = ROOT / "artifacts" / "admin_notifications_offscreen.png"
     if not window.grab().save(str(notification_image), "PNG"):
         return 12
     notification_page._view.grab().save(
         str(ROOT / "artifacts" / "admin_notifications_webview_offscreen.png"), "PNG"
     )
+    status_behavior = []
+    notification_page._view.page().runJavaScript(
+        "window.notifyStatus('Capture status check',true);const shown=getComputedStyle(document.getElementById('admin-notify-status')).display;window.notifyStatus('',true);const hidden=getComputedStyle(document.getElementById('admin-notify-status')).display;JSON.stringify({shown,hidden})",
+        status_behavior.append,
+    )
+    deadline = time.monotonic() + 2
+    while not status_behavior and time.monotonic() < deadline:
+        app.processEvents()
+        time.sleep(0.01)
+    if not status_behavior or json.loads(status_behavior[0]) != {"shown": "block", "hidden": "none"}:
+        return 20
     preview_result = []
     notification_page._view.page().runJavaScript(
         "document.getElementById('push-title').value='Maintenance window';"

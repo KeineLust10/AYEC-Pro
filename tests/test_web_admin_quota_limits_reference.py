@@ -23,6 +23,8 @@ def test_admin_quota_screen_reads_usage_and_binds_real_tenant_values():
     assert 'packageFilter.addEventListener("change",applyFilter)' in APP
     assert 'const quotaIcons=[' in APP
     assert 'className="admin-quota-metric-icon"' in APP
+    assert 'quotaCount.id="quotaCount"' in APP
+    assert 'quotaCount.setAttribute("aria-live","polite")' in APP
 
 
 def test_admin_quota_screen_has_fluid_desktop_and_mobile_layout():
@@ -35,6 +37,17 @@ def test_admin_quota_screen_has_fluid_desktop_and_mobile_layout():
     assert '#adminTabContent .admin-quota-policy input[type="checkbox"] { position: relative; flex: 0 0 40px; appearance: none;' in CSS
     assert '#adminTabContent .admin-quota-policy input[type="checkbox"]:checked::before { transform: translateX(18px);' in CSS
     assert '#adminTabContent .admin-quota-metric-icon { position: absolute; top: 12px; right: 12px;' in CSS
+
+
+def test_admin_quota_upgrade_actions_select_the_tenant_without_claiming_a_mutation_api():
+    assert "$$('[data-quota-upgrade]')" in APP
+    assert 'activeQuotaUpgradeTenant=button.dataset.quotaUpgrade;quotaUpgradeTenant.value=activeQuotaUpgradeTenant' in APP
+    assert 'if(usages.some(item=>String(item.tenant_id)===String(activeQuotaUpgradeTenant)))quotaUpgradeTenant.value=activeQuotaUpgradeTenant' in APP
+    assert 'Kota ve fiyat degisiklikleri merkezi katalog ve lisans API\'siyle yonetilmeli.' in APP
+    assert 'quotaUpgradePanel.querySelectorAll(".admin-quota-upgrade-options input").forEach(control=>control.disabled=true)' in APP
+    assert 'quotaUpgradePanel.querySelectorAll(".admin-quota-upgrade-options strong").forEach(price=>price.remove())' in APP
+    assert '$("#quotaPlan").addEventListener("click",event=>{event.stopImmediatePropagation();quotaUpgradeTenant.scrollIntoView({ block: "center", behavior: "smooth" })})' in APP
+    assert 'Kota paketi islemi Admin API tarafinda desteklenmiyor.' not in APP
 
 
 def test_admin_shell_header_compacts_between_desktop_and_mobile_widths():

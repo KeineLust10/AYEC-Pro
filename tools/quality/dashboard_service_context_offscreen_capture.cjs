@@ -80,6 +80,7 @@ async function run() {
       screenshotsAttempted += 1;
       await evaluate(setup);
       await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] });
+      await delay(50);
       const viewport = await evaluate("({ width: innerWidth, height: innerHeight })");
       try {
         const result = await send("Page.captureScreenshot", {
@@ -134,6 +135,22 @@ async function run() {
       return {cards:window.__dashboardShortcutCards,gridColumns:gridStyle.gridTemplateColumns.trim().split(" ").filter(Boolean).length,gridTemplateColumns:gridStyle.gridTemplateColumns,gridWidth:Math.round(rect.width),overlayWidth:Math.round(overlayRect.width),overlayX:Math.round(overlayRect.x),overlayHeight:Math.round(overlayRect.height),overlayBackground:getComputedStyle(overlay).backgroundColor,cardBackground:getComputedStyle(document.querySelector(".dashboard-shortcut-card")).backgroundColor};
     })()`);
     if(dashboardShortcutCards.cards.length!==12||dashboardShortcutCards.gridColumns!==2||dashboardShortcutCards.overlayBackground!=="rgb(8, 14, 26)"||dashboardShortcutCards.cardBackground!=="rgb(13, 24, 41)")throw new Error(`Dashboard shortcut layout or palette mismatch: ${JSON.stringify(dashboardShortcutCards)}`);
+    const dashboardUnlinkedDeviceParity = await evaluate(`(() => {
+      const previousCustomers=db.customers,previousDevices=db.serviceDevices;
+      db.customers=[{id:71,name:"Linked Customer",phone:"5550000001",balances:{TRY:-12},services:[{id:70,no:"SRV-LINKED",device:"Laptop",status:"Tamirde"}]}];
+      db.serviceDevices=[
+        {id:70,no:"SRV-LINKED",tracking_no:"SRV-LINKED",customer_id:71,customer_name:"Linked Customer",device_brand:"Brand",device_model:"Laptop",status:"Tamirde"},
+        {id:71,no:"SRV-UNLINKED",tracking_no:"SRV-UNLINKED",customer_id:null,customer_name:"Walk-in",device_type:"Phone",device_model:"Model X",fault_description:"Screen issue",status:"Bekliyor"}
+      ];
+      const rows=dashboardServices(),[customer,service]=findService("SRV-UNLINKED");
+      serviceDetailDialog(customer,service);
+      const result={rowCount:rows.length,unlinked:rows.find(row=>row.no==="SRV-UNLINKED"),detailOpen:document.querySelector("#appDialog")?.open||false,detailText:document.querySelector("#dialogBody")?.textContent||""};
+      db.customers=previousCustomers;db.serviceDevices=previousDevices;
+      return result;
+    })()`);
+    if(dashboardUnlinkedDeviceParity.rowCount!==2||dashboardUnlinkedDeviceParity.unlinked?.customer!=="Walk-in"||dashboardUnlinkedDeviceParity.unlinked?.note!=="Screen issue"||!dashboardUnlinkedDeviceParity.detailOpen||!dashboardUnlinkedDeviceParity.detailText.includes("Walk-in")||!dashboardUnlinkedDeviceParity.detailText.includes("Screen issue"))throw new Error(`Dashboard unlinked device parity mismatch: ${JSON.stringify(dashboardUnlinkedDeviceParity)}`);
+    await capture("dashboard-unlinked-device-detail-headless.png", "true");
+    await evaluate('document.querySelector("#appDialog")?.close()');
     await send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 1024, deviceScaleFactor: 1, mobile: false });
     await capture("dashboard-shortcuts-initial-headless.png", "true");
     await evaluate('(()=>{const style=document.createElement("style");style.id="dashboardShortcutIsolationAudit";style.textContent="#appShell{display:block!important;min-height:0!important;height:auto!important;padding:0!important}#appShell>.topbar,#sidebar,#shellStatusBar{display:none!important}.main{display:block!important;min-height:0!important;overflow:visible!important}#content{padding:0!important;min-height:0!important;overflow:visible!important}.dashboard-shortcut-overlay{inset:0!important;right:0!important;width:100vw!important;max-width:100vw!important;padding:24px 28px 28px!important;border-radius:16px!important}body{overflow:hidden!important}";document.head.appendChild(style)})()');
@@ -266,12 +283,14 @@ async function run() {
     await evaluate(`showContext({preventDefault(){},clientX:280,clientY:220,currentTarget:document.querySelector("#content")},"service","SRV-77")`);
     await capture("dashboard-service-context-current-headless.png", "true");
     const fieldMenu = await evaluate(`(() => {
-      const event = { preventDefault(){ this.prevented = true; }, clientX: 180, clientY: 180, currentTarget: document.querySelector("#content") };
+      const event = { preventDefault(){ this.prevented = true; }, clientX: 1279, clientY: 899, currentTarget: document.querySelector("#content") };
       showContext(event, "field-personnel", "missing-fixture-person");
       const menu = document.querySelector("#contextMenu");
-      return { open: menu.classList.contains("open"), prevented: event.prevented, text: menu.textContent.trim(), action: menu.querySelector("[data-context-action]")?.dataset.contextAction };
+      const rect = menu.getBoundingClientRect();
+      return { open: menu.classList.contains("open"), prevented: event.prevented, text: menu.textContent.trim(), action: menu.querySelector("[data-context-action]")?.dataset.contextAction, rect: { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom } };
     })()`);
     if (!fieldMenu.open || !fieldMenu.prevented || fieldMenu.action !== "field-personnel-finish" || !fieldMenu.text.includes("G\u00f6revi Tamamla / Bo\u015fa \u00c7\u0131kar")) throw new Error(`Field personnel menu mismatch: ${JSON.stringify(fieldMenu)}`);
+    if (fieldMenu.rect.left < 0 || fieldMenu.rect.top < 0 || fieldMenu.rect.right > 1280 || fieldMenu.rect.bottom > 900) throw new Error(`Field personnel menu exceeded viewport bounds: ${JSON.stringify(fieldMenu.rect)}`);
     await capture("field-personnel-context-menu-current-headless.png", "true");
     await evaluate(`document.querySelector("#contextMenu [data-context-action=field-personnel-finish]")?.click()`);
     const fieldMenuDismissed = await evaluate(`!document.querySelector("#contextMenu").classList.contains("open")`);
@@ -428,6 +447,24 @@ async function run() {
     await capture("vehicle-maintenance-context-menu-current-headless.png", "true");
     const maintenancePrint = await evaluate(`(() => {let calls=0;const original=window.print;window.print=()=>{calls++};document.querySelector('#contextMenu [data-context-action="maintenance-print"]')?.click();window.print=original;return {calls,closed:!document.querySelector("#contextMenu").classList.contains("open")};})()`);
     if (maintenancePrint.calls !== 1 || !maintenancePrint.closed) throw new Error(`Vehicle maintenance print action mismatch: ${JSON.stringify(maintenancePrint)}`);
+    const maintenanceContextDispatch = await evaluate(`(() => {
+      const names = ["maintenanceDialog", "maintenancePhotoGallery", "maintenanceHistoryDialog", "exportVehicleMaintenanceExcel", "exportVehicleMaintenancePdf", "print"];
+      const originals = Object.fromEntries(names.map(name => [name, window[name]]));
+      const calls = [];
+      try {
+        for (const name of names) window[name] = (...args) => calls.push({ name, recordId: args[0]?.id ?? null });
+        const row = document.querySelector('tr[data-kind="vehicle-maintenance"]');
+        for (const action of ["maintenance-open", "maintenance-photos", "maintenance-history", "maintenance-excel", "maintenance-pdf", "maintenance-print"]) {
+          row.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 270, clientY: 240 }));
+          document.querySelector('#contextMenu [data-context-action="' + action + '"]')?.click();
+        }
+        return { calls, menuClosed: !document.querySelector("#contextMenu").classList.contains("open") };
+      } finally {
+        for (const name of names) window[name] = originals[name];
+      }
+    })()`);
+    const expectedMaintenanceDispatch = ["maintenanceDialog", "maintenancePhotoGallery", "maintenanceHistoryDialog", "exportVehicleMaintenanceExcel", "exportVehicleMaintenancePdf", "print"];
+    if (!maintenanceContextDispatch.menuClosed || JSON.stringify(maintenanceContextDispatch.calls.map(call => call.name)) !== JSON.stringify(expectedMaintenanceDispatch) || maintenanceContextDispatch.calls.slice(0, 3).some(call => call.recordId !== 61)) throw new Error(`Vehicle maintenance context dispatch mismatch: ${JSON.stringify(maintenanceContextDispatch)}`);
     const maintenanceWhatsAppPhoneWarning = await evaluate(`(() => {
       offerMaintenanceWhatsApp({ customer_name: "Fixture Customer", customer_phone: "no digits", vehicle_plate: "34 TEST 61", important_items: ["Oil"] }, {});
       return { open: document.querySelector("#appDialog")?.open || false, warning: Array.from(document.querySelectorAll(".toast"), item => item.textContent).join(" ") };
@@ -783,6 +820,7 @@ async function run() {
       document.querySelector("#dialogCancel").click();
       const cancelled = window.__stockDeleteConfirmAudit.requests.length === 0 && db.stock.length === 1;
       deleteProduct(product);
+      document.querySelector("#stockDeletePassword").value = "fixture-password";
       document.querySelector("#dialogForm").requestSubmit();
       await new Promise(resolve => setTimeout(resolve, 80));
       const request = window.__stockDeleteConfirmAudit.requests[0];
@@ -1457,7 +1495,7 @@ async function run() {
       return {open:opened,title,cancelled:dialog?.open===false,menuClosed:!document.querySelector(".kb-context-menu")};
     })()`);
     if (!knowledgeDeleteCancelled.open || !knowledgeDeleteCancelled.cancelled || !knowledgeDeleteCancelled.menuClosed) throw new Error(`Knowledge base delete confirmation mismatch: ${JSON.stringify(knowledgeDeleteCancelled)}`);
-    const loanerMenus = await evaluate(`(() => {
+    const loanerInventoryMenu = await evaluate(`(() => {
       page = "loaners";
       document.body.dataset.page = "loaners";
       db.settings.contextMenu = true;
@@ -1469,16 +1507,19 @@ async function run() {
       document.querySelector('[data-loaner-kind="depot"]').dispatchEvent(inventoryEvent);
       const menu = document.querySelector("#contextMenu");
       const inventory = {open:menu.classList.contains("open"),prevented:inventoryEvent.defaultPrevented,actions:Array.from(menu.querySelectorAll("[data-loaner-context]"),item=>item.dataset.loanerContext),separators:menu.querySelectorAll("hr.context-menu-separator").length};
+      return inventory;
+    })()`);
+    const expectedLoanerInventory = ["add","refresh","assign","edit","delete-device"];
+    if (!loanerInventoryMenu.open || !loanerInventoryMenu.prevented || JSON.stringify(loanerInventoryMenu.actions) !== JSON.stringify(expectedLoanerInventory) || loanerInventoryMenu.separators !== 1) throw new Error(`Loaner inventory context menu mismatch: ${JSON.stringify(loanerInventoryMenu)}`);
+    await capture("loaner-inventory-context-menu-current-headless.png", "true");
+    const loanerActiveMenu = await evaluate(`(() => {
+      const menu = document.querySelector("#contextMenu");
       menu.classList.remove("open");
       const activeEvent = new MouseEvent("contextmenu", {bubbles:true,cancelable:true,clientX:300,clientY:260});
       document.querySelector('[data-loaner-kind="transaction"]').dispatchEvent(activeEvent);
-      const active = {open:menu.classList.contains("open"),prevented:activeEvent.defaultPrevented,actions:Array.from(menu.querySelectorAll("[data-loaner-context]"),item=>item.dataset.loanerContext),separators:menu.querySelectorAll("hr.context-menu-separator").length};
-      return {inventory,active};
+      return {open:menu.classList.contains("open"),prevented:activeEvent.defaultPrevented,actions:Array.from(menu.querySelectorAll("[data-loaner-context]"),item=>item.dataset.loanerContext),separators:menu.querySelectorAll("hr.context-menu-separator").length};
     })()`);
-    const expectedLoanerInventory = ["add","refresh","assign","edit","delete-device"];
-    if (!loanerMenus.inventory.open || !loanerMenus.inventory.prevented || JSON.stringify(loanerMenus.inventory.actions) !== JSON.stringify(expectedLoanerInventory) || loanerMenus.inventory.separators !== 1) throw new Error(`Loaner inventory context menu mismatch: ${JSON.stringify(loanerMenus.inventory)}`);
-    await capture("loaner-inventory-context-menu-current-headless.png", "true");
-    if (!loanerMenus.active.open || !loanerMenus.active.prevented || JSON.stringify(loanerMenus.active.actions) !== JSON.stringify(["refresh","return"]) || loanerMenus.active.separators !== 1) throw new Error(`Loaner active context menu mismatch: ${JSON.stringify(loanerMenus.active)}`);
+    if (!loanerActiveMenu.open || !loanerActiveMenu.prevented || JSON.stringify(loanerActiveMenu.actions) !== JSON.stringify(["refresh","return"]) || loanerActiveMenu.separators !== 1) throw new Error(`Loaner active context menu mismatch: ${JSON.stringify(loanerActiveMenu)}`);
     await capture("loaner-active-context-menu-current-headless.png", "true");
     const reportTemplateContext = await evaluate(`(async()=>{
       window.__reportTemplateOriginalPage=page;window.__reportTemplateOriginalApiFetch=apiFetch;
@@ -1507,12 +1548,14 @@ async function run() {
     const quickNoteMenu = await evaluate(`(() => {
       db.settings.contextMenu = true;
       const note = {id:956,title:"Fixture Note",content:"Audit note"};
-      const event = new MouseEvent("contextmenu", {bubbles:true,cancelable:true,clientX:310,clientY:270});
+      const event = new MouseEvent("contextmenu", {bubbles:true,cancelable:true,clientX:1279,clientY:899});
       showQuickNoteContext(event,note);
       const menu = document.querySelector("#contextMenu");
-      return {open:menu.classList.contains("open"),prevented:event.defaultPrevented,actions:Array.from(menu.querySelectorAll("[data-quick-note-action]"),item=>item.dataset.quickNoteAction)};
+      const rect=menu.getBoundingClientRect();
+      return {open:menu.classList.contains("open"),prevented:event.defaultPrevented,actions:Array.from(menu.querySelectorAll("[data-quick-note-action]"),item=>item.dataset.quickNoteAction),rect:{left:rect.left,top:rect.top,right:rect.right,bottom:rect.bottom}};
     })()`);
     if (!quickNoteMenu.open || !quickNoteMenu.prevented || JSON.stringify(quickNoteMenu.actions) !== JSON.stringify(["edit","delete"])) throw new Error(`Quick note context menu mismatch: ${JSON.stringify(quickNoteMenu)}`);
+    if (quickNoteMenu.rect.left < 0 || quickNoteMenu.rect.top < 0 || quickNoteMenu.rect.right > 1280 || quickNoteMenu.rect.bottom > 900) throw new Error(`Quick note menu exceeded viewport bounds: ${JSON.stringify(quickNoteMenu.rect)}`);
     await capture("quick-note-context-menu-current-headless.png", "true");
     const quickNoteDeleteCancelled = await evaluate(`(() => {
       document.querySelector('#contextMenu [data-quick-note-action="delete"]')?.click();
@@ -1535,13 +1578,27 @@ async function run() {
       if(!row)throw new Error("Quick note fixture did not render.");
       row.dispatchEvent(new MouseEvent("dblclick",{bubbles:true,cancelable:true}));
       const dialog=document.querySelector("#appDialog"),form=document.querySelector("#dialogForm");
-      const result={open:dialog.open,title:document.querySelector("#dialogTitle")?.textContent,noteTitle:form?.querySelector('[name="title"]')?.value,label:form?.querySelector('[name="label"]')?.value,category:form?.querySelector('[name="category"]')?.value};
+      const dialogRect=dialog.getBoundingClientRect(),field= form?.querySelector('.quick-note-editor-fields>.field'),fieldLabel=field?.querySelector(':scope > label'),fieldInput=field?.querySelector('input');
+      const result={open:dialog.open,title:document.querySelector("#dialogTitle")?.textContent,editorHeading:form?.querySelector(".quick-note-editor h3")?.textContent,editorDescription:form?.querySelector(".quick-note-editor p")?.textContent,dialogClass:dialog.classList.contains("quick-note-editor-dialog"),dialogSize:{width:dialogRect.width,height:dialogRect.height},firstFieldAligned:Boolean(fieldLabel&&fieldInput&&fieldLabel.getBoundingClientRect().right<fieldInput.getBoundingClientRect().left&&Math.abs(fieldLabel.getBoundingClientRect().top+fieldLabel.getBoundingClientRect().height/2-fieldInput.getBoundingClientRect().top-fieldInput.getBoundingClientRect().height/2)<2),cancelLabel:document.querySelector("#dialogCancel")?.textContent,submitLabel:document.querySelector("#dialogSubmit")?.textContent,noteTitle:form?.querySelector('[name="title"]')?.value,titlePlaceholder:form?.querySelector('[name="title"]')?.placeholder,label:form?.querySelector('[name="label"]')?.value,labelType:form?.querySelector('[name="label"]')?.tagName,isActiveType:form?.querySelector('[name="is_active"]')?.type,isActiveChecked:form?.querySelector('[name="is_active"]')?.checked,category:form?.querySelector('[name="category"]')?.value,categoryOptions:Array.from(form?.querySelectorAll('#quickNoteCategories option')||[],option=>option.value)};
       apiFetch=originalApiFetch;
       return result;
     })()`);
-    if (!quickNoteDoubleClick.open || quickNoteDoubleClick.title !== "Notu D\u00fczenle" || quickNoteDoubleClick.noteTitle !== "Fixture Double Click Note" || quickNoteDoubleClick.label !== "Fixture note body" || quickNoteDoubleClick.category !== "Repair") throw new Error(`Quick note double-click edit mismatch: ${JSON.stringify(quickNoteDoubleClick)}`);
+    if (!quickNoteDoubleClick.open || quickNoteDoubleClick.title !== "H\u0131zl\u0131 Not Detay\u0131" || quickNoteDoubleClick.editorHeading !== "H\u0131zl\u0131 Not\u0131 D\u00fczenle / Ekle" || quickNoteDoubleClick.editorDescription !== "Servis ak\u0131\u015f\u0131ndaki kategori, ba\u015fl\u0131k ve not i\u00e7eri\u011fini d\u00fczenleyin." || !quickNoteDoubleClick.dialogClass || quickNoteDoubleClick.dialogSize.width !== 680 || quickNoteDoubleClick.dialogSize.height !== 760 || !quickNoteDoubleClick.firstFieldAligned || quickNoteDoubleClick.cancelLabel !== "\u0130ptal" || quickNoteDoubleClick.submitLabel !== "Kaydet" || quickNoteDoubleClick.noteTitle !== "Fixture Double Click Note" || quickNoteDoubleClick.titlePlaceholder !== "\u015eablon ba\u015fl\u0131\u011f\u0131..." || quickNoteDoubleClick.label !== "Fixture note body" || quickNoteDoubleClick.labelType !== "INPUT" || quickNoteDoubleClick.isActiveType !== "checkbox" || !quickNoteDoubleClick.isActiveChecked || quickNoteDoubleClick.category !== "Repair" || JSON.stringify(quickNoteDoubleClick.categoryOptions) !== JSON.stringify(["Ar\u0131za Notu","\u0130\u015flem Detay\u0131","Gizli Not"])) throw new Error(`Quick note double-click edit mismatch: ${JSON.stringify(quickNoteDoubleClick)}`);
     await capture("quick-note-double-click-edit-current-headless.png", "true");
-    await evaluate(`document.querySelector("#dialogCancel")?.click()`);
+    const quickNoteInactiveSave = await evaluate(`(async () => {
+      const originalWrite=desktopWrite,writes=[];
+      desktopWrite=async(table,payload)=>writes.push({table,payload});
+      document.querySelector('#dialogForm [name="category"]').value="";
+      document.querySelector('#dialogForm [name="title"]').value="";
+      document.querySelector('#dialogForm [name="label"]').value="";
+      document.querySelector('#dialogForm [name="display_order"]').value="-2";
+      document.querySelector('#dialogForm [name="is_active"]').checked=false;
+      document.querySelector("#dialogSubmit")?.click();
+      for(let attempt=0;attempt<20&&document.querySelector("#appDialog")?.open;attempt++)await new Promise(resolve=>setTimeout(resolve,10));
+      desktopWrite=originalWrite;
+      return {closed:document.querySelector("#appDialog")?.open===false,write:writes[0]||null};
+    })()`);
+    if (!quickNoteInactiveSave.closed || quickNoteInactiveSave.write?.table !== "fast_notes" || quickNoteInactiveSave.write?.payload?.is_active !== 0 || quickNoteInactiveSave.write?.payload?.category !== "" || quickNoteInactiveSave.write?.payload?.title !== "" || quickNoteInactiveSave.write?.payload?.label !== "" || quickNoteInactiveSave.write?.payload?.display_order !== -2) throw new Error(`Quick note desktop-permitted values save mismatch: ${JSON.stringify(quickNoteInactiveSave)}`);
     const salesCartMenu = await evaluate(`(() => {
       page = "sales";
       document.body.dataset.page = "sales";
@@ -1821,6 +1878,22 @@ async function run() {
     })()`);
     if (!partnerShipmentMenu.open || !partnerShipmentMenu.prevented || JSON.stringify(partnerShipmentMenu.actions) !== JSON.stringify(["edit","shipment-documents","documents","finance","export"]) || partnerShipmentMenu.separators !== 1) throw new Error(`Partner shipment context menu mismatch: ${JSON.stringify(partnerShipmentMenu)}`);
     await capture("partner-shipment-context-menu-current-headless.png", "true");
+    const partnerShipmentForm = await evaluate(`(async () => {
+      db.settings.currency="USD";
+      const originalApiFetch=apiFetch,photoRequests=[];
+      window.__partnerPhotoOriginalApiFetch=originalApiFetch;
+      apiFetch=async url=>{photoRequests.push(url);return {rows:[]}};
+      document.querySelector("#partnerShipmentAdd")?.click();
+      const form=document.querySelector("#dialogForm");
+      const documentsButton=Boolean(document.querySelector("#partnerShipmentDocumentsButton"));
+      const photoButton=document.querySelector("#partnerShipmentPhotoButton");
+      photoButton?.click();
+      await new Promise(resolve=>setTimeout(resolve,40));
+      return {open:document.querySelector("#appDialog")?.open===true,contractReadOnly:form?.querySelector('[name="contract_type"]')?.readOnly===true,slaReadOnly:form?.querySelector('[name="sla_level"]')?.readOnly===true,currencyField:Boolean(form?.querySelector('[name="currency"]')),partnerCostCurrency:form?.querySelector('input[name="partner_cost"]')?.closest(".field")?.textContent||"",partnerCostSuffix:form?.querySelector('input[name="partner_cost"]')?.parentElement?.querySelector("span")?.textContent||"",quoteCurrency:form?.querySelector('input[name="quote_amount"]')?.closest(".field")?.textContent||"",documentsButton,photoButton:Boolean(photoButton),galleryOpen:document.querySelector(".partner-photo-dialog")?.open===true,photoListRequest:photoRequests[0]||""};
+    })()`);
+    if (!partnerShipmentForm.open || !partnerShipmentForm.contractReadOnly || !partnerShipmentForm.slaReadOnly || partnerShipmentForm.currencyField || partnerShipmentForm.partnerCostSuffix !== "$" || !partnerShipmentForm.quoteCurrency.includes("$") || !partnerShipmentForm.documentsButton || !partnerShipmentForm.photoButton || !partnerShipmentForm.galleryOpen || !partnerShipmentForm.photoListRequest.startsWith("/api/desktop/partners/shipment-photos?")) throw new Error(`Partner shipment form parity mismatch: ${JSON.stringify(partnerShipmentForm)}`);
+    await capture("partner-shipment-form-currency-headless.png", "true");
+    await evaluate(`(() => { document.querySelector(".partner-photo-dialog")?.close(); document.querySelector("#appDialog")?.close(); if(window.__partnerPhotoOriginalApiFetch)apiFetch=window.__partnerPhotoOriginalApiFetch; })()`);
     const contractDoubleClick = await evaluate(`(async () => {
       page = "contracts";
       document.body.dataset.page = "contracts";
@@ -1877,7 +1950,8 @@ async function run() {
     const marqueeOpen = await evaluate(`(() => {
       page = "service-status";
       document.body.dataset.page = "service-status";
-      db.settings.doubleClick = true;
+      window.__marqueePreviousDoubleClick = db.settings.doubleClick;
+      db.settings.doubleClick = false;
       desktopSettings.marquee_text = "Fixture ticker";
       document.querySelector("#content").innerHTML='<div data-status-marquee><div class="status-wall-marquee-track"><span>Fixture ticker</span><span>Fixture ticker</span></div></div>';
       window.__marqueeOriginalApiFetch=apiFetch;
@@ -1900,6 +1974,7 @@ async function run() {
       document.querySelector("#dialogSubmit").click();
       for(let attempt=0;attempt<20&&document.querySelector("#appDialog").open;attempt++)await new Promise(resolve=>setTimeout(resolve,10));
       apiFetch=window.__marqueeOriginalApiFetch;
+      db.settings.doubleClick=window.__marqueePreviousDoubleClick;
       return {request:window.__marqueeSettingsRequest,dialogClosed:!dialog.open,closedEvent,returnValue:dialog.returnValue,submitDisabled:document.querySelector("#dialogSubmit").disabled,submitLabel:document.querySelector("#dialogSubmit").textContent,savedValue:desktopSettings.marquee_text};
     })()`);
     marqueeEdit.initial = marqueeOpen.initial;
@@ -2152,7 +2227,7 @@ async function run() {
       fixture.remove();return result;
     })()`);
     if (!customerMapPicker.visible || customerMapPicker.src !== "/field-vector-map-dist/index.html" || !customerMapPicker.initAvailable || !customerMapPicker.clickBridgeAvailable) throw new Error(`Customer map picker mismatch: ${JSON.stringify(customerMapPicker)}`);
-    process.stdout.write(JSON.stringify({ customerMapPicker, customerLocationParity, customerProfileParity, root, appLockPrompt, appLockFlow, technicianLockPrompt, technicianLockFlow, status, print, roles, interaction, fieldMenu: { ...fieldMenu, dismissed: fieldMenuDismissed }, stockMenu: { ...stockMenu, deleteDialog: stockDeleteDialog, deleteCancelled: stockDeleteCancelled }, bankMenu, installmentMenu, loanConfirmation: { ...loanConfirmation, cancelled: loanConfirmationCancelled }, externalMenu, externalDelete: { ...externalDeleteDialog, cancelled: externalDeleteCancelled }, stockLocationMenu, stockLocationUse: { ...stockLocationUse, cancelled: stockLocationUseCancelled }, vehicleMaintenanceMenu, maintenancePrint, maintenanceWhatsAppPhoneWarning, maintenanceWhatsAppPrompt, maintenanceWhatsAppCancelled, maintenanceWhatsAppAccepted, financeMenu, financePrint, dateGroupMenu, announcementMenu, announcementDelete: { ...announcementDeleteDialog, cancelled: announcementDeleteCancelled }, checkMenu, checkSubmenu, managedUserMenu, managedUserDelete: { ...managedUserDeleteDialog, cancelled: managedUserDeleteCancelled }, personnelMenu, personnelEditDialog, personnelDeleteDialog, projectTransactionDialogOpen, projectTransactionFlow, projectFinanceDynamicFilters, projectFinancePendingSegment, projectSubcontractorPaymentOpen, projectSubcontractorPaymentSave, projectTransactionDetail, projectCreationDialog, projectCreationSave, projectLifecycleOpen, projectLifecycleSave, projectUnitExportOpen, projectUnitExportDownload, projectBulkStatusOpen, projectBulkStatusSave, projectUnitMenu, projectUnitStatus, projectNoteDoubleClick, serviceCatalogMenu, serviceBulkMenu, serviceImportFlow, serviceImportEdits, serviceImportSaved, knowledgeMenu, knowledgeDeleteCancelled, loanerMenus, reportTemplateContext, reportTemplateActions, quickNoteMenu, quickNoteDeleteCancelled, quickNoteDoubleClick, salesCartMenu, salesCartContextActions, appointmentMenu, appointmentDoubleClick, appointmentEmptySlotDoubleClick, jobReportMenus, serviceListContextMenu, serviceListStatusSubmenu, stockHistoryMenu, stockHistoryExportActions, stockHistoryDeleteCancelled, voiceShortcutMenu, voiceShortcutEditCancelled, voiceShortcutDoubleClick, voiceShortcutDelete, voiceShortcutCreate, partnerShipmentMenu, contractDoubleClick, statusAssistantParity, marqueeEdit, stockImportParity, automotiveChecklistParity, automotiveChecklistSave, automotiveDamageParity, automotiveDamageSave, automotiveDamageCreate, automotiveChecklistCreate, customerPickerParity, customerPickerSelected, dashboardShortcutFlow, browserExceptions: exceptions.length, screenshotsCaptured, screenshotsAttempted, componentScreenshotsCaptured, screenshotFallbacks, screenshotFailures, serviceListRowActionParity }) + "\n");
+    process.stdout.write(JSON.stringify({ customerMapPicker, customerLocationParity, customerProfileParity, root, appLockPrompt, appLockFlow, technicianLockPrompt, technicianLockFlow, status, print, roles, interaction, fieldMenu: { ...fieldMenu, dismissed: fieldMenuDismissed }, stockMenu: { ...stockMenu, deleteDialog: stockDeleteDialog, deleteCancelled: stockDeleteCancelled }, bankMenu, installmentMenu, loanConfirmation: { ...loanConfirmation, cancelled: loanConfirmationCancelled }, externalMenu, externalDelete: { ...externalDeleteDialog, cancelled: externalDeleteCancelled }, stockLocationMenu, stockLocationUse: { ...stockLocationUse, cancelled: stockLocationUseCancelled }, vehicleMaintenanceMenu, maintenancePrint, maintenanceWhatsAppPhoneWarning, maintenanceWhatsAppPrompt, maintenanceWhatsAppCancelled, maintenanceWhatsAppAccepted, financeMenu, financePrint, dateGroupMenu, announcementMenu, announcementDelete: { ...announcementDeleteDialog, cancelled: announcementDeleteCancelled }, checkMenu, checkSubmenu, managedUserMenu, managedUserDelete: { ...managedUserDeleteDialog, cancelled: managedUserDeleteCancelled }, personnelMenu, personnelEditDialog, personnelDeleteDialog, projectTransactionDialogOpen, projectTransactionFlow, projectFinanceDynamicFilters, projectFinancePendingSegment, projectSubcontractorPaymentOpen, projectSubcontractorPaymentSave, projectTransactionDetail, projectCreationDialog, projectCreationSave, projectLifecycleOpen, projectLifecycleSave, projectUnitExportOpen, projectUnitExportDownload, projectBulkStatusOpen, projectBulkStatusSave, projectUnitMenu, projectUnitStatus, projectNoteDoubleClick, serviceCatalogMenu, serviceBulkMenu, serviceImportFlow, serviceImportEdits, serviceImportSaved, knowledgeMenu, knowledgeDeleteCancelled, loanerInventoryMenu, loanerActiveMenu, reportTemplateContext, reportTemplateActions, quickNoteMenu, quickNoteDeleteCancelled, quickNoteDoubleClick, salesCartMenu, salesCartContextActions, appointmentMenu, appointmentDoubleClick, appointmentEmptySlotDoubleClick, jobReportMenus, serviceListContextMenu, serviceListStatusSubmenu, stockHistoryMenu, stockHistoryExportActions, stockHistoryDeleteCancelled, voiceShortcutMenu, voiceShortcutEditCancelled, voiceShortcutDoubleClick, voiceShortcutDelete, voiceShortcutCreate, partnerShipmentMenu, contractDoubleClick, statusAssistantParity, marqueeEdit, stockImportParity, automotiveChecklistParity, automotiveChecklistSave, automotiveDamageParity, automotiveDamageSave, automotiveDamageCreate, automotiveChecklistCreate, customerPickerParity, customerPickerSelected, dashboardShortcutFlow, browserExceptions: exceptions.length, screenshotsCaptured, screenshotsAttempted, componentScreenshotsCaptured, screenshotFallbacks, screenshotFailures, serviceListRowActionParity }) + "\n");
   } finally {
     try { await send("Browser.close"); } catch (_) {}
     try { socket?.close(); } catch (_) {}

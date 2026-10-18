@@ -263,6 +263,7 @@ def test_vehicle_maintenance_export_route_requires_login_and_returns_xlsx(monkey
 def test_vehicle_maintenance_form_selects_existing_customer_vehicles_and_plate_lookup():
     script = (ROOT / "Web_Arayuzu" / "web" / "automotive-parity.js").read_text(encoding="utf-8")
     desktop = (ROOT / "src" / "ui" / "dialogs" / "vehicle_maintenance_dialog.py").read_text(encoding="utf-8")
+    app = (ROOT / "Web_Arayuzu" / "web" / "app.js").read_text(encoding="utf-8")
 
     assert 'name="vehicle_id"' in script
     assert 'customer_vehicles?limit=500' in script
@@ -272,6 +273,14 @@ def test_vehicle_maintenance_form_selects_existing_customer_vehicles_and_plate_l
     assert 'refreshCustomer:false' in script
     assert 'customerSelect.addEventListener("change"' in script
     assert 'plateInput?.addEventListener("blur"' in script
+    assert "maintenanceVehicleCatalog" in script
+    assert 'replaceWithChoices(maintenanceField("vehicle_year")' in script
+    assert 'replaceWithChoices(maintenanceField("engine_type"),maintenanceEngineTypes)' in script
     assert "_reload_customer_vehicles" in desktop
+    assert "openMaintenanceItemsDialog" in app
+    assert 'name="maintenance_items_json"' in app
+    assert 'data-maintenance-gallery' in app
+    assert 'data-maintenance-history' in app
+    assert 'if(!payload.items.length){toast("En az bir bakim kalemi secin."' in app
     assert "_apply_vehicle_row" in desktop
     assert "_lookup_plate" in desktop

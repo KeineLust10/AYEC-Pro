@@ -385,6 +385,39 @@ def seed_service_list_reference(db):
     db.set_setting("service_revenue_target", "30000")
 
 
+def seed_service_status_assistant_reference(db):
+    cursor = db.cursor
+    fixtures = {
+        "appointments": [{
+            "customer_name": "Derya Aydin",
+            "phone": "5551234567",
+            "date": QDate.currentDate().toString("yyyy-MM-dd"),
+            "time": "10:30",
+            "description": "Laptop teslim kontrolu",
+            "status": "Bekliyor",
+            "created_at": "2026-10-18 09:00:00",
+        }],
+        "parts": [{"name": "Guc adaptoru", "stock": 1, "min_stock": 2, "is_deleted": 0}],
+        "personnel": [
+            {"name": "Burak Sahin", "role": "Teknisyen", "status": "Sahada", "is_active": 1, "active": 1, "is_deleted": 0},
+            {"name": "Emre Usta", "role": "Teknisyen", "status": "Atolyede", "is_active": 1, "active": 1, "is_deleted": 0},
+            {"name": "Serkan Can", "role": "Saha Teknisyeni", "status": "Gorevde", "is_active": 1, "active": 1, "is_deleted": 0},
+        ],
+    }
+    for table, rows in fixtures.items():
+        columns = {row[1] for row in cursor.execute('PRAGMA table_info("{}")'.format(table)).fetchall()}
+        cursor.execute('DELETE FROM "{}"'.format(table))
+        for record in rows:
+            selected = [(name, value) for name, value in record.items() if name in columns]
+            names = ", ".join('"{}"'.format(name) for name, _value in selected)
+            placeholders = ", ".join("?" for _name, _value in selected)
+            cursor.execute(
+                'INSERT INTO "{}" ({}) VALUES ({})'.format(table, names, placeholders),
+                [value for _name, value in selected],
+            )
+    db.conn.commit()
+
+
 def seed_customer_management_reference(db):
     db.conn.commit()
     db.conn.execute("PRAGMA foreign_keys=OFF")
@@ -567,6 +600,8 @@ def run(*, page_id=150, width=1600, height=1280, sample_reference=False, dialog=
     if page_id == 21:
         seed_customer_management_reference(db)
         db.set_setting('company_name', 'Aslan Computer')
+        # Keep the asynchronous customer worker on this seeded connection.
+        db._db_name = ':memory:'
     if page_id == 42:
         seed_service_list_reference(db)
     if page_id == 147:
@@ -595,9 +630,11 @@ def run(*, page_id=150, width=1600, height=1280, sample_reference=False, dialog=
     db.set_setting('nav_mode', 'sol_menu')
     db.set_setting('desktop_auto_web_sync', '0')
     db.set_internal_setting('current_sector', 'teknik_servis')
+    if page_id == 43 and sample_reference:
+        seed_service_status_assistant_reference(db)
     settings = QSettings(directory.filePath('draft.ini'), QSettings.Format.IniFormat)
     original_sector_check = SalesHubPage._is_automotive
-    SalesHubPage._is_automotive = lambda self: True
+    SalesHubPage._is_automotive = lambda self: False if page_id == 300 else True
     initializer = NewTransactionV2Page.__init__
 
     def isolated_initializer(page, database, main_window=None, **kwargs):
@@ -616,6 +653,15 @@ def run(*, page_id=150, width=1600, height=1280, sample_reference=False, dialog=
     reference_dialog = None
     try:
         with patch.object(socket.socket, 'connect', side_effect=AssertionError('Network disabled')):
+            if page_id == 21 and os.environ.get('AYEC_CAPTURE_CUSTOMER_STATE') == '1':
+                from src.ui.pages.customers_page import CustomersPage
+                on_customer_data_loaded = CustomersPage.on_data_loaded
+
+                def capture_customer_data_loaded(self, customers, total):
+                    self._reference_raw_customer_rows = [dict(row) for row in list(customers or [])]
+                    return on_customer_data_loaded(self, customers, total)
+
+                CustomersPage.on_data_loaded = capture_customer_data_loaded
             window = ReferenceCaptureWindow(db, {'username': 'fixture', 'name': 'Aslan', 'role': 'Admin'})
             with patch.object(NewTransactionV2Page, '__init__', capture_initializer):
                 window.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen)
@@ -668,9 +714,32 @@ def run(*, page_id=150, width=1600, height=1280, sample_reference=False, dialog=
                     )
                     routed_page.load_data()
                 if page_id == 30:
-                    db.cursor.execute("UPDATE appointments SET date = date(date, '+7 days')")
+                    if sample_reference:
+                        db.cursor.execute("DELETE FROM appointments")
+                        db.cursor.execute(
+                            "INSERT INTO appointments (customer_name, phone, date, time, description, status, personnel_name, type, urgency, color, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            ("QA Customer", "5551234567", "2026-10-13", "14:30", "QA Calendar Slot", "Planlandi", "QA Tech", "Saha Servis", "Normal", "#2563EB", "2026-10-13 09:00:00"),
+                        )
+                    else:
+                        db.cursor.execute("UPDATE appointments SET date = date(date, '+7 days')")
                     db.conn.commit()
                     routed_page.refresh_calendar()
+                    if os.environ.get('AYEC_CAPTURE_APPOINTMENT_GEOMETRY') == '1':
+                        def widget_rect(widget):
+                            point = widget.mapToGlobal(QPoint(0, 0))
+                            origin = window.mapToGlobal(QPoint(0, 0))
+                            rect = widget.rect()
+                            return (point.x() - origin.x(), point.y() - origin.y(), rect.width(), rect.height())
+                        print('APPOINTMENT_PRE_SHOW_GEOMETRY', {
+                            'window': widget_rect(window),
+                            'header': widget_rect(window.app_header),
+                            'sidebar': widget_rect(window.app_sidebar),
+                            'top_nav': widget_rect(window.app_top_nav),
+                            'page': widget_rect(routed_page),
+                            'page_toolbar': widget_rect(routed_page.layout().itemAt(0).widget()),
+                            'calendar': widget_rect(routed_page.table),
+                            'side_panel': widget_rect(routed_page.side_panel),
+                        })
                 if page_id == 147 and routed_page.table.rowCount():
                     routed_page._usage_metrics = {
                         "date": datetime.now().date().isoformat(),
@@ -1048,8 +1117,8 @@ def run(*, page_id=150, width=1600, height=1280, sample_reference=False, dialog=
                     raise AssertionError('The original navigation did not select the page route')
                 output = ROOT / 'artifacts' / 'desktop_shell_reference' / datetime.now().strftime('%Y%m%d_%H%M%S_%f')
                 output.mkdir(parents=True, exist_ok=False)
-                if dialog in {'new_customer', 'customer_notes', 'customer_360', 'new_service', 'transaction_details', 'payment_collection', 'technician_panel', 'bulk_stock_select'}:
-                    required_page = 150 if dialog == 'bulk_stock_select' else 21 if dialog in {'new_customer', 'customer_notes', 'customer_360', 'payment_collection'} else 42 if dialog in {'new_service', 'technician_panel'} else 101
+                if dialog in {'new_customer', 'customer_notes', 'customer_360', 'new_service', 'transaction_details', 'payment_collection', 'technician_panel', 'technician_station', 'bulk_stock_select'}:
+                    required_page = 150 if dialog == 'bulk_stock_select' else 21 if dialog in {'new_customer', 'customer_notes', 'customer_360', 'payment_collection'} else 42 if dialog in {'new_service', 'technician_panel', 'technician_station'} else 101
                     if page_id != required_page:
                         raise ValueError('The requested dialog capture uses page {}'.format(required_page))
                     if dialog == 'bulk_stock_select':
@@ -1119,6 +1188,16 @@ def run(*, page_id=150, width=1600, height=1280, sample_reference=False, dialog=
                         reference_dialog = TechnicalServiceTechnicianPanel(db, 'DEMO-SRV-0008')
                         dialog_width, dialog_height = 1280, 837
                         dialog_x, dialog_y = 0, max(0, (height - dialog_height) // 2)
+                    elif dialog == 'technician_station':
+                        from src.ui.dialogs.technician_panel import TechnicalServiceTechnicianPanel
+                        from src.ui.widgets.modern_dialog import ModernDialog
+                        panel = TechnicalServiceTechnicianPanel(db, 'DEMO-SRV-0008')
+                        reference_dialog = ModernDialog('Istasyon Bilgileri', panel, width=700, height=210)
+                        reference_dialog.content_layout.addWidget(panel.station_bar)
+                        panel.station_bar.show()
+                        reference_dialog.add_button('Kapat', 'secondary', reference_dialog.accept)
+                        dialog_width, dialog_height = 700, 210
+                        dialog_x, dialog_y = (width - dialog_width) // 2, (height - dialog_height) // 2
                     elif dialog == 'transaction_details':
                         from src.ui.pages.accounting_dialogs.transaction_details_dialog import TransactionDetailsDialog
                         reference_dialog = TransactionDetailsDialog(db, {
@@ -1272,6 +1351,144 @@ def run(*, page_id=150, width=1600, height=1280, sample_reference=False, dialog=
                     return path
                 theme_slug = theme_name.lower().replace(' ', '_')
                 path = output / f'{theme_slug}_route_{page_id}_{window.width()}x{window.height()}.png'
+                if page_id == 30 and os.environ.get('AYEC_CAPTURE_GEOMETRY'):
+                    import json
+                    header = window.app_header
+                    controls = []
+                    for child in header.findChildren(QWidget, options=Qt.FindChildOption.FindDirectChildrenOnly):
+                        text_method = getattr(child, 'text', None)
+                        controls.append({
+                            'class': child.metaObject().className(),
+                            'name': child.objectName(),
+                            'text': text_method() if callable(text_method) else '',
+                            'geometry': [child.x(), child.y(), child.width(), child.height()],
+                            'visible': child.isVisible(),
+                        })
+                    visible_controls = []
+                    for child in header.findChildren(QWidget):
+                        if not child.isVisible():
+                            continue
+                        text_method = getattr(child, 'text', None)
+                        origin = child.mapTo(header, QPoint(0, 0))
+                        visible_controls.append({
+                            'class': child.metaObject().className(),
+                            'name': child.objectName(),
+                            'text': text_method() if callable(text_method) else '',
+                            'tooltip': child.toolTip(),
+                            'geometry': [origin.x(), origin.y(), child.width(), child.height()],
+                        })
+                    print('ROUTE30_HEADER', json.dumps({
+                        'geometry': [header.x(), header.y(), header.width(), header.height()],
+                        'controls': controls,
+                        'visible_controls': visible_controls,
+                    }, ensure_ascii=True))
+                    side_menu = window.app_sidebar.side_menu
+                    footer = side_menu.footer
+                    footer_children = []
+                    for child in footer.findChildren(QWidget, options=Qt.FindChildOption.FindDirectChildrenOnly):
+                        origin = child.mapTo(window, QPoint(0, 0))
+                        footer_children.append({
+                            'class': child.metaObject().className(),
+                            'name': child.objectName(),
+                            'text': getattr(child, 'text', lambda: '')(),
+                            'geometry': [origin.x(), origin.y(), child.width(), child.height()],
+                            'visible': child.isVisible(),
+                        })
+                    footer_origin = footer.mapTo(window, QPoint(0, 0))
+                    logout_origin = side_menu.logout_btn.mapTo(window, QPoint(0, 0))
+                    header_origin = side_menu.header.mapTo(window, QPoint(0, 0))
+                    brand_origin = side_menu.brand_card.mapTo(window, QPoint(0, 0))
+                    logo_origin = side_menu.branding_logo.mapTo(window, QPoint(0, 0))
+                    sector_origin = side_menu.branding_sector_badge.mapTo(window, QPoint(0, 0))
+                    pin_origin = side_menu.pin_button.mapTo(window, QPoint(0, 0))
+                    def app_widget_rect(widget):
+                        origin = widget.mapTo(window, QPoint(0, 0))
+                        return [origin.x(), origin.y(), widget.width(), widget.height()]
+                    appointment_layout = routed_page.layout()
+                    page_items = []
+                    for index in range(appointment_layout.count()):
+                        item = appointment_layout.itemAt(index)
+                        widget = item.widget()
+                        if widget is not None:
+                            page_items.append({
+                                'class': widget.metaObject().className(),
+                                'name': widget.objectName(),
+                                'geometry': app_widget_rect(widget),
+                            })
+                        else:
+                            rect = item.geometry()
+                            page_origin = routed_page.mapTo(window, QPoint(0, 0))
+                            page_items.append({
+                                'class': 'layout',
+                                'name': '',
+                                'geometry': [page_origin.x() + rect.x(), page_origin.y() + rect.y(), rect.width(), rect.height()],
+                            })
+                    appointment_toolbar = appointment_layout.itemAt(0).widget()
+                    appointment_kpis = []
+                    for value in routed_page.appointment_kpi_values:
+                        card = value.parentWidget()
+                        appointment_kpis.append(app_widget_rect(card))
+                    appointment_side_children = []
+                    for child in routed_page.side_panel.findChildren(QWidget, options=Qt.FindChildOption.FindDirectChildrenOnly):
+                        appointment_side_children.append({
+                            'class': child.metaObject().className(),
+                            'name': child.objectName(),
+                            'text': getattr(child, 'text', lambda: '')(),
+                            'geometry': app_widget_rect(child),
+                            'visible': child.isVisible(),
+                        })
+                    appointment_technician_children = []
+                    technician_frame = routed_page.side_panel.findChildren(QWidget, options=Qt.FindChildOption.FindDirectChildrenOnly)[-1]
+                    for child in technician_frame.findChildren(QWidget, options=Qt.FindChildOption.FindDirectChildrenOnly):
+                        appointment_technician_children.append({
+                            'class': child.metaObject().className(),
+                            'name': child.objectName(),
+                            'text': getattr(child, 'text', lambda: '')(),
+                            'geometry': app_widget_rect(child),
+                            'visible': child.isVisible(),
+                        })
+                    appointment_toolbar_widgets = []
+                    for child in appointment_toolbar.findChildren(QWidget):
+                        if child.isVisible():
+                            appointment_toolbar_widgets.append({
+                                'class': child.metaObject().className(),
+                                'text': getattr(child, 'text', lambda: '')(),
+                                'geometry': app_widget_rect(child),
+                                'font_size': child.font().pointSizeF(),
+                                'style': child.styleSheet(),
+                            })
+                    appointment_calendar_geometry = {
+                        'table': app_widget_rect(routed_page.table),
+                        'viewport': app_widget_rect(routed_page.table.viewport()),
+                        'horizontal_header': app_widget_rect(routed_page.table.horizontalHeader()),
+                        'vertical_header': app_widget_rect(routed_page.table.verticalHeader()),
+                        'column_widths': [routed_page.table.columnWidth(index) for index in range(routed_page.table.columnCount())],
+                        'column_positions': [routed_page.table.horizontalHeader().sectionViewportPosition(index) for index in range(routed_page.table.columnCount())],
+                        'row_heights': [routed_page.table.rowHeight(index) for index in range(routed_page.table.rowCount())],
+                        'row_positions': [routed_page.table.verticalHeader().sectionViewportPosition(index) for index in range(routed_page.table.rowCount())],
+                    }
+                    print('ROUTE30_SIDEBAR_FOOTER', json.dumps({
+                        'sidebar': [window.app_sidebar.x(), window.app_sidebar.y(), window.app_sidebar.width(), window.app_sidebar.height()],
+                        'side_menu': [side_menu.x(), side_menu.y(), side_menu.width(), side_menu.height()],
+                        'header': [header_origin.x(), header_origin.y(), side_menu.header.width(), side_menu.header.height()],
+                        'brand': [brand_origin.x(), brand_origin.y(), side_menu.brand_card.width(), side_menu.brand_card.height()],
+                        'logo': [logo_origin.x(), logo_origin.y(), side_menu.branding_logo.width(), side_menu.branding_logo.height()],
+                        'sector_badge': [sector_origin.x(), sector_origin.y(), side_menu.branding_sector_badge.width(), side_menu.branding_sector_badge.height()],
+                        'pin': [pin_origin.x(), pin_origin.y(), side_menu.pin_button.width(), side_menu.pin_button.height()],
+                        'footer': [footer_origin.x(), footer_origin.y(), footer.width(), footer.height()],
+                        'logout': [logout_origin.x(), logout_origin.y(), side_menu.logout_btn.width(), side_menu.logout_btn.height()],
+                        'children': footer_children,
+                        'appointment_page': app_widget_rect(routed_page),
+                        'appointment_items': page_items,
+                        'appointment_kpis': appointment_kpis,
+                        'appointment_side_children': appointment_side_children,
+                        'appointment_technician_children': appointment_technician_children,
+                        'appointment_toolbar': app_widget_rect(appointment_toolbar),
+                        'appointment_toolbar_widgets': appointment_toolbar_widgets,
+                        'appointment_calendar': app_widget_rect(routed_page.table),
+                        'appointment_calendar_geometry': appointment_calendar_geometry,
+                        'appointment_side_panel': app_widget_rect(routed_page.side_panel),
+                    }, ensure_ascii=True))
                 if page_id == 42 and os.environ.get('AYEC_CAPTURE_GEOMETRY'):
                     table = routed_page.table
                     print('ROUTE42_GEOMETRY', window.width(), table.width(),
@@ -1351,8 +1568,119 @@ def run(*, page_id=150, width=1600, height=1280, sample_reference=False, dialog=
                             QTest.mouseMove(routed_page.table.viewport(), QPoint(hover_point.x(), hover_point.y()))
                             routed_page._on_table_cell_entered(hover_row, 2)
                             app.processEvents()
+                if page_id == 130 and settings_index == 14 and os.environ.get('AYEC_CAPTURE_QUICK_NOTES_EXPANDED') == '1':
+                    window.app_sidebar.side_menu.set_collapsed(False, animate=False)
+                    app.processEvents()
+                if page_id == 300 and os.environ.get('AYEC_CAPTURE_PC_BUILDER_GEOMETRY') == '1':
+                    import json
+                    pc_builder_tabs = getattr(routed_page, 'tabs', None)
+                    if pc_builder_tabs is not None:
+                        pc_builder_tabs.setCurrentIndex(2)
+                        if hasattr(routed_page, '_ensure_tab_loaded'):
+                            routed_page._ensure_tab_loaded(2)
+                        app.processEvents()
+                    def pc_builder_rect(widget):
+                        if widget is None:
+                            return None
+                        point = widget.mapTo(window, QPoint(0, 0))
+                        return [point.x(), point.y(), widget.width(), widget.height()]
+                    def pc_builder_font(widget):
+                        font = widget.font()
+                        return {'family': font.family(), 'point_size': font.pointSizeF(), 'pixel_size': font.pixelSize()}
+                    pc_builder_page = getattr(routed_page, 'pc_builder_page', None) or routed_page
+                    pc_builder_rows = pc_builder_page.findChildren(QWidget, 'ComponentRow')
+                    pc_builder_summary = pc_builder_page.findChild(QWidget, 'SummaryPanel')
+                    pc_builder_summary_items = []
+                    if pc_builder_summary and pc_builder_summary.layout():
+                        for index in range(pc_builder_summary.layout().count()):
+                            item = pc_builder_summary.layout().itemAt(index)
+                            widget = item.widget()
+                            if widget is None:
+                                continue
+                            row, column, row_span, column_span = pc_builder_summary.layout().getItemPosition(index)
+                            item_data = {'row': row, 'column': column, 'row_span': row_span, 'column_span': column_span, 'rect': pc_builder_rect(widget)}
+                            if hasattr(widget, 'text'):
+                                item_data['text'] = str(widget.text())[:40]
+                            pc_builder_summary_items.append(item_data)
+                    pc_builder_title = next((item for item in pc_builder_page.findChildren(QLabel) if item.text().endswith('Bilgisayar Topla')), None)
+                    print('PC_BUILDER_GEOMETRY', json.dumps({
+                        'window': [window.width(), window.height()],
+                        'route_type': type(routed_page).__name__,
+                        'tab_index': pc_builder_tabs.currentIndex() if pc_builder_tabs is not None else None,
+                        'tab_count': pc_builder_tabs.count() if pc_builder_tabs is not None else None,
+                        'page': pc_builder_rect(pc_builder_page),
+                        'header': pc_builder_rect(pc_builder_page.findChild(QWidget, 'PCHeader')),
+                        'customer': pc_builder_rect(pc_builder_page.findChild(QWidget, 'CustSearch')),
+                        'preset': pc_builder_rect(pc_builder_page.findChild(QWidget, 'PresetBar')),
+                        'column_header': pc_builder_rect(pc_builder_page.findChild(QWidget, 'ColHeader')),
+                        'first_row': pc_builder_rect(pc_builder_rows[0]) if pc_builder_rows else None,
+                        'last_row': pc_builder_rect(pc_builder_rows[-1]) if pc_builder_rows else None,
+                        'summary': pc_builder_rect(pc_builder_page.findChild(QWidget, 'SummaryPanel')),
+                        'summary_items': pc_builder_summary_items,
+                        'actions': pc_builder_rect(pc_builder_page.findChild(QWidget, 'ActionBar')),
+                        'title_font': pc_builder_font(pc_builder_title) if pc_builder_title else None,
+                    }, ensure_ascii=True))
                 if not window.grab().save(str(path)):
                     raise AssertionError('Native shell screenshot could not be saved')
+                if page_id == 21 and os.environ.get('AYEC_CAPTURE_CUSTOMER_STATE') == '1':
+                    import json
+                    customer_table = getattr(routed_page, 'table', None)
+                    rows = []
+                    if customer_table is not None:
+                        for row in range(customer_table.rowCount()):
+                            id_item = customer_table.item(row, 1)
+                            name_item = customer_table.item(row, 2)
+                            id_cell = customer_table.cellWidget(row, 1)
+                            name_cell = customer_table.cellWidget(row, 2)
+                            customer_data = id_item.data(Qt.ItemDataRole.UserRole) if id_item else None
+                            name_labels = name_cell.findChildren(QLabel) if name_cell else []
+                            rows.append({
+                                'id': id_cell.findChild(QLabel).text() if id_cell and id_cell.findChild(QLabel) else str(customer_data.get('id', '')) if customer_data else '',
+                                'name': next((label.text() for label in name_labels if len(label.text()) > 3), name_item.data(Qt.ItemDataRole.UserRole + 1) if name_item else ''),
+                                'type': customer_data.get('type', '') if customer_data else '',
+                                'is_partner': customer_data.get('is_partner', 0) if customer_data else 0,
+                            })
+                    state_path = output / 'customer_table_state.json'
+                    state = {
+                        'routed_db_is_capture_db': getattr(routed_page, 'db', None) is db,
+                        'routed_db_name': getattr(getattr(routed_page, 'db', None), '_db_name', ''),
+                        'worker_filter_type': getattr(getattr(routed_page, 'worker', None), 'filter_type', None),
+                        'worker_search_query': getattr(getattr(routed_page, 'worker', None), 'search_query', None),
+                        'worker_limit': getattr(getattr(routed_page, 'worker', None), 'limit', None),
+                        'worker_offset': getattr(getattr(routed_page, 'worker', None), 'offset', None),
+                        'total_count': getattr(routed_page, 'total_count', None),
+                        'limit': getattr(routed_page, 'limit', None),
+                        'current_page': getattr(routed_page, 'current_page', None),
+                        'filter_type': getattr(routed_page, 'current_filter_type', None),
+                        'rows': rows,
+                        'raw_rows': getattr(routed_page, '_reference_raw_customer_rows', []),
+                        'query_preview': [dict(row) for row in db.conn.execute(
+                            "SELECT id, name, type, is_partner FROM customers WHERE COALESCE(is_deleted, 0)=0 AND COALESCE(is_partner, 0)=0 ORDER BY name LIMIT 10"
+                        ).fetchall()],
+                    }
+                    state_path.write_text(json.dumps(state, ensure_ascii=True, indent=2) + '\n', encoding='utf-8')
+                if page_id == 130 and settings_index == 14 and os.environ.get('AYEC_CAPTURE_QUICK_NOTES_GEOMETRY') == '1':
+                    import json
+                    def quick_notes_rect(widget):
+                        point = widget.mapTo(window, QPoint(0, 0))
+                        return [point.x(), point.y(), widget.width(), widget.height()]
+                    quick_notes_widget = routed_page.content_area.currentWidget()
+                    print('QUICK_NOTES_GEOMETRY', json.dumps({
+                        'window': [window.width(), window.height()],
+                        'settings_page': quick_notes_rect(routed_page),
+                        'content_area': quick_notes_rect(routed_page.content_area),
+                        'widget': quick_notes_rect(quick_notes_widget),
+                        'title': next((quick_notes_rect(item) for item in quick_notes_widget.findChildren(QLabel) if item.text().startswith('H\u0131zl\u0131 Notlar')), None),
+                        'filter': quick_notes_rect(quick_notes_widget.filter_frame),
+                        'table': quick_notes_rect(quick_notes_widget.table),
+                        'refresh': quick_notes_rect(quick_notes_widget.btn_refresh),
+                        'add': quick_notes_rect(quick_notes_widget.btn_add),
+                        'description': next((quick_notes_rect(item) for item in quick_notes_widget.findChildren(QLabel) if item.text().startswith('Teknisyen paneli')), None),
+                        'count': quick_notes_rect(quick_notes_widget.lbl_count),
+                        'filter_combo': quick_notes_rect(quick_notes_widget.combo_filter),
+                        'search_input': quick_notes_rect(quick_notes_widget.inp_search),
+                        'quick_tags': [quick_notes_rect(item) for item in quick_notes_widget.quick_tag_buttons],
+                    }, ensure_ascii=True))
                 if page_id == 21 and os.environ.get('AYEC_VERIFY_CUSTOMER_HEADER_RESTORE') == '1':
                     window.on_menu_click(40)
                     app.processEvents()
@@ -1381,7 +1709,7 @@ if __name__ == '__main__':
     parser.add_argument('--height', type=int, default=1280)
     parser.add_argument('--theme', choices=tuple(ThemeManager.THEME_FILES), default='Koyu Mavi')
     parser.add_argument('--sample-reference', action='store_true')
-    parser.add_argument('--dialog', choices=('new_customer', 'customer_notes', 'customer_360', 'new_service', 'transaction_details', 'payment_collection', 'technician_panel', 'bulk_stock_select'))
+    parser.add_argument('--dialog', choices=('new_customer', 'customer_notes', 'customer_360', 'new_service', 'transaction_details', 'payment_collection', 'technician_panel', 'technician_station', 'bulk_stock_select'))
     parser.add_argument('--settings-index', type=int, default=14)
     parser.add_argument('--settings-tab', type=int, default=1)
     options = parser.parse_args()

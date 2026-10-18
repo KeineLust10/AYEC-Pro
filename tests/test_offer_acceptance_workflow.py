@@ -97,6 +97,18 @@ def _create_offer(db, customer_id, part_id):
     )
 
 
+
+
+def test_offer_acceptance_treats_web_stock_item_alias_as_a_part():
+    db = Database(":memory:")
+    customer_id = _create_customer(db)
+    part_id = _create_part(db)
+    offer_id = _create_offer(db, customer_id, part_id)
+    db.cursor.execute("UPDATE offer_items SET item_type=? WHERE offer_id=?", ("stock", offer_id))
+    db.conn.commit()
+    OfferAcceptanceService(db).accept(offer_id, payment_amount=0)
+    stock = db.cursor.execute("SELECT stock FROM parts WHERE id=?", (part_id,)).fetchone()[0]
+    assert stock == 8
 def test_offer_acceptance_records_down_payment_balance_and_stock_once():
     db = Database(":memory:")
     customer_id = _create_customer(db)

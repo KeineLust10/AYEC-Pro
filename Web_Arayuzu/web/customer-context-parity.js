@@ -180,7 +180,7 @@
     if (action === "pdf") return exportCustomerPdf();
     if (action === "print") return printCustomerList();
     if (action === "selected-excel") {
-      const selectedIds = new Set([...document.querySelectorAll(".customer-row-select:checked")].map(input => String(input.dataset.id)));
+      const selectedIds = new Set(window.ayecSelectedCustomerIds || [...document.querySelectorAll(".customer-row-select:checked")].map(input => String(input.dataset.id)));
       const rows = db.customers.filter(item => selectedIds.has(String(item.id)));
       if (!rows.length) return window.toast("\u00d6nce en az bir m\u00fc\u015fteri se\u00e7in.", "warning");
       return exportCustomers(rows, true);

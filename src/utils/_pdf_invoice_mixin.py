@@ -247,32 +247,94 @@ class PDFInvoiceMixin:
             doc.build(elements); self._open_file(save_path); return True, save_path
         except Exception as e: logger.error("PDF error: %s", e); return False, str(e)
 
-    def create_proforma_overlay(self, cart_items, totals, company_name, customer_name, save_path, currency="₺"):
+    def create_proforma_overlay(self, cart_items, totals, company_name, customer_name, save_path, currency="\u20ba"):
+        temporary_path = None
         try:
-            tp = self.db.get_setting('proforma_template_path', '')
-            if not tp or not os.path.exists(tp): return False, "Şablon PDF dosyası bulunamadı."
-            ly = self._get_proforma_layout(tp)
-            if ly: return self._create_proforma_overlay_with_layout(cart_items, totals, company_name, customer_name, save_path, currency, tp, ly)
-            fd, tdp = tempfile.mkstemp(suffix=".pdf"); os.close(fd); fn, fb = self._register_fonts(); styles = self._get_styles()
-            sn, sb, st = ParagraphStyle('N', parent=styles['Normal'], fontName=fn, fontSize=10, leading=12), ParagraphStyle('B', parent=styles['Normal'], fontName=fb, fontSize=10, leading=12), ParagraphStyle('T', parent=styles['Normal'], fontName=fb, fontSize=18, leading=22, alignment=1)
-            elements = [Spacer(1, 40*mm), Paragraph("PROFORMA TEKLİF FORMU", st), Spacer(1, 10*mm)]
-            elements.append(Table([[Paragraph(f"<b>SAYIN:</b><br/>{customer_name}", sn), Paragraph(f"<b>TARİH:</b> {format_turkish_date(datetime.now(), 'short')}<br/><b>TEKLİF NO:</b> PRF-{datetime.now().strftime('%y%m%s')}", sn)]], colWidths=[100*mm, 80*mm]))
-            td = [["Açıklama / Ürün", "Adet", "Birim Fiyat", "Toplam"]]
-            for it in cart_items:
-                q, p = it.get('count', 1), it.get('price', 0.0)
-                td.append([Paragraph(it.get('name', 'Ürün'), sn), str(q), f"{p:,.2f} {currency}", f"{q*p:,.2f} {currency}"])
-            itb = Table(td, colWidths=[100*mm, 20*mm, 35*mm, 35*mm]); itb.setStyle(TableStyle([('FONTNAME',(0,0),(-1,0),fb),('BACKGROUND',(0,0),(-1,0),colors.whitesmoke),('ALIGN',(1,0),(-1,-1),'CENTER'),('GRID',(0,0),(-1,-1),0.5,colors.grey)]))
-            elements.extend([Spacer(1, 10*mm), itb, Spacer(1, 10)])
-            stot, disc, vr, va, tf = totals
-            tr = [["", "ARA TOPLAM:", f"{stot:,.2f} {currency}"], ["", f"KDV (%{vr}):", f"{va:,.2f} {currency}"], ["", "GENEL TOPLAM:", f"{tf:,.2f} {currency}"]]
-            tt = Table(tr, colWidths=[100*mm, 45*mm, 45*mm]); tt.setStyle(TableStyle([('FONTNAME',(1,2),(2,2),fb),('ALIGN',(1,0),(2,-1),'RIGHT')]))
-            elements.append(tt); doc = SimpleDocTemplate(tdp, pagesize=A4, rightMargin=10*mm, leftMargin=10*mm, topMargin=10*mm, bottomMargin=10*mm); doc.build(elements)
-            wr, tr, dr = PdfWriter(), PdfReader(tp), PdfReader(tdp); tpge = tr.pages[0]; tpge.merge_page(dr.pages[0]); wr.add_page(tpge)
-            for i in range(1, len(dr.pages)): wr.add_page(dr.pages[i])
-            with open(save_path, "wb") as f: wr.write(f)
-            if os.path.exists(tdp): os.remove(tdp)
-            self._open_file(save_path); return True, save_path
-        except Exception as e: logger.error(f"Overlay PDF error: {e}"); return False, str(e)
+            template_path = self.db.get_setting("proforma_template_path", "")
+            if not template_path or not os.path.exists(template_path):
+                return False, "PDF template file was not found."
+            layout = self._get_proforma_layout(template_path)
+            if layout:
+                return self._create_proforma_overlay_with_layout(
+                    cart_items, totals, company_name, customer_name, save_path,
+                    currency, template_path, layout,
+                )
+
+            descriptor, temporary_path = tempfile.mkstemp(suffix=".pdf")
+            os.close(descriptor)
+            font_regular, font_bold = self._register_fonts()
+            styles = self._get_styles()
+            normal = ParagraphStyle(
+                "N", parent=styles["Normal"], fontName=font_regular,
+                fontSize=10, leading=12,
+            )
+            title = ParagraphStyle(
+                "T", parent=styles["Normal"], fontName=font_bold,
+                fontSize=18, leading=22, alignment=1,
+            )
+            now = datetime.now()
+            elements = [
+                Spacer(1, 40 * mm),
+                Paragraph("PROFORMA TEKL\u0130F FORMU", title),
+                Spacer(1, 10 * mm),
+            ]
+            customer_text = escape(str(customer_name or ""))
+            details = (
+                f"<b>SAYIN:</b><br/>{customer_text}<br/>"
+                f"<b>TAR\u0130H:</b> {format_turkish_date(now, 'short')}<br/>"
+                f"<b>TEKL\u0130F NO:</b> PRF-{now.strftime('%y%m%d%H%M%S')}"
+            )
+            elements.append(Table([[Paragraph(details, normal)]], colWidths=[180 * mm]))
+            table_rows = [["A\u00e7\u0131klama / \u00dcr\u00fcn", "Adet", "Birim Fiyat", "Toplam"]]
+            for item in cart_items:
+                quantity = float(item.get("count", item.get("qty", 1)) or 1)
+                price = float(item.get("price", 0.0) or 0.0)
+                name = escape(str(item.get("name", "\u00dcr\u00fcn") or "\u00dcr\u00fcn"))
+                table_rows.append([
+                    Paragraph(name, normal), str(quantity),
+                    f"{price:,.2f} {currency}", f"{quantity * price:,.2f} {currency}",
+                ])
+            items_table = Table(table_rows, colWidths=[100 * mm, 20 * mm, 35 * mm, 35 * mm])
+            items_table.setStyle(TableStyle([
+                ("FONTNAME", (0, 0), (-1, 0), font_bold),
+                ("BACKGROUND", (0, 0), (-1, 0), colors.whitesmoke),
+                ("ALIGN", (1, 0), (-1, -1), "CENTER"),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+            ]))
+            elements.extend([Spacer(1, 10 * mm), items_table, Spacer(1, 10)])
+            subtotal, _discount, vat_rate, vat_amount, grand_total = totals
+            totals_table = Table([
+                ["", "ARA TOPLAM:", f"{subtotal:,.2f} {currency}"],
+                ["", f"KDV (%{vat_rate}):", f"{vat_amount:,.2f} {currency}"],
+                ["", "GENEL TOPLAM:", f"{grand_total:,.2f} {currency}"],
+            ], colWidths=[100 * mm, 45 * mm, 45 * mm])
+            totals_table.setStyle(TableStyle([
+                ("FONTNAME", (1, 2), (2, 2), font_bold),
+                ("ALIGN", (1, 0), (2, -1), "RIGHT"),
+            ]))
+            elements.append(totals_table)
+            document = SimpleDocTemplate(
+                temporary_path, pagesize=A4, rightMargin=10 * mm,
+                leftMargin=10 * mm, topMargin=10 * mm, bottomMargin=10 * mm,
+            )
+            document.build(elements)
+            writer = PdfWriter()
+            template_reader = PdfReader(template_path)
+            content_reader = PdfReader(temporary_path)
+            writer.add_page(template_reader.pages[0])
+            writer.pages[0].merge_page(content_reader.pages[0])
+            for page in content_reader.pages[1:]:
+                writer.add_page(page)
+            with open(save_path, "wb") as output:
+                writer.write(output)
+            self._open_file(save_path)
+            return True, save_path
+        except Exception as error:
+            logger.error("Overlay PDF error: %s", error)
+            return False, str(error)
+        finally:
+            if temporary_path and os.path.exists(temporary_path):
+                os.remove(temporary_path)
 
     def _get_proforma_layout(self, tp):
         lj = self.db.get_setting("proforma_template_layout", "")

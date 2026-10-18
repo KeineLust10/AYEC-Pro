@@ -136,3 +136,19 @@ body[data-page="partners"] .partner-web-count{padding:0;color:var(--muted);font-
 body[data-page="partners"] .partner-web-filters .control{border-color:var(--line);background:#0d1829;color:var(--ink)}
 body[data-page="partners"] #partnerWorkspaceSearch::placeholder{color:var(--muted)}
 body[data-page="partners"] .partner-web-hero-actions>button.primary{border-color:var(--brand);background:var(--brand);color:#f8fbff}
+
+dialog.partner-photo-dialog{width:min(900px,calc(100vw - 32px));max-width:900px;max-height:calc(100vh - 32px);padding:20px;border:1px solid var(--line);border-radius:14px;background:var(--surface);color:var(--ink);box-shadow:0 24px 80px #0008}
+dialog.partner-photo-dialog::backdrop{background:#030712bb}
+.partner-photo-dialog>header,.partner-photo-dialog>footer{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.partner-photo-dialog>header h2{margin:0;font-size:18px}
+.partner-photo-dialog>header p{margin:5px 0 0;color:var(--muted);font-size:12px}
+.partner-photo-dialog>footer{justify-content:center;margin-top:14px}
+.partner-photo-dialog>footer [data-partner-photo-close]{margin-left:12px}
+.partner-photo-dialog [data-partner-photo-counter]{min-width:55px;text-align:center;font:12px var(--font-mono)}
+.partner-photo-stage{display:grid;min-height:450px;place-items:center;margin-top:16px;border-radius:10px;background:#1e293b;overflow:hidden}
+.partner-photo-stage img{display:block;max-width:100%;max-height:min(65vh,620px);object-fit:contain}
+.partner-photo-stage p{padding:24px;color:#e2e8f0;text-align:center}
+.partner-shipment-amount{position:relative;display:block;min-width:0}
+.partner-shipment-amount input{padding-right:42px!important;font-variant-numeric:tabular-nums}
+.partner-shipment-amount>span{position:absolute;top:50%;right:10px;transform:translateY(-50%);color:var(--muted);font:11px var(--font-mono);pointer-events:none}
+@media(max-width:600px){dialog.partner-photo-dialog{width:calc(100vw - 24px);max-height:calc(100vh - 24px);padding:14px}.partner-photo-stage{min-height:55vh}.partner-photo-dialog>header{align-items:flex-start}.partner-photo-dialog>footer{gap:6px}.partner-photo-dialog>footer [data-partner-photo-close]{margin-left:0}}

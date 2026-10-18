@@ -34,11 +34,14 @@ def _decode_item(row):
     except Exception:
         payload = {}
     payload = payload if isinstance(payload, dict) else {}
+    item_type = str(
+        _value(row, "item_type", 3, payload.get("type", "")) or ""
+    ).strip().lower()
+    if item_type in {"stock", "product"}:
+        item_type = "part"
     return {
         "item_id": _value(row, "item_id", 2),
-        "type": str(
-            _value(row, "item_type", 3, payload.get("type", "")) or ""
-        ).strip().lower(),
+        "type": item_type,
         "service": str(
             _value(row, "service", 4, payload.get("service", "")) or ""
         ).strip(),

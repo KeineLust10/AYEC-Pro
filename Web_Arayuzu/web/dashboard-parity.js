@@ -138,6 +138,11 @@
       <footer class="dashboard-bottom-status"><strong>${now.toLocaleTimeString("tr-TR",{hour:"2-digit",minute:"2-digit",second:"2-digit"})}</strong><span>${dateText}</span></footer>${shortcutOverlay}`;
   }
   renderDashboard=renderDashboardParity;
+  window.toggleDesktopDashboardShortcuts=()=>{
+    shortcutOverlayOpen=!shortcutOverlayOpen;
+    if(page==="dashboard")render();
+    return shortcutOverlayOpen;
+  };
   document.addEventListener("change",event=>{
     if(event.target.id==="dashboardParityStatusPeriod"){periodKey=event.target.value;render()}
     if(event.target.id==="dashboardParityTrendMonths"){trendMonths=Number(event.target.value)||9;render()}

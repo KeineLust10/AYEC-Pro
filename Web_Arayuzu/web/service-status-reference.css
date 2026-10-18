@@ -101,14 +101,12 @@ body[data-page="service-status"] .status-wall-personnel-avatar {
 }
 
 @media (min-width: 761px) {
-  body[data-page="service-status"] {
-    --sidebar: 250px;
-  }
-
   body[data-page="service-status"] .status-wall-layout {
     display: grid !important;
-    grid-template-columns: minmax(0, 1fr) minmax(330px, 0.46fr) !important;
-    gap: 14px;
+    grid-template-columns: minmax(0, 1fr) 329px !important;
+    gap: 12px !important;
+    width: calc(100% - 12px);
+    margin-right: 12px;
   }
 }
 

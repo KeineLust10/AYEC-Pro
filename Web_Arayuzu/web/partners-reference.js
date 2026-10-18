@@ -11,6 +11,8 @@
   let serviceFilter = "";
   let commissionFilter = "all";
 
+  function partnerLocalDateInputValue(date = new Date()) { return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, "0"), String(date.getDate()).padStart(2, "0")].join("-"); }
+
   const completedStatuses = new Set([
     "geri geldi",
     "musteriye teslim edildi",
@@ -59,9 +61,11 @@
   }
 
   function shipmentFormMarkup(row = {}, partner) {
-    const today = new Date().toISOString().slice(0, 10);
-    const text = (name, label, fallback = "") => `<div class="field"><label>${label}</label><input name="${name}" ${name === "customer_name" || name === "product_name" ? "required" : ""} value="${esc(row[name] ?? fallback)}"></div>`;
-    const amount = (name, label) => `<div class="field"><label>${label}</label><input name="${name}" type="number" min="0" max="10000000" step="0.01" value="${esc(row[name] ?? 0)}"></div>`;
+    const today = partnerLocalDateInputValue();
+    const currencyCode = String(db.settings.currency || "TRY").toUpperCase();
+    const currencySymbol = currencyCode === "USD" ? "$" : currencyCode === "EUR" ? "\u20ac" : "\u20ba";
+    const text = (name, label, fallback = "", readOnly = false) => `<div class="field"><label>${label}</label><input name="${name}" ${name === "customer_name" || name === "product_name" ? "required" : ""} ${readOnly ? "readonly" : ""} value="${esc(row[name] ?? fallback)}"></div>`;
+    const amount = (name, label) => `<div class="field"><label>${label}</label><span class="partner-shipment-amount"><input name="${name}" type="number" min="0" max="10000000" step="0.01" value="${esc(row[name] ?? 0)}"><span aria-hidden="true">${currencySymbol}</span></span></div>`;
     const area = (name, label, fallback = "") => `<div class="field full"><label>${label}</label><textarea name="${name}" rows="2">${esc(row[name] ?? fallback)}</textarea></div>`;
     return `<div class="partner-web-form"><div class="field full"><label>Calisma Ortagi</label><input value="${esc(partner.name || "")}" readonly></div>
       ${text("customer_name", "Musteri *")} ${text("product_name", "Urun *")} ${text("serial_no", "Seri No")}
@@ -72,12 +76,12 @@
       ${text("quote_status", "Teklif Durumu", "Beklemede")} ${amount("quote_amount", "Teklif Tutari")}
       ${text("approval_status", "Onay Durumu", "Onay Bekliyor")}
       <div class="field"><label>Gonderim Tarihi</label><input name="sent_at" type="date" value="${esc(row.sent_at || today)}"></div>
-      ${text("contract_type", "Sozlesme", partner.contract_type || "Standart Anlasma")} ${text("sla_level", "SLA", partner.sla_level || "24 Saat Donus")}
+      ${text("contract_type", "Sozlesme", partner.contract_type || "Standart Anlasma", true)} ${text("sla_level", "SLA", partner.sla_level || "24 Saat Donus", true)}
       ${area("accessories", "Aksesuarlar / Paket")} ${text("cost_responsibility", "Maliyet Sorumlulugu", "Partner")}
       ${text("return_qc", "Donus Kalite Kontrol", "Beklemede")} ${text("cosmetic_status", "Kozmetik Durum", "Kontrol Edilmedi")}
       ${text("missing_parts", "Eksik Parca", "Yok")}
       <div class="field"><label>Donus Tarihi</label><input name="returned_at" type="date" value="${esc(row.returned_at || today)}"></div>
-      ${text("currency", "Para Birimi", row.currency || "TRY")} ${area("notes", "Notlar")}</div>`;
+      ${area("notes", "Notlar")}</div>`;
   }
 
   function openShipmentDialog(row = {}) {
@@ -94,6 +98,88 @@
       toast(editing ? "Partner gonderi kaydi guncellendi." : "Partner gonderi kaydi kaydedildi.");
       return result.ok;
     }, editing ? "Guncelle" : "Kaydet ve Kapat");
+    const footer = document.querySelector("#dialogFooter");
+    const documentsButton = document.createElement("button");
+    documentsButton.type = "button";
+    documentsButton.className = "secondary";
+    documentsButton.id = "partnerShipmentDocumentsButton";
+    documentsButton.textContent = "Belgeler";
+    documentsButton.onclick = () => openPartnerDocuments(row).catch(error => toast(error.message || "Belgeler yuklenemedi.", "error"));
+    footer?.insertBefore(documentsButton, document.querySelector("#dialogCancel"));
+    const photoButton = document.createElement("button");
+    photoButton.type = "button";
+    photoButton.className = "secondary";
+    photoButton.id = "partnerShipmentPhotoButton";
+    photoButton.textContent = "Foto\u011fraf Galerisi";
+    photoButton.onclick = () => openPartnerShipmentPhotoGallery(partner, row, document.querySelector("#dialogForm"));
+    footer?.insertBefore(photoButton, document.querySelector("#dialogCancel"));
+  }
+
+  window.ayecOpenPartnerShipmentDialog = async function (partnerId) {
+    if (page !== "partners") navigate("partners");
+    await loadPartnerWorkspace(partnerId || selectedPartnerId);
+    return openShipmentDialog();
+  };
+
+  async function openPartnerShipmentPhotoGallery(partner, row, form) {
+    const identity = {
+      partner_id: partner.id,
+      shipment_id: row.id || "",
+      serial_no: form?.elements.serial_no?.value || row.serial_no || "",
+      product_name: form?.elements.product_name?.value || row.product_name || "",
+    };
+    const query = new URLSearchParams(identity).toString();
+    const dialog = document.createElement("dialog");
+    dialog.className = "partner-photo-dialog";
+    dialog.innerHTML = `<header><div><h2>Foto\u011fraf Galerisi</h2><p>Cihaz Foto\u011fraflar\u0131 (#${esc(identity.serial_no || identity.product_name || "shipment")})</p></div><button type="button" class="secondary" data-partner-photo-add>Foto\u011fraf Ekle</button><input type="file" accept="image/jpeg,image/png,image/bmp" multiple hidden></header><div class="partner-photo-stage"><img alt="Partner g\u00f6nderi foto\u011fraf\u0131" hidden><p data-partner-photo-empty>Bu kay\u0131t i\u00e7in foto\u011fraf bulunamad\u0131.</p></div><footer><button type="button" class="secondary" data-partner-photo-prev>Onceki</button><span data-partner-photo-counter>0 / 0</span><button type="button" class="secondary" data-partner-photo-next>Sonraki</button><button type="button" class="primary" data-partner-photo-close>Kaydet ve Kapat</button></footer>`;
+    document.body.append(dialog);
+    dialog.addEventListener("close", () => dialog.remove(), { once: true });
+    dialog.showModal();
+    const image = dialog.querySelector("img");
+    const emptyState = dialog.querySelector("[data-partner-photo-empty]");
+    const counter = dialog.querySelector("[data-partner-photo-counter]");
+    let photos = [];
+    let index = 0;
+    const draw = () => {
+      const photo = photos[index];
+      if (photo?.available) {
+        image.src = `/api/desktop/partners/shipment-photo/${photo.id}?${query}`;
+        image.hidden = false;
+        emptyState.hidden = true;
+        counter.textContent = `${index + 1} / ${photos.length}`;
+      } else {
+        image.removeAttribute("src");
+        image.hidden = true;
+        emptyState.hidden = false;
+        counter.textContent = `0 / ${photos.length}`;
+      }
+    };
+    const load = async () => {
+      const data = await apiFetch(`/api/desktop/partners/shipment-photos?${query}`);
+      photos = Array.isArray(data.rows) ? data.rows : [];
+      index = Math.min(index, Math.max(photos.length - 1, 0));
+      draw();
+    };
+    dialog.querySelector("[data-partner-photo-add]").onclick = () => dialog.querySelector('input[type="file"]').click();
+    dialog.querySelector('input[type="file"]').onchange = async event => {
+      for (const file of Array.from(event.target.files || [])) {
+        if (file.size > 8 * 1024 * 1024) { toast("Foto\u011fraf boyutu 8 MB s\u0131n\u0131r\u0131n\u0131 a\u015f\u0131yor.", "error"); continue; }
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        let binary = "";
+        for (let offset = 0; offset < bytes.length; offset += 0x8000) binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+        try {
+          await apiFetch("/api/desktop/partners/shipment-photos", { method: "POST", body: JSON.stringify({ ...identity, data: btoa(binary), label: file.name }) });
+          photos.push({ id: "pending", available: false });
+        } catch (error) { toast(error.message || "Foto\u011fraf eklenemedi.", "error"); }
+      }
+      event.target.value = "";
+      index = Math.max(photos.length - 1, 0);
+      try { await load(); } catch (error) { toast(error.message || "Foto\u011fraflar y\u00fcklenemedi.", "error"); }
+    };
+    dialog.querySelector("[data-partner-photo-prev]").onclick = () => { if (photos.length) { index = (index - 1 + photos.length) % photos.length; draw(); } };
+    dialog.querySelector("[data-partner-photo-next]").onclick = () => { if (photos.length) { index = (index + 1) % photos.length; draw(); } };
+    dialog.querySelector("[data-partner-photo-close]").onclick = () => dialog.close();
+    try { await load(); } catch (error) { toast(error.message || "Foto\u011fraflar y\u00fcklenemedi.", "error"); }
   }
 
   async function openPartnerDocuments(shipment = null) {
@@ -222,6 +308,12 @@
       finally { save.disabled = false; }
     };
   }
+
+  window.ayecOpenPartnerFinanceDialog = async function (partnerId) {
+    if (page !== "partners") navigate("partners");
+    await loadPartnerWorkspace(partnerId || selectedPartnerId);
+    return openPartnerFinanceDialog();
+  };
 
   function showPartnerShipmentMenu(event, row) {
     if (typeof ayecContextMenuEnabled === "function" && !ayecContextMenuEnabled("partners")) return;

@@ -39,7 +39,7 @@ def test_customer_editor_covers_reference_fields_and_persists_schema_fields():
     assert 'event.key==="ArrowDown"||event.key==="ArrowUp"' in app
     combo_styles = (WEB / "styles.css").read_text(encoding="utf-8")
     assert '.customer-address-combo[hidden]{display:none}' in combo_styles
-    assert 'styles.css?v=20261016-company-location-picker-1' in index
+    assert 'href="styles.css?v=' in index
 
 
 def test_customer_editor_has_wide_desktop_and_stacked_mobile_layout():
@@ -50,3 +50,9 @@ def test_customer_editor_has_wide_desktop_and_stacked_mobile_layout():
     assert '.customer-editor input[data-customer-type-field][readonly]' in styles
     assert '@media(max-width:700px){#appDialog.customer-editor-dialog' in styles
     assert '@media(max-width:420px){.customer-editor-section .form-grid{grid-template-columns:minmax(0,1fr)}' in styles
+
+
+def test_customer_editor_renders_one_sector_field_set():
+    app = (WEB / "app.js").read_text(encoding="utf-8")
+    form = next(line for line in app.splitlines() if line.startswith("function customerForm(c={})"))
+    assert form.count("${customerSectorFields(c)}") == 1

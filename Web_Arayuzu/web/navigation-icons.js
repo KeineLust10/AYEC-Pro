@@ -5,7 +5,8 @@ const parentKinds = {"service-parent":"tool","automotive-service-parent":"tool",
 const routeKinds = {"service-status":"verified"};
 const iconFor = kind => `<svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${iconPaths[kind]||iconPaths.document}</svg>`;
 function applyNavigationIcons(){
-  const root=document.querySelector("#sidebar");
+  globalThis.ayecApplyNavigationIcons=applyNavigationIcons;
+const root=document.querySelector("#sidebar");
   if(!root||typeof ayecDesktopPageIds==="undefined")return;
   root.querySelectorAll(".nav-button").forEach(button=>{
     const slot=button.querySelector(".nav-icon")||button.querySelector("span:first-child");
@@ -18,6 +19,7 @@ function applyNavigationIcons(){
     slot.dataset.desktopIconKind=kind;slot.innerHTML=iconFor(kind);
   });
 }
+globalThis.ayecApplyNavigationIcons=applyNavigationIcons;
 const root=document.querySelector("#sidebar");
 if(root){new MutationObserver(applyNavigationIcons).observe(root,{childList:true,subtree:true});applyNavigationIcons();}
 })();

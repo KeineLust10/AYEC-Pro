@@ -47,6 +47,7 @@ const menuVisible=item=>!hidden.has(item.id);
 const labelFor=item=>item.label;
 const ayecSectorMenu=sector=>ayecSectorMenuModels[sector];
 const menuLabels=()=>({}),menuVisibility=()=>({});
+const navBadge=()=>"";
 ''' + model + runtime + editor + r'''
 assert.deepEqual(ayecMenuPath('brands').map(item=>item.id),['service-settings-parent','brands']);
 assert.equal(ayecParentForPage('brands'),'service-settings-parent');
@@ -234,7 +235,7 @@ def test_reference_navigation_styles_are_linked_and_keep_mobile_controls_availab
     assert '.nav-button .nav-active-dot' in css
     desktop_parity = (web / 'desktop-parity.css').read_text(encoding='utf-8')
     assert '.sidebar .submenu {\n  display: none;\n  margin: 8px 0 5px 34px;' in desktop_parity
-    assert '.sidebar .submenu .nav-button {\n  min-height: 42px;\n  padding: 6px 0;' in desktop_parity
+    assert '.sidebar .submenu .nav-button {\n  min-height: 42px;\n  padding: 6px 0 6px 15px;\n  gap: 8px;\n  font-size: 12px;\n  font-weight: 500;' in desktop_parity
     assert 'background: var(--ayec-slate-raised);\n  border-color: transparent;\n  color: var(--ayec-electric);' in desktop_parity
     assert 'height: 100dvh' in css
     assert 'width: min(82vw, 292px)' in css
@@ -252,34 +253,56 @@ def test_desktop_parity_shell_uses_one_full_width_sidebar_contract():
     styles = (ROOT / 'Web_Arayuzu' / 'web' / 'styles.css').read_text(encoding='utf-8')
     assert '--sidebar:260px' not in styles
     assert 'html[data-theme="midnight"]' in styles and '--sidebar-bg:#080e1a' in styles
+    assert 'html[data-theme="midnight"]{--bg:#080e1a;--surface:#0d1829;--surface-2:#101a2b;' in styles
     assert 'One shared Midnight Slate navigation contract' not in styles
     assert '<div class="sidebar-license">' in index
     assert '<small id="brandProductName">Servis Y&#246;netimi</small>' in index
     sidebar_css = (ROOT / 'Web_Arayuzu' / 'web' / 'midnight-reference.css').read_text(encoding='utf-8')
-    assert '.sidebar-bottom{height:124px;min-height:124px;padding:20px 0 10px;box-sizing:border-box}' in sidebar_css
+    assert '.sidebar-bottom{height:124px;min-height:124px;margin:0 -13px 0 -12px;padding:10px 12px;box-sizing:border-box}' in sidebar_css
     assert '.sidebar-bottom .user-profile{display:none}' in sidebar_css
+    assert '.sidebar-license{height:53px;min-height:53px;padding:8px 4px;box-sizing:border-box;font-size:10px;font-weight:800}' in sidebar_css
+    assert '.sidebar-license span{display:inline-flex;width:122px;height:32px;align-items:center;justify-content:center;padding:0 6px;box-sizing:border-box;background:var(--surface-2);color:var(--brand)}' in sidebar_css
     desktop_parity = (ROOT / 'Web_Arayuzu' / 'web' / 'desktop-parity.css').read_text(encoding='utf-8')
     assert 'padding: 14px 12px 0;' in desktop_parity
-    assert 'padding-top: 20px;' in desktop_parity and 'padding-bottom: 12px;' in desktop_parity
-    assert '.sidebar .sidebar-bottom .user {\n  margin-top: 17px;' in desktop_parity
+    assert '.sidebar .sidebar-bottom { padding-top: 10px; padding-bottom: 10px; }' in desktop_parity
+    assert '.sidebar .sidebar-bottom .user { margin-top: 6px; }' in desktop_parity
+    assert '.sidebar .brand{height:100px;min-height:100px;margin:1px 2px -12px 3px}' in desktop_parity
+    assert '.sidebar .brand-mark,.sidebar .brand>div,.sidebar .brand-sector{transform:translateY(0)}' in desktop_parity
+    assert '.sidebar .brand-sector{margin-left:auto;margin-right:32px}' in desktop_parity
     assert '.sidebar #nav {\n  width: calc(100% + 4px);\n  margin-left: -4px;' in desktop_parity
-    assert '.sidebar #nav > .nav-button {\n  width: calc(100% - 7px);\n  margin-left: 0;\n  padding-left: 14px;\n  gap: 13px;' in desktop_parity
+    assert '.sidebar #nav > .nav-button {\n  width: calc(100% + 5px);\n  margin-left: 0;\n  padding-left: 14px;\n  gap: 13px;' in desktop_parity
 
 
     assert 'v2.0.4 Premium</span>' in index
     assert 'id="logoutBtn"' in index and 'Oturumu Kapat</button>' in index
     assert '.sidebar-bottom .user-logout{width:100%;height:44px' in styles
-    styles = (ROOT / 'Web_Arayuzu' / 'web' / 'desktop-parity.css').read_text(encoding='utf-8')
-    styles = (ROOT / 'Web_Arayuzu' / 'web' / 'desktop-parity.css').read_text(encoding='utf-8')
     assert index.index('midnight-reference.css') < index.index('desktop-parity.css')
     assert index.index('automotive-parity.css') < index.index('desktop-parity.css')
-    assert 'desktop-parity.css?v=20261016-sidebar-brand-mark-1' in index
-    assert '--sidebar: 320px' in styles
+    assert re.search(r'desktop-parity\.css\?v=[^" ]+', index)
+    assert re.search(r'app\.js\?v=[^" ]+', index)
+    assert '.sidebar .sidebar-bottom{background:#0d1829}' in desktop_parity
+    assert 'html[data-theme="midnight"] .sidebar .sidebar-bottom{background:#080e1a}' not in desktop_parity
+    assert 'html[data-theme="midnight"] .sidebar{font-family:"Segoe UI",sans-serif}' in desktop_parity
+    styles = desktop_parity
+    assert 'id="headerBackBtn"' in index and 'class="header-app-logo"' in index
+    assert 'id="headerThemePicker"' in index and 'id="headerSettingsBtn"' in index
+    assert 'id="globalSearch" placeholder="Sistem genelinde ara (Marka, Seri No, ...)"' in index
+    assert 'id="assistantHeaderBtn"' in index and 'id="headerProfileActions"' in index
+    assert '--sidebar: min(320px, max(240px, 20vw));' in styles
     assert '.sidebar .nav-button.active' in styles
     assert '.sidebar-bottom > .nav-button[data-page="settings"]' in styles
-    assert '"sidebar topbar"\n    "sidebar main"' in styles
-    assert 'grid-row: 1 / span 2;' in styles
-    assert 'top: 0;\n  height: 100vh;' in styles
+    assert '"topbar topbar"\n    "sidebar main"' in styles
+    assert 'grid-row: 2;\n  top: 70px;\n  height: calc(100vh - 86px);' in styles
+    assert '.header-back:disabled' in styles
+    assert '.topbar-tool[hidden]' in styles
+    assert 'margin-right: 78px;' in styles
+    assert 'flex: 0 0 118px;' in styles
+    assert '.app-shell>.topbar>div:first-of-type{flex:0 0 116px;width:116px;min-width:0;overflow:hidden}' in styles
+    assert '.app-shell>.topbar #pageTitle{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' in styles
+    assert '.app-shell>.topbar>.top-actions{flex:0 0 auto;gap:6px;margin-left:auto}' in styles
+    assert '.app-shell>.topbar>.header-assistant{flex:0 0 32px;margin-left:0}' in styles
+    assert '@media(min-width:761px){.sidebar #nav{width:calc(100% + 17px)}.sidebar nav#nav::-webkit-scrollbar{width:8px}}' in styles
+    assert '.app-shell>.topbar>.top-actions>.global-search-wrap{position:absolute;left:304px;' in styles
     assert 'customer-banners button[data-customer-filter="vip"]' in styles
     assert 'customer-export-actions .mini' in styles
     assert '@media (max-width: 760px)' in styles
@@ -290,10 +313,12 @@ def test_desktop_parity_shell_uses_one_full_width_sidebar_contract():
     forest = (ROOT / 'src' / 'themes' / 'forest_theme.json').read_text(encoding='utf-8')
     assert '"window": "#0A1410"' in forest
     assert '"accent": "#10B981"' in forest
+
+
     assert 'html[data-theme="forest"]' in styles
     assert '--bg: #0a1410' in styles
     assert '--brand: #10b981' in styles
-    assert 'background: var(--sidebar-bg, var(--ayec-slate-bg))' in styles
+    assert 'background: linear-gradient(180deg, var(--ayec-slate-bg) 0%, var(--ayec-slate-bg) 28%, var(--ayec-slate-panel) 72%, var(--ayec-slate-panel) 100%)' in styles
     assert '.template-categories button.active' in styles
     assert '.template-table-card th' in styles
     assert '.einvoice-table th' in styles
@@ -303,11 +328,66 @@ def test_desktop_parity_shell_uses_one_full_width_sidebar_contract():
 
 
 
+def test_desktop_header_has_no_global_quick_add_but_dashboard_workflow_remains():
+    root = ROOT / 'Web_Arayuzu' / 'web'
+    index = (root / 'index.html').read_text(encoding='utf-8')
+    app = (root / 'app.js').read_text(encoding='utf-8')
+    dashboard = (root / 'dashboard-parity.js').read_text(encoding='utf-8')
+    header = index.split('<header class="topbar">', 1)[1].split('</header>', 1)[0]
+
+    assert 'data-action="quick-add"' not in header
+    assert 'data-action="quick-add"' in dashboard
+    assert 'if(action==="quick-add")' in app
+
+
+def test_desktop_assistant_header_opens_chat_panel_and_routes_native_shortcuts():
+    root = ROOT / 'Web_Arayuzu' / 'web'
+    index = (root / 'index.html').read_text(encoding='utf-8')
+    panel = (root / 'desktop-assistant-panel.js').read_text(encoding='utf-8')
+    desktop_header = (ROOT / 'src' / 'ui' / 'components' / 'app_header.py').read_text(encoding='utf-8')
+    breadcrumb = (ROOT / 'src' / 'ui' / 'widgets' / 'breadcrumb.py').read_text(encoding='utf-8')
+
+    assert 'self.btn_shortcuts' in desktop_header
+    assert 'self.assistant_btn.clicked.connect(self.main_window.toggle_assistant)' in breadcrumb
+    assert 'desktop-assistant-panel.js?v=20261017-1' in index
+    assert 'desktop-assistant-panel.css?v=20261017-1' in index
+    assert 'button.onclick = event =>' in panel
+    assert 'panel.id = "desktopAssistantPanel"' in panel
+    assert 'route: "finance"' in panel
+    assert 'route: "stock"' in panel
+    assert 'route: "appointments"' in panel
+    assert 'addEventListener("pointerdown"' in panel
+    assert 'window.speechSynthesis.speak(utterance)' in panel
+    assert 'db.settings?.asistan_voice_enabled' in panel
+    assert 'apiFetch("/api/desktop/assistant/query"' in panel
+
+
+def test_desktop_header_shortcuts_toggle_matches_dashboard_overlay():
+    root = ROOT / 'Web_Arayuzu' / 'web'
+    index = (root / 'index.html').read_text(encoding='utf-8')
+    styles = (root / 'desktop-shortcuts-header.css').read_text(encoding='utf-8')
+    script = (root / 'desktop-shortcuts-header.js').read_text(encoding='utf-8')
+    dashboard = (root / 'dashboard-parity.js').read_text(encoding='utf-8')
+    desktop_header = (ROOT / 'src' / 'ui' / 'components' / 'app_header.py').read_text(encoding='utf-8')
+    desktop_dashboard = (ROOT / 'src' / 'ui' / 'pages' / 'dashboard_page.py').read_text(encoding='utf-8')
+
+    assert 'id="headerShortcutsBtn"' in index
+    assert 'desktop-shortcuts-header.css?v=20261017-1' in index
+    assert 'desktop-shortcuts-header.js?v=20261017-1' in index
+    assert 'self.btn_shortcuts.hide()' in desktop_header
+    assert 'self.btn_shortcuts.setVisible(True)' in desktop_header
+    assert 'def toggle_shortcut_screen(self)' in desktop_dashboard
+    assert 'window.toggleDesktopDashboardShortcuts=()=>{' in dashboard
+    assert 'shortcutOverlayOpen=!shortcutOverlayOpen' in dashboard
+    assert 'window.toggleDesktopDashboardShortcuts()' in script
+    assert '@media(min-width:1400px)' in styles
+
+
 def test_sidebar_uses_desktop_navigation_glyphs_for_page_ids():
     root = ROOT / 'Web_Arayuzu' / 'web'
     index = (root / 'index.html').read_text(encoding='utf-8')
     icons = (root / 'navigation-icons.js').read_text(encoding='utf-8')
-    assert 'navigation-icons.js?v=20261014-sidebar-svg-icons-1' in index
+    assert 'navigation-icons.js?v=20261017-sidebar-icons-render-2' in index
     assert 'ayecDesktopPageIds[button.dataset.page]' in icons
     assert 'button.dataset.parent.replace(/^nav-(?:teknik_servis|otomotiv)-/,"")' in icons
     assert '"41":"board"' in icons and '"42":"clipboard"' in icons
@@ -317,13 +397,16 @@ def test_sidebar_uses_desktop_navigation_glyphs_for_page_ids():
     assert 'background: transparent !important;' in desktop_parity
 
 
-def test_sidebar_logo_placeholder_matches_desktop_without_company_logo():
+def test_sidebar_logo_falls_back_to_product_logo_without_company_logo():
     app = (ROOT / 'Web_Arayuzu' / 'web' / 'app.js').read_text(encoding='utf-8')
     start = app.index('function refreshCompanyLogo(){')
     end = app.index('\nasync function uploadCompanyLogo', start)
     source = app[start:end]
     assert 'if(initial)initial.hidden=true;' in source
-    assert 'image.onerror=()=>{image.hidden=true;if(initial)initial.hidden=true};' in source
+    assert 'const fallback="/assets/ayec-logo.png";' in source
+    assert 'image.src=currentAuthUser?`/api/desktop/company-logo?v=${Date.now()}`:fallback;' in source
+    assert 'if(image.src!==new URL(fallback,location.href).href){image.src=fallback;return}' in source
+    assert 'if(initial)initial.hidden=false' in source
 
 def test_settings_route_is_not_duplicated_between_navigation_and_sidebar_footer():
     index = (ROOT / "Web_Arayuzu" / "web" / "index.html").read_text(encoding="utf-8")
@@ -543,7 +626,7 @@ def test_unified_sidebar_pin_persists_desktop_expand_and_hover_behavior():
     assert 'localStorage.setItem("ayec-sidebar-pinned"' in app
     assert 'pointerenter' in app and 'sidebar-peek' in app
     assert 'currentSector==="otomotiv"?"OTOMOTIV MODU":"ERP"' in app
-    assert 'width: 76px' in styles
+    assert 'width: 64px' in styles
     assert '.sidebar .brand-sector' in styles
     assert '.sidebar-pin {\n    display: none;' in styles
 
@@ -601,6 +684,14 @@ assert.equal(storage.values['ayec-sidebar-pinned'],'0');
 
 def test_midnight_sidebar_brand_mark_matches_dark_blue_active_surface():
     css = (ROOT / "Web_Arayuzu" / "web" / "desktop-parity.css").read_text(encoding="utf-8")
+    midnight = (ROOT / "Web_Arayuzu" / "web" / "midnight-reference.css").read_text(encoding="utf-8")
     index = (ROOT / "Web_Arayuzu" / "web" / "index.html").read_text(encoding="utf-8")
     assert 'html[data-theme="midnight"] .sidebar .brand-mark{background:#1e304d;border-color:#1b2a42}' in css
-    assert 'desktop-parity.css?v=20261016-sidebar-brand-mark-1' in index
+    assert 'background: linear-gradient(180deg, var(--ayec-slate-bg) 0%, var(--ayec-slate-bg) 28%, var(--ayec-slate-panel) 72%, var(--ayec-slate-panel) 100%)' in css
+    assert re.search(r'desktop-parity\.css\?v=[^" ]+', index)
+    assert 'body[data-page="appointments"] .appointment-ref-legend' in css
+    assert "--bg: #080E1A;" in midnight and "--surface: #0D1829;" in midnight
+    assert "--surface-2: #101A2B;" in midnight and "--line: #1B2A42;" in midnight
+    assert "--ink: #e2e8f0;" in midnight and "--muted: #94a3b8;" in midnight
+    assert re.search(r'midnight-reference\.css\?v=[^" ]+', index)
+    assert 'var(--ink,#e2e8f0)' in midnight

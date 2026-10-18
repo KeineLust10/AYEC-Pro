@@ -195,6 +195,7 @@ def test_mixed_currency_paid_sale_updates_stock_income_and_cost(
             "customer_name": "Currency Test Customer",
             "currency": "USD",
             "exchange_rate": 40,
+            "transaction_date": "2026-09-19",
             "rates": {"TRY": 1, "USD": 40, "EUR": 50},
             "lines": [{"product_id": part_id, "qty": 1} for part_id in part_ids],
             "vat_rate": 0,
@@ -213,7 +214,7 @@ def test_mixed_currency_paid_sale_updates_stock_income_and_cost(
     ]
     assert stocks == [9.0, 9.0, 9.0]
     income = db.cursor.execute(
-        "SELECT amount,original_amount,try_equivalent,currency,exchange_rate "
+        "SELECT amount,original_amount,try_equivalent,currency,exchange_rate,date "
         "FROM accounting WHERE id=?",
         (result["income_id"],),
     ).fetchone()
@@ -224,6 +225,8 @@ def test_mixed_currency_paid_sale_updates_stock_income_and_cost(
     assert tuple(income[:3]) == pytest.approx((1500, 37.5, 1500))
     assert income[3] == "USD"
     assert float(income[4]) == pytest.approx(40)
+    assert income[5] == "2026-09-19"
+    assert result["transaction_date"] == "2026-09-19"
     assert tuple(cost[:2]) == pytest.approx((750, 750))
     assert cost[2] == "TRY"
     db.close()
@@ -399,6 +402,7 @@ def test_sales_commit_accepts_service_lines_without_stock_movements(
             "customer_name": "Currency Test Customer",
             "currency": "TRY",
             "exchange_rate": 1,
+            "transaction_date": "2026-09-18",
             "rates": {"TRY": 1, "USD": 40, "EUR": 50},
             "lines": [{
                 "line_type": "service",
@@ -421,9 +425,58 @@ def test_sales_commit_accepts_service_lines_without_stock_movements(
     stock = db.cursor.execute(
         "SELECT stock FROM parts WHERE id=?", (part_ids[0],)
     ).fetchone()[0]
+    offer_payload = db.cursor.execute(
+        "SELECT payload_json FROM offers WHERE id=?", (result["offer_id"],)
+    ).fetchone()[0]
     assert tuple(item) == (None, "service", "Installation", 2.0, 750.0, 1500.0)
     assert float(stock) == 10.0
+    assert result["transaction_date"] == "2026-09-18"
+    assert json.loads(offer_payload)["transaction_date"] == "2026-09-18"
     db.close()
+    refreshed = web_main.desktop_bootstrap()
+    saved_offer = next(item for item in refreshed["offers"] if item["id"] == result["offer_id"])
+    assert saved_offer["date"] == "2026-09-18"
+    assert saved_offer["transaction_date"] == "2026-09-18"
+    with pytest.raises(ValueError, match="i.*lem tarihi"):
+        web_main.commit_sales_hub({
+            "mode": "proforma", "customer_id": customer_id,
+            "customer_name": "Currency Test Customer", "currency": "TRY",
+            "exchange_rate": 1, "transaction_date": "2026-99-40",
+            "lines": [{"line_type": "service", "service_name": "Bad date", "qty": 1}],
+        })
+
+
+
+def test_sales_proforma_pdf_uses_saved_transaction_date(tmp_path, monkeypatch):
+    path = tmp_path / "dated-sales-offer.db"
+    customer_id, _part_ids = _sales_database(path)
+    _configure_web_database(monkeypatch, path)
+    result = web_main.commit_sales_hub({
+        "mode": "proforma", "customer_id": customer_id,
+        "customer_name": "Currency Test Customer", "currency": "TRY",
+        "exchange_rate": 1, "transaction_date": "2026-08-21",
+        "lines": [{"line_type": "service", "service_name": "Installation",
+                   "unit_price": 100, "qty": 1}],
+        "offer_no": "DATED-PDF-1",
+    })
+    from src.utils import pdf_manager
+
+    captured = {}
+
+    class FakePDFManager:
+        def __init__(self, _settings):
+            pass
+
+        def create_proforma(self, **kwargs):
+            captured.update(kwargs)
+            Path(kwargs["save_path"]).write_bytes(b"%PDF-test")
+            return True, kwargs["save_path"]
+
+    monkeypatch.setattr(pdf_manager, "PDFManagerQt", FakePDFManager)
+    target, offer_no = web_main.build_offer_pdf(result["offer_id"])
+    assert offer_no == "DATED-PDF-1"
+    assert captured["offer_date"] == "2026-08-21"
+    target.unlink(missing_ok=True)
 
 
 def test_accounting_normalizer_recomputes_try_value_on_currency_change():
@@ -765,4 +818,54 @@ def test_desktop_web_gap_audit_uses_current_layout():
         check=False,
     )
     assert result.returncode == 0, result.stderr
+    report = json.loads(result.stdout)
+    assert report["dialogs"]["desktop"] == 114
+    assert report["dialogs"]["direct_web_routes"] >= 84
+    assert "app_lock_dialog" not in report["dialogs"]["unmapped_workflows"]
+    assert "login_dialog" not in report["dialogs"]["unmapped_workflows"]
+    assert "registration_dialog" not in report["dialogs"]["unmapped_workflows"]
+    assert report["dialogs"]["unmapped_workflows"] == []
+    assert report["dialogs"]["inactive_dialog_entries"] == ["admin_approval_dialog"]
+    assert report["settings"]["missing_keys"] == []
+    assert "voice_input_device" in report["settings"]["native_only_keys"]
+    structural_keys = report["dialogs"]["structural_catalog_entries"]
+    for key in (
+        "modern_confirm", "modern_input_dialog", "modern_select_dialog",
+        "password_prompt_dialog", "simple_confirm",
+    ):
+        assert key in structural_keys
+    app_source = (ROOT / "Web_Arayuzu" / "web" / "app.js").read_text(encoding="utf-8")
+    assert "security_confirm_dialog" not in structural_keys
+    assert "security_confirm_dialog:()=>openSecurityConfirmManifestDialog(dialog)" in app_source
     assert '"sector"' in result.stdout
+
+
+def test_sales_hub_partial_payment_allocates_credit_and_preserves_open_balance(tmp_path, monkeypatch):
+    path = tmp_path / "partial-sale.db"
+    customer_id, part_ids = _sales_database(path)
+    _configure_web_database(monkeypatch, path)
+    result = web_main.commit_sales_hub({
+        "mode": "payment", "customer_id": customer_id, "customer_name": "Currency Test Customer",
+        "currency": "TRY", "exchange_rate": 1, "rates": {"TRY": 1, "USD": 40, "EUR": 50},
+        "lines": [{"product_id": part_ids[0], "qty": 1}], "payment_amount": 1,
+        "payment_method": "Nakit", "payment_note": "Deposit", "reference": "PARTIAL-SALE-1",
+    })
+    db = Database(str(path))
+    transactions = db.cursor.execute(
+        "SELECT transaction_type,amount,current_balance FROM currency_transactions WHERE tracking_no=? ORDER BY id",
+        ("PARTIAL-SALE-1",),
+    ).fetchall()
+    link = db.cursor.execute(
+        "SELECT amount FROM payment_debt_links WHERE payment_txn_id=? AND debt_txn_id=?",
+        (result["credit_id"], result["debit_id"]),
+    ).fetchone()
+    note = db.cursor.execute("SELECT description FROM currency_transactions WHERE id=?", (result["credit_id"],)).fetchone()[0]
+    db.close()
+    assert result["total"] > 1
+    assert result["payment_amount"] == pytest.approx(1)
+    assert result["remaining_amount"] == pytest.approx(result["total"] - 1)
+    assert [row[0] for row in transactions] == ["DEBIT", "CREDIT"]
+    assert float(transactions[0][2]) == pytest.approx(-result["total"])
+    assert float(transactions[1][2]) == pytest.approx(-result["remaining_amount"])
+    assert float(link[0]) == pytest.approx(1)
+    assert "Nakit" in note and "Deposit" in note

@@ -19,6 +19,17 @@ def test_appointment_context_menu_keeps_desktop_separator_before_delete():
     assert "event.stopPropagation();" in menu
 
 
+def test_appointment_double_click_resolves_numeric_database_ids():
+    app = (WEB / "app.js").read_text(encoding="utf-8")
+    audit = (ROOT / "tools" / "quality" / "appointment_color_palette_offscreen.cjs").read_text(encoding="utf-8")
+
+    assert app.count('appointmentDialog(db.appointments.find(x=>String(x.id)===String(row.dataset.id)))') == 2
+    assert 'appointmentDialog(db.appointments.find(x=>x.id===row.dataset.id))' not in app
+    assert 'card.dispatchEvent(new MouseEvent("dblclick"' in audit
+    assert 'page="appointments";document.body.dataset.page=page;render()' in audit
+    assert 'idType !== "number" || doubleClick.rowIdType !== "string"' in audit
+
+
 def test_appointment_calendar_matches_desktop_week_grid_and_slot_actions():
     page = (WEB / "appointments-reference.js").read_text(encoding="utf-8")
     form = (WEB / "appointment-workflow.js").read_text(encoding="utf-8")
@@ -36,6 +47,72 @@ def test_appointment_calendar_matches_desktop_week_grid_and_slot_actions():
     assert "ayecAppointmentView===\"day\"?[new Date()]:weekDays" in page
 
 
+def test_appointment_technician_filter_and_status_use_the_personnel_directory():
+    page = (WEB / "appointments-reference.js").read_text(encoding="utf-8")
+    desktop = (ROOT / "src" / "ui" / "pages" / "appointments_page.py").read_text(encoding="utf-8")
+    assert 'apiFetch("/api/desktop/table/personnel?limit=1000&include_deleted=1")' in page
+    assert 'activePersonnel=namedPersonnel.filter(person=>Number(person.active??1)!==0).sort((a,b)=>String(a.name||"").localeCompare(String(b.name||""),"tr-TR"))' in page
+    assert 'totalTechnicianCount=namedPersonnel.length' in page
+    assert "activeTechnicianCount+'/'+totalTechnicianCount+' Aktif</b>" in page
+    assert 'COALESCE(active, 1)=1' in desktop
+    assert 'COUNT(*) FROM personnel WHERE TRIM(COALESCE(name, \'\'))<>' in desktop
+
+
+def test_appointment_kpis_follow_desktop_completion_and_urgency_fields():
+    page = (WEB / "appointments-reference.js").read_text(encoding="utf-8")
+    desktop = (ROOT / "src" / "ui" / "pages" / "appointments_page.py").read_text(encoding="utf-8")
+    assert 'String(a.status||"").toLocaleLowerCase("tr-TR").startsWith("tamam")' in page
+    assert '["acil","kritik"].includes(String(a.urgency||a.priority||"").toLocaleLowerCase("tr-TR"))' in page
+    assert "casefold().startswith('tamam')" in desktop
+    assert "row_data[8] in ('Acil', 'Kritik')" in desktop
+
+
+def test_appointment_kpi_cards_match_desktop_values_and_surface():
+    page = (WEB / "appointments-reference.js").read_text(encoding="utf-8")
+    style = (WEB / "desktop-parity.css").read_text(encoding="utf-8")
+    desktop = (ROOT / "src" / "ui" / "pages" / "appointments_page.py").read_text(encoding="utf-8")
+    metric = page[page.index("const metric="):page.index("return '<section class=\"appointment-ref-page\"", page.index("const metric="))]
+
+    assert metric.count("<article>") == 4
+    assert "<span>" not in metric
+    assert "for title, value, accent in [" in desktop
+    assert "background: var(--surface-2);" in style
+
+
+def test_appointment_selected_view_uses_desktop_accent_state():
+    style = (WEB / "desktop-parity.css").read_text(encoding="utf-8")
+    desktop = (ROOT / "src" / "ui" / "pages" / "appointments_page.py").read_text(encoding="utf-8")
+    selected = style[style.index('body[data-page="appointments"] .appointment-ref-views button[aria-selected="true"]'):]
+    selected = selected[:selected.index("}")]
+
+    assert "view_buttons[1].setChecked(True)" in desktop
+    assert "border-color:var(--accent,#2563eb)" in selected
+    assert "background:var(--accent,#2563eb)" in selected
+    assert "color:var(--selection-text,#f8fafc)" in selected
+
+
+def test_appointment_today_empty_state_matches_desktop_copy_and_alignment():
+    page = (WEB / "appointments-reference.js").read_text(encoding="utf-8")
+    style = (WEB / "desktop-parity.css").read_text(encoding="utf-8")
+    desktop = (ROOT / "src" / "ui" / "pages" / "appointments_page.py").read_text(encoding="utf-8")
+
+    assert "Bug\\u00fcn i\\u00e7in kay\\u0131tl\\u0131<br>randevu bulunamad\\u0131." in page
+    assert 'QLabel("Bug\u00fcn i\u00e7in kay\u0131tl\u0131\\nrandevu bulunamad\u0131.")' in desktop
+    assert ".appointment-ref-side-list>p:only-child" in style
+    assert "text-align:center" in style
+
+
+def test_appointment_refresh_preserves_plan_item_locations_for_filtering():
+    page = (WEB / "appointments-reference.js").read_text(encoding="utf-8")
+    source = (ROOT / "Web_Arayuzu" / "Main.py").read_text(encoding="utf-8")
+    assert '(a.plan_items||[]).map(item=>String(item.source_location_id||""))' in page
+    assert 'if table == "appointments":' in source
+    appointment_route = source[source.index('if table == "appointments":', source.index('if path.startswith("/api/desktop/table/")')):]
+    appointment_route = appointment_route[:appointment_route.index('if table == "settings":')]
+    assert 'FROM appointment_plan_items WHERE appointment_id IN (' in appointment_route
+    assert 'item["plan_items"] = plan_by_appointment.get(int(item.get("id") or 0), [])' in appointment_route
+
+
 def test_appointment_form_carries_desktop_fields_and_workflow_side_effects():
     form = (WEB / "appointment-workflow.js").read_text(encoding="utf-8")
     app = (WEB / "app.js").read_text(encoding="utf-8")
@@ -51,6 +128,17 @@ def test_appointment_form_carries_desktop_fields_and_workflow_side_effects():
     assert "window.openAppointmentMontagePreparation(Number(saved.id))" in form
     assert "db.personnel=source.personnel||[]" in app
     assert "technician:item.personnel_name||\"\"" in app
+
+
+def test_appointment_color_palette_matches_desktop_swatch_count_and_size():
+    form = (WEB / "appointment-workflow.js").read_text(encoding="utf-8")
+    style = (WEB / "desktop-parity.css").read_text(encoding="utf-8")
+    desktop = (ROOT / "src" / "ui" / "pages" / "appointments_page.py").read_text(encoding="utf-8")
+
+    assert 'colors = [tc("accent"), tc("danger"), tc("success"), tc("warning"), tc("accent"), tc("warning")]' in desktop
+    assert 'style.getPropertyValue("--warn").trim() || "#f59e0b",\n      style.getPropertyValue("--brand").trim() || "#3b82f6",\n      style.getPropertyValue("--warn").trim() || "#f59e0b"' in form
+    assert ".appointment-color-choice{width:36px;height:36px;min-width:36px;min-height:36px" in style
+    assert ".appointment-color-palette{display:flex;align-items:center;gap:10px" in style
 
 
 def test_appointment_hour_and_canceled_edit_follow_desktop_rules():
@@ -118,6 +206,7 @@ def test_appointment_completion_persists_timestamp_and_preserves_installment_pay
     assert "function openAppointmentPayment(id)" in montage
     assert "Montaj tamamland\\u0131 | Teklif: " in montage
     assert "description.value = reference" in montage
+    assert 'if (!customer) {\n      toast("\\u00d6deme i\\u00e7in randevuya ba\\u011fl\\u0131 bir m\\u00fc\\u015fteri se\\u00e7ilmelidir.", "warning");\n      return;\n    }' in montage
 
 
 def test_service_status_print_action_offers_desktop_document_types():
@@ -137,3 +226,4 @@ def test_service_status_print_action_offers_desktop_document_types():
     assert 'apiFetch("/api/desktop/table/used_parts?limit=1000")' in detail
     technician = app[app.index("function technicianDialog(c,s)"):app.index("\n", app.index("function technicianDialog(c,s)"))]
     assert "Number.isInteger(+s.id)?+s.id:" in technician
+    assert '"Haz\\u0131r"' in app

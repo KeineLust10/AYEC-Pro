@@ -449,7 +449,7 @@
       };
       const fieldHtml = key => {
         const item = definitions.get(key);
-        const [name, label, type, fallback] = item || [key, ...(extra[key] || [key, "text", ""])];
+        const [name, label, type, fallback, configuredOptions] = item || [key, ...(extra[key] || [key, "text", ""])];
         const displayLabels = { company_name: "Firma Ad\u0131n\u0131z", company_email: "Firma E-posta Adresiniz", social_facebook: "Facebook Adresiniz", social_instagram: "Instagram Adresiniz", social_youtube: "Youtube Adresiniz", company_website: "Web Site Adresiniz", company_gsm: "Firma GSM Numaran\u0131z", company_fax: "Firma Fax", site_title: "Web Site Title", company_phone: "Firma Sabit Telefonunuz" };
         const shownLabel = displayLabels[name] || label;
         const value = name === "company_authorized_person"
@@ -462,7 +462,9 @@
           return `<label class="field"><span>${shownLabel}</span><select name="${name}">${options.map(option => `<option value="${esc(option)}" ${value === option ? "selected" : ""}>${esc(option)}</option>`).join("")}</select></label>`;
         }
         if (type === "select") {
-          const options = name === "print_document_page_size" ? ["A4", "A3", "A5"] : ["portrait", "landscape"];
+          const options = Array.isArray(configuredOptions)
+            ? configuredOptions
+            : name === "print_document_page_size" ? ["A4", "A3", "A5"] : ["portrait", "landscape"];
           return `<label class="field"><span>${shownLabel}</span><select name="${name}">${options.map(option => `<option value="${option}" ${value === option ? "selected" : ""}>${option}</option>`).join("")}</select></label>`;
         }
         const control = type === "textarea" ? `<textarea name="${name}" rows="${name.includes("contract") ? 3 : 2}">${esc(value)}</textarea>` : `<input name="${name}" type="${type}" value="${esc(value)}">`;
@@ -524,7 +526,7 @@
     try {
       const state = await apiFetch("/api/desktop/security-settings");
       if (!host.isConnected) return;
-      host.querySelectorAll("[data-security-toggle]").forEach(control => { control.checked = Boolean(state[control.dataset.securityToggle]); });
+      host.querySelectorAll("[data-security-toggle]").forEach(control => { control.checked = Boolean(state[control.dataset.securityToggle]); control.dataset.initialChecked = String(control.checked); });
       host.querySelectorAll("[data-security-configured]").forEach(label => { label.textContent = state[label.dataset.securityConfigured] ? "A password is configured. Leave blank to keep it." : "No password configured."; });
       if (state.security_question) {
         const option = [...question.options].find(item => item.value === state.security_question);
@@ -538,13 +540,28 @@
     const questionSelect = host.querySelector("[data-security-question]");
     const question = questionSelect.value === "custom" ? host.querySelector("[data-security-custom-question]").value : questionSelect.value;
     const payload = { security_question: question, security_answer: host.querySelector("[data-security-answer]").value };
+    const autoLogin = host.querySelector('[data-security-toggle="auto_login"]');
     host.querySelectorAll("[data-security-toggle]").forEach(control => { payload[control.dataset.securityToggle] = control.checked; });
     host.querySelectorAll("[data-security-password]").forEach(control => { payload[control.dataset.securityPassword] = control.value; });
-    try {
-      await apiFetch("/api/desktop/security-settings", { method: "POST", body: JSON.stringify(payload) });
+    const persist = async currentPassword => {
+      const requestPayload = { ...payload };
+      if (currentPassword) requestPayload.current_password = currentPassword;
+      await apiFetch("/api/desktop/security-settings", { method: "POST", body: JSON.stringify(requestPayload) });
       host.querySelectorAll("[data-security-password], [data-security-answer]").forEach(control => { control.value = ""; });
       toast("Security settings saved", "success");
       await bindSecurityControls(host);
+    };
+    try {
+      if (autoLogin && String(autoLogin.checked) !== autoLogin.dataset.initialChecked) {
+        const action = autoLogin.checked ? "enable" : "disable";
+        openDialog("Security confirmation", "SECURITY CONFIRMATION", `<div class="field"><p>Enter your current password to ${action} automatic login.</p><label>Current password</label><input type="password" name="password" autocomplete="current-password" required></div>`, async form => {
+          await persist(String(form.get("password") || ""));
+          return true;
+        }, "Verify and save");
+        document.querySelector('#dialogBody input[name="password"]')?.focus();
+        return;
+      }
+      await persist();
     } catch (error) { toast(error.message || "Security settings could not be saved", "error"); }
   }
 
@@ -718,13 +735,18 @@
   const priorRender = render;
   render = function () {
     priorRender();
-    if (page !== "settings" || !["company", "theme", "identity", "security", "license"].includes(settingsSection)) {
+    if (page !== "settings") {
+      document.body.removeAttribute("data-settings-section");
+      if (licenseCountdownTimer) { clearInterval(licenseCountdownTimer); licenseCountdownTimer = null; }
+      return;
+    }
+    document.body.dataset.settingsSection = settingsSection;
+    if (!["company", "theme", "identity", "security", "license"].includes(settingsSection)) {
       if (licenseCountdownTimer) { clearInterval(licenseCountdownTimer); licenseCountdownTimer = null; }
       return;
     }
     const host = document.querySelector(".settings-content");
     if (!host) return;
-    document.body.dataset.settingsSection = settingsSection;
     if (settingsSection === "company") {
       host.innerHTML = companyContent();
       bindCompanyControls(host);
@@ -819,7 +841,7 @@
     if (page !== "settings" || settingsSection !== "security" || !event.target.closest('[data-action="save-settings"]')) return;
     event.preventDefault();
     event.stopImmediatePropagation();
-    const host = document.querySelector("#settingsBody");
+    const host = document.querySelector(".settings-content");
     if (host) saveSecurityControls(host);
   }, true);
 })();

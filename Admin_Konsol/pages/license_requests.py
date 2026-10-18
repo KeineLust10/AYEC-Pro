@@ -11,6 +11,7 @@ from datetime import date, datetime, timezone
 
 import api_client
 from product_catalog import product_code
+from toast import show_toast
 
 
 class _MetricSparkline(QWidget):
@@ -160,6 +161,7 @@ class LicenseRequestsPage(QWidget):
         super().__init__()
         self.orders = []
         self.worker = None
+        self._decision_worker = None
         self.licenses = []
         self.license_worker = None
         self.invite_worker = None
@@ -181,8 +183,9 @@ class LicenseRequestsPage(QWidget):
             QLabel#licenseHsmBadge { color: #adc6ff; background: rgba(77,142,255,0.2); border-radius: 12px; padding: 3px 8px; font: 700 9px 'Segoe UI', Arial; }
             QLabel#licensePageSubtitle { color: #c2c6d6; font-size: 12px; }
             QLabel#licenseMetricTitle { color: #8c909f; font-family: 'Segoe UI', Arial; font-size: 10px; font-weight: 700; }
-            QLabel#licenseMetricValue { color: #dee2f6; font-size: 28px; font-weight: 700; }
+            QLabel#licenseMetricValue { color: #dee2f6; font-size: 24px; font-weight: 700; }
             QLineEdit#licenseSearch { background: #252a39; border: 1px solid #424754; border-radius: 3px; padding: 7px 9px; color: #dee2f6; min-width: 210px; }
+            QLineEdit#requestNoteInput { background: #090e1c; border: 1px solid #365779; border-radius: 5px; padding: 6px 9px; color: #dee2f6; }
             QFrame#detailCard, QFrame#formCard, QFrame#metricCard { background: #161b2a; border: 1px solid #424754; border-radius: 6px; }
             QFrame#metricCard { min-height: 0px; }
             QFrame#licenseInventoryPanel { background: #161b2a; border: 1px solid #252a39; border-radius: 6px; }
@@ -329,8 +332,8 @@ class LicenseRequestsPage(QWidget):
             accent = metric_colors[index]
             card.setStyleSheet(f"QFrame#metricCard {{ background: #1a1f2e; border: none; border-bottom: 3px solid {accent}; border-radius: 10px; }}")
             card_lay = QVBoxLayout(card)
-            card_lay.setContentsMargins(12, 10, 12, 10)
-            card_lay.setSpacing(5)
+            card_lay.setContentsMargins(10, 7, 10, 7)
+            card_lay.setSpacing(2)
             title_row = QHBoxLayout()
             title_row.setContentsMargins(0, 0, 0, 0)
             title_row.setSpacing(4)
@@ -361,7 +364,7 @@ class LicenseRequestsPage(QWidget):
                 f"QProgressBar::chunk {{ background: {accent}; border-radius: 2px; }}"
             )
             card_lay.addWidget(progress)
-            card.setFixedHeight(94)
+            card.setFixedHeight(72)
             summary.addWidget(card, 0, len(self._summary_labels))
             self._summary_labels[key] = value
             self._summary_bars[key] = progress
@@ -410,6 +413,8 @@ class LicenseRequestsPage(QWidget):
         self._cards_grid.setSpacing(12)
         self._request_cards = []
         self._request_card_parts = []
+        self._request_card_parts_by_row = {}
+        self._request_card_rows = []
         queue_layout.addWidget(self._cards_widget)
         root.addWidget(queue_panel)
 
@@ -813,12 +818,15 @@ class LicenseRequestsPage(QWidget):
             )
 
     def populate(self, orders):
+        selected_id = self.selected_order_id()
         self.orders = orders
         self.table.setRowCount(0)
         for card in self._request_cards:
             card.deleteLater()
         self._request_cards = []
         self._request_card_parts = []
+        self._request_card_parts_by_row = {}
+        self._request_card_rows = []
         pending_count = 0
         for order in orders:
             row = self.table.rowCount()
@@ -842,7 +850,7 @@ class LicenseRequestsPage(QWidget):
                 f"Yetkili: {order.get('requester_name') or '-'}\n"
                 f"Konum: {order.get('location_json') or 'Konum bilgisi yok'}"
             )
-            status = str(order.get("status") or "")
+            status = str(order.get("status") or "").strip().casefold()
             cancel_button = QPushButton(
                 "Iptal Edildi" if status == "cancelled" else "Lisansi Iptal Et"
             )
@@ -852,13 +860,22 @@ class LicenseRequestsPage(QWidget):
                 lambda _, current=dict(order): self.cancel_license(current)
             )
             self.table.setCellWidget(row, 8, cancel_button)
-            self._request_cards.append(self._build_request_card(order, row, amount))
             if status in {"payment_pending", "payment_reported"}:
                 pending_count += 1
+                self._request_cards.append(self._build_request_card(order, row, amount))
+                self._request_card_rows.append(row)
         self._queue_badge.setText(f"{pending_count} YEN\u0130 B\u0130LD\u0130R\u0130M \u2014 \u0130NCELEME BEKL\u0130YOR")
         self.status_label.setText(f"{len(orders)} lisans talebi listelendi.")
         if orders:
-            self.table.selectRow(0)
+            selected_row = next(
+                (
+                    row
+                    for row, order in enumerate(orders)
+                    if int(order.get("id") or 0) == selected_id
+                ),
+                0,
+            )
+            self.table.selectRow(selected_row)
         else:
             self.selection_label.setText("Bir lisans talebi secin.")
         self._filter_table()
@@ -867,7 +884,7 @@ class LicenseRequestsPage(QWidget):
     def _build_request_card(self, order, row, amount):
         card = QFrame()
         card.setObjectName("requestCard")
-        card.setMinimumHeight(216)
+        card.setMinimumHeight(250)
         accent = "#00a572" if row % 2 == 0 else "#03b5d3"
         card.setStyleSheet(
             "QFrame#requestCard { background: #1a1f2e; border: 1px solid #252a39; "
@@ -924,6 +941,12 @@ class LicenseRequestsPage(QWidget):
         detail.setWordWrap(True)
         detail.setFixedHeight(60)
         layout.addWidget(detail)
+        note_input = QLineEdit()
+        note_input.setObjectName("requestNoteInput")
+        note_input.setAccessibleName("Red gerekcesi veya yonetici notu")
+        note_input.setPlaceholderText("Red gerekcesi / yonetici notu (reddetmek icin zorunlu)")
+        note_input.setMinimumHeight(34)
+        layout.addWidget(note_input)
         layout.addStretch(1)
         footer = QGridLayout()
         footer.setHorizontalSpacing(8)
@@ -936,28 +959,89 @@ class LicenseRequestsPage(QWidget):
         reject = QPushButton("Reddet")
         reject.setObjectName("requestRejectBtn")
         reject.setStyleSheet("background: #303444; color: #c2c6d6; border: none; border-radius: 6px; padding: 7px 12px;")
+        reject.setMinimumHeight(34)
+        status_code = str(order.get("status") or "").strip().casefold()
+        terminal_statuses = {"active", "approved", "rejected", "cancelled"}
+        reject.setEnabled(status_code not in terminal_statuses)
+        if not reject.isEnabled():
+            reject.setToolTip("Bu durumdaki talep reddedilemez.")
+            reject.setStyleSheet("background: #202431; color: #747987; border: 1px solid #303444; border-radius: 6px; padding: 7px 12px;")
+        else:
+            reject.setCursor(Qt.CursorShape.PointingHandCursor)
         reject.setProperty("requestAction", "reject")
         reject.clicked.connect(lambda _, current=row: self._decide_request(current, False))
         footer.addWidget(reject, 0, 1)
         select = QPushButton("\u00d6nizle")
         select.setObjectName("requestPreviewBtn")
         select.setStyleSheet("background: #303444; color: #dee2f6; border: none; border-radius: 6px; padding: 7px 12px;")
+        select.setMinimumHeight(34)
         select.setProperty("requestAction", "preview")
-        select.clicked.connect(lambda _, current=row: self._select_request(current))
+        select.clicked.connect(lambda _, current=row: self._preview_request(current))
         footer.addWidget(select, 0, 2)
-        approve = QPushButton("Lisans\u0131 Derle & G\u00f6nder")
+        approve = QPushButton("Lisans\u0131 Derle ve G\u00f6nder")
         approve.setObjectName("requestApproveBtn")
+        approve.setMinimumHeight(34)
+        approve.setEnabled(status_code not in terminal_statuses)
+        if status_code != "payment_reported":
+            approve.setToolTip("Onay icin odeme bildirimi bekleniyor.")
+        if not approve.isEnabled():
+            approve.setStyleSheet("background: #202431; color: #747987; border: 1px solid #303444; font-weight: 700;")
+        else:
+            approve.setCursor(Qt.CursorShape.PointingHandCursor)
         approve.setProperty("requestAction", "approve")
         approve.setStyleSheet(f"background: {accent}; color: #002113; border: none; font-weight: 700;")
         approve.clicked.connect(lambda _, current=row: self._decide_request(current, True))
         footer.addWidget(approve, 0, 3)
         layout.addLayout(footer)
-        self._request_card_parts.append((heading, avatar, company_box, status_label, amount_box, footer, client, reject, select, approve))
+        self._request_card_parts.append((heading, avatar, company_box, status_label, amount_box, footer, client, reject, select, approve, note_input))
+        self._request_card_parts_by_row[row] = self._request_card_parts[-1]
         return card
 
     def _decide_request(self, row, approved):
+        if row < 0 or row >= len(self.orders):
+            return
+        parts = self._request_card_parts_by_row.get(row)
+        if parts is None:
+            return
+        note_input = parts[10]
+        status = str(self.orders[row].get("status") or "").strip().casefold()
+        if approved and status != "payment_reported":
+            show_toast(self, "Onay icin odeme bildirimi bekleniyor.", "warning")
+            return
+        note = note_input.text().strip()
+        if not approved and not note:
+            show_toast(self, "Reddetmek icin once gerekce girin.", "warning")
+            note_input.setFocus()
+            return
         self._select_request(row)
-        self.decide(approved)
+        self._queue_badge.setText("L\u0130SANS \u0130\u015eLEM\u0130 G\u00d6NDER\u0130L\u0130YOR")
+        self.decide(approved, note)
+
+    def _preview_request(self, row):
+        self._select_request(row)
+        if row < 0 or row >= len(self.orders):
+            return
+        order = self.orders[row]
+        amount = float(order.get("amount_try") or 0)
+        amount_text = f"{amount:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        details = (
+            f"Talep No: {order.get('request_no') or '-'}\n"
+            f"Firma: {order.get('company_name') or '-'}\n"
+            f"Yetkili: {order.get('requester_name') or '-'}\n"
+            f"E-posta: {order.get('requester_email') or '-'}\n"
+            f"Paket: {order.get('plan_label') or '-'}\n"
+            f"Tutar: {amount_text} TRY\n"
+            f"Durum: {order.get('status') or '-'}\n"
+            f"Odeme referansi: {order.get('payment_reference') or '-'}\n"
+            f"Aciklama: {order.get('description') or order.get('note') or '-'}\n"
+            f"Tarih: {order.get('created_at') or '-'}"
+        )
+        dialog = QMessageBox(self)
+        dialog.setWindowTitle("Lisans talebi onizleme")
+        dialog.setTextFormat(Qt.TextFormat.PlainText)
+        dialog.setText(details)
+        dialog.setStandardButtons(QMessageBox.StandardButton.Ok)
+        dialog.exec()
 
     def _layout_request_cards(self, available_width=None):
         while self._cards_grid.count():
@@ -971,9 +1055,9 @@ class LicenseRequestsPage(QWidget):
         self._cards_widget.setMinimumHeight(max(120, row_count * 208 + max(0, row_count - 1) * self._cards_grid.verticalSpacing()))
 
     def _layout_request_card_controls(self):
-        compact = self.width() < 700
+        compact = self.width() < 1400
         for parts in self._request_card_parts:
-            heading, avatar, company_box, status, amount, footer, client, reject, preview, approve = parts
+            heading, avatar, company_box, status, amount, footer, client, reject, preview, approve, note_input = parts
             heading.removeWidget(avatar)
             heading.removeItem(company_box)
             heading.removeWidget(status)
@@ -1131,8 +1215,15 @@ class LicenseRequestsPage(QWidget):
         for row in range(self.table.rowCount()):
             match = not query or any(query in (self.table.item(row, column).text().casefold() if self.table.item(row, column) else "") for column in range(8))
             self.table.setRowHidden(row, not match)
-            if row < len(self._request_cards):
-                self._request_cards[row].setVisible(match)
+        for card, order_row in zip(self._request_cards, self._request_card_rows):
+            card.setVisible(not query or any(
+                query in (
+                    self.table.item(order_row, column).text().casefold()
+                    if self.table.item(order_row, column)
+                    else ""
+                )
+                for column in range(8)
+            ))
 
     def _show_selected(self):
         row = self.table.currentRow()
@@ -1179,28 +1270,61 @@ class LicenseRequestsPage(QWidget):
         self.status_label.setText("Lisans iptal edildi ve masaustune bildirim gonderildi.")
         self.reload()
 
-    def decide(self, approved):
+    def decide(self, approved, admin_note=None):
+        if self._decision_worker is not None and self._decision_worker.isRunning():
+            self.status_label.setText("Lisans islemi devam ediyor.")
+            return
         order_id = self.selected_order_id()
         if not order_id:
             self.status_label.setText("Lutfen bir lisans talebi secin.")
+            show_toast(self, "Lutfen once bir lisans talebi secin.", "warning")
+            return
+        note = self.note.text().strip() if admin_note is None else str(admin_note).strip()
+        if not approved and not note:
+            show_toast(self, "Reddetmek icin once gerekce girin.", "warning")
             return
         worker = _DecisionWorker(
             order_id,
             approved,
-            self.note.text().strip(),
+            note,
             self.plan.currentData() if approved else "",
         )
         worker.done.connect(lambda result: self._decision_done(approved, result))
-        worker.failed.connect(lambda error: self.status_label.setText(f"Hata: {error}"))
+        worker.failed.connect(self._decision_failed)
+        worker.finished.connect(lambda current=worker: self._decision_worker_finished(current))
+        self._decision_worker = worker
         worker.start()
-        self.worker = worker
+
+    def _decision_worker_finished(self, worker):
+        if self._decision_worker is worker:
+            self._decision_worker = None
+
+    def _decision_failed(self, error):
+        self._queue_badge.setText("L\u0130SANS \u0130\u015eLEM\u0130 BA\u015eARISIZ")
+        self.status_label.setText(f"Hata: {error}")
+        show_toast(self, f"Lisans islemi basarisiz: {error}", "error")
 
     def _decision_done(self, approved, result=None):
+        order_id = self.selected_order_id()
+        updated_orders = []
+        for order in self.orders:
+            updated = dict(order)
+            if int(updated.get("id") or 0) == order_id:
+                updated["status"] = "active" if approved else "rejected"
+            updated_orders.append(updated)
         self.note.clear()
+        self.populate(updated_orders)
         self.status_label.setText("Lisans onaylandi." if approved else "Lisans talebi reddedildi.")
         self.reload()
         if approved and isinstance(result, dict):
             if result.get("mail_sent"):
-                QMessageBox.information(self, "Lisans onayi", "Lisans onaylandi. Musteriye info@ayecpro.com adresinden e-posta gonderildi.")
+                show_toast(self, "Lisans onaylandi ve musteriye e-posta gonderildi.", "success")
             else:
-                QMessageBox.warning(self, "E-posta gonderilemedi", "Lisans onaylandi ancak e-posta gonderilemedi. " + str(result.get("mail_message") or "SMTP ayarlarini kontrol edin."))
+                show_toast(
+                    self,
+                    "Lisans onaylandi ancak e-posta gonderilemedi. "
+                    + str(result.get("mail_message") or "SMTP ayarlarini kontrol edin."),
+                    "warning",
+                )
+        elif not approved:
+            show_toast(self, "Lisans talebi reddedildi.", "success")

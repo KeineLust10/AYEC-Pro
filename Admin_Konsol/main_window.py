@@ -6,10 +6,10 @@ from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
     QLabel, QPushButton, QFrame, QStackedWidget, QSizePolicy,
     QSpacerItem, QMessageBox, QTableWidget, QAbstractItemView, QComboBox,
-    QLineEdit, QProgressBar
+    QLineEdit, QProgressBar, QToolButton, QMenu
 )
 from PyQt6.QtCore import Qt, QSize, QThread, QTimer, pyqtSignal
-from PyQt6.QtGui import QColor, QFont, QFontDatabase, QIcon, QPainter, QPainterPath, QPen, QPixmap
+from PyQt6.QtGui import QAction, QActionGroup, QColor, QFont, QFontDatabase, QIcon, QPainter, QPainterPath, QPen, QPixmap
 
 from pathlib import Path
 import config
@@ -55,6 +55,13 @@ _NAV_ITEMS = [
     ("server_settings",  "\u2699\ufe0f", "Sunucu Ayarlar\u0131"),
 ]
 
+_PROGRAM_MENU_LABELS = {
+    "AYEC Pro Elek": "Elek",
+    "AYEC Pro Barkod Okuyucu": "Barkod Okuyucu",
+    "AYEC Pro Ciro": "Ciro Takip",
+    "AYEC Pro Teknik Servis": "AYEC Pro Teknik Servis Takip",
+}
+
 
 class _HeaderStatusWorker(QThread):
     done = pyqtSignal(dict)
@@ -90,18 +97,20 @@ QWidget { background: #0b1220; color: #e8eef8; font-family: 'Segoe UI'; }
 #sidebarDivider { background: #22304a; max-height: 1px; }
 
 /* Header */
-#topBar { background: rgba(9, 14, 28, 230); border-bottom: 1px solid rgba(66, 71, 84, 51); font-family: 'Plus Jakarta Sans', 'Segoe UI', Arial; }
+#topBar { background: #0f1523; border-bottom: 1px solid rgba(66, 71, 84, 51); font-family: 'Plus Jakarta Sans', 'Segoe UI', Arial; }
 #topBar[referenceStyle="license"] { background: rgba(22, 27, 42, 242); border-bottom: 0; }
+#topBar[referenceStyle="console"] { background: #090e1c; border-bottom: 1px solid rgba(66, 71, 84, 51); }
 #pageHeaderTitle { color: #dee2f6; font-size: 13px; font-weight: 700; }
-#headerEyebrow { color: #8c909f; font-size: 10px; }
-#globalSearch { background: #161b2a; border: 1px solid #424754; border-radius: 3px;
+#headerEyebrow { color: #c2c6d6; font: 10px "Segoe UI", Arial; }
+#topBar[referenceStyle="console"] #headerEyebrow { color: #dee2f6; font: 700 10px "JetBrains Mono", "Segoe UI", Arial; }
+#globalSearch { background: #161b2a; border: 1px solid rgba(66, 71, 84, 77); border-radius: 4px;
                 padding: 6px 9px; color: #dee2f6; min-width: 170px; }
 #telemetryBar { background: #161b2a; border: 1px solid #424754; border-radius: 3px; }
 #telemetryLabel { color: #8c909f; font-size: 9px; font-weight: 700; }
 #telemetryValue { color: #4edea3; font-size: 9px; font-weight: 700; }
 #headerMetrics { background: #161b2a; border: 1px solid #252a39; border-radius: 4px; }
-#headerMetricLabel { color: #8c909f; font: 700 8px "Segoe UI", Arial; }
-#headerMetricValue { color: #4edea3; font: 700 8px "Segoe UI", Arial; }
+#headerMetricLabel { color: #8c909f; font: 700 9px "Segoe UI", Arial; }
+#headerMetricValue { color: #4edea3; font: 700 9px "Segoe UI", Arial; }
 #headerMetricValue[tone="ram"] { color: #4cd7f6; }
 #headerMetricValue[tone="disk"] { color: #adc6ff; }
 QProgressBar#headerMetricBar { border: 0; border-radius: 2px; background: #303444; min-height: 4px; max-height: 4px; }
@@ -111,7 +120,11 @@ QProgressBar#headerMetricBar[tone="disk"]::chunk { background: #adc6ff; }
 #headerAction { background: #252a39; color: #dee2f6; border: none; border-radius: 3px;
                 padding: 7px 10px; font-size: 11px; }
 #headerPrimaryAction { background: #adc6ff; color: #002e6a; border: none; border-radius: 3px;
-                       padding: 7px 10px; font-size: 11px; font-weight: 700; }
+                       padding: 4px 8px; font-size: 10px; font-weight: 700; }
+#companyMenuButton { background: #161b2a; color: #dee2f6; border: 1px solid #29394f;
+                     border-radius: 4px; padding: 6px 10px; font: 600 10px "Segoe UI", Arial; }
+#companyMenuButton:hover { background: #1a1f2e; border-color: #4d8eff; }
+#companyMenuButton::menu-indicator { subcontrol-origin: padding; subcontrol-position: right center; }
 #serverStatus { background: #161b2a; border: 1px solid #424754; border-radius: 3px; }
 #serverDot { color: #4edea3; font-size: 14px; }
 #serverCaption { color: #8c909f; font-size: 8px; font-weight: 700; }
@@ -329,6 +342,18 @@ class MainWindow(QMainWindow):
         painter.end()
         return QIcon(pixmap)
 
+    @staticmethod
+    def _search_icon() -> QIcon:
+        pixmap = QPixmap(18, 18)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setPen(QPen(QColor("#8c909f"), 1.6, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.drawEllipse(3, 3, 8, 8)
+        painter.drawLine(10, 10, 15, 15)
+        painter.end()
+        return QIcon(pixmap)
+
     def __init__(self):
         super().__init__()
         font_root = Path(__file__).resolve().parent / "assets" / "fonts"
@@ -425,28 +450,36 @@ class MainWindow(QMainWindow):
         top_bar.setObjectName("topBar")
         top_bar.setFixedHeight(56)
         top_bar_lay = QHBoxLayout(top_bar)
-        top_bar_lay.setContentsMargins(16, 0, 16, 0)
+        top_bar_lay.setContentsMargins(40, 0, 16, 0)
         top_bar_lay.setSpacing(8)
+        self._top_bar_layout = top_bar_lay
+        self._header_flex_active = False
+        self._license_gap_active = False
+        self._header_col_removed = False
 
         header_col = QVBoxLayout()
+        self._header_col = header_col
         header_col.setSpacing(0)
-        header_col.addStrut(251)
-        header_eyebrow = QLabel("Sistem  /  Yonetim Konsolu  /")
+        header_col.addStrut(259)
+        header_eyebrow = QLabel("Sistem  /  Yonetim Konsolu  /  Dashboard")
         header_eyebrow.setObjectName("headerEyebrow")
         header_col.addWidget(header_eyebrow)
         self._header_title = QLabel("Dashboard")
         self._header_title.setObjectName("pageHeaderTitle")
         header_col.addWidget(self._header_title)
+        self._header_title.hide()
+        self._header_eyebrow = header_eyebrow
         top_bar_lay.addLayout(header_col)
         self._global_search = QLineEdit()
         self._global_search.setObjectName("globalSearch")
         self._global_search.setPlaceholderText("Firma, lisans veya hata ara...")
         self._global_search.setClearButtonEnabled(True)
         self._global_search.setFixedWidth(320)
+        self._global_search.addAction(self._search_icon(), QLineEdit.ActionPosition.LeadingPosition)
         self._global_search.returnPressed.connect(self._submit_global_search)
         top_bar_lay.addWidget(self._global_search)
 
-        self._product_selector = QComboBox()
+        self._product_selector = QComboBox(self)
         self._product_selector.setToolTip("Yonetilecek urunu secin")
         self._product_selector.addItems(product_names())
         self._product_selector.currentTextChanged.connect(self._product_changed)
@@ -475,7 +508,7 @@ class MainWindow(QMainWindow):
             metric_bar.setRange(0, 100)
             metric_bar.setValue(0)
             metric_bar.setTextVisible(False)
-            metric_bar.setFixedWidth(36)
+            metric_bar.setFixedWidth(48)
             metric_bar.setAccessibleName(label + " utilization")
             metric_value.setAccessibleName(label + " usage percentage")
             metric_layout.addWidget(metric_label)
@@ -483,18 +516,20 @@ class MainWindow(QMainWindow):
             metric_layout.addWidget(metric_value)
             telemetry_layout.addWidget(metric)
             self._header_metric_widgets[key] = (metric_bar, metric_value)
-        telemetry.setFixedWidth(385)
+        telemetry.setFixedWidth(361)
         top_bar_lay.addWidget(telemetry)
         refresh_header = QPushButton("\u21bb")
         refresh_header.setObjectName("headerAction")
         refresh_header.setFixedSize(32, 32)
         refresh_header.setToolTip("Telemetriyi yenile")
         refresh_header.clicked.connect(self._refresh_shell_status)
+        self._refresh_header_button = refresh_header
         top_bar_lay.addWidget(refresh_header)
-        quick_header = QPushButton("\u26a1\nHizli Islem")
+        quick_header = QPushButton("\u26a1  Hizli Islem")
         quick_header.setObjectName("headerPrimaryAction")
-        quick_header.setFixedSize(88, 48)
+        quick_header.setFixedSize(88, 32)
         quick_header.clicked.connect(lambda: self._navigate("license_requests"))
+        self._quick_header_button = quick_header
         top_bar_lay.addWidget(quick_header)
         self._header_notifications = QPushButton()
         self._header_notifications.setObjectName("headerAction")
@@ -511,6 +546,34 @@ class MainWindow(QMainWindow):
         account.setStyleSheet("background: #adc6ff; color: #002e6a; border-radius: 16px; font-weight: 700;")
         account.setToolTip("Platform Admin")
         top_bar_lay.addWidget(account)
+        self._firm_menu = QMenu(self)
+        manage_companies = self._firm_menu.addAction("Firma Y\u00f6netimi")
+        manage_companies.triggered.connect(lambda: self._navigate("companies"))
+        self._firm_menu.addSeparator()
+        self._firm_menu.addSection("Programlar\u0131m")
+        self._program_action_group = QActionGroup(self)
+        self._program_action_group.setExclusive(True)
+        self._program_actions = {}
+        for name in product_names():
+            action = QAction(_PROGRAM_MENU_LABELS.get(name, name), self._firm_menu)
+            action.setCheckable(True)
+            action.setData(name)
+            action.setChecked(name == self._active_product)
+            self._program_action_group.addAction(action)
+            self._firm_menu.addAction(action)
+            self._program_actions[name] = action
+        self._program_action_group.triggered.connect(
+            lambda action: self._select_program(str(action.data() or ""))
+        )
+        self._firm_button = QToolButton()
+        self._firm_button.setObjectName("companyMenuButton")
+        self._firm_button.setText("Programlarim \u25be")
+        self._firm_button.setMenu(self._firm_menu)
+        self._firm_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self._firm_button.setToolTip("Firma ve program kapsam\u0131n\u0131 se\u00e7in")
+        self._firm_button.setAccessibleName("Firmalar ve Programlar\u0131m men\u00fcs\u00fc")
+        self._firm_button.setMinimumWidth(112)
+        top_bar_lay.insertWidget(top_bar_lay.count() - 1, self._firm_button)
         right_lay.addWidget(top_bar)
 
         # Stacked pages
@@ -525,13 +588,19 @@ class MainWindow(QMainWindow):
         self._active_product = str(product_name or "AYEC Pro Teknik Servis")
         api_client.set_product_context(product_code(self._active_product))
         self._header_title.setToolTip("Urun: " + self._active_product)
-        # Only refresh the visible page here.  Hidden pages may still have a
-        # running QThread; restarting all of them on every combo-box change
-        # can destroy an active thread and abort the Qt process.
+        program_action = getattr(self, "_program_actions", {}).get(self._active_product)
+        if program_action and not program_action.isChecked():
+            program_action.setChecked(True)
         page = self._pages.get(self._current_page)
-        setter = getattr(page, 'set_product_filter', None)
-        if setter:
-            setter(self._active_product)
+        product_filter = getattr(page, "set_product_filter", None)
+        if callable(product_filter):
+            product_filter(self._active_product)
+
+    def _select_program(self, product_name: str):
+        if product_name not in product_names():
+            return
+        self._product_selector.setCurrentText(product_name)
+        self._navigate("companies")
 
     def _refresh_shell_status(self):
         self._refresh_current_page()
@@ -614,9 +683,6 @@ class MainWindow(QMainWindow):
                     page.navigate_requested.connect(self._navigate)
                 self._pages[page_id] = page
                 self._stack.addWidget(page)
-                setter = getattr(page, 'set_product_filter', None)
-                if setter:
-                    setter(self._active_product)
             else:
                 placeholder = QLabel(f"Sayfa bulunamadi: {page_id}")
                 placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -644,6 +710,9 @@ class MainWindow(QMainWindow):
             return
         self._current_page = page_id
         page = self._get_page(page_id)
+        product_filter = getattr(page, "set_product_filter", None)
+        if callable(product_filter):
+            product_filter(self._active_product)
         self._stack.setCurrentWidget(page)
 
         # Nav buton stillerini guncelle
@@ -659,9 +728,58 @@ class MainWindow(QMainWindow):
 
     def _apply_reference_header_layout(self, page_id: str):
         is_license = page_id == "license_requests"
+        is_console = page_id in {"backups", "updates", "limits", "server_settings"}
         self._top_bar.setFixedHeight(48 if is_license else 56)
-        self._global_search.setFixedWidth(256 if is_license else 320)
-        self._top_bar.setProperty("referenceStyle", "license" if is_license else "standard")
+        self._global_search.setFixedWidth(256 if is_license else 288 if is_console else 320)
+        self._top_bar.setProperty("referenceStyle", "license" if is_license else "console" if is_console else "standard")
+        if hasattr(self, "_header_col"):
+            self._header_col.takeAt(0)
+            header_width = 0 if is_license else 138 if is_console else 259
+            self._header_col.insertItem(0, QSpacerItem(
+                header_width, 0, QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Minimum
+            ))
+        if hasattr(self, "_top_bar_layout"):
+            if is_license and not self._header_col_removed:
+                self._top_bar_layout.takeAt(0)
+                self._header_col_removed = True
+            elif not is_license and self._header_col_removed:
+                self._top_bar_layout.insertLayout(0, self._header_col)
+                self._header_col_removed = False
+            self._top_bar_layout.setContentsMargins(4 if is_license else 44 if is_console else 40, 0, 16, 0)
+            self._top_bar_layout.setSpacing(0 if is_license else 8)
+            self._top_bar_layout.setAlignment(Qt.AlignmentFlag.AlignLeft if is_license else Qt.AlignmentFlag(0))
+            after_search = 1 if self._header_col_removed else 2
+            if is_license and not self._license_gap_active:
+                self._top_bar_layout.insertSpacing(after_search, 12)
+                self._license_gap_active = True
+            elif not is_license and self._license_gap_active:
+                self._top_bar_layout.takeAt(after_search)
+                self._license_gap_active = False
+            if is_license and self._header_flex_active:
+                self._top_bar_layout.takeAt(after_search + (1 if self._license_gap_active else 0))
+                self._header_flex_active = False
+            if is_console and not self._header_flex_active:
+                self._top_bar_layout.insertStretch(after_search, 1)
+                self._header_flex_active = True
+            elif not is_console and self._header_flex_active:
+                self._top_bar_layout.takeAt(after_search + (1 if self._license_gap_active else 0))
+                self._header_flex_active = False
+            self._top_bar_layout.invalidate()
+            self._top_bar_layout.activate()
+        if hasattr(self, "_header_eyebrow"):
+            self._header_eyebrow.setVisible(not is_license)
+            if is_license:
+                self._header_eyebrow.setFixedWidth(0)
+                self._header_title.setFixedWidth(0)
+            else:
+                self._header_eyebrow.setMinimumWidth(0)
+                self._header_eyebrow.setMaximumWidth(16777215)
+                self._header_title.setMinimumWidth(0)
+                self._header_title.setMaximumWidth(16777215)
+            self._header_eyebrow.setText(
+                "KONSOL  /  Y\u00d6NET\u0130M"
+                if is_console else "Sistem  /  Yonetim Konsolu  /  Canl\u0131 Izleme"
+            )
         self._top_bar.style().unpolish(self._top_bar)
         self._top_bar.style().polish(self._top_bar)
 

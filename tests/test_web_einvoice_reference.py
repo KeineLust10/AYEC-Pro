@@ -1,9 +1,15 @@
 import io
+import os
+import subprocess
+import threading
+from http.server import ThreadingHTTPServer
 from pathlib import Path
 
+import requests
 from pypdf import PdfReader
 
 from Web_Arayuzu import Main as web_main
+from tests.test_vendor_management_center import _setup_tenant
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -62,6 +68,46 @@ def test_invoice_summary_rows_keep_semantic_colors_without_filled_blocks():
     assert ".einvoice-summary .invoice-total-row.danger" in styles
     assert ".einvoice-summary .invoice-total-row.success" in styles
     assert "background: transparent;" in styles
+
+
+def test_authenticated_offscreen_invoice_keyboard_shortcuts_match_desktop(monkeypatch, tmp_path):
+    _actor, _tenant_path = _setup_tenant(monkeypatch, tmp_path)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), web_main.AYECRequestHandler)
+    worker = threading.Thread(target=server.serve_forever, daemon=True)
+    worker.start()
+    base_url = f"http://127.0.0.1:{server.server_address[1]}"
+    try:
+        session = requests.Session()
+        session.headers["Origin"] = base_url
+        login = session.post(
+            f"{base_url}/api/auth/login",
+            json={"identifier": "customer-admin", "password": "oldpass123", "tenant_id": "tenant-1"},
+        )
+        assert login.status_code == 200
+        env = os.environ.copy()
+        env["AYEC_AUDIT_URL"] = f"{base_url}/"
+        env["AYEC_EINVOICE_SESSION_COOKIE"] = session.cookies.get("ayec_session")
+        env["AYEC_AUDIT_CDP_PORT"] = "9261"
+        audit = subprocess.run(
+            ["node", "tools/quality/einvoice_keyboard_offscreen.cjs"],
+            cwd=ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=45,
+            check=False,
+        )
+        assert audit.returncode == 0, audit.stderr or audit.stdout
+        assert '"afterF2":2' in audit.stdout
+        assert '"f4FocusedCustomer":true' in audit.stdout
+        assert '"sendCalls":1' in audit.stdout
+        assert '"role":"Admin"' in audit.stdout
+    finally:
+        server.shutdown()
+        server.server_close()
+        worker.join(timeout=2)
 
 
 def test_invoice_desktop_uses_a_single_reference_header_and_full_width_columns():

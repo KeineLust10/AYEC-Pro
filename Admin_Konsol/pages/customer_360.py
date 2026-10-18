@@ -3,7 +3,7 @@
 from PyQt6.QtCore import QThread, pyqtSignal
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QBoxLayout, QLabel, QFrame, QPushButton,
-    QComboBox, QTableWidget, QTableWidgetItem, QHeaderView, QMessageBox, QSizePolicy,
+    QComboBox, QTableWidget, QTableWidgetItem, QHeaderView, QSizePolicy,
     QListWidget, QListWidgetItem, QLineEdit, QGridLayout, QScrollArea, QApplication,
 )
 from PyQt6.QtCore import Qt, QSize
@@ -11,6 +11,7 @@ from PyQt6.QtGui import QFont, QFontDatabase
 from pathlib import Path
 
 import api_client
+from toast import show_toast
 
 
 _MONO_FONT_PATH = Path(__file__).resolve().parents[2] / "Web_Arayuzu" / "web" / "assets" / "fonts" / "JetBrainsMono-Regular.ttf"
@@ -830,4 +831,4 @@ class Customer360Page(QWidget):
         if tenant_id:
             self._load_customer(tenant_id)
         else:
-            QMessageBox.information(self, "Bilgi", "\u00d6nce bir firma se\u00e7in.")
+            show_toast(self, "\u00d6nce bir firma se\u00e7in.", "info")

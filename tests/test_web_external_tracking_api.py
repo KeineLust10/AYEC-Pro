@@ -78,8 +78,20 @@ def test_external_tracking_crud_uses_active_tenant(monkeypatch, tmp_path):
         photo_id = uploaded.json()["id"]
         with sqlite3.connect(tenant_path) as conn:
             assert conn.execute("SELECT stage FROM photos WHERE id=?", (photo_id,)).fetchone()[0] == "Giri\u015f"
+        second_uploaded = session.post(
+            photos_url,
+            json={
+                "tracking_no": "M.NO 1025",
+                "label": "work-stage.png",
+                "stage": "\u0130\u015flem",
+                "data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p4sAAAAASUVORK5CYII=",
+            },
+        )
+        assert second_uploaded.status_code == 201
         listed = session.get(f"{photos_url}?tracking_no=M.NO%201025").json()["rows"]
-        assert [photo["id"] for photo in listed] == [photo_id]
+        assert {photo["id"] for photo in listed} == {photo_id, second_uploaded.json()["id"]}
+        stage_listed = session.get(photos_url, params={"tracking_no": "M.NO 1025", "stage": "Giri\u015f"}).json()["rows"]
+        assert [photo["id"] for photo in stage_listed] == [photo_id]
         documents = session.get(f"{base_url}/api/desktop/documents/center")
         assert documents.status_code == 200
         assert any(row["key"] == f"photo:{photo_id}" and row["available"] for row in documents.json()["rows"])

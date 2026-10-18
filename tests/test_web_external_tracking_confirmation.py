@@ -85,7 +85,9 @@ def test_external_tracking_summary_counts_match_desktop_status_buckets():
 
 def test_external_tracking_page_uses_desktop_column_order_and_month_combo():
     source = (ROOT / "Web_Arayuzu" / "web" / "external-tracking-reference.js").read_text(encoding="utf-8")
-    assert '"KARGO TAK\\u0130P", "GARANT\\u0130 KAPSAMI", "MAL\\u0130YET / TUTAR", "DURUM", "\\u0130\\u015eLEMLER"' in source
+    labels = (r'"Takip No /<br>Servis No"', r'"M\u00FC\u015Fteri & \u00DCr\u00FCn"', r'"D\u0131\u015F Servis / Yer"', r'"G\u00F6nderim<br>Tarihi"', r'"Kargo Takip"', r'"Garanti<br>Kapsam\u0131"', r'"Maliyet /<br>Tutar"', r'"Durum"', r'"\u0130\u015Flemler"')
+    assert all(label in source for label in labels)
+    assert [source.index(label) for label in labels] == sorted(source.index(label) for label in labels)
     assert '<select class="control" id="externalTrackingMonth"' in source
     assert 'const months = [...new Set(rows.map(row => monthOf(row.sent_date)).filter(Boolean))].sort().reverse()' in source
     assert "G\\u00F6sterilen ' + shown.length" in source

@@ -33,11 +33,13 @@
       style.getPropertyValue("--brand").trim() || "#3b82f6",
       style.getPropertyValue("--danger").trim() || "#f43f5e",
       style.getPropertyValue("--success").trim() || "#10b981",
+      style.getPropertyValue("--warn").trim() || "#f59e0b",
+      style.getPropertyValue("--brand").trim() || "#3b82f6",
       style.getPropertyValue("--warn").trim() || "#f59e0b"
     ];
     if (selected && palette.indexOf(selected) < 0) palette.unshift(selected);
     return palette.map(function (color, index) {
-      var active = String(selected || palette[0]).toLowerCase() === color.toLowerCase();
+      var active = String(selected || palette[0]).toLowerCase() === color.toLowerCase() && palette.lastIndexOf(color) === index;
       return '<button type="button" class="appointment-color-choice' + (active ? ' selected' : '') + '" data-appointment-color="' + esc(color) + '" aria-label="Renk etiketi ' + (index + 1) + '" aria-pressed="' + active + '" style="background:' + esc(color) + '"></button>';
     }).join("");
   }

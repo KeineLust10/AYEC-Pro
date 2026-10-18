@@ -119,6 +119,22 @@ async function run() {
     if (!disabled || result.restricted.find(item => item.action === "bank-detail")?.disabled || exceptions.length) throw new Error(`Bank context authorization mismatch: ${JSON.stringify({ result, exceptions })}`);
     if (result.doubleClick.calls.length !== 1 || result.doubleClick.bankName !== "Fixture Bank A" || !result.doubleClick.opened) throw new Error(`Bank account double-click edit mismatch: ${JSON.stringify(result.doubleClick)}`);
     if (result.loanDisabled.prevented || result.loanDisabled.open || !result.loanEnabled.prevented || !result.loanEnabled.open || JSON.stringify(result.loanEnabled.actions) !== JSON.stringify(["edit", "bulk", "details", "add-installment", "cancel", "delete"])) throw new Error(`Loan context preference/action mismatch: ${JSON.stringify({ disabled: result.loanDisabled, enabled: result.loanEnabled })}`);
+    const menuRect = await evaluate(`(() => {
+      document.querySelectorAll("#contextMenu, #loanContextMenu").forEach(menu => menu.classList.remove("open"));
+      document.querySelector("#appDialog")?.close();
+      currentAuthUser = { role: "Admin" };
+      desktopSettings.rc_bank = "1";
+      const card = document.querySelector('[data-bank-card="702"]');
+      card.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 1240, clientY: 870 }));
+      const menu = document.querySelector("#contextMenu");
+      const rect = menu.getBoundingClientRect();
+      const style = getComputedStyle(menu);
+      return { x: rect.x + scrollX, y: rect.y + scrollY, width: rect.width, height: rect.height, open: menu.classList.contains("open"), display: style.display, opacity: style.opacity, background: style.backgroundColor };
+    })()`);
+    if (!menuRect.open || menuRect.display === "none" || Number(menuRect.opacity) === 0) throw new Error(`Bank menu screenshot is not visible: ${JSON.stringify(menuRect)}`);
+    await delay(120);
+    const menuShot = await send("Page.captureScreenshot", { format: "png", clip: { x: menuRect.x, y: menuRect.y, width: menuRect.width, height: menuRect.height, scale: 1 }, captureBeyondViewport: true });
+    fs.writeFileSync(path.join(outputDir, "bank-account-context-menu-current-matched-headless.png"), Buffer.from(menuShot.data, "base64"));
     console.log(JSON.stringify({ ...result, browserExceptions: exceptions.length, headless: true }));
   } finally {
     try { socket?.close(); } catch (_) {}

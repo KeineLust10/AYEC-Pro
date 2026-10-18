@@ -1,10 +1,20 @@
 import base64
+import binascii
+import os
+import sqlite3
+import struct
+import subprocess
+import threading
+import zlib
+from http.server import ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
+import requests
 
 import src.database as database_module
 from Web_Arayuzu import Main as web_main
+from tests.test_vendor_management_center import _setup_tenant
 
 
 def test_vehicle_photo_upload_is_stored_under_active_tenant_and_validated(monkeypatch, tmp_path):
@@ -105,12 +115,140 @@ def test_vehicle_photo_list_redacts_legacy_paths(monkeypatch, tmp_path):
     ]
 
 
+def test_vehicle_photo_list_migrates_legacy_app_assets_into_tenant_storage(monkeypatch, tmp_path):
+    project_root = tmp_path / "app"
+    legacy_root = project_root / "assets" / "maintenance_photos"
+    legacy_root.mkdir(parents=True)
+    legacy_photo = legacy_root / "maintenance_9_1.png"
+    legacy_bytes = b"\x89PNG\r\n\x1a\nlegacy photo"
+    legacy_photo.write_bytes(legacy_bytes)
+    tenant_path = tmp_path / "tenant.db"
+    photo_row = {"id": 19, "card_id": 9, "photo_path": str(legacy_photo), "photo_label": "Old part"}
+    commits = []
+
+    class FakeCursor:
+        rowcount = 0
+        result = None
+
+        def execute(self, query, args):
+            if query.startswith("UPDATE vehicle_maintenance_photos"):
+                self.rowcount = 1
+                photo_row["photo_path"] = args[0]
+            else:
+                self.result = {"photo_path": photo_row["photo_path"]}
+            return self
+
+        def fetchone(self):
+            return self.result
+
+    class FakeConnection:
+        def commit(self):
+            commits.append(True)
+
+    class FakeDatabase:
+        cursor = FakeCursor()
+        conn = FakeConnection()
+
+        def __init__(self, path, init_mode):
+            assert Path(path) == tenant_path
+
+        def get_vehicle_maintenance_card(self, card_id):
+            return ({"id": card_id}, [])
+
+        def get_vehicle_maintenance_photos(self, card_id):
+            return [photo_row]
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(database_module, "Database", FakeDatabase)
+    monkeypatch.setattr(web_main, "ROOT", project_root / "Web_Arayuzu")
+    monkeypatch.setattr(web_main, "active_db_path", lambda: tenant_path)
+
+    photos = web_main.vehicle_maintenance_photos(9)
+
+    assert photos == [{"id": 19, "card_id": 9, "photo_label": "Old part", "available": True}]
+    migrated_path = Path(photo_row["photo_path"])
+    assert migrated_path.parent == tmp_path / "maintenance_photos"
+    assert migrated_path.read_bytes() == legacy_bytes
+    assert legacy_photo.read_bytes() == legacy_bytes
+    assert commits == [True]
+    assert web_main.vehicle_maintenance_photo(19) == (legacy_bytes, "image/png")
+
+
 def test_vehicle_photo_gallery_actions_exist_in_web_page():
     source = (Path(__file__).resolve().parents[1] / "Web_Arayuzu" / "web" / "app.js").read_text(encoding="utf-8")
     assert "data-maintenance-photos" in source
     assert 'vehicle-maintenance/photos/${encodeURIComponent(row.id)}' in source
     assert 'vehicle-maintenance/photo/add' in source
     assert 'vehicle-maintenance/photo/delete' in source
+    assert 'Bu eski foto\\u011fraf uygulama klas\\u00f6r\\u00fcnde bulunamad\\u0131 veya desteklenmiyor.' in source
+
+
+def test_hidden_edge_serves_migrated_legacy_vehicle_photo_from_active_tenant(monkeypatch, tmp_path):
+    _actor, tenant_path = _setup_tenant(monkeypatch, tmp_path)
+    app_root = tmp_path / "application"
+    legacy_root = app_root / "assets" / "maintenance_photos"
+    legacy_root.mkdir(parents=True)
+    monkeypatch.setattr(web_main, "ROOT", app_root / "Web_Arayuzu")
+
+    def chunk(kind, payload):
+        value = kind + payload
+        return struct.pack(">I", len(payload)) + value + struct.pack(">I", binascii.crc32(value) & 0xFFFFFFFF)
+
+    png = b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", 1, 1, 8, 6, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(b"\x00\xff\x00\x00\xff")) + chunk(b"IEND", b"")
+    legacy_photo = legacy_root / "maintenance_9_1.png"
+    legacy_photo.write_bytes(png)
+    with sqlite3.connect(tenant_path) as conn:
+        conn.execute(
+            "INSERT INTO vehicle_maintenance_cards(id,vehicle_plate) VALUES(9,'ABC-123')"
+        )
+        conn.execute(
+            "INSERT INTO vehicle_maintenance_photos(card_id,photo_path,photo_label) VALUES(9,?,'Oil Filter')",
+            (str(legacy_photo),),
+        )
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), web_main.AYECRequestHandler)
+    worker = threading.Thread(target=server.serve_forever, daemon=True)
+    worker.start()
+    base_url = f"http://127.0.0.1:{server.server_address[1]}"
+    try:
+        session = requests.Session()
+        session.headers["Origin"] = base_url
+        login = session.post(
+            f"{base_url}/api/auth/login",
+            json={"identifier": "customer-admin", "password": "oldpass123", "tenant_id": "tenant-1"},
+        )
+        assert login.status_code == 200
+        env = os.environ.copy()
+        env["AYEC_AUDIT_URL"] = f"{base_url}/"
+        env["AYEC_MAINTENANCE_SESSION_COOKIE"] = session.cookies.get("ayec_session")
+        env["AYEC_AUDIT_CDP_PORT"] = "9266"
+        audit = subprocess.run(
+            ["node", "tools/quality/maintenance_photo_legacy_offscreen.cjs"],
+            cwd=Path(__file__).resolve().parents[1],
+            env=env,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=45,
+            check=False,
+        )
+        assert audit.returncode == 0, audit.stderr or audit.stdout
+        assert '"loaded":true' in audit.stdout
+        assert '"counter":"1 / 1"' in audit.stdout
+        with sqlite3.connect(tenant_path) as conn:
+            migrated_path = Path(conn.execute(
+                "SELECT photo_path FROM vehicle_maintenance_photos WHERE id=1"
+            ).fetchone()[0])
+        assert migrated_path.parent == tenant_path.parent / "maintenance_photos"
+        assert migrated_path.read_bytes() == png
+        assert legacy_photo.read_bytes() == png
+    finally:
+        server.shutdown()
+        server.server_close()
+        worker.join(timeout=2)
 
 
 def test_vehicle_photo_api_routes_authenticate_and_scope_photo_fetch(monkeypatch):

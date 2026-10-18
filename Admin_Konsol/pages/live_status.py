@@ -364,7 +364,7 @@ class LiveStatusPage(QWidget):
         page_content.setMinimumWidth(0)
         page_content.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         root = QVBoxLayout(page_content)
-        root.setContentsMargins(16, 8, 16, 16)
+        root.setContentsMargins(40, 8, 16, 16)
         root.setSpacing(16)
         page_scroll.setWidget(page_content)
         page_layout.addWidget(page_scroll)
@@ -775,6 +775,7 @@ class LiveStatusPage(QWidget):
     def resizeEvent(self, event):
         super().resizeEvent(event)
         compact = self.width() < 760
+        self._page_scroll.widget().layout().setContentsMargins(16, 8, 16, 16) if compact else self._page_scroll.widget().layout().setContentsMargins(40, 8, 16, 16)
         self._header.setMinimumHeight(270 if compact else 118)
         self._header_layout.setStretchFactor(self._title_column, 0 if compact else 1)
         self._action_column.setContentsMargins(0, 30 if compact else 0, 0, 0)

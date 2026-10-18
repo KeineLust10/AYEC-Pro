@@ -31,6 +31,28 @@ def literal_assignment(path: Path, name: str):
 
 page_names = literal_assignment(DESKTOP / "src" / "utils" / "page_config.py", "PAGE_NAMES")
 manifest = json.loads((ROOT / "web" / "dialogs.generated.json").read_text(encoding="utf-8"))
+app_source = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
+dispatch_start = app_source.find("function openManifestDialog(dialog){")
+dispatch_end = app_source.find("function customerSelect(", dispatch_start)
+dispatch_source = app_source[dispatch_start:dispatch_end] if dispatch_start >= 0 and dispatch_end > dispatch_start else ""
+direct_dialog_keys = sorted(set(re.findall(r"([A-Za-z0-9_]+):\s*(?:async\s*)?\(\)=>", dispatch_source)))
+direct_dialog_key_set = set(direct_dialog_keys)
+manifest_dialog_keys = sorted(item["key"] for item in manifest.get("dialogs", []) if item.get("key"))
+missing_dialog_keys = [key for key in manifest_dialog_keys if key not in direct_dialog_key_set]
+structural_dialog_keys = [
+    key for key in missing_dialog_keys
+    if key.startswith("_") or key.endswith(("_mixin", "_components", "_page1", "_page2", "_page3"))
+    or key in {
+        "base_modern_dialog", "premium_dialogs", "modern_confirm",
+        "modern_input_dialog", "modern_select_dialog", "password_prompt_dialog",
+        "security_confirm_dialog", "simple_confirm",
+    }
+]
+inactive_dialog_keys = [key for key in missing_dialog_keys if key == "admin_approval_dialog"]
+actionable_dialog_keys = [
+    key for key in missing_dialog_keys
+    if key not in set(structural_dialog_keys) | set(inactive_dialog_keys)
+]
 
 settings_files = list((DESKTOP / "src" / "ui" / "pages" / "settings_widgets").glob("*.py"))
 settings_files += [DESKTOP / "src" / "ui" / "pages" / "security_settings_widget.py"]
@@ -106,6 +128,7 @@ native_only_setting_keys = {
     "print_document_printer",
     "print_label_printer",
     "print_receipt_printer",
+    "voice_input_device",
 }
 retired_setting_keys = {"backup_auto_morning", "backup_auto_evening"}
 
@@ -123,7 +146,7 @@ for path in page_files:
 
 report = {
     "pages": {"desktop": len(page_names), "web_labels": sum(name in WEB_TEXT for name in page_names.values()), "missing": [name for name in page_names.values() if name not in WEB_TEXT]},
-    "dialogs": {"desktop": manifest["summary"]["dialog_count"], "web_catalog": "dialog-catalog" in WEB_TEXT, "signals": manifest["summary"]["connection_count"]},
+    "dialogs": {"desktop": manifest["summary"]["dialog_count"], "web_catalog": "dialog-catalog" in WEB_TEXT, "signals": manifest["summary"]["connection_count"], "direct_web_routes": len(direct_dialog_key_set & set(manifest_dialog_keys)), "structural_catalog_entries": structural_dialog_keys, "inactive_dialog_entries": inactive_dialog_keys, "unmapped_workflows": actionable_dialog_keys},
     "settings": {
         "desktop_keys": len(desktop_setting_keys),
         "web_keys": len(web_setting_keys),

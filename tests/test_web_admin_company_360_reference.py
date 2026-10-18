@@ -15,7 +15,27 @@ def test_company_360_uses_admin_customer_data_and_supported_actions():
     assert 'apiFetch(`/api/admin/customer-360/${encodeURIComponent(id)}`)' in block
     assert 'apiFetch("/api/control/tenant"' in block
     assert 'apiFetch("/api/control/password-reset"' in block
-    assert r'disabled title="Ge\u00e7ici parola atama API taraf\u0131nda desteklenmiyor"' in block
+    assert 'data-company360-reset-link' in block
+    assert 'if(!response.mail_sent)' in block
+    assert 'const user=users[0]' not in block
+    assert 'id="company360Mute"' in block
+    assert 'id="company360Delete"' in block
+    assert 'apiFetch(`/api/admin/companies/${encodeURIComponent(tenant.id)}/delete`' in block
+    assert 'company_confirmation' in block
+    assert 'currentAuthUser?.tenant_id' in block
+    assert 'id="company360RepairUsers"' in block
+    assert 'id="company360AddUser"' in block
+    assert 'row.scrollIntoView({block:"nearest"});$("#company360Search")?.focus({preventScroll:true})' in block
+    assert 'apiFetch(`/api/admin/companies/${encodeURIComponent(tenant.id)}/repair-users`' in block
+    assert 'apiFetch(`/api/admin/companies/${encodeURIComponent(tenant.id)}`' in block
+    assert 'currentAuthUser?.tenant_id' in block
+    assert 'FIRMA ERISIM YONETIMI' in block
+    assert 'activeCompany360Tenant=selectedId' in block
+    assert 'Number(company.muted)===1?"ERISIM SUSTURULDU"' in block
+    assert 'data-company360-temp-password' in block
+    assert 'apiFetch("/api/admin/users/temporary-password"' in block
+    assert 'if(!response.mail_sent)' in block
+    assert 'Aktif kullanici ve gecerli e-posta gerekli' in block
     assert 'data-company-filter="active"' in block
     assert 'data-company-filter="inactive"' in block
     assert 'class="admin-company-list-column"><section class="admin-company-list-panel">' in block

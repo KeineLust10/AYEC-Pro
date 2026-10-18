@@ -30,6 +30,7 @@ from PyQt6.QtWidgets import (
 )
 
 import api_client
+from toast import show_toast
 
 
 class _CompanyInfoDelegate(QStyledItemDelegate):
@@ -143,11 +144,13 @@ class UpdatesPage(QWidget):
         content.setObjectName("updatesContent")
         content.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         root = QVBoxLayout(content)
-        root.setContentsMargins(20, 14, 20, 20)
+        self._root_layout = root
+        root.setContentsMargins(40, 4, 16, 20)
         root.setSpacing(12)
 
         header_panel = QFrame()
         header_panel.setObjectName("updatePanel")
+        header_panel.setMinimumHeight(130)
         header_layout = QGridLayout(header_panel)
         header_layout.setContentsMargins(16, 12, 16, 12)
         header_layout.setHorizontalSpacing(14)
@@ -185,6 +188,7 @@ class UpdatesPage(QWidget):
         self._header_text_layout = header_text
         self._badges_layout = badges
         root.addWidget(header_panel)
+        root.addSpacing(8)
 
         metrics = QGridLayout()
         metrics.setContentsMargins(0, 0, 0, 0)
@@ -207,6 +211,7 @@ class UpdatesPage(QWidget):
         for index, (caption_text, value, note_text) in enumerate(metric_items):
             card = QFrame()
             card.setObjectName("updateMetric")
+            card.setMinimumHeight(128)
             card_layout = QVBoxLayout(card)
             card_layout.setContentsMargins(13, 10, 13, 10)
             caption = QLabel(caption_text)
@@ -221,6 +226,7 @@ class UpdatesPage(QWidget):
             metrics.addWidget(card, 0, index)
         self._metric_grid = metrics
         root.addLayout(metrics)
+        root.addSpacing(8)
 
         content_grid = QGridLayout()
         content_grid.setContentsMargins(0, 0, 0, 0)
@@ -234,6 +240,7 @@ class UpdatesPage(QWidget):
 
         params_panel = QFrame()
         params_panel.setObjectName("updatePanel")
+        self._params_panel = params_panel
         params_layout = QVBoxLayout(params_panel)
         params_layout.setContentsMargins(14, 12, 14, 12)
         params_heading = QHBoxLayout()
@@ -467,6 +474,8 @@ class UpdatesPage(QWidget):
         if not hasattr(self, "_content_grid"):
             return
         compact = self.width() < 600
+        self._root_layout.setContentsMargins(12, 12, 12, 20) if compact else self._root_layout.setContentsMargins(40, 4, 16, 20)
+        self._params_panel.setMinimumHeight(0 if compact else 208)
         while self._header_layout.count():
             self._header_layout.takeAt(0)
         if compact:
@@ -642,16 +651,19 @@ class UpdatesPage(QWidget):
         channel = str(self._channel.currentData() or "pilot")
         if not re.fullmatch(r"[0-9]+(?:\.[0-9]+){1,3}(?:[-+][A-Za-z0-9.-]+)?", version):
             self._status.setText("Ge\u00e7erli bir s\u00fcr\u00fcm numaras\u0131 girin. \u00d6rnek: 2.0.1")
+            show_toast(self, "Ge\u00e7erli bir s\u00fcr\u00fcm numaras\u0131 girin.", "warning")
             return
         if not changelog:
             self._status.setText("S\u00fcr\u00fcm notlar\u0131 bo\u015f olamaz.")
+            show_toast(self, "S\u00fcr\u00fcm notlar\u0131 bo\u015f olamaz.", "warning")
             return
         targets = [] if self._all.isChecked() else self._selected_targets()
         if self._pilot.isChecked() and not targets:
             self._status.setText("En az bir pilot firma se\u00e7in.")
+            show_toast(self, "En az bir pilot firma se\u00e7in.", "warning")
             return
         if self._all.isChecked():
-            answer = QMessageBox.warning(
+            answer = QMessageBox.question(
                 self,
                 "Genel Da\u011f\u0131t\u0131m Onay\u0131",
                 f"{version} s\u00fcr\u00fcm\u00fc t\u00fcm aktif firmalara g\u00f6nderilecek. "
@@ -672,8 +684,12 @@ class UpdatesPage(QWidget):
         self._status.setText("Da\u011f\u0131t\u0131m komutlar\u0131 olu\u015fturuluyor...")
         worker = _DeployUpdate(version, targets, changelog, channel)
         worker.done.connect(self._deploy_done)
-        worker.error.connect(lambda error: self._status.setText(f"Hata: {error}"))
+        worker.error.connect(self._deploy_failed)
         self._keep(worker)
+
+    def _deploy_failed(self, error):
+        self._status.setText(f"Hata: {error}")
+        show_toast(self, f"Da\u011f\u0131t\u0131m ba\u015far\u0131s\u0131z: {error}", "error")
 
     def _deploy_done(self, result: dict):
         targets = result.get("targets", "all")
@@ -687,4 +703,5 @@ class UpdatesPage(QWidget):
         self._status.setText(
             f"\u2713 {result.get('version', '')} s\u00fcr\u00fcm\u00fc {target_text} i\u00e7in kuyru\u011fa al\u0131nd\u0131."
         )
+        show_toast(self, f"{result.get('version', '')} s\u00fcr\u00fcm\u00fc {target_text} i\u00e7in kuyru\u011fa al\u0131nd\u0131.", "success")
 

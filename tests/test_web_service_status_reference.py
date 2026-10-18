@@ -30,17 +30,23 @@ def test_status_wall_renders_assistant_technician_and_camera_panels():
     assert 'id="statusAssistantPersonnel"' in app
     assert "status-wall-camera" in app
     assert "status-wall-assistant" in app
-    assert 'class="status-wall-chart"' not in app
-    assert 'id="statusWallChart"' not in app
+    assert 'class="status-wall-flow"' in app
+    assert 'id="statusWallFlowChart"' in app
+    assert "function ayecStatusFlowRender(rows)" in app
 
 
 def test_status_wall_desktop_spacing_matches_reference_geometry():
     styles = (WEB / "desktop-parity.css").read_text(encoding="utf-8")
+    reference_styles = (WEB / "service-status-reference.css").read_text(encoding="utf-8")
 
+    assert '--sidebar: 250px;' not in reference_styles
     assert 'body[data-page="service-status"] .content {\n  padding: 35px 0 45px 12px;' in styles
-    assert 'body[data-page="service-status"] .page-head {\n  min-height: 98px;' in styles
+    assert 'body[data-page="service-status"] .page-head {\n  display: grid;' in styles
+    assert 'min-height: 82px;' in styles
+    assert 'background: var(--bg);' in styles
     assert 'body[data-page="service-status"] .status-wall-metrics > article {\n  position: relative;\n  display: flex;\n  height: 106px;' in styles
-    assert 'grid-template-columns: minmax(0, 3fr) minmax(390px, 1fr)' in styles
+    assert 'grid-template-columns: minmax(0, 1fr) 329px' in styles
+    assert 'gap: 12px;' in styles
     assert '@media (max-width: 760px)' in styles
 
 
@@ -75,6 +81,7 @@ def test_service_status_double_click_only_edits_the_desktop_marquee_target():
 
     assert "def mouseDoubleClickEvent(self, event):" in desktop
     assert 'event.target.closest("[data-status-marquee]")' in handler
-    assert "!db.settings.doubleClick" in handler
+    assert "if (!marquee) return;" in handler
+    assert "!db.settings.doubleClick" not in handler
     assert 'event.target.closest("#statusWallHost tbody tr")' not in handler
     assert 'openGenericDialog(genericModules["service-status"]' not in handler

@@ -53,3 +53,22 @@ def test_project_unit_context_menu_matches_desktop_menu_geometry():
     assert 'grid-template-columns:14px 18px auto' in css
     assert 'var(--surface-2)' in css
 
+
+def test_project_unit_card_opens_products_on_desktop_double_click_gesture():
+    desktop = (ROOT / "src" / "ui" / "pages" / "project_management" / "project_detail_components.py").read_text(encoding="utf-8")
+    web = (ROOT / "Web_Arayuzu" / "web" / "app.js").read_text(encoding="utf-8")
+    desktop_start = desktop.index("def mouseDoubleClickEvent(self, event):")
+    desktop_end = desktop.index("def _show_context_menu", desktop_start)
+    desktop_handler = desktop[desktop_start:desktop_end]
+    web_double_start = web.index('document.addEventListener("dblclick", event => {', web.index("const p9ProjectState"))
+    web_click_start = web.index('document.addEventListener("click", async event => {', web_double_start)
+    web_double_handler = web[web_double_start:web_click_start]
+    web_click_end = web.index('\ndocument.addEventListener("', web_click_start + 1)
+    web_click_handler = web[web_click_start:web_click_end]
+
+    assert "self.parent_tab.open_unit_products(self.unit)" in desktop_handler
+    assert 'event.target.closest(".p9-unit-card")' in web_double_handler
+    assert 'unitCard.querySelector("[data-p9-unit-products]")?.click()' in web_double_handler
+    assert 'event.target.closest("button,a,input,select,textarea")' in web_double_handler
+    assert '.p9-unit-card' not in web_click_handler
+

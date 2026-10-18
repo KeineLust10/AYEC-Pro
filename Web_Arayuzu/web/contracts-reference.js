@@ -92,7 +92,6 @@
       metricValues[0].textContent = String(activeCount);
       metricValues[1].textContent = String(renewalCount);
       metricValues[2].textContent = contractMoney(source.reduce((sum, item) => sum + Number(item.price || 0), 0));
-      metricValues[3].textContent = String(source.length);
     }
     const chipCounts = {
       all: source.length,
@@ -332,8 +331,12 @@
   function contractDetailBody(data) {
     const contract = data.contract || {};
     const attachments = Array.isArray(data.attachments) ? data.attachments : [];
-    const items = attachments.map((item) => `<article class="contract-attachment-row"><div><strong>${esc(item.filename || "-")}</strong><small>${esc(item.created_at || "")}</small></div>${item.available ? `<a class="secondary" href="/api/desktop/contracts/attachments/${encodeURIComponent(item.id)}/download" target="_blank" rel="noopener">A\u00e7 / G\u00f6r\u00fcnt\u00fcle</a>` : '<span class="muted">Dosya kullan\u0131lam\u0131yor</span>'}<button type="button" class="danger" data-contract-attachment-delete="${esc(item.id)}">Eki Sil</button></article>`).join("");
-    return `<div class="contract-detail-modal" data-contract-id="${esc(contract.id)}"><section class="contract-detail-info"><div><small>BA\u015eLIK</small><strong>${esc(contract.title || "-")}</strong></div><div><small>M\u00dc\u015eTER\u0130</small><strong>${esc(contract.customer_name || "-")}</strong></div><div><small>T\u00dcR</small><strong>${esc(contract.contract_type || "-")}</strong></div><div class="full"><small>A\u00c7IKLAMA</small><p>${esc(contract.description || "-")}</p></div></section><section class="contract-detail-files"><header><h3>DOSYA EKLER\u0130</h3><span>${attachments.length}</span></header><div class="contract-attachment-list">${items || '<p class="muted">Bu s\u00f6zle\u015fmeye dosya eklenmemi\u015f.</p>'}</div><input id="contractAttachmentInput" type="file" multiple hidden><button type="button" class="secondary" data-contract-attachment-upload>+ Yeni Dosya Y\u00fckle</button><small class="muted">Dosya ba\u015f\u0131na en fazla 25 MB</small></section></div>`;
+    const items = attachments.map((item) => {
+      const id = esc(item.id);
+      const previewUrl = item.available ? `/api/desktop/contracts/attachments/${encodeURIComponent(item.id)}/preview` : "";
+      return `<button type="button" class="contract-attachment-row" data-contract-attachment-select="${id}" data-preview-url="${esc(previewUrl)}" aria-pressed="false"><strong>${esc(item.filename || "-")}</strong><small>${esc(item.created_at || "")}</small></button>`;
+    }).join("");
+    return `<div class="contract-detail-modal" data-contract-id="${esc(contract.id)}"><section class="contract-detail-info"><div><small>BA\u015eLIK</small><strong>${esc(contract.title || "-")}</strong></div><div><small>M\u00dc\u015ETER\u0130</small><strong>${esc(contract.customer_name || "-")}</strong></div><div><small>T\u00dcR</small><strong>${esc(contract.contract_type || "-")}</strong></div><div class="full"><small>A\u00c7IKLAMA</small><p>${esc(contract.description || "-")}</p></div></section><section class="contract-detail-files"><header><h3>DOSYA EKLER\u0130</h3></header><div class="contract-attachment-list" role="listbox" aria-label="DOSYA EKLER\u0130">${items || '<p class="muted">Bu s\u00f6zle\u015fmeye dosya eklenmemi\u015f.</p>'}</div><div class="contract-detail-actions"><a class="primary" data-contract-attachment-open href="#" aria-disabled="true" target="_blank" rel="noopener">\u{1F4C2} A\u00e7 / G\u00f6r\u00fcnt\u00fcle</a><button type="button" class="danger" data-contract-attachment-delete="">\u{1F5D1} Ekini Sil</button></div><input id="contractAttachmentInput" type="file" multiple hidden><button type="button" class="secondary" data-contract-attachment-upload aria-description="Dosya ba\u015f\u0131na en fazla 25 MB">+ Yeni Dosya Y\u00fckle</button></section></div>`;
   }
 
   async function contractDetailData(contractId) {
@@ -344,7 +347,9 @@
     try {
       const data = await contractDetailData(contractId);
       window.currentContractDetailId = contractId;
+      window.currentContractAttachmentSelection = null;
       openDialog("S\u00f6zle\u015fme Detaylar\u0131 & Ekleri", "S\u00d6ZLE\u015eME", contractDetailBody(data), () => true, "Kapat");
+      document.querySelector("#appDialog")?.classList.add("contract-detail-dialog");
     } catch (error) {
       toast(error.message, "error");
     }
@@ -460,6 +465,34 @@
       openContractAttachmentDialog(detail.dataset.contractDetail);
       return;
     }
+    const attachmentOption = event.target.closest("[data-contract-attachment-select]");
+    if (attachmentOption) {
+      const modal = attachmentOption.closest(".contract-detail-modal");
+      modal?.querySelectorAll("[data-contract-attachment-select]").forEach((option) => {
+        const selected = option === attachmentOption;
+        option.setAttribute("aria-pressed", String(selected));
+        option.classList.toggle("selected", selected);
+      });
+      const attachmentId = attachmentOption.dataset.contractAttachmentSelect;
+      const previewUrl = attachmentOption.dataset.previewUrl || "";
+      const openAction = modal?.querySelector("[data-contract-attachment-open]");
+      const deleteAction = modal?.querySelector("[data-contract-attachment-delete]");
+      window.currentContractAttachmentSelection = attachmentId;
+      if (openAction) {
+        openAction.href = previewUrl || "#";
+        openAction.setAttribute("aria-disabled", String(!previewUrl));
+      }
+      if (deleteAction) {
+        deleteAction.dataset.contractAttachmentDelete = attachmentId;
+        deleteAction.dataset.filename = attachmentOption.querySelector("strong")?.textContent || "";
+      }
+      return;
+    }
+    const openAttachment = event.target.closest("[data-contract-attachment-open]");
+    if (openAttachment?.getAttribute("aria-disabled") === "true") {
+      event.preventDefault();
+      return;
+    }
     const upload = event.target.closest("[data-contract-attachment-upload]");
     if (upload) {
       document.querySelector("#contractAttachmentInput")?.click();
@@ -467,14 +500,17 @@
     }
     const remove = event.target.closest("[data-contract-attachment-delete]");
     if (remove) {
-      const attachmentId=Number(remove.dataset.contractAttachmentDelete),filename=remove.closest(".contract-attachment-row")?.querySelector("strong")?.textContent||"";
+      const rawAttachmentId = remove.dataset.contractAttachmentDelete;
+      if (!rawAttachmentId) return;
+      const attachmentId=Number(rawAttachmentId),filename=remove.dataset.filename||"";
       openDialog("Eki Sil","SILME ONAYI",`<p>${esc(filename)} dosya eki kal\u0131c\u0131 olarak silinecek. Emin misiniz?</p>`,async()=>{
         try {
           await apiFetch("/api/desktop/contracts/attachments/delete",{
             method:"POST",
             body:JSON.stringify({attachment_id:attachmentId}),
           });
-          await refreshContractAttachmentBody(window.currentContractDetailId);
+          const contractId = window.currentContractDetailId;
+          setTimeout(() => openContractAttachmentDialog(contractId), 80);
           toast("Dosya silindi.","success");
           return true;
         } catch(error) {
@@ -492,11 +528,11 @@
   document.addEventListener("dblclick", (event) => {
     if (document.body.dataset.page !== "contracts") return;
     const row = event.target.closest(".contract-attachment-row");
-    if (!row || event.target.closest("a,button,input,select,textarea")) return;
-    const openLink = row.querySelector('a[href*="/download"]');
-    if (!openLink) return;
+    if (!row || (event.target !== row && event.target.closest("a,button,input,select,textarea"))) return;
     event.preventDefault();
-    openLink.click();
+    row.click();
+    const openLink = row.closest(".contract-detail-modal")?.querySelector("[data-contract-attachment-open]");
+    if (openLink?.getAttribute("aria-disabled") !== "true") openLink.click();
   });
 
   document.addEventListener("change", (event) => {

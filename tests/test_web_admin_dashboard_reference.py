@@ -69,6 +69,21 @@ def test_dashboard_activity_table_scrolls_without_forcing_mobile_page_width():
     assert "background: rgba(37, 42, 57, .4);" in styles
     assert "border-radius: 8px;" in styles
     assert ".control-dashboard-panel h3 { margin: 0; color: #dee2f6; font-size: 18px; }" in styles
+
+
+def test_dashboard_mobile_matches_reference_kpi_and_activity_columns():
+    styles = STYLE_SOURCE.read_text(encoding="utf-8")
+
+    assert "#adminTabContent .control-kpi-grid { width: calc(100% - 8px); margin-left: 8px; }" in styles
+    assert "#adminTabContent .control-kpi-primary { grid-auto-rows: 108px; gap: 12px; }" in styles
+    assert "#adminTabContent .control-kpi-secondary { grid-template-rows: 92px 106px repeat(3, 92px); gap: 12px; }" in styles
+    assert "#adminTabContent .control-kpi-secondary .control-kpi:nth-child(2) { height: 106px; min-height: 106px; }" in styles
+    assert "#adminTabContent .control-audit-table-wrap { height: 358px; }" in styles
+    assert "#adminTabContent .control-audit-table tr > :nth-child(4)" in styles
+    assert "#adminTabContent .control-audit-table tr > :nth-child(5) { display: none; }" in styles
+    assert "#adminTabContent .control-audit-table th:nth-child(1) { width: 27%; }" in styles
+    assert "#adminTabContent .control-audit-table th:nth-child(2) { width: 35%; }" in styles
+    assert "#adminTabContent .control-audit-table th:nth-child(3) { width: 38%; }" in styles
     assert ".control-audit-title-icon svg" in styles
     assert ".control-performance-chart { display: block; width: 100%; height: 64px; overflow: visible; }" in styles
 
@@ -91,6 +106,17 @@ def test_admin_topbar_keeps_the_reference_breadcrumb_visible_on_desktop():
     assert 'body[data-page="control-center"] .admin-header-user > span:last-child { display: none; }' in styles
     assert 'headerUser.setAttribute("aria-label",`${userName} (${userRole})`);' in app
     assert "body[data-page=\"control-center\"] .topbar .admin-header-user { flex: 0 0 32px;" in styles
+
+
+def test_admin_reference_breadcrumb_uses_shared_reference_labels():
+    styles = STYLE_SOURCE.read_text(encoding="utf-8")
+    app = APP_SOURCE.read_text(encoding="utf-8")
+
+    assert 'const consoleTabs=["backup-restore","quota-limits","server-settings","staged-update"];' in app
+    assert '<span class="admin-breadcrumb-segment">KONSOL</span>' in app
+    assert '<span>Y\\u00d6NET\\u0130M</span>' in app
+    assert '<span>Canl\\u0131</span><span>\\u0130zleme</span>' in app
+    assert 'flex: 0 0 138px; width: 138px; min-width: 138px;' in styles
 
 
 def test_admin_mobile_topbar_keeps_reference_breadcrumb_segments_and_search():

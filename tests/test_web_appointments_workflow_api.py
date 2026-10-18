@@ -93,3 +93,43 @@ def test_appointment_desktop_fields_and_installation_plan_persist_in_active_tena
         server.shutdown()
         server.server_close()
         worker.join(timeout=2)
+
+
+def test_appointment_table_refresh_includes_plan_item_locations(monkeypatch, tmp_path):
+    _actor, tenant_path = _setup_tenant(monkeypatch, tmp_path)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), web_main.AYECRequestHandler)
+    worker = threading.Thread(target=server.serve_forever, daemon=True)
+    worker.start()
+    base_url = f"http://127.0.0.1:{server.server_address[1]}"
+    table_url = f"{base_url}/api/desktop/table/appointments"
+    bootstrap_url = f"{base_url}/api/desktop/appointments/bootstrap"
+    try:
+        session = requests.Session()
+        session.headers["Origin"] = base_url
+        login = session.post(
+            f"{base_url}/api/auth/login",
+            json={"identifier": web_main.VENDOR_EMAIL, "password": "operator-test-pass", "tenant_id": "tenant-1"},
+        )
+        assert login.status_code == 200, login.text
+        bootstrap = session.post(bootstrap_url, json={})
+        assert bootstrap.status_code == 200, bootstrap.text
+        created = session.post(
+            table_url,
+            json={"customer_id": 12, "customer_name": "Audit customer", "date": "2026-10-14", "time": "14:00", "description": "Plan location", "status": "Bekliyor"},
+        )
+        assert created.status_code == 200, created.text
+        appointment_id = created.json()["id"]
+        with sqlite3.connect(tenant_path) as conn:
+            conn.execute(
+                "INSERT INTO appointment_plan_items(appointment_id,name,source_location_id,created_at,updated_at) VALUES(?,?,?,?,?)",
+                (appointment_id, "Reserved part", 7, "2026-10-14 12:00:00", "2026-10-14 12:00:00"),
+            )
+
+        refreshed = session.get(table_url + "?limit=1000")
+        assert refreshed.status_code == 200, refreshed.text
+        row = next(item for item in refreshed.json()["rows"] if item["id"] == appointment_id)
+        assert row["plan_items"] == [{"source_location_id": 7}]
+    finally:
+        server.shutdown()
+        server.server_close()
+        worker.join(timeout=2)

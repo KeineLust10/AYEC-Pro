@@ -28,6 +28,16 @@ def test_voice_shortcuts_round_trip_through_authenticated_tenant_settings(monkey
         )
         assert login.status_code == 200
 
+        with sqlite3.connect(tenant_path) as connection:
+            connection.execute(
+                "INSERT OR REPLACE INTO scheduled_alerts (alert_type,trigger_time,is_enabled,is_critical) VALUES (?,?,?,?)",
+                ("service_delivery", "17:30", 0, 0),
+            )
+            connection.execute(
+                "INSERT OR REPLACE INTO scheduled_alerts (alert_type,trigger_time,is_enabled,is_critical) VALUES (?,?,?,?)",
+                ("loan_reminder", "11:00", 1, 0),
+            )
+
         configuration = {
             "custom_stock": {
                 "triggers": ["stock now", "low stock"],
@@ -44,6 +54,26 @@ def test_voice_shortcuts_round_trip_through_authenticated_tenant_settings(monkey
         assert bootstrap.status_code == 200, bootstrap.text
         reloaded = json.loads(bootstrap.json()["settings"]["voice_assistant_shortcuts"])
         assert reloaded == configuration
+        alert_rows = bootstrap.json()["scheduled_alerts"]
+        assert {row["alert_type"] for row in alert_rows} >= {"loan_reminder", "service_delivery"}
+        service_alert = next(row for row in alert_rows if row["alert_type"] == "service_delivery")
+        assert service_alert["trigger_time"] == "17:30"
+        assert service_alert["is_enabled"] == 0
+        triggered_at = "2026-10-17T17:30:00"
+        mark_triggered = session.post(
+            f"{base_url}/api/desktop/table/scheduled_alerts",
+            json={"id": service_alert["id"], "last_triggered": triggered_at, "_action": "update"},
+        )
+        assert mark_triggered.status_code == 200, mark_triggered.text
+        invalid_time = session.post(
+            f"{base_url}/api/desktop/table/scheduled_alerts",
+            json={"id": service_alert["id"], "trigger_time": "25:99", "_action": "update"},
+        )
+        assert invalid_time.status_code == 400, invalid_time.text
+        refreshed_alerts = session.get(f"{base_url}/api/desktop/bootstrap").json()["scheduled_alerts"]
+        service_alert = next(row for row in refreshed_alerts if row["alert_type"] == "service_delivery")
+        assert service_alert["last_triggered"] == triggered_at
+        assert service_alert["trigger_time"] == "17:30"
 
         with sqlite3.connect(tenant_path) as connection:
             stored = connection.execute(

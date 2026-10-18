@@ -1,5 +1,7 @@
 import base64
+import os
 import sqlite3
+import subprocess
 import threading
 from http.server import ThreadingHTTPServer
 from pathlib import Path
@@ -34,6 +36,7 @@ def test_contract_detail_upload_download_delete_is_authenticated_and_tenant_scop
         anonymous.headers["Origin"] = base_url
         detail_url = f"{base_url}/api/desktop/contracts/{contract_id}/attachments"
         assert anonymous.get(detail_url).status_code == 401
+        assert anonymous.get(f"{base_url}/api/desktop/contracts/attachments/1/preview").status_code == 401
         assert anonymous.post(
             f"{base_url}/api/desktop/table/contracts",
             json={"id": contract_id, "_action": "delete"},
@@ -73,6 +76,12 @@ def test_contract_detail_upload_download_delete_is_authenticated_and_tenant_scop
         assert download.status_code == 200
         assert download.content == original
         assert "filename*=UTF-8''service%20agreement.pdf" in download.headers["Content-Disposition"]
+        preview = session.get(f"{base_url}/api/desktop/contracts/attachments/{attachment_id}/preview")
+        assert preview.status_code == 200
+        assert preview.content == original
+        assert preview.headers["Content-Type"] == "application/pdf"
+        assert preview.headers["Content-Disposition"].startswith("inline;")
+        assert preview.headers["X-Content-Type-Options"] == "nosniff"
         removed = session.post(
             f"{base_url}/api/desktop/contracts/attachments/delete",
             json={"attachment_id": attachment_id},
@@ -83,6 +92,20 @@ def test_contract_detail_upload_download_delete_is_authenticated_and_tenant_scop
         assert session.get(
             f"{base_url}/api/desktop/contracts/attachments/{attachment_id}/download"
         ).status_code == 404
+        html_upload = session.post(
+            detail_url,
+            json={"filename": "unsafe.html", "data_base64": base64.b64encode(b"<script>bad()</script>").decode("ascii")},
+        )
+        assert html_upload.status_code == 201
+        html_attachment_id = html_upload.json()["id"]
+        assert session.get(
+            f"{base_url}/api/desktop/contracts/attachments/{html_attachment_id}/preview"
+        ).status_code == 415
+        assert session.post(
+            f"{base_url}/api/desktop/contracts/attachments/delete",
+            json={"attachment_id": html_attachment_id},
+        ).status_code == 200
+        assert session.get(detail_url).json()["attachments"] == []
         contract_file = b"second attachment for contract deletion"
         second_upload = session.post(
             detail_url,
@@ -135,6 +158,54 @@ def test_contract_attachment_validation_rejects_invalid_size_or_path():
     finally:
         web_main.clear_tenant_context()
         conn.close()
+
+
+def test_hidden_browser_contract_attachments_use_authenticated_tenant_api(monkeypatch, tmp_path):
+    _actor, tenant_path = _setup_tenant(monkeypatch, tmp_path)
+    contract_id = _insert_contract(tenant_path)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), web_main.AYECRequestHandler)
+    worker = threading.Thread(target=server.serve_forever, daemon=True)
+    worker.start()
+    base_url = f"http://127.0.0.1:{server.server_address[1]}"
+    try:
+        session = requests.Session()
+        session.headers["Origin"] = base_url
+        login = session.post(
+            f"{base_url}/api/auth/login",
+            json={"identifier": "customer-admin", "password": "oldpass123", "tenant_id": "tenant-1"},
+        )
+        assert login.status_code == 200
+        assert login.json()["user"]["role"] == "Admin"
+        assert login.json()["user"]["is_control_admin"] is False
+        env = os.environ.copy()
+        env["AYEC_AUDIT_URL"] = f"{base_url}/"
+        env["AYEC_CONTRACT_SESSION_COOKIE"] = session.cookies.get("ayec_session")
+        env["AYEC_CONTRACT_ID"] = str(contract_id)
+        env["AYEC_AUDIT_CDP_PORT"] = "9257"
+        audit = subprocess.run(
+            ["node", "tools/quality/contracts_authenticated_api_offscreen.cjs"],
+            cwd=Path(__file__).resolve().parents[1],
+            env=env,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=45,
+            check=False,
+        )
+        assert audit.returncode == 0, audit.stderr or audit.stdout
+        assert '"uploaded":true' in audit.stdout
+        assert '"deleted":true' in audit.stdout
+        assert '"isControlAdmin":false' in audit.stdout
+        assert '"slaResponseMetric":"-"' in audit.stdout
+        with sqlite3.connect(tenant_path) as conn:
+            assert conn.execute("SELECT COUNT(*) FROM contract_attachments").fetchone()[0] == 0
+        tenant_files = tmp_path / "Kullanicilar" / "contract_docs" / "tenant-1"
+        assert not tenant_files.exists() or not list(tenant_files.iterdir())
+    finally:
+        server.shutdown()
+        server.server_close()
+        worker.join(timeout=2)
 
 
 def test_desktop_legacy_contract_attachment_is_migrated_into_tenant_storage(monkeypatch, tmp_path):

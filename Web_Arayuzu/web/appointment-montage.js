@@ -345,7 +345,10 @@
       return String(entry.id) === String(appointment && (appointment.customerId || appointment.customer_id) || "")
         || String(entry.name) === String(appointment && (appointment.customer_name || appointment.customer) || "");
     });
-    if (!customer) return;
+    if (!customer) {
+      toast("\u00d6deme i\u00e7in randevuya ba\u011fl\u0131 bir m\u00fc\u015fteri se\u00e7ilmelidir.", "warning");
+      return;
+    }
     var reference = "Montaj tamamland\u0131 | Teklif: " + (appointment.offer_no || "-");
     setTimeout(function () {
       paymentDialog(customer);

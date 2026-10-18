@@ -24,3 +24,13 @@ def test_product_group_page_matches_reference_metrics_and_table_structure():
     assert ".group-list-card.cards-mode .table-wrap{display:none}" in styles
     assert "@media(max-width:520px){.group-metrics" in styles
     assert "product-groups.js?v=20261007-1" in html
+
+
+def test_product_group_rows_keep_desktop_id_order_and_number_format():
+    script = (WEB / "product-groups.js").read_text(encoding="utf-8")
+
+    assert '.sort((a,b)=>Number(a.id)-Number(b.id))' in script
+    assert 'String((groupPage-1)*groupPageSize+index+1).padStart(2,"0")' in script
+    assert 'const brandText=row=>String(row?.brand??row?.name??"").trim()' in script
+    assert '.map(brandText).filter(Boolean)' in script
+    assert '${linked.length} Marka${linked.length?` (' in script

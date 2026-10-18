@@ -28,6 +28,8 @@ class _FakeView:
 
 def test_notification_bridge_sends_selected_companies_and_updates_status(persistent_qapplication, monkeypatch):
     sent = []
+    toasts = []
+    monkeypatch.setattr(notifications, "show_toast", lambda _parent, message, level: toasts.append((message, level)))
     monkeypatch.setattr(
         notifications.api_client,
         "send_notification",
@@ -46,7 +48,33 @@ def test_notification_bridge_sends_selected_companies_and_updates_status(persist
         ("tenant-a", "Maintenance", "Restart at 18:00", "warning", False),
         ("tenant-b", "Maintenance", "Restart at 18:00", "warning", False),
     ]
-    assert any("Bildirim API" in script for script in page._view.page_object.scripts)
+    assert toasts == [
+        ("Bildirim kuyruga ekleniyor...", "success"),
+        ("Bildirim API tarafindan kabul edildi.", "success"),
+    ]
+
+
+def test_reference_icon_normalization_observes_late_text_updates_and_aligns_content():
+    page = notifications.NotificationsPage.__new__(notifications.NotificationsPage)
+    QWidget.__init__(page)
+    page._ready = False
+    page._view = _FakeView()
+    page._companies = []
+
+    page._on_loaded(True)
+
+    bootstrap = page._view.page_object.scripts[0]
+    assert "main{width:calc(100% - 288px)!important;margin-left:288px!important;padding-top:0!important}" in bootstrap
+    assert "characterData:true" in bootstrap
+    assert "root?.matches?.('.material-symbols-outlined')" in bootstrap
+    assert "@media(max-width:760px){main{width:100%!important;margin-left:0!important" in bootstrap
+
+
+def test_material_icon_fallback_covers_reference_glyphs():
+    html = notifications.REFERENCE.read_text(encoding="utf-8")
+    icons = set(__import__("re").findall(r'material-symbols-outlined[^>]*>([^<]+)</span>', html))
+
+    assert icons <= set(notifications.ICON_FALLBACKS)
 
 
 def test_notification_reference_is_utf8_and_uses_responsive_layout():
@@ -54,3 +82,16 @@ def test_notification_reference_is_utf8_and_uses_responsive_layout():
     assert 'name="viewport"' in html
     assert "lg:grid-cols-12" in html
     assert "\u0130stemci Masa\u00fcst\u00fc \u00d6nizlemesi" in html
+
+
+def test_notification_canvas_preserves_reference_viewport_breakpoints(persistent_qapplication):
+    canvas = notifications._NotificationCanvas()
+    view = QWidget(canvas)
+    canvas.set_view(view)
+    canvas.resize(1176, 944)
+    canvas.show()
+    persistent_qapplication.processEvents()
+    assert (view.x(), view.width(), view.height()) == (-264, 1440, 944)
+    canvas.resize(390, 844)
+    persistent_qapplication.processEvents()
+    assert (view.x(), view.width(), view.height()) == (0, 390, 844)

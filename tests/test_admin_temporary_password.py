@@ -22,6 +22,7 @@ def web_main(tmp_path, monkeypatch):
     monkeypatch.setattr(module, "DEMO_TEMPLATE_PATH", tmp_path / "no-demo.db")
     module._SCHEMA_READY_PATHS.clear()
     monkeypatch.setattr(module, "send_registration_emails", lambda *_args: (True, "sent"))
+    monkeypatch.setattr(module, "resolve_installation_location", lambda _address: (39.6484, 27.8826))
     return module
 
 

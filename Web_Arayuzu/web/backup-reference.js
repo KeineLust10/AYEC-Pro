@@ -2,7 +2,6 @@
   "use strict";
 
   renderBackupPage = function () {
-    settingsSection = "backup";
     var definition = settingsDefinitions.backup;
     var regular = definition.fields.filter(function (field) { return field[2] !== "checkbox"; });
     var toggles = definition.fields.filter(function (field) { return field[2] === "checkbox"; });

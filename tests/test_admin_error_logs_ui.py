@@ -40,6 +40,7 @@ def test_error_telemetry_metrics_search_and_detail(persistent_qapplication, monk
     assert len(page._metric_cards) == 4
     assert page._metric_stability.text() == "98.5%"
     assert page._content.objectName() == "errorTelemetryContent"
+    assert page._table_title.text() == "Canl\u0131 Telemetri & Hata Ak\u0131\u015f Tablosu"
     assert not page._table.verticalHeader().isVisible()
     assert page._metric_errors.text() == "1"
     assert page._metric_warnings.text() == "1"
@@ -78,5 +79,6 @@ def test_error_telemetry_metrics_search_and_detail(persistent_qapplication, monk
     assert page._result_stack.currentWidget() is page._mobile_logs
     assert page._splitter.orientation().name == "Vertical"
     assert page._scroll.horizontalScrollBar().maximum() == 0
+    assert page._metric_cards[0].width() >= 330
     page._log_cards[0].findChild(QPushButton).click()
     assert page._detail_title.text() == "Process stopped"

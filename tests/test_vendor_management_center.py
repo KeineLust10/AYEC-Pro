@@ -1,7 +1,9 @@
 import hashlib
 import json
+import shutil
 import sqlite3
 import sys
+from contextlib import closing
 from pathlib import Path
 
 import pytest
@@ -58,6 +60,61 @@ def _setup_tenant(monkeypatch, tmp_path):
     return {"id": 2, "_tenant_id": "tenant-1", "role": "Admin"}, tenant_path
 
 
+def test_admin_delete_company_archives_tenant_and_protects_platform(monkeypatch, tmp_path):
+    actor, tenant_one_path = _setup_tenant(monkeypatch, tmp_path)
+    with web_main.registry_connect() as registry:
+        registry.execute(
+            "INSERT INTO tenants(id,company_name,db_filename,created_at,active,product_code) "
+            "VALUES(?,?,?,?,1,?)",
+            ("tenant-2", "Second Company", "Second Company.db", "2026-01-02T00:00:00", "teknik_servis"),
+        )
+        registry.execute(
+            "INSERT INTO tenants(id,company_name,db_filename,created_at,active,product_code) "
+            "VALUES(?,?,?,?,1,?)",
+            ("tenant-3", "Protected Company", "Protected Company.db", "2026-01-03T00:00:00", "teknik_servis"),
+        )
+        assert registry.execute(
+            "SELECT 1 FROM control_admins WHERE tenant_id='tenant-2'"
+        ).fetchone() is None
+        registry.commit()
+    tenant_two_path = web_main.TENANT_ROOT / "Second Company.db"
+    shutil.copy2(tenant_one_path, tenant_two_path)
+    with closing(sqlite3.connect(tenant_two_path)) as tenant:
+        tenant.execute("UPDATE users SET email='operator2@example.com' WHERE id=2")
+        tenant.commit()
+    tenant_three_path = web_main.TENANT_ROOT / "Protected Company.db"
+    shutil.copy2(tenant_one_path, tenant_three_path)
+    monkeypatch.setattr(web_main, "ROOT", tmp_path / "application-root")
+
+    try:
+        web_main.admin_delete_company("tenant-1", actor)
+    except PermissionError as error:
+        assert "cannot delete" in str(error).lower() or "silemez" in str(error).lower()
+    else:
+        raise AssertionError("The platform tenant must not be deletable.")
+    assert tenant_one_path.is_file()
+    try:
+        web_main.admin_delete_company("tenant-3", actor)
+    except PermissionError as error:
+        assert "platform" in str(error).lower() or "yoneticisi" in str(error).lower()
+    else:
+        raise AssertionError("A control-owner tenant must not be deletable.")
+    assert tenant_three_path.is_file()
+    with web_main.registry_connect() as registry:
+        assert registry.execute("SELECT 1 FROM control_admins WHERE tenant_id='tenant-2'").fetchone() is None
+        assert registry.execute("SELECT id,company_name,db_filename FROM tenants WHERE id='tenant-2'").fetchone() is not None
+
+    result = web_main.admin_delete_company("tenant-2", actor)
+
+    archive_path = web_main.ROOT / "deleted_tenants" / result["archive"]
+    assert result["ok"] is True
+    assert result["tenant_id"] == "tenant-2"
+    assert archive_path.is_file()
+    assert not tenant_two_path.exists()
+    with web_main.registry_connect() as registry:
+        assert registry.execute("SELECT 1 FROM tenants WHERE id='tenant-2'").fetchone() is None
+
+
 def test_vendor_reset_is_single_use_and_never_reads_password(monkeypatch, tmp_path):
     actor, tenant_path = _setup_tenant(monkeypatch, tmp_path)
     reset = web_main.control_create_reset_link(actor, {"tenant_id": "tenant-1", "user_id": 1})
@@ -88,6 +145,23 @@ def test_admin_can_reset_tenant_user_password(monkeypatch, tmp_path):
         ).fetchone()[0]
     assert web_main.password_matches("temporary-pass-42", stored_password)
     assert stored_password != "temporary-pass-42"
+
+
+def test_admin_password_reset_rejects_unknown_tenant_without_fallback(monkeypatch, tmp_path):
+    _, tenant_path = _setup_tenant(monkeypatch, tmp_path)
+    with sqlite3.connect(tenant_path) as conn:
+        before = conn.execute(
+            "SELECT password FROM users WHERE id=1"
+        ).fetchone()[0]
+
+    with pytest.raises(LookupError):
+        web_main.admin_reset_user_password("tenant-missing", 1, "other-pass-42")
+
+    with sqlite3.connect(tenant_path) as conn:
+        after = conn.execute(
+            "SELECT password FROM users WHERE id=1"
+        ).fetchone()[0]
+    assert after == before
 
 
 def test_vendor_backup_catalog_and_restore_queue(monkeypatch, tmp_path):
@@ -333,6 +407,21 @@ def test_vendor_owner_is_registered_in_each_matching_tenant(monkeypatch, tmp_pat
     registry.close()
 
     assert [row[0] for row in rows] == ["tenant-1", "tenant-2"]
+
+
+def test_control_owner_does_not_overwrite_tenant_local_user_roles(monkeypatch, tmp_path):
+    actor, tenant_path = _setup_tenant(monkeypatch, tmp_path)
+
+    web_main.ensure_control_owner()
+
+    with sqlite3.connect(tenant_path) as conn:
+        roles = dict(conn.execute("SELECT username,role FROM users"))
+    assert roles["customer-admin"] == "Admin"
+    assert roles["vendor-operator"] == "Admin"
+    assert web_main.is_control_admin(
+        {"id": 1, "_tenant_id": "tenant-1", "role": "Admin"}
+    ) is False
+    assert web_main.is_control_admin(actor) is True
 
 
 def test_vendor_account_authenticates_without_tenant_selection(monkeypatch, tmp_path):

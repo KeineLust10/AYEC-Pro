@@ -23,6 +23,11 @@ def _configure_isolated_web(monkeypatch, tmp_path):
         "send_registration_emails",
         lambda *_args, **_kwargs: (True, "ok"),
     )
+    monkeypatch.setattr(
+        web_main,
+        "resolve_installation_location",
+        lambda _address: (39.6484, 27.8826),
+    )
     web_main._SCHEMA_READY_PATHS.clear()
     web_main.clear_tenant_context()
     return registry_path, tenant_root
@@ -35,6 +40,7 @@ def _registration_payload(**overrides):
         "username": "sector.admin",
         "email": "sector@example.com",
         "phone": "05340000000",
+        "company_address": "Test street 1, Balikesir",
         "password": "SectorPass42",
     }
     payload.update(overrides)
@@ -46,6 +52,72 @@ def test_company_registration_requires_explicit_sector(monkeypatch, tmp_path):
 
     with pytest.raises(ValueError, match="Sekt.r se.imi zorunludur"):
         web_main.setup_application(_registration_payload(), allow_existing=True)
+
+
+def test_company_registration_requires_address_and_resolved_location(monkeypatch, tmp_path):
+    registry_path, _tenant_root = _configure_isolated_web(monkeypatch, tmp_path)
+    with pytest.raises(ValueError, match="Firma adresi zorunludur"):
+        web_main.setup_application(
+            _registration_payload(sector="teknik_servis", company_address=""), allow_existing=True
+        )
+    with sqlite3.connect(registry_path) as registry:
+        assert registry.execute("SELECT COUNT(*) FROM tenants").fetchone()[0] == 0
+
+
+def test_company_registration_persists_geocoded_location(monkeypatch, tmp_path):
+    registry_path, tenant_root = _configure_isolated_web(monkeypatch, tmp_path)
+    result = web_main.setup_application(
+        _registration_payload(sector="teknik_servis"), allow_existing=True
+    )
+    tenant = result["tenant"]
+    with sqlite3.connect(registry_path) as registry:
+        row = registry.execute(
+            "SELECT company_address,installation_lat,installation_lng FROM tenants WHERE id=?",
+            (tenant["id"],),
+        ).fetchone()
+    assert row == ("Test street 1, Balikesir", 39.6484, 27.8826)
+    with sqlite3.connect(tenant_root / tenant["db_filename"]) as tenant_db:
+        settings = dict(tenant_db.execute("SELECT key,value FROM settings"))
+    assert settings["installation_lat"] == "39.6484"
+    assert settings["installation_lng"] == "27.8826"
+
+
+def test_company_registration_stops_when_address_cannot_be_geocoded(monkeypatch, tmp_path):
+    registry_path, _tenant_root = _configure_isolated_web(monkeypatch, tmp_path)
+    monkeypatch.setattr(web_main, "resolve_installation_location", lambda _address: (None, None))
+
+    with pytest.raises(ValueError, match="konumu adresinizden belirlenemedi"):
+        web_main.setup_application(
+            _registration_payload(sector="teknik_servis"), allow_existing=True
+        )
+    with sqlite3.connect(registry_path) as registry:
+        assert registry.execute("SELECT COUNT(*) FROM tenants").fetchone()[0] == 0
+
+
+def test_company_info_sync_fills_legacy_tenant_location(monkeypatch, tmp_path):
+    registry_path, _tenant_root = _configure_isolated_web(monkeypatch, tmp_path)
+    result = web_main.setup_application(
+        _registration_payload(sector="teknik_servis"), allow_existing=True
+    )
+    tenant_id = result["tenant"]["id"]
+    with sqlite3.connect(registry_path) as registry:
+        registry.execute(
+            "UPDATE tenants SET company_address='',installation_lat=NULL,installation_lng=NULL WHERE id=?",
+            (tenant_id,),
+        )
+        registry.commit()
+
+    web_main.sync_tenant_directory_from_company_info(
+        tenant_id,
+        {"address": "Updated street 2, Balikesir"},
+    )
+
+    with sqlite3.connect(registry_path) as registry:
+        saved = registry.execute(
+            "SELECT company_address,installation_lat,installation_lng FROM tenants WHERE id=?",
+            (tenant_id,),
+        ).fetchone()
+    assert saved == ("Updated street 2, Balikesir", 39.6484, 27.8826)
 
 
 def test_sector_is_saved_and_admin_change_updates_both_databases(

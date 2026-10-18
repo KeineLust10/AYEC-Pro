@@ -137,3 +137,46 @@ def test_voice_daily_and_closing_routines_present_tenant_schedule_and_stock():
     assert 'item.date||"").slice(0,10)===dateKey' in app
     assert 'item.min_stock!==null&&item.min_stock!==undefined' in app
     assert 'Bug\\u00fcn\\u00fcn randevular\\u0131' in app
+
+
+def test_voice_settings_speech_preview_uses_local_ema_audio_route():
+    app = (WEB / "app.js").read_text(encoding="utf-8")
+
+    assert "async function playVoiceSettingsPreview(button)" in app
+    assert 'if(settingsSection==="voice-settings")return renderVoiceReferenceSettings()' in app
+    assert 'fetch("/api/desktop/assistant/speech"' in app
+    assert 'last_triggered:alert.last_triggered,_action:"update"' in app
+    assert 'String(alert.last_triggered||"").slice(0,10)===dateKey' in app
+    assert 'data-voice-speech-preview onclick="playVoiceSettingsPreview(this)"' in app
+    assert "data-voice-reminder-settings onclick=\"settingsSection='voice-shortcuts';render()\"" in app
+    assert 'readValue("asistan_ozel_adi","AYEC")' in app
+    assert 'readValue("asistan_user_name","Efendim,")' in app
+    assert "async function testVoiceMicrophone(button)" in app
+    assert 'navigator.mediaDevices.getUserMedia(deviceId?{audio:{deviceId:{exact:deviceId}}}:{audio:true})' in app
+    assert 'track.stop()' in app
+    assert 'data-voice-microphone-test onclick="testVoiceMicrophone(this)"' in app
+    assert 'function refreshVoiceInputDevices(preferred="")' in app
+    assert 'localStorage.getItem("ayec.web.voice.input-device")' in app
+    assert 'getUserMedia(deviceId?{audio:{deviceId:{exact:deviceId}}}:{audio:true})' in app
+
+
+def test_voice_settings_lists_every_desktop_scheduled_alert():
+    app = (WEB / "app.js").read_text(encoding="utf-8")
+
+    assert '["service_delivery","Servis Teslimat\\u0131","Tamamlanan servislerin teslimini hat\\u0131rlat\\u0131r","17:30"]' in app
+    assert 'Number(alert.is_enabled??1)!==1' in app
+    assert 'data-voice-alert="${type}"' in app
+    assert 'data-voice-alert-time="${type}"' in app
+    assert 'onchange="saveVoiceReminderTime(this)"' in app
+    assert "async function saveVoiceReminderTime(input)" in app
+    assert "await apiFetch(\"/api/desktop/table/scheduled_alerts\"" in app
+
+
+def test_scheduled_voice_alerts_follow_quiet_hours_and_feature_settings():
+    app = (WEB / "app.js").read_text(encoding="utf-8")
+
+    assert "function isWithinVoiceQuietHours(now)" in app
+    assert 'desktopInternalSettings.feature_scheduled_alerts_active??"1"' in app
+    assert 'desktopInternalSettings.feature_voice_alerts_active??"1"' in app
+    assert "if(!voiceEnabled||quiet&&!critical)return" in app
+    assert 'fetch("/api/desktop/assistant/speech"' in app

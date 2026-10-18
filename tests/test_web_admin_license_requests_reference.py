@@ -50,6 +50,13 @@ def test_license_requests_reference_layout_stacks_cards_and_controls_on_mobile()
     assert ".license-request-card h3 { margin: 0; color: #dee2f6; font-size: 18px;" in styles
 
 
+def test_license_mobile_header_keeps_reference_product_context_visible():
+    styles = STYLE_SOURCE.read_text(encoding="utf-8")
+
+    assert 'body[data-page="control-center"][data-admin-tab="license-requests"] .topbar > div:first-of-type { display: none !important; }' in styles
+    assert 'body[data-page="control-center"][data-admin-tab="license-requests"] .topbar #adminProductContext { display: flex !important; order: 2; flex: 0 0 108px; width: 108px; min-width: 108px; height: 40px;' in styles
+
+
 def test_admin_shell_header_has_live_resource_metrics_on_every_admin_tab():
     app = APP_SOURCE.read_text(encoding="utf-8")
     styles = STYLE_SOURCE.read_text(encoding="utf-8")

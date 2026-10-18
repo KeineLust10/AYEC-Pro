@@ -7,22 +7,23 @@
     return salesCart.map((line,index)=>{
       const item=lineItem(line);if(!item)return "";
       const service=line.type==="service",price=service?Number(line.unitPriceTry??line.priceTry)||0:normalizedPrice(item),maximum=service?999:Number(item.qty||0);
-      return `<div class="cart-line" data-kind="sales-cart" data-id="${index}" tabindex="0"><strong>${esc(service?line.name:item.name)}${service?'<small class="muted">Hizmet</small>':""}</strong><input class="control cart-qty" type="number" min="1" max="${maximum}" value="${esc(line.qty)}" data-index="${index}"><span>${money(price*Number(line.qty||0),"TRY")}</span><button class="mini" data-action="cart-remove" data-index="${index}">\u00d7</button></div>`;
+      return `<div class="cart-line" data-kind="sales-cart" data-id="${index}" tabindex="0"><strong>${esc(service?line.name:item.name)}${service?'<small class="muted">Hizmet</small>':""}</strong><input class="control cart-qty" type="number" min="1" max="${maximum}" step="${service?"any":"1"}" value="${esc(line.qty)}" data-index="${index}"><span>${money(price*Number(line.qty||0),"TRY")}</span><button class="mini" data-action="cart-remove" data-index="${index}">\u00d7</button></div>`;
     }).join("");
   };
   const previousContextAction=contextAction;
   contextAction=function(kind,id,action,row){
     if(kind!=="sales-cart")return previousContextAction(kind,id,action,row);
-    const index=Number(id),line=salesCart[index],item=lineItem(line);if(!line||!item)return;
+    const index=Number(id),line=salesCart[index],item=lineItem(line),service=line?.type==="service";if(!line||!item)return;
     if(action==="sales-cart-remove"){salesCart.splice(index,1);render();return}
-    if(action==="sales-cart-copy"){salesCart.splice(index+1,0,{...line});render();return}
+    if(action==="sales-cart-copy"){salesCart.splice(index+1,0,{...line});render();toast("Hizmet kopyaland\u0131.","success");return}
     if(action==="sales-cart-quantity"){
-      const maximum=line.type==="service"?999:Number(item.qty||0);
-      openDialog("Miktar\u0131 De\u011fi\u015ftir","SATI\u015e SEPET\u0130",`<div class="field"><label>Yeni miktar</label><input name="quantity" type="number" min="1" max="${maximum}" step="1" value="${esc(line.qty)}" required></div>`,form=>{const quantity=Number(form.get("quantity"));if(!Number.isInteger(quantity)||quantity<1||quantity>maximum){toast("Miktar ge\u00e7erli aral\u0131kta olmal\u0131.","error");return false}line.qty=quantity;render();return true},"Miktar\u0131 Kaydet");return;
+      const maximum=service?999:Number(item.qty||0);
+      const field=service?`<input name="quantity" type="text" inputmode="decimal" value="${esc(line.qty)}" required>`:`<input name="quantity" type="number" min="1" max="999999999" step="1" value="${esc(line.qty)}" required>`;
+      openDialog("Miktar\u0131 De\u011fi\u015ftir","SATI\u015e SEPET\u0130",`<div class="field"><label>Yeni miktar</label>${field}</div>`,form=>{const quantity=Number(String(form.get("quantity")??"").trim().replace(",","."));if(!Number.isFinite(quantity)||(!service&&(!Number.isInteger(quantity)||quantity<1||quantity>999999999))){toast(service?"Ge\u00e7erli bir miktar girin.":"Ge\u00e7erli bir tam miktar girin.","error");return false}line.qty=quantity;render();return true},"Miktar\u0131 Kaydet");return;
     }
     if(action==="sales-cart-price"){
       const priceTry=Number(line.unitPriceTry??line.priceTry??normalizedPrice(item));
-      openDialog("Fiyat\u0131 G\u00fcncelle","SATI\u015e SEPET\u0130",`<div class="field"><label>Yeni birim fiyat (TRY)</label><input name="unit_price" type="number" min="0" max="1000000000" step="0.01" value="${priceTry}" required></div>`,form=>{const value=Number(form.get("unit_price"));if(!Number.isFinite(value)||value<0||value>1000000000)return false;if(line.type==="service")line.unitPriceTry=value;else line.unitPriceTry=value;render();return true},"Fiyat\u0131 Kaydet");return;
+      openDialog("Fiyat\u0131 G\u00fcncelle","SATI\u015e SEPET\u0130",`<div class="field"><label>Yeni birim fiyat (TRY)</label><input name="unit_price" type="text" inputmode="decimal" value="${priceTry}" required></div>`,form=>{const value=Number(String(form.get("unit_price")??"").trim().replace(",","."));if(!Number.isFinite(value)||value<0||value>1000000000)return false;line.unitPriceTry=value;if(service)line.priceTry=value;render();return true},"Fiyat\u0131 Kaydet");return;
     }
     if(action==="sales-cart-description"){
       openDialog("A\u00e7\u0131klama Ekle","SATI\u015e SEPET\u0130",`<div class="field"><label>Kalem a\u00e7\u0131klamas\u0131</label><textarea name="description">${esc(line.description||item.description||"")}</textarea></div>`,form=>{line.description=String(form.get("description")||"");render();return true},"A\u00e7\u0131klamay\u0131 Kaydet");return;

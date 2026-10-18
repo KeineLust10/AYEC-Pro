@@ -9,7 +9,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "Admin_Konsol"))
 
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QScrollArea
 
 from pages import backups as backups_module
 
@@ -67,9 +67,16 @@ def test_backup_filters_checksum_binding_and_restore_acknowledgement(monkeypatch
     )
 
     page = backups_module.BackupsPage()
+    page.show()
+    page.resize(1440, 1000)
+    app.processEvents()
+    assert page._content_layout.contentsMargins().left() == 44
+    assert page._content_layout.contentsMargins().right() == 20
+    assert page.findChild(QScrollArea, "backupScroll").verticalScrollBarPolicy().name == "ScrollBarAlwaysOff"
     _wait_for_backups(page, app)
     assert page._metric_count.text() == "2"
     assert page._metric_size.text() == "1 / 2"
+    assert [icon._kind for icon in page.findChildren(backups_module._BackupMetricIcon)] == ["archive", "cloud", "clock", "bolt"]
 
     page._date_filter.setCurrentIndex(2)
     app.processEvents()

@@ -70,6 +70,31 @@ async function run() {
       const diagnostics = await evaluate("({ state: document.readyState, showContext: typeof showContext === 'function' ? String(showContext).slice(0, 180) : typeof showContext, resources: performance.getEntriesByType('resource').map(item => item.name).filter(name => name.includes('check-notes-parity')), exceptions: document.querySelector('#appDialog') ? 'dialog-ready' : 'dialog-missing' })");
       throw new Error(`The check-note context menu did not initialize: ${JSON.stringify(diagnostics)}`);
     }
+    const routeState = await evaluate(`(async () => {
+      document.querySelector("#authRoot")?.remove();
+      document.body.classList.remove("auth-active");
+      page = "checks";
+      document.body.dataset.page = "checks";
+      const markup = genericShell(genericModules.checks);
+      document.querySelector("#content").innerHTML = markup;
+      apiFetch = async () => ({ rows: [{ id: 502, type: "\u00c7ek", direction: "Giri\u015f (Al\u0131nan)", issuer: "Route Issuer", bank_name: "Route Bank", check_no: "ROUTE-502", amount: 850, due_date: "2026-11-03", status: "Portf\u00f6yde" }], columns: ["id", "type", "direction", "issuer", "bank_name", "check_no", "amount", "due_date", "status"] });
+      await loadGenericModule(genericModules.checks, "");
+      document.querySelector("#checkStatusFilter").value = "Tahsil Edildi";
+      document.querySelector("#checkBankFilter").value = "Route Bank";
+      document.querySelector("#checkDateStart").value = "2026-10-10";
+      document.querySelector("#checkDateEnd").value = "2026-11-10";
+      window.checksReferenceTab = "checks";
+      window.checksReferencePage = 2;
+      document.querySelector("[data-check-clear]").click();
+      await new Promise(resolve => setTimeout(resolve, 20));
+      const first = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+      const nextYear = new Date(new Date().getFullYear() + 1, new Date().getMonth(), 1);
+      const dateValue = value => String(value.getFullYear()) + "-" + String(value.getMonth() + 1).padStart(2, "0") + "-" + String(value.getDate()).padStart(2, "0");
+      return { hasLoaderHost: !!document.querySelector("#genericHost"), hasStatusFilter: !!document.querySelector("#checkStatusFilter"), rowCount: document.querySelectorAll("#genericHost tbody tr").length, rowCode: document.querySelector("#genericHost tbody tr")?.textContent.includes("ROUTE-502"), clearedToDesktopDefaults: document.querySelector("#checkStatusFilter").value === "" && document.querySelector("#checkBankFilter").value === "" && document.querySelector("#checkDateStart").value === dateValue(first) && document.querySelector("#checkDateEnd").value === dateValue(nextYear) && window.checksReferenceTab === "all" && window.checksReferencePage === 0 };
+    })()`);
+    if (!routeState.hasLoaderHost || !routeState.hasStatusFilter || routeState.rowCount !== 1 || !routeState.rowCode || !routeState.clearedToDesktopDefaults) throw new Error(`Check-note page route did not render its loaded row: ${JSON.stringify(routeState)}`);
+    const routeScreenshot = await send("Page.captureScreenshot", { format: "png", captureBeyondViewport: true });
+    fs.writeFileSync(path.join(outputDir, "check-note-workspace-headless.png"), Buffer.from(routeScreenshot.data, "base64"));
     const result = await evaluate(`(() => {
       document.querySelector("#authRoot")?.remove();
       document.body.classList.remove("auth-active");
@@ -120,7 +145,7 @@ async function run() {
     }
     const imagePath = path.join(outputDir, "check-note-status-context-menu-headless.png");
     fs.writeFileSync(imagePath, Buffer.from(screenshot.data, "base64"));
-    process.stdout.write(`${JSON.stringify({ ...result, screenshotData: undefined, imagePath, browserExceptions: exceptions.length })}\n`);
+    process.stdout.write(`${JSON.stringify({ routeState, ...result, screenshotData: undefined, imagePath, browserExceptions: exceptions.length })}\n`);
   } finally {
     if (socket) socket.close();
     try { execFileSync("taskkill", ["/PID", String(browser.pid), "/T", "/F"], { stdio: "ignore" }); } catch (_) {}

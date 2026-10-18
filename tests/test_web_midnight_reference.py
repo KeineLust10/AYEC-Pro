@@ -13,8 +13,10 @@ def test_midnight_reference_styles_are_loaded_after_page_styles():
     assert "midnight-reference.css?v=" in html
     assert html.index("service-list-reference.css") < html.index("midnight-reference.css")
     assert "color-scheme: dark" in stylesheet
-    assert "--bg: #080d16" in stylesheet
-    assert "--surface: #0e1726" in stylesheet
+    assert "--bg: #080E1A" in stylesheet
+    assert "--surface: #0D1829" in stylesheet
+    app_styles = (WEB / "styles.css").read_text(encoding="utf-8")
+    assert 'html[data-theme="midnight"]{--bg:#080e1a;--surface:#0d1829;--surface-2:#101a2b;' in app_styles
     assert ".topbar" in stylesheet
     assert ".nav-button.active" in stylesheet
     assert ".form-grid" in stylesheet
@@ -35,6 +37,14 @@ def test_midnight_controls_use_active_theme_surface_tokens():
     assert "background: #0c1727;" not in stylesheet
     assert "background-color:var(--surface)" in stylesheet
     assert "background-color:#0b1320" not in stylesheet
+
+
+def test_midnight_sidebar_header_uses_the_desktop_surface_height():
+    desktop = (ROOT / "src" / "ui" / "widgets" / "side_menu.py").read_text(encoding="utf-8")
+    parity = (WEB / "desktop-parity.css").read_text(encoding="utf-8")
+
+    assert "header.setFixedHeight(104)" in desktop
+    assert 'html[data-theme="midnight"] .sidebar{background:linear-gradient(180deg,var(--surface) 0 104px,transparent 104px)' in parity
 
 
 def test_web_shell_keeps_cache_versions_for_updated_ui_assets():

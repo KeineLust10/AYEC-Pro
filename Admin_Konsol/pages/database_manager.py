@@ -110,6 +110,7 @@ class DatabaseManagerPage(QWidget):
             QWidget#databaseManagerPage QLabel { background: transparent; }
             QWidget#sqlContent { background: #0e1321; }
             QFrame#sqlPanel { background: #111827; border: 1px solid #252a39; border-radius: 6px; }
+            QFrame#sqlPlatformMetrics { background: transparent; border: none; }
             QLabel#sqlKicker { color: #4cd7f6; font: 700 9px 'Segoe UI', Arial; letter-spacing: 1px; }
             QLabel#sqlTitle { color: #dee2f6; font-size: 20px; font-weight: 700; }
             QLabel#sqlMuted { color: #8c909f; }
@@ -126,7 +127,7 @@ class DatabaseManagerPage(QWidget):
             QTableWidget#dataTable::item { padding: 7px 8px; }
             QTableWidget#dataTable QHeaderView { background: #090e1c; }
             QTableWidget#dataTable QHeaderView::section { padding: 8px; color: #8c909f; border: none; background: #161b2a; font: 700 9px "JetBrains Mono", "Segoe UI", Arial; }
-            QFrame#sqlResultCard { background: #161b2a; border: 1px solid #252a39; border-radius: 5px; }
+            QFrame#sqlResultCard { background: #161b2a; border: 0; border-radius: 6px; }
             QLabel#sqlResultKey { color: #8c909f; font: 700 9px 'Segoe UI', Arial; }
             QLabel#sqlResultValue { color: #dee2f6; font: 10px 'Segoe UI', Arial; }
             QScrollArea#sqlScroll, QScrollArea#sqlScroll QWidget#qt_scrollarea_viewport { background: #0e1321; }
@@ -147,7 +148,7 @@ class DatabaseManagerPage(QWidget):
         content.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Minimum)
         root = QVBoxLayout(content)
         self._root_layout = root
-        root.setContentsMargins(16, 8, 16, 16)
+        root.setContentsMargins(40, 4, 16, 16)
         root.setSpacing(12)
 
         self._module_nav = QFrame()
@@ -184,26 +185,27 @@ class DatabaseManagerPage(QWidget):
         self._module_nav_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self._module_nav_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._module_nav_scroll.setFrameShape(QFrame.Shape.NoFrame)
-        self._module_nav_scroll.setFixedHeight(40)
+        self._module_nav_scroll.setFixedHeight(44)
         self._module_nav_scroll.setWidget(self._module_nav)
         root.addWidget(self._module_nav_scroll)
 
         self._platform_panel = QFrame()
         self._platform_panel.setObjectName("sqlPanel")
         platform_layout = QBoxLayout(QBoxLayout.Direction.LeftToRight, self._platform_panel)
-        platform_layout.setContentsMargins(10, 9, 10, 9)
-        platform_layout.setSpacing(8)
+        platform_layout.setContentsMargins(0, 0, 0, 0)
+        platform_layout.setSpacing(10)
+        self._platform_panel.setFixedHeight(92)
         self._platform_values = []
         self._platform_details = []
-        for title_text, initial, detail in (
+        for card_index, (title_text, initial, detail) in enumerate((
             ("VER\u0130TABANI YOLU", "Kontrol ediliyor", "SQLite WAL / Tenant DB"),
             ("DONANIM & KAYNAK T\u00dcKET\u0130M\u0130", "CPU --%  |  RAM --%  |  Disk --%", "Sunucu kaynak kullan\u0131m\u0131"),
             ("GATEWAY & L\u0130SANS API", "Kontrol ediliyor", "Aktif tenant: --"),
-        ):
+        )):
             card = QFrame()
             card.setObjectName("sqlResultCard")
             card_layout = QVBoxLayout(card)
-            card_layout.setContentsMargins(10, 8, 10, 8)
+            card_layout.setContentsMargins(12, 10, 12, 10)
             card_layout.setSpacing(3)
             title_label = QLabel(title_text)
             title_label.setObjectName("sqlQueryKicker")
@@ -217,7 +219,7 @@ class DatabaseManagerPage(QWidget):
             card_layout.addWidget(title_label)
             card_layout.addWidget(value_label)
             card_layout.addWidget(detail_label)
-            platform_layout.addWidget(card, 1)
+            platform_layout.addWidget(card, (1, 2, 1)[card_index])
             self._platform_values.append(value_label)
             self._platform_details.append(detail_label)
         root.addWidget(self._platform_panel)
@@ -458,7 +460,7 @@ class DatabaseManagerPage(QWidget):
         self._backup_table.setColumnWidth(5, 144)
         operations_layout.addWidget(self._backup_table, 1)
         self._workspace_layout.addWidget(self._operations_panel, 1)
-        root.addWidget(self._workspace, 1)
+        root.addWidget(self._workspace)
 
         self._telemetry_panel = QFrame()
         self._telemetry_panel.setObjectName("sqlPanel")
@@ -494,20 +496,26 @@ class DatabaseManagerPage(QWidget):
         telemetry_layout.addWidget(self._audit_console)
         root.addWidget(self._telemetry_panel)
         self._scroll.setWidget(content)
+        self._scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         outer.addWidget(self._scroll, 1)
         self._set_header_layout()
         self._set_action_layout()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        self._root_layout.setContentsMargins(12, 12, 12, 12) if self.width() < 720 else self._root_layout.setContentsMargins(16, 8, 16, 16)
+        self._root_layout.setContentsMargins(12, 12, 12, 12) if self.width() < 720 else self._root_layout.setContentsMargins(40, 4, 16, 16)
         self._module_nav.setMinimumWidth(820 if self.width() < 720 else 0)
         self._platform_panel.layout().setDirection(
             QBoxLayout.Direction.TopToBottom if self.width() < 720
             else QBoxLayout.Direction.LeftToRight
         )
         self._set_backup_table_layout()
-        self._workspace.setMaximumHeight(16777215)
+        if self.width() >= 1000:
+            self._workspace.setMinimumHeight(412)
+            self._workspace.setMaximumHeight(412)
+        else:
+            self._workspace.setMinimumHeight(0)
+            self._workspace.setMaximumHeight(16777215)
         self._workspace_left_layout.setSpacing(8 if self.width() < 720 else 2)
         self._workspace_layout.setDirection(
             QBoxLayout.Direction.TopToBottom if self.width() < 1000

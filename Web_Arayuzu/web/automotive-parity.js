@@ -26,6 +26,19 @@
     bakim_sonrasi:[{name:"Yol Testi"},{name:"Ariza Lambasi Kontrolu",required:true},{name:"Servis Bakim Isigi Reset"},{name:"Teslim Oncesi Temizlik"},{name:"Musteri Bilgilendirme",required:true},{name:"Fatura Hazirligi"}]
   };
   const automotiveChecklistStatuses=["Tamam","Degismeli","Incelenmeli"];
+  const maintenanceVehicleCatalog={
+    Ford:["Courier","Connect","Focus","Fiesta","Transit"],
+    Fiat:["Doblo","Egea","Fiorino","Linea"],
+    Renault:["Clio","Fluence","Kangoo","Megane","Symbol"],
+    Volkswagen:["Caddy","Golf","Jetta","Passat","Polo","Transporter"],
+    Peugeot:["208","301","308","Partner","Rifter"],
+    Toyota:["Corolla","Hilux","RAV4","Yaris"],
+    Hyundai:["Accent","i10","i20","i30","Tucson"],
+    Opel:["Astra","Combo","Corsa","Insignia"]
+  };
+  const maintenanceVehicleTypes=["Binek","Hafif Ticari","SUV","Minivan","Kamyonet","Motosiklet","Diger"];
+  const maintenanceEngineTypes=["Benzinli","Dizel","Hibrit","Elektrikli","LPG","Turbo Dizel","Diger"];
+  const maintenanceFuelTypes=["Benzin","Dizel","LPG","Elektrik","Hibrit","Diger"];
 
   function normalizeAutomotiveDamage(value){
     const parsed=typeof value==="string"?parseJson(value,{}):(value||{});
@@ -46,7 +59,7 @@
       return `<label class="automotive-damage-entry"><span>${zone}</span><select data-damage-status data-side="${side}" data-zone="${zone}">${automotiveDamageStatuses.map(status=>`<option value="${status}" ${String(item.status||"Yok")===status?"selected":""}>${status}</option>`).join("")}</select><input data-damage-note data-side="${side}" data-zone="${zone}" value="${esc(item.note||"")}" placeholder="Opsiyonel not"></label>`;
     }).join("")}</section>`).join("");
     const preview=automotiveDamageZones.map(([side,zones])=>`<section class="automotive-damage-preview-side"><h4>${side} Gorunus</h4><div>${zones.map(zone=>`<span data-damage-preview data-side="${side}" data-zone="${zone}">${zone}<b>Yok</b></span>`).join("")}</div></section>`).join("");
-    dialog.innerHTML=`<form method="dialog" class="automotive-damage-panel"><header><div><h2>Hasar Tespiti</h2><p>Aracin dort yonundeki bolgeleri isaretleyin. Hasar olmayan alanlari Yok olarak birakin.</p></div><button type="button" class="secondary" data-damage-cancel aria-label="Kapat">X</button></header><div class="automotive-damage-columns"><div class="automotive-damage-form">${sections}<label class="automotive-damage-general"><span>Genel Hasar Notu</span><textarea data-damage-general placeholder="Genel hasar notu">${esc(current.general_note)}</textarea></label></div><div class="automotive-damage-preview"><h3>Arac Hasar Gorunumu</h3>${preview}</div></div><footer><button type="button" class="secondary" data-damage-cancel>Iptal</button><button type="button" class="primary" data-damage-save>Hasar Formunu Kaydet</button></footer></form>`;
+    dialog.innerHTML=`<form method="dialog" class="automotive-damage-panel"><header><div><h2>Hasar Tespit Formu</h2></div><button type="button" class="secondary" data-damage-cancel aria-label="Kapat">X</button></header><div class="automotive-damage-columns"><div class="automotive-damage-form"><p class="automotive-damage-intro">Aracin dort yonundeki bolgeleri isaretleyin. Hasar olmayan alanlari 'Yok' olarak birakin.</p>${sections}<label class="automotive-damage-general"><span>Genel Hasar Notu</span><textarea data-damage-general placeholder="Genel hasar notu">${esc(current.general_note)}</textarea></label></div><div class="automotive-damage-preview"><h3>Arac Uzeri Hasar Ozeti</h3><p>Secilen alanlar burada renkli olarak vurgulanir.</p>${preview}</div></div><footer><button type="button" class="secondary" data-damage-cancel>Iptal</button><button type="button" class="primary" data-damage-save>Hasar Formunu Kaydet</button></footer></form>`;
     document.body.appendChild(dialog);
     const refreshPreview=()=>dialog.querySelectorAll("[data-damage-preview]").forEach(badge=>{
       const side=badge.dataset.side,zone=badge.dataset.zone;
@@ -96,7 +109,7 @@
       const key=`${section}:${item.name}`,saved=existing.get(key)||{};
       return `<label class="automotive-checklist-item"><span>${item.name}${item.required?'<b class="required-mark"> *</b>':""}</span><select data-checklist-status data-section="${section}" data-label="${item.name}">${automotiveChecklistStatuses.map(status=>`<option value="${status}" ${String(saved.status||"Tamam")===status?"selected":""}>${status}</option>`).join("")}</select><textarea data-checklist-note data-section="${section}" data-label="${item.name}" placeholder="Opsiyonel not">${esc(saved.note||"")}</textarea></label>`;
     }).join("")}</section>`).join("");
-    dialog.innerHTML=`<form method="dialog" class="automotive-checklist-panel"><header><div><h2>Otomotiv Kontrol Formu</h2><p>Kontrol kalemlerini Tamam, Degismeli veya Incelenmeli olarak isaretleyin ve gerekli notlari dusun.</p></div><button type="button" class="secondary" data-checklist-cancel aria-label="Kapat">X</button></header><div class="automotive-checklist-sections">${sections}</div><footer><button type="button" class="secondary" data-checklist-cancel>Iptal</button><button type="button" class="primary" data-checklist-save>Kontrol Formunu Kaydet</button></footer></form>`;
+    dialog.innerHTML=`<form method="dialog" class="automotive-checklist-panel"><header><div><h2>Otomotiv Kontrol Formu</h2></div><button type="button" class="secondary" data-checklist-cancel aria-label="Kapat">X</button></header><div class="automotive-checklist-sections"><p class="automotive-checklist-intro">Kontrol kalemlerini Tamam, Degismeli veya Incelenmeli olarak isaretleyin ve gerekli notlari dusun.</p>${sections}</div><footer><button type="button" class="secondary" data-checklist-cancel>Iptal</button><button type="button" class="primary" data-checklist-save>Kontrol Formunu Kaydet</button></footer></form>`;
     document.body.appendChild(dialog);
     dialog.querySelectorAll("[data-checklist-cancel]").forEach(button=>button.addEventListener("click",()=>dialog.close("cancel")));
     dialog.querySelector("[data-checklist-save]").addEventListener("click",()=>{
@@ -214,7 +227,7 @@
     const category=$("#stockCategory")?.value||tr("Tum Kategoriler");
     const level=$("#stockLevel")?.value||tr("Tum Seviyeler");
     return db.stock.filter(part=>{
-      const text=[part.code,part.barcode,part.name,part.brand,part.category,part.oem_code,part.equivalent_code,part.compatible_models,part.shelf_number].join(" ").toLocaleLowerCase("tr-TR");
+      const text=[part.code,part.barcode,part.name,part.brand,part.category,part.oem_code,part.equivalent_code,part.compatible_models,part.vehicle_brand,part.vehicle_model,part.position,part.supplier,part.shelf_number].join(" ").toLocaleLowerCase("tr-TR");
       const categoryOk=/^T.m Kategoriler$/i.test(category)||part.category===category;
       const levelOk=/^T.m Seviyeler$/i.test(level)||(level.includes("Kritik")?part.qty<=part.min:part.qty>part.min);
       return (!query||text.includes(query))&&categoryOk&&levelOk;
@@ -258,28 +271,49 @@
     document.querySelector('[data-action="barcode-scan"]')?.remove();
   };
 
+  function automotiveDescriptionParts(value){
+    const meta={supplier:"",vehicle_brand:"",vehicle_model:"",position:""},plain=[];
+    const markerMap={OTO_SUPPLIER:"supplier",OTO_VEHICLE_BRAND:"vehicle_brand",OTO_VEHICLE_MODEL:"vehicle_model",OTO_POSITION:"position"};
+    for(const line of String(value||"").split(/\r?\n/)){
+      const match=line.trim().match(/^\[(OTO_SUPPLIER|OTO_VEHICLE_BRAND|OTO_VEHICLE_MODEL|OTO_POSITION)\]\s*(.*)$/);
+      if(match)meta[markerMap[match[1]]]=match[2].trim();else plain.push(line);
+    }
+    return {description:plain.join("\n").trim(),...meta};
+  }
+
+  function composeAutomotiveDescription(description,meta){
+    const values=automotiveDescriptionParts(description),fields={...values,...meta},lines=[];
+    for(const [key,marker] of [["supplier","OTO_SUPPLIER"],["vehicle_brand","OTO_VEHICLE_BRAND"],["vehicle_model","OTO_VEHICLE_MODEL"],["position","OTO_POSITION"]]){
+      const value=String(fields[key]||"").trim();if(value)lines.push(`[${marker}] ${value}`);
+    }
+    return [values.description,...lines].filter(Boolean).join("\n");
+  }
+
   productForm=function(product={}){
-    const html=baseProductForm(product);
-    if(!automotiveMode())return html;
-  const fields=`<section class="automotive-fields"><h3>${tr("Otomotiv Parca Bilgileri")}</h3><div class="field"><label>OEM Kod</label><input name="oem_code" value="${esc(product.oem_code||"")}"></div><div class="field"><label>${tr("Muadil Kod")}</label><input name="equivalent_code" value="${esc(product.equivalent_code||"")}"></div><div class="field full"><label>${tr("Uyumlu Marka / Model / Yil")}</label><textarea name="compatible_models" placeholder="Ford Courier 2020-2026; Fiat Egea 2019-2025">${esc(product.compatible_models||"")}</textarea></div><div class="field"><label>${tr("Raf / Konum")}</label><input name="shelf_number" value="${esc(product.shelf_number||"")}"></div></section>`;
+    if(!automotiveMode())return baseProductForm(product);
+    const metadata=automotiveDescriptionParts(product.description),normalized={...product,...metadata,description:metadata.description};
+    const html=baseProductForm(normalized);
+    const positions=["On Sol","On Sag","Arka Sol","Arka Sag","Sag","Sol","On","Arka","Motor","Sanziman","Ic Mekan","Dis Trim","Genel"];
+    const fields=`<section class="automotive-fields"><h3>${tr("Otomotiv Parca Bilgileri")}</h3><div class="field"><label>OEM Kod</label><input name="oem_code" value="${esc(product.oem_code||"")}"></div><div class="field"><label>${tr("Muadil Kod")}</label><input name="equivalent_code" value="${esc(product.equivalent_code||"")}"></div><div class="field"><label>${tr("Arac Marka")}</label><input name="vehicle_brand" value="${esc(product.vehicle_brand||metadata.vehicle_brand)}"></div><div class="field"><label>${tr("Arac Model")}</label><input name="vehicle_model" value="${esc(product.vehicle_model||metadata.vehicle_model)}"></div><div class="field full"><label>${tr("Uyumlu Marka / Model / Yil")}</label><textarea name="compatible_models" placeholder="Ford Courier 2020-2026; Fiat Egea 2019-2025">${esc(product.compatible_models||"")}</textarea></div><div class="field"><label>${tr("Parca Konumu")}</label><input name="position" list="automotivePositionOptions" value="${esc(product.position||metadata.position)}"><datalist id="automotivePositionOptions">${positions.map(value=>`<option value="${value}">`).join("")}</datalist></div><div class="field"><label>${tr("Tedarikci")}</label><input name="supplier" value="${esc(product.supplier||metadata.supplier)}"></div><div class="field"><label>${tr("Raf / Konum")}</label><input name="shelf_number" value="${esc(product.shelf_number||"")}"></div></section>`;
     return insertBeforeLastDiv(html,fields);
   };
 
   saveProduct=async function(formData,existing){
     const values=Object.fromEntries(formData),currency=String(values.currency||"TRY").toUpperCase(),rate=rateForCode(currency);
     if(currency!=="TRY"&&rate<=0)throw Error(`${currency} ${tr("kuru alinamadi")}`);
+    const description=automotiveMode()?composeAutomotiveDescription(values.description,{supplier:values.supplier,vehicle_brand:values.vehicle_brand,vehicle_model:values.vehicle_model,position:values.position}):values.description;
     const payload={
       id:existing&&/^\d+$/.test(String(existing.id))?+existing.id:undefined,
       name:values.name,code:values.code,barcode:values.barcode,category:values.category,
       brand:values.brand,currency,stock:+values.qty||0,min_stock:+values.min||0,
-      purchase_price:+values.buy||0,price:+values.sell||0,description:values.description,unit:values.unit||"Adet",
+      purchase_price:+values.buy||0,price:+values.sell||0,description,unit:values.unit||"Adet",
       payment_method:values.payment_method,exchange_rate:rate,oem_code:values.oem_code||"",
       equivalent_code:values.equivalent_code||"",compatible_models:values.compatible_models||"",
       shelf_number:values.shelf_number||""
     };
     const result=await apiFetch("/api/desktop/stock/save",{method:"POST",body:JSON.stringify(payload)});
-    const part=result.part,target=existing||{};
-    Object.assign(target,{id:String(part.id),code:part.code||"",name:part.name||part.part_name||"",barcode:part.barcode||"",category:part.category||"Genel",brand:part.brand||"",currency:part.currency||"TRY",qty:Number(part.stock||0),min:Number(part.min_stock||0),buy:moneyNumber(part.purchase_price),sell:moneyNumber(part.price),description:part.description||"",unit:part.unit||"Adet",oem_code:part.oem_code||"",equivalent_code:part.equivalent_code||"",compatible_models:part.compatible_models||"",shelf_number:part.shelf_number||""});
+    const part=result.part,target=existing||{},savedDescription=part.description||description,metadata=automotiveDescriptionParts(savedDescription);
+    Object.assign(target,{id:String(part.id),code:part.code||"",name:part.name||part.part_name||"",barcode:part.barcode||"",category:part.category||"Genel",brand:part.brand||"",currency:part.currency||"TRY",qty:Number(part.stock||0),min:Number(part.min_stock||0),buy:moneyNumber(part.purchase_price),sell:moneyNumber(part.price),description:savedDescription,unit:part.unit||"Adet",oem_code:part.oem_code||"",equivalent_code:part.equivalent_code||"",compatible_models:part.compatible_models||"",shelf_number:part.shelf_number||"",supplier:metadata.supplier,vehicle_brand:metadata.vehicle_brand,vehicle_model:metadata.vehicle_model,position:metadata.position});
     if(!existing)db.stock.unshift(target);
     if(result.movement_id)db.movements.unshift({id:String(result.movement_id),date:new Date().toLocaleString("tr-TR"),product:target.name,type:result.delta>0?tr("Giris"):tr("Cikis"),qty:Math.abs(result.delta),ref:existing?tr("Stok duzenleme"):tr("Urun ekleme"),user:tr("Yonetici")});
     if(result.finance_id)db.finance.unshift({id:String(result.finance_id),date:today(),type:"Gider",category:existing?tr("Stok Guncelleme"):tr("Stok Alimi"),amount:result.expense,original_amount:result.expense,try_equivalent:result.expense*result.exchange_rate,currency:result.currency,exchange_rate:result.exchange_rate,description:`${target.name} - ${Math.max(result.delta,0)}`,customer:""});
@@ -297,7 +331,8 @@
     db.stock.forEach(part=>{
       const sourcePart=sourceById.get(String(part.id));
       if(!sourcePart)return;
-      Object.assign(part,{brand:sourcePart.brand||part.brand||"",description:sourcePart.description||part.description||"",oem_code:sourcePart.oem_code||"",equivalent_code:sourcePart.equivalent_code||"",compatible_models:sourcePart.compatible_models||"",shelf_number:sourcePart.shelf_number||""});
+      const description=sourcePart.description||part.description||"",metadata=automotiveDescriptionParts(description);
+      Object.assign(part,{brand:sourcePart.brand||part.brand||"",description,oem_code:sourcePart.oem_code||"",equivalent_code:sourcePart.equivalent_code||"",compatible_models:sourcePart.compatible_models||"",shelf_number:sourcePart.shelf_number||"",supplier:metadata.supplier,vehicle_brand:metadata.vehicle_brand,vehicle_model:metadata.vehicle_model,position:metadata.position});
     });
     save();
     if(page==="stock"||page==="automotive-stock")render();
@@ -364,8 +399,11 @@
     const selectedCustomer=db.customers.find(customer=>String(customer.id)===String(customerId));
     const intakeDamageMarks={items:[],general_note:""};
     const intakeChecklistData={items:[]};
+    const warrantyOptions=automotive?["Yok","Var","Firma Garantisi"]:["Garantili","Garanti D\u0131\u015f\u0131","Bilinmiyor"];
+    const warrantyField=`<div class="field"><label>${tr("Garanti")}</label><select name="warranty_status" ${automotive?"":"required"}>${warrantyOptions.map(value=>`<option>${esc(value)}</option>`).join("")}</select></div>`;
+    const invoiceReadyField=automotive?`<label class="setting field full"><span>${tr("Fatura Hazir")}</span><input class="switch" type="checkbox" name="invoice_ready"></label>`:"";
     const assetFields=automotive
-      ?`<div class="field"><label>Plaka *</label><input name="plate" required></div><div class="field"><label>${tr("Sasi / VIN")}</label><input name="vin"></div><div class="field"><label>Marka *</label><input name="brand" required></div><div class="field"><label>Model *</label><input name="model" required></div><div class="field"><label>${tr("Model Yili")}</label><input name="year" type="number" min="1950" max="2200"></div><div class="field"><label>${tr("Arac Tipi")}</label><input name="vehicle_type" placeholder="Binek, SUV, Ticari"></div><div class="field"><label>${tr("Motor Tipi")}</label><input name="engine_type"></div><div class="field"><label>${tr("Yakit Turu")}</label><select name="fuel_type"><option>Benzin</option><option>Dizel</option><option>Hibrit</option><option>Elektrik</option><option>LPG</option></select></div><div class="field"><label>Kilometre</label><input name="odometer" type="number" min="0"></div>`
+      ?`<div class="field"><label>Plaka *</label><input name="plate" required></div><div class="field"><label>${tr("Seri No")}</label><input name="serial"></div><div class="field"><label>${tr("Sasi / VIN")}</label><input name="vin"></div><div class="field"><label>Marka *</label><input name="brand" required></div><div class="field"><label>Model *</label><input name="model" required></div><div class="field"><label>${tr("Model Yili")}</label><input name="year" type="number" min="1950" max="2200"></div><div class="field"><label>${tr("Arac Tipi")}</label><input name="vehicle_type" placeholder="Binek, SUV, Ticari"></div><div class="field"><label>${tr("Motor Tipi")}</label><input name="engine_type"></div><div class="field"><label>${tr("Yakit Turu")}</label><select name="fuel_type"><option>Benzin</option><option>Dizel</option><option>Hibrit</option><option>Elektrik</option><option>LPG</option></select></div><div class="field"><label>Kilometre</label><input name="odometer" type="number" min="0"></div><div class="field"><label>Servis Tipi *</label><select name="service_type" required><option>Periyodik Bak\u0131m</option><option>Motor Ar\u0131za</option><option>\u015eanz\u0131man</option><option>Fren Sistemi</option><option>Elektrik/Elektronik</option><option>Kaporta/Boya</option><option>Di\u011fer</option></select></div>`
       :`<div class="field"><label>${tr("Cihaz Turu")} *</label><select name="device_type" required><option value="Laptop / Notebook" selected>Laptop / Notebook</option><option value="Masa\u00fcst\u00fc Bilgisayar (PC)">Masa\u00fcst\u00fc Bilgisayar (PC)</option><option value="All-in-One PC">All-in-One PC</option><option value="Ak\u0131ll\u0131 Telefon / Tablet">Ak\u0131ll\u0131 Telefon / Tablet</option><option value="Sunucu / Server &amp; Storage">Sunucu / Server &amp; Storage</option><option value="Yaz\u0131c\u0131 / \u00c7evre Birimi">Yaz\u0131c\u0131 / \u00c7evre Birimi</option><option value="Di\u011fer">Di\u011fer</option></select></div><div class="field full" data-service-other-device hidden><label>${tr("Diger Cihaz Turu")} *</label><input name="other_device_type"></div><div class="field"><label>Marka *</label><input name="brand" list="serviceBrandOptions" value="Acer" required><datalist id="serviceBrandOptions"><option>Acer</option><option>Apple</option><option>Asus</option><option>Dell</option><option>HP</option><option>Lenovo</option><option>MSI</option><option>Monster</option><option>Di\u011fer / \u00d6zel Uretim</option></datalist></div><div class="field"><label>Model Adi / Kodu</label><input name="model" list="serviceModelOptions" placeholder="\u00d6rn: Aspire 7 A715-42G"><datalist id="serviceModelOptions"></datalist></div><div class="field"><label>Seri No / IMEI</label><input name="serial" placeholder="Seri Numaras\u0131 veya IMEI girin"></div>`;
     openDialog(
       automotive?tr("Yeni Arac Servis Kaydi"):tr("Yeni Servis Kayd\u0131 Olu\u015ftur"),
@@ -378,7 +416,7 @@
           <div class="field"><label>${tr("Teslim Eden Kisi")}</label><input name="delivered_by_name" autocomplete="name" placeholder="${tr("Farkli ise teslim eden sahis")}"></div><div class="field"><label>${tr("Teslim Eden Tel")}</label><input name="delivered_by_phone" inputmode="tel" placeholder="${tr("Irtibat GSM Numarasi")}"></div>
         </section>
         <section class="service-form-card service-form-device"><header class="service-form-card-head"><div><span class="service-form-icon">\u25a3</span><h3>${tr("Cihaz Bilgileri")}</h3></div><div class="service-device-meta"><small>${tr("Envanter Eslesmesi: Otomatik")}</small></div></header><div class="form-grid service-device-fields">${assetFields}</div><div class="service-accessories"><span><span>${tr("Teslim Alinan Aksesuar & Donanimlar")}</span><button class="service-device-extra-toggle" type="button" aria-expanded="false" title="Teknisyen, tahmini teslim, garanti ve not alanlarini acar.">${tr("Ek Servis Alanlari")}</button></span><div class="service-accessory-options" data-service-accessory-options><label><input type="checkbox" name="accessory_option" value="Orijinal Adapter"><span>${tr("Orijinal Adapter")}</span></label><label><input type="checkbox" name="accessory_option" value="Cihaz Cantasi"><span>${tr("Cihaz Cantasi")}</span></label><label><input type="checkbox" name="accessory_option" value="Kablo / Donusturucu"><span>${tr("Kablo / Donusturucu")}</span></label><label><input type="checkbox" name="accessory_option" value="Harici Disk / Flash"><span>${tr("Harici Disk / Flash")}</span></label></div>
-          <details class="service-extra-fields"><summary>${tr("Ek servis ve teslim bilgileri")}</summary><div class="service-extra-grid"><div class="field"><label>${tr("Teknisyen")}</label><select name="technician"><option value="">${tr("Atanmadi")}</option>${technicians.map(person=>`<option>${esc(person.name)}</option>`).join("")}</select></div><div class="field"><label>${tr("Tahmini Teslim")}</label><input name="estimated_date" type="date"></div><div class="field"><label>${tr("Aksesuarlar / Teslim Alinanlar")}</label><input name="accessories"></div><div class="field"><label>${tr("Garanti")}</label><select name="warranty_status"><option>Yok</option><option>Var</option><option>${tr("Firma Garantisi")}</option></select></div><div class="field"><label>${tr("Durum")}</label><select name="status"><option>Bekliyor</option><option>${tr("Onay Bekliyor")}</option><option>${tr("Islemde")}</option><option>${tr("Parca Bekliyor")}</option></select></div><div class="field full"><label>${tr("Musteriye Acik Not")}</label><textarea name="repair_details"></textarea></div><div class="field full"><label>${tr("Teknik Ic Not")}</label><textarea name="internal_notes"></textarea></div><label class="setting field full service-open-form"><span>${tr("Kaydettikten sonra servis formunu ac")}</span><input class="switch" type="checkbox" name="open_form" checked></label></div></details>
+          <details class="service-extra-fields"><summary>${tr("Ek servis ve teslim bilgileri")}</summary><div class="service-extra-grid"><div class="field"><label>${tr("Teknisyen")}</label><select name="technician"><option value="">${tr("Atanmadi")}</option>${technicians.map(person=>`<option>${esc(person.name)}</option>`).join("")}</select></div><div class="field"><label>${tr("Tahmini Teslim")}</label><input name="estimated_date" type="date"></div><div class="field"><label>${tr("Aksesuarlar / Teslim Alinanlar")}</label><input name="accessories"></div>${warrantyField}<div class="field"><label>${tr("Durum")}</label><select name="status"><option>Bekliyor</option><option>${tr("Onay Bekliyor")}</option><option>${tr("Islemde")}</option><option>${tr("Parca Bekliyor")}</option></select></div><div class="field full"><label>${tr("Musteriye Acik Not")}</label><textarea name="repair_details"></textarea></div><div class="field full"><label>${tr("Teknik Ic Not")}</label><textarea name="internal_notes"></textarea></div><div class="field full"><label>${tr("Test / Kontrol Ozeti")}</label><textarea name="inspection_summary" placeholder="${tr("Teknik tespit ve kontrol ozeti")}"></textarea></div>${invoiceReadyField}<label class="setting field full service-open-form"><span>${tr("Kaydettikten sonra servis formunu ac")}</span><input class="switch" type="checkbox" name="open_form" checked></label></div></details>
         ${automotive?`<div class="service-form-damage"><strong>Arac Formlari</strong><button type="button" class="secondary" data-automotive-checklist-open>Kontrol Formu (0)</button><button type="button" class="secondary" data-automotive-damage-open>Hasar Tespiti (0)</button></div>`:""}
         </section>
         </div>
@@ -397,6 +435,7 @@
        </div></div>`,
       async formData=>{
         const values=Object.fromEntries(formData);
+        const invoiceReadyAt=automotive&&values.invoice_ready?new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,19).replace("T"," "):null;
         let customer=db.customers.find(item=>String(item.id)===String(values.customerId));
         if(!customer){
           const name=String(values.customer_name||"").trim();
@@ -417,16 +456,17 @@
           device_brand:values.brand||"",
           device_model:values.model,
           vehicle_model_name:values.model,
-          serial_no:values.serial||values.vin||values.plate||"",
+          serial_no:values.serial||"",
           vehicle_plate:values.plate||"",
           vehicle_vin:values.vin||"",
           vehicle_year:+values.year||null,
           vehicle_type:values.vehicle_type||"",
           engine_type:values.engine_type||"",
           fuel_type:values.fuel_type||"",
-          vehicle_odometer:+values.odometer||0,
-          fault_description:[...selectedFaultNotes,values.fault].filter(Boolean).join("\n"),
+          vehicle_odometer:+values.odometer||0,sector_extension:automotive?{vehicle_plate:values.plate||"",vehicle_vin:values.vin||"",current_km:values.odometer||"",service_type:values.service_type||""}:{device_type:values.device_type||"",serial_no:values.serial||"",warranty_status:values.warranty_status||""},
+          fault_description:[...selectedFaultNotes,values.fault,values.repair_details&&values.repair_details.trim()?`[NOT]: ${values.repair_details}`:"",values.internal_notes&&values.internal_notes.trim()?`[TEKN\u0130K]: ${values.internal_notes}`:""].filter(Boolean).join("\n"),
           repair_details:values.repair_details,
+          inspection_summary:values.inspection_summary||"",
           internal_notes:values.internal_notes,
           accessories:[...formData.getAll("accessory_option"),values.accessories].filter(Boolean).join(", "),
           device_password:values.device_password||"",
@@ -443,6 +483,7 @@
           approval_status:"Bekleme",
           entry_date:today(),
           estimated_date:values.estimated_date,
+          invoice_ready_at:invoiceReadyAt,
           warranty_status:values.warranty_status,
           payment_status:"Beklemede",
           checklist:automotive?intakeChecklistData.items:undefined,
@@ -726,6 +767,27 @@
   const baseVehicleMaintenanceDialog=maintenanceDialog;
   maintenanceDialog=async function(sourceRow={}){
     await baseVehicleMaintenanceDialog(sourceRow);
+    const maintenanceField=name=>document.querySelector(`#dialogBody [name="${name}"]`);
+    const brandInput=maintenanceField("vehicle_brand"),modelInput=maintenanceField("vehicle_model");
+    if(brandInput&&modelInput){
+      const addDatalist=(input,id)=>{let list=document.getElementById(id);if(!list){list=document.createElement("datalist");list.id=id;document.querySelector("#dialogBody").append(list)}input.setAttribute("list",id);return list};
+      const brandList=addDatalist(brandInput,"maintenanceBrandOptions"),modelList=addDatalist(modelInput,"maintenanceModelOptions");
+      brandList.innerHTML=Object.keys(maintenanceVehicleCatalog).sort().map(value=>`<option value="${esc(value)}"></option>`).join("");
+      const updateModels=()=>{const brand=Object.keys(maintenanceVehicleCatalog).find(value=>value.toLocaleLowerCase("en")===brandInput.value.trim().toLocaleLowerCase("en"));modelList.innerHTML=(maintenanceVehicleCatalog[brand]||[]).slice().sort().map(value=>`<option value="${esc(value)}"></option>`).join("")};
+      brandInput.addEventListener("input",updateModels);brandInput.addEventListener("change",updateModels);updateModels();
+    }
+    const replaceWithChoices=(input,values,placeholder="")=>{
+      if(!input)return null;
+      const current=input.value,select=document.createElement("select");select.name=input.name;select.className=input.className;select.id=input.id;
+      if(placeholder)select.add(new Option(placeholder,""));
+      values.forEach(value=>select.add(new Option(value,value)));
+      if(current&&!Array.from(select.options).some(option=>option.value===current))select.add(new Option(current,current));
+      select.value=current||values[0]||"";input.replaceWith(select);return select;
+    };
+    replaceWithChoices(maintenanceField("vehicle_year"),Array.from({length:new Date().getFullYear()-1988},(_,index)=>String(new Date().getFullYear()+1-index)),"Yil secin");
+    replaceWithChoices(maintenanceField("vehicle_type"),maintenanceVehicleTypes);
+    replaceWithChoices(maintenanceField("engine_type"),maintenanceEngineTypes);
+    replaceWithChoices(maintenanceField("fuel_type"),maintenanceFuelTypes);
     const customerSelect=document.querySelector('#dialogBody [name="customer_id"]');
     if(!customerSelect||customerSelect.dataset.vehicleLookupBound)return;
     customerSelect.dataset.vehicleLookupBound="true";
@@ -739,6 +801,7 @@
     vehicleSelect.insertAdjacentHTML("afterend",`<button type="button" class="secondary maintenance-add-vehicle" data-maintenance-add-vehicle>${tr("Yeni Arac Ekle")}</button>`);
     const vehicleRows=[];
     const field=name=>document.querySelector(`#dialogBody [name="${name}"]`);
+    const readDraftItems=()=>{try{return JSON.parse(field("maintenance_items_json")?.value||"[]")}catch{return[]}};
     const applyVehicle=vehicle=>{
       const values={vehicle_plate:vehicle.plate,vehicle_brand:vehicle.brand,vehicle_model:vehicle.model,vehicle_year:vehicle.year,vehicle_type:vehicle.vehicle_type,engine_type:vehicle.engine_type,fuel_type:vehicle.fuel_type,odometer:vehicle.last_known_odometer,inspection_due_date:vehicle.inspection_due_date};
       Object.entries(values).forEach(([name,value])=>{const input=field(name);if(!input||value==null||value==="")return;if(input.tagName==="SELECT"&&!Array.from(input.options).some(option=>option.value===String(value)))input.add(new Option(String(value),String(value)));input.value=String(value)});
@@ -755,7 +818,7 @@
     };
     document.querySelector("[data-maintenance-add-customer]").addEventListener("click",()=>{
       const form=document.querySelector("#dialogForm"),draft=Object.fromEntries(new FormData(form));
-      draft._draftItems=$$('[data-maintenance-item]',$("#dialogBody")).map(element=>({item_type:element.dataset.maintenanceItem,item_label:element.dataset.label,performed:element.querySelector(".maintenance-performed").checked,interval_days:Number(element.querySelector(".maintenance-days").value||0),interval_km:Number(element.querySelector(".maintenance-km").value||0),next_due_date:element.querySelector(".maintenance-due-date").value,next_due_odometer:Number(element.querySelector(".maintenance-due-km").value||0)}));
+      draft._draftItems=readDraftItems();
       const dialog=document.querySelector("#appDialog");dialog.close("cancel");let savedCustomer=null;
       const reopen=()=>{void maintenanceDialog({...draft,...(savedCustomer?{customer_id:savedCustomer.id}: {})})};
       setTimeout(()=>{
@@ -769,7 +832,7 @@
       const customer=(db.customers||[]).find(item=>String(item.desktopId||item.id)===String(customerSelect.value));
       if(!customer){toast(tr("Musteri bulunamadi"),"error");return}
       const form=document.querySelector("#dialogForm"),draft=Object.fromEntries(new FormData(form));
-      draft._draftItems=$$('[data-maintenance-item]',$("#dialogBody")).map(element=>({item_type:element.dataset.maintenanceItem,item_label:element.dataset.label,performed:element.querySelector(".maintenance-performed").checked,interval_days:Number(element.querySelector(".maintenance-days").value||0),interval_km:Number(element.querySelector(".maintenance-km").value||0),next_due_date:element.querySelector(".maintenance-due-date").value,next_due_odometer:Number(element.querySelector(".maintenance-due-km").value||0)}));
+      draft._draftItems=readDraftItems();
       const dialog=document.querySelector("#appDialog");dialog.close("cancel");let saved=null;
       const reopen=()=>{void maintenanceDialog({...draft,...(saved?{vehicle_id:saved.id,vehicle_plate:saved.plate,vehicle_brand:saved.brand,vehicle_model:saved.model,vehicle_year:saved.year,vehicle_type:saved.vehicle_type,engine_type:saved.engine_type,fuel_type:saved.fuel_type,odometer:saved.last_known_odometer,inspection_due_date:saved.inspection_due_date}:{})})};
       setTimeout(()=>{vehicleEditor(customer,{}, {refreshCustomer:false,onSaved:(result,payload)=>{saved={...payload,...result,id:result.id||payload.id}}});document.querySelector("#appDialog").addEventListener("close",reopen,{once:true})},80);

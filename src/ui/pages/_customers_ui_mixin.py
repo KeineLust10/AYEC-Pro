@@ -5,7 +5,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QTimer, QItemSelectionModel
 
-from src.utils.theme_colors import theme_qss
+from src.ui.pages._customers_visual_theme import customer_theme_qss
 from src.utils.context_menu_settings import is_context_menu_enabled
 from src.utils.performance_monitor import perf_span
 from src.ui.dialogs.customer_notes_dialog import CustomerNotesDialog
@@ -16,7 +16,7 @@ class CustomersUIMixin:
 
     def _create_action_widget(self, row, data):
         container = QWidget()
-        container.setStyleSheet(theme_qss("background: transparent; border: none;"))
+        container.setStyleSheet(customer_theme_qss(self, "background: transparent; border: none;"))
         lay = QHBoxLayout(container)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(2)
@@ -32,19 +32,19 @@ class CustomersUIMixin:
                 QSizePolicy.Policy.Fixed,
             )
             button.setCursor(Qt.CursorShape.PointingHandCursor)
-            button.setStyleSheet(theme_qss(
+            button.setStyleSheet(customer_theme_qss(self,
                 "QPushButton { background: @surface_alt; color: @text; border: 1px solid @border; "
                 "border-radius: 7px; padding: 0 4px; font-size: 9px; font-weight: 700; } "
                 "QPushButton:hover { background: @surface_high; border-color: @accent; }"
             ))
             if tone == "primary":
-                button.setStyleSheet(theme_qss(
+                button.setStyleSheet(customer_theme_qss(self,
                     "QPushButton { background: @accent; color: @selection_text; border: 1px solid @accent; "
                     "border-radius: 7px; padding: 0 4px; font-size: 9px; font-weight: 700; } "
                     "QPushButton:hover { background: @accent; border-color: @accent; }"
                 ))
             elif tone == "warning":
-                button.setStyleSheet(theme_qss(
+                button.setStyleSheet(customer_theme_qss(self,
                     "QPushButton { background: @danger; color: @selection_text; border: 1px solid @danger; "
                     "border-radius: 7px; padding: 0 4px; font-size: 9px; font-weight: 700; } "
                     "QPushButton:hover { background: @danger; }"
@@ -67,7 +67,7 @@ class CustomersUIMixin:
             more.setIcon(navigation_icon("more_vertical", 14, "text_muted"))
             more.setToolTip("Di\u011fer m\u00fc\u015fteri i\u015flemleri")
             more.setAccessibleName("Di\u011fer m\u00fc\u015fteri i\u015flemleri")
-            more.setStyleSheet(theme_qss(
+            more.setStyleSheet(customer_theme_qss(self,
                 "QPushButton { background: @surface_alt; color: @text_muted; border: 1px solid @border; "
                 "border-radius: 7px; font-size: 16px; font-weight: 700; } "
                 "QPushButton:hover { background: @surface_high; color: @text; }"

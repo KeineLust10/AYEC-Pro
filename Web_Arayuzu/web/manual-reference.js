@@ -16,6 +16,15 @@
     return html;
   }
 
+  function tableCells(line) {
+    return line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map(cell => cell.trim());
+  }
+
+  function isTableSeparator(line) {
+    const cells = tableCells(line);
+    return cells.length > 1 && cells.every(cell => /^:?-{3,}:?$/.test(cell));
+  }
+
   function renderMarkdown(source) {
     const lines = String(source || "").replace(/\r/g, "").split("\n");
     const output = [];
@@ -28,7 +37,8 @@
       if (list) output.push(`</${list}>`);
       list = "";
     };
-    for (const line of lines) {
+    for (let index = 0; index < lines.length; index++) {
+      const line = lines[index];
       if (line.trim().startsWith("```")) {
         flushParagraph();
         closeList();
@@ -40,6 +50,24 @@
         continue;
       }
       if (code) { codeLines.push(line); continue; }
+      if (line.includes("|") && index + 1 < lines.length && isTableSeparator(lines[index + 1])) {
+        flushParagraph(); closeList();
+        const headers = tableCells(line);
+        const alignments = tableCells(lines[index + 1]).map(cell => cell.startsWith(":") ? (cell.endsWith(":") ? "center" : "left") : (cell.endsWith(":") ? "right" : ""));
+        const cellHtml = (cells, tag) => `<tr>${headers.map((_, cellIndex) => {
+          const alignment = alignments[cellIndex] ? ` style="text-align:${alignments[cellIndex]}"` : "";
+          return `<${tag}${alignment}>${inlineMarkdown(cells[cellIndex] || "")}</${tag}>`;
+        }).join("")}</tr>`;
+        output.push(`<div class="manual-table-wrap"><table><thead>${cellHtml(headers, "th")}</thead><tbody>`);
+        index += 2;
+        while (index < lines.length && lines[index].includes("|")) {
+          output.push(cellHtml(tableCells(lines[index]), "td"));
+          index++;
+        }
+        output.push("</tbody></table></div>");
+        index--;
+        continue;
+      }
       if (!line.trim()) { flushParagraph(); closeList(); continue; }
       const heading = line.match(/^(#{1,6})\s+(.+)$/);
       if (heading) {
@@ -71,7 +99,7 @@
   }
 
   function manualShell() {
-    return `<section class="manual-reference"><header class="manual-reference-head"><div><span>KULLANIM DESTE\u011e\u0130</span><h2>Yard\u0131m ve K\u0131lavuzlar</h2><p>\u00dcr\u00fcn kullan\u0131m\u0131 ve kurulum belgeleri</p></div><button type="button" class="secondary" data-manual-refresh>Yenile</button></header><nav class="manual-tabs" role="tablist" aria-label="K\u0131lavuzlar">${Object.entries(names).map(([key, label]) => `<button type="button" role="tab" aria-selected="${selectedManual === key}" data-manual-tab="${key}">${label}</button>`).join("")}</nav><article class="manual-document" id="manualDocument" aria-live="polite"><p class="manual-loading">K\u0131lavuz y\u00fckleniyor...</p></article></section>`;
+    return `<section class="manual-reference"><header class="manual-reference-head"><div><h2><span class="manual-heading-icon" aria-hidden="true">&#128218;</span> Yard\u0131m ve K\u0131lavuzlar</h2></div><button type="button" class="secondary" data-manual-refresh>Yenile</button></header><nav class="manual-tabs" role="tablist" aria-label="K\u0131lavuzlar">${Object.entries(names).map(([key, label]) => `<button type="button" role="tab" aria-selected="${selectedManual === key}" data-manual-tab="${key}">${label}</button>`).join("")}</nav><article class="manual-document" id="manualDocument" aria-live="polite"><p class="manual-loading">K\u0131lavuz y\u00fckleniyor...</p></article></section>`;
   }
 
   async function loadManual() {

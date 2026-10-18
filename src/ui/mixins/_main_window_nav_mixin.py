@@ -137,14 +137,10 @@ class MainWindowNavMixin:
             self.app_header, "set_customer_reference_mode"
         ):
             self.app_header.set_customer_reference_mode(
-                int(index) == int(PageIds.CUSTOMER_LIST)
+                False
             )
-            if int(index) == int(PageIds.CUSTOMER_LIST):
-                self.app_header._sync_customer_reference_header(index)
         if hasattr(self, "set_customer_reference_shell_mode"):
-            self.set_customer_reference_shell_mode(
-                int(index) == int(PageIds.CUSTOMER_LIST)
-            )
+            self.set_customer_reference_shell_mode(False)
         self._set_field_map_shell_mode(int(index) == int(PageIds.FIELD_MAP))
         if active_sidebar is not None:
             if previous_sidebar_page != int(index) and (
@@ -188,9 +184,7 @@ class MainWindowNavMixin:
             if customer_page is not None and hasattr(
                 customer_page, "set_reference_shell_mode"
             ):
-                customer_page.set_reference_shell_mode(
-                    int(index) == int(PageIds.CUSTOMER_LIST)
-                )
+                customer_page.set_reference_shell_mode(False)
             if page:
                 if (
                     requested_settings_tab is not None

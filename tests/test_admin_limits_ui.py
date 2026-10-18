@@ -11,6 +11,47 @@ if str(ADMIN_ROOT) not in sys.path:
 from pages.limits import LimitsPage
 
 
+def test_limits_reference_margins_expand_without_mobile_overflow(persistent_qapplication, monkeypatch):
+    monkeypatch.setattr(LimitsPage, "_load", lambda self: None)
+    page = LimitsPage()
+    assert not page._page_previous.isEnabled()
+    assert not page._page_next.isEnabled()
+    page.resize(1440, 1000)
+    page.show()
+    persistent_qapplication.processEvents()
+    margins = page._content_layout.contentsMargins()
+    assert (margins.left(), margins.right()) == (40, 16)
+    page.resize(390, 844)
+    persistent_qapplication.processEvents()
+    margins = page._content_layout.contentsMargins()
+    assert (margins.left(), margins.right()) == (20, 20)
+    assert page._scroll.horizontalScrollBar().maximum() == 0
+
+
+def test_limits_pagination_routes_previous_and_next_buttons(persistent_qapplication, monkeypatch):
+    monkeypatch.setattr(LimitsPage, "_load", lambda self: None)
+    page = LimitsPage()
+    page._populate([{"tenant_id": f"tenant-{index}", "company_name": f"Company {index}"} for index in range(12)])
+
+    assert page._page_number.text() == "1 / 2"
+    assert not page._page_previous.isEnabled()
+    assert page._page_next.isEnabled()
+    assert not page._table.isRowHidden(0)
+    assert page._table.isRowHidden(10)
+
+    page._page_next.click()
+    assert page._page_number.text() == "2 / 2"
+    assert page._page_previous.isEnabled()
+    assert not page._page_next.isEnabled()
+    assert page._table.isRowHidden(0)
+    assert not page._table.isRowHidden(10)
+
+    page._page_previous.click()
+    assert page._page_number.text() == "1 / 2"
+    assert not page._table.isRowHidden(0)
+    assert page._table.isRowHidden(10)
+
+
 def test_limits_summary_detects_any_exhausted_quota_and_filters(persistent_qapplication, monkeypatch):
     monkeypatch.setattr(LimitsPage, "_load", lambda self: None)
     page = LimitsPage()
@@ -44,10 +85,10 @@ def test_limits_summary_detects_any_exhausted_quota_and_filters(persistent_qappl
     assert page._metric_db.text() == "32.00 MB / 100 GB"
     assert page._table.item(1, 5).data(Qt.ItemDataRole.UserRole + 1) == "Limit A\u015f\u0131m\u0131/Kritik"
     assert page._metric_devices.text() == "5 / 400 Cihaz"
-    assert page._metric_services.text() == "30 / 4,000 Fis"
+    assert page._metric_services.text() == "30 / 4,000 Fi\u015f"
     assert len(page._policy_controls) == 3
     toggle = page._policy_controls[0]
-    assert toggle.accessibleName() == "Veritabani %90 doldugunda firmaya bildirim gonder"
+    assert toggle.accessibleName() == "Veritaban\u0131 %90 doldu\u011funda firmaya bildirim g\u00f6nder"
     assert toggle.size().width() == 42
     toggle.click()
     assert not toggle.isChecked()

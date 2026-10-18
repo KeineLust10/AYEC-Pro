@@ -52,12 +52,12 @@ class ErrorLogsPage(QWidget):
         self.setStyleSheet("""
             QWidget#adminErrorTelemetryPage { background: #0e1321; color: #dee2f6; }
             QWidget#adminErrorTelemetryPage QLabel { background: transparent; color: #dee2f6; }
-            QWidget#errorTelemetryContent { background: #0a0f1d; }
-            QScrollArea#errorTelemetryScroll { background: #0a0f1d; border: 0; }
-            QScrollArea#errorTelemetryScroll QWidget#qt_scrollarea_viewport { background: #0a0f1d; }
-            QTableWidget#dataTable { background: #111827; color: #dee2f6; gridline-color: #252a39; border: 1px solid #252a39; selection-background-color: #252a39; selection-color: #dee2f6; }
-            QTableWidget#dataTable::item { padding: 8px 10px; border-bottom: 1px solid #252a39; }
-            QHeaderView::section { min-height: 32px; padding: 6px 8px; color: #94a3b8; background: #1e293b; border: 0; border-bottom: 1px solid #334155; font: 700 8px 'Segoe UI', Arial; }
+            QWidget#errorTelemetryContent { background: #0e1321; }
+            QScrollArea#errorTelemetryScroll { background: #0e1321; border: 0; }
+            QScrollArea#errorTelemetryScroll QWidget#qt_scrollarea_viewport { background: #0e1321; }
+            QTableWidget#dataTable { background: #161b2a; color: #dee2f6; gridline-color: #252a39; border: 1px solid #252a39; selection-background-color: #252a39; selection-color: #dee2f6; }
+            QTableWidget#dataTable::item { background: #161b2a; padding: 8px 10px; border-bottom: 1px solid #252a39; }
+            QHeaderView::section { min-height: 32px; padding: 6px 8px; color: #94a3b8; background: #161b2a; border: 0; border-bottom: 1px solid #252a39; font: 700 8px 'Segoe UI', Arial; }
             QTextEdit#codeBox { color: #dee2f6; background: #090e1c; border: 1px solid #252a39; padding: 8px; font: 10px 'Consolas', 'Segoe UI', Arial; }
             QLineEdit#searchInput, QComboBox#combo { min-height: 32px; padding: 5px 8px; color: #dee2f6; background: #0d1527; border: 1px solid #252a39; border-radius: 4px; selection-background-color: #2563eb; }
             QPushButton#secondaryBtn { min-height: 32px; padding: 5px 9px; color: #dee2f6; background: #1e293b; border: 1px solid #334155; border-radius: 4px; }
@@ -84,7 +84,7 @@ class ErrorLogsPage(QWidget):
         self._content.setObjectName("errorTelemetryContent")
         self._content.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Minimum)
         root = QVBoxLayout(self._content)
-        root.setContentsMargins(16, 12, 16, 20)
+        root.setContentsMargins(40, 0, 16, 20)
         root.setSpacing(12)
         self._root_layout = root
 
@@ -97,13 +97,13 @@ class ErrorLogsPage(QWidget):
         eyebrow = QLabel("CRASH & TELEMETRY HUB  /  ADMIN API")
         eyebrow.setObjectName("errorEyebrow")
         heading.addWidget(eyebrow)
-        title = QLabel("Hata Loglari & Telemetri Gozlem Masasi")
+        title = QLabel("Hata Loglar\u0131 & Telemetri G\u00f6zlem Masas\u0131")
         title.setObjectName("pageTitle")
         title.setWordWrap(True)
         title.setMinimumWidth(0)
         title.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         heading.addWidget(title)
-        subtitle = QLabel("Tenant masaustu uygulamalarindan raporlanan hata iletilerini ve stack trace kayitlarini inceleyin.")
+        subtitle = QLabel("T\u00fcm firma masa\u00fcst\u00fc istemcilerinden olu\u015fan istisnalar\u0131, veritaban\u0131 kilitlenmelerini ve API zaman a\u015f\u0131m\u0131 uyar\u0131lar\u0131n\u0131 inceleyin.")
         subtitle.setObjectName("metricSub")
         subtitle.setWordWrap(True)
         subtitle.setMinimumWidth(0)
@@ -132,6 +132,8 @@ class ErrorLogsPage(QWidget):
 
         metrics = QGridLayout()
         metrics.setSpacing(10)
+        for column in range(4):
+            metrics.setColumnStretch(column, 1)
         self._metric_grid = metrics
         self._metric_cards = []
         self._metric_total = QLabel("0")
@@ -139,13 +141,14 @@ class ErrorLogsPage(QWidget):
         self._metric_warnings = QLabel("0")
         self._metric_handled = QLabel("0")
         for index, (caption_text, value) in enumerate((
-            ("KRITIK HATALAR / CRASH", self._metric_errors),
-            ("AKTIF UYARILAR", self._metric_warnings),
-            ("YAKALANAN ISTISNALAR", self._metric_handled),
+            ("KR\u0130T\u0130K HATALAR / CRASH", self._metric_errors),
+            ("AKT\u0130F UYARILAR", self._metric_warnings),
+            ("YAKALANAN \u0130ST\u0130SNALAR", self._metric_handled),
             ("HATA \u00c7\u00d6Z\u00dcM & STAB\u0130L\u0130TE", self._metric_total),
         )):
             card = QFrame()
             card.setObjectName("errorMetric")
+            card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             card_lay = QVBoxLayout(card)
             card_lay.setContentsMargins(16, 16, 16, 16)
             caption = QLabel(caption_text)
@@ -175,12 +178,14 @@ class ErrorLogsPage(QWidget):
                 card_lay.addWidget(detail)
             self._metric_cards.append(card)
             metrics.addWidget(card, 0, index)
+        root.addSpacing(33)
         root.addLayout(metrics)
 
         filter_row = QGridLayout()
         filter_row.setSpacing(6)
         self._filter_layout = filter_row
-        filter_row.setColumnStretch(5, 1)
+        filter_row.setContentsMargins(10, 9, 10, 9)
+        filter_row.setColumnStretch(6, 1)
         self._level_filter = "all"
         self._filter_buttons = {}
         for label, key in (("Tumu", "all"), ("Kritik / Fatal", "critical"), ("Hata / Error", "error"), ("Uyari / Warn", "warning"), ("Bilgi", "info")):
@@ -197,20 +202,21 @@ class ErrorLogsPage(QWidget):
         self._search = QLineEdit()
         self._search.setObjectName("searchInput")
         self._search.setPlaceholderText(
-            "Hata turu, firma, bilgisayar veya mesaj ara..."
+            "Hata kodu, dosya ad\u0131, stack trace ara..."
         )
         self._search.textChanged.connect(self._filter_logs)
-        root.addWidget(self._search)
+        filter_row.addWidget(self._search, 0, 6, 1, 1)
 
         table_toolbar = QHBoxLayout()
         table_toolbar.setContentsMargins(0, 0, 0, 0)
-        self._table_title = QLabel("Canli Telemetri & Hata Akis Tablosu")
+        self._table_title = QLabel("Canl\u0131 Telemetri & Hata Ak\u0131\u015f Tablosu")
         self._table_title.setObjectName("sectionTitle")
         table_toolbar.addWidget(self._table_title)
         table_toolbar.addStretch(1)
         self._table_count = QLabel("Son 0 Hata Olayi")
         self._table_count.setObjectName("errorTableCount")
         table_toolbar.addWidget(self._table_count)
+        root.addSpacing(19)
         root.addLayout(table_toolbar)
 
         # Splitter: tablo + detay
@@ -221,7 +227,7 @@ class ErrorLogsPage(QWidget):
         self._table = QTableWidget()
         self._table.setObjectName("dataTable")
         self._table.setColumnCount(6)
-        self._table.setHorizontalHeaderLabels(["Zaman Damgasi", "Firma", "Bilgisayar / Terminal", "Hata Turu", "Satir / Metot", "Mesaj / Istisna Ozeti"])
+        self._table.setHorizontalHeaderLabels(["ZAMAN DAMGASI", "FIRMA", "B\u0130LG\u0130SAYAR / TERM\u0130NAL", "HATA T\u00dcR\u00dc", "SATIR / METOT", "MESAJ & \u0130ST\u0130SNA \u00d6ZET\u0130"])
         self._table.verticalHeader().setVisible(False)
         self._table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -304,6 +310,7 @@ class ErrorLogsPage(QWidget):
         self._splitter.addWidget(self._detail_frame)
 
         self._splitter.setSizes([340, 400])
+        root.addSpacing(4)
         root.addWidget(self._splitter, 1)
 
         self._status_lbl = QLabel("")
@@ -319,15 +326,17 @@ class ErrorLogsPage(QWidget):
 
     def _apply_responsive_layout(self):
         compact = self.width() < 760
-        self._root_layout.setContentsMargins(12 if compact else 16, 12, 12 if compact else 16, 20)
+        self._root_layout.setContentsMargins(12 if compact else 40, 0, 12 if compact else 16, 20)
         self._content.setContentsMargins(0, 0, 0, 0)
         direction = QBoxLayout.Direction.TopToBottom if compact else QBoxLayout.Direction.LeftToRight
         self._top_layout.setDirection(direction)
         self._header_controls.setDirection(direction)
         metric_columns = 1 if compact else 4
+        for column in range(4):
+            self._metric_grid.setColumnStretch(column, int(column < metric_columns))
         for card in self._metric_cards:
             self._metric_grid.removeWidget(card)
-            card.setMinimumHeight(120 if compact else 0)
+            card.setMinimumHeight(120 if compact else 148)
         for index, card in enumerate(self._metric_cards):
             self._metric_grid.addWidget(card, index // metric_columns, index % metric_columns)
         filter_columns = 2 if compact else len(self._filter_buttons)
@@ -343,16 +352,19 @@ class ErrorLogsPage(QWidget):
         for index, button in enumerate(self._filter_buttons.values()):
             self._filter_layout.addWidget(button, index // filter_columns, index % filter_columns)
         self._filter_layout.removeWidget(self._firm_combo)
+        self._filter_layout.removeWidget(self._search)
         if compact:
             self._filter_layout.addWidget(self._firm_combo, 3, 0, 1, 2)
+            self._filter_layout.addWidget(self._search, 4, 0, 1, 2)
         else:
             self._filter_layout.addWidget(self._firm_combo, 0, 5, 1, 1)
+            self._filter_layout.addWidget(self._search, 0, 6, 1, 1)
         self._result_stack.setCurrentWidget(self._mobile_logs if compact else self._table)
         self._table.horizontalHeader().setSectionResizeMode(
             QHeaderView.ResizeMode.Stretch if compact else QHeaderView.ResizeMode.ResizeToContents
         )
-        self._table.setMaximumHeight(16777215 if compact else 420)
-        self._result_stack.setMaximumHeight(16777215 if compact else 420)
+        self._table.setMaximumHeight(16777215 if compact else 303)
+        self._result_stack.setMaximumHeight(16777215 if compact else 303)
         self._detail_head_layout.setDirection(direction)
         for cell in self._system_cells:
             self._system_grid.removeWidget(cell)
@@ -363,6 +375,7 @@ class ErrorLogsPage(QWidget):
         self._detail_frame.setMinimumWidth(0)
         self._detail.setMaximumHeight(280 if compact else 360)
         self._splitter.setOrientation(Qt.Orientation.Vertical)
+        self._splitter.setHandleWidth(8 if compact else 16)
         self._table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self._detail_head_layout.setDirection(QBoxLayout.Direction.TopToBottom if compact else QBoxLayout.Direction.LeftToRight)
         self._splitter.setSizes([250, 600] if compact else [340, 400])

@@ -8,7 +8,11 @@ from PyQt6.QtWidgets import QTableWidgetItem, QWidget, QFrame, QHBoxLayout, QVBo
 
 from src.utils.logger import logger
 from src.utils.currency_helper import CurrencyHelper
-from src.utils.theme_colors import tc, qc, theme_qss
+from src.ui.pages._customers_visual_theme import (
+    customer_theme_color,
+    customer_theme_qcolor,
+    customer_theme_qss,
+)
 from src.utils.performance_monitor import perf_span
 from src.ui.pages.customers_page_parts import CustomerWorker
 from src.ui.widgets.navigation_glyph import navigation_icon
@@ -277,7 +281,7 @@ class CustomersDataMixin:
             customer_id_text = "#{:03d}".format(int(customer_id))
             item_id = _CustomerSortItem(int(customer_id))
             item_id.setFont(QFont("JetBrains Mono", 9, QFont.Weight.Bold))
-            item_id.setForeground(qc("accent"))
+            item_id.setForeground(customer_theme_qcolor(self, "accent"))
             item_id.setData(Qt.ItemDataRole.UserRole, data)
             self.table.setItem(row_idx, 1, item_id)
             customer_type = str(data.get("type") or "").casefold()
@@ -315,7 +319,7 @@ class CustomersDataMixin:
             id_cell.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
             id_cell.setStyleSheet("background: transparent; border: none;")
             id_cell_layout = QHBoxLayout(id_cell)
-            id_cell_layout.setContentsMargins(4, 0, 0, 0)
+            id_cell_layout.setContentsMargins(0, 0, 0, 0)
             id_cell_layout.addWidget(
                 id_badge,
                 alignment=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
@@ -340,10 +344,10 @@ class CustomersDataMixin:
             name_item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
             name_item.setFont(QFont("Times New Roman", 10, QFont.Weight.DemiBold))
             if cust_type.casefold() in {"kurumsal", "vip", "tedarik\u00e7i"} or "bayi" in cust_type.casefold():
-                name_item.setForeground(qc("selection_text"))
+                name_item.setForeground(customer_theme_qcolor(self, "selection_text"))
             self.table.setItem(row_idx, 2, name_item)
             identity = QWidget()
-            identity.setStyleSheet(theme_qss("background: transparent; border: none;"))
+            identity.setStyleSheet(customer_theme_qss(self, "background: transparent; border: none;"))
             identity_layout = QHBoxLayout(identity)
             identity_layout.setContentsMargins(0, 0, 0, 0)
             identity_layout.setSpacing(10)
@@ -368,17 +372,23 @@ class CustomersDataMixin:
             identity_text.setSpacing(3)
             identity_name = QLabel(str(data["name"]))
             identity_name.setWordWrap(True)
-            identity_name.setStyleSheet(theme_qss("color: @text; font-size: 14px; font-weight: 700; border: none; background: transparent;"))
+            identity_name.setStyleSheet(customer_theme_qss(self, "color: @text; font-size: 14px; font-weight: 700; border: none; background: transparent;"))
             identity_line = QHBoxLayout()
             identity_line.setContentsMargins(0, 0, 0, 0)
             identity_line.setSpacing(6)
             identity_line.addWidget(identity_name)
-            if "VIP" in str(data.get("contract_type") or "").upper():
-                vip_badge = QLabel("VIP")
-                vip_badge.setFixedSize(38, 22)
-                vip_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
-                vip_badge.setStyleSheet(theme_qss("QLabel { background: @surface_alt; color: @warning; border: 1px solid @warning; border-radius: 5px; padding: 1px 6px; font-size: 10px; font-weight: 800; }"))
-                identity_line.addWidget(vip_badge)
+            if (
+                "VIP" in str(data.get("contract_type") or "").upper()
+                and cust_type.casefold() in {"kurumsal", "vip"}
+            ):
+                verified_icon = QLabel()
+                verified_icon.setFixedSize(16, 16)
+                verified_icon.setToolTip("\u0044o\u011frulanm\u0131\u015f VIP Kurumsal S\u00f6zle\u015fmeli")
+                verified_icon.setPixmap(
+                    navigation_icon("verified", 14, "#f59e0b").pixmap(14, 14)
+                )
+                verified_icon.setStyleSheet("background: transparent; border: none;")
+                identity_line.addWidget(verified_icon)
             identity_line.addStretch(1)
             identity_text.addLayout(identity_line)
             identity_meta = QWidget()
@@ -388,7 +398,7 @@ class CustomersDataMixin:
             meta_layout.setSpacing(2)
             if company and company.casefold() != name_display.casefold():
                 company_label = QLabel(company)
-                company_label.setStyleSheet(theme_qss("color: @text_muted; font-size: 11px; border: none; background: transparent;"))
+                company_label.setStyleSheet(customer_theme_qss(self, "color: @text_muted; font-size: 11px; border: none; background: transparent;"))
                 meta_layout.addWidget(company_label)
             if location:
                 location_row = QHBoxLayout()
@@ -398,14 +408,14 @@ class CustomersDataMixin:
                 location_icon.setFixedSize(11, 11)
                 location_icon.setPixmap(navigation_icon("pin", 11, "text_muted").pixmap(11, 11))
                 location_label = QLabel(location)
-                location_label.setStyleSheet(theme_qss("color: @text_muted; font-size: 11px; border: none; background: transparent;"))
+                location_label.setStyleSheet(customer_theme_qss(self, "color: @text_muted; font-size: 11px; border: none; background: transparent;"))
                 location_row.addWidget(location_icon)
                 location_row.addWidget(location_label)
                 location_row.addStretch(1)
                 meta_layout.addLayout(location_row)
             elif tax_id:
                 tax_label = QLabel(("VN: " if cust_type.casefold() in {"kurumsal", "vip", "bayi"} else "TC: ") + tax_id)
-                tax_label.setStyleSheet(theme_qss("color: @text_muted; font-size: 11px; border: none; background: transparent;"))
+                tax_label.setStyleSheet(customer_theme_qss(self, "color: @text_muted; font-size: 11px; border: none; background: transparent;"))
                 meta_layout.addWidget(tax_label)
             identity_text.addWidget(identity_meta)
             identity_layout.addWidget(avatar)
@@ -414,7 +424,7 @@ class CustomersDataMixin:
 
             comp_item = _CustomerSortItem(cust_type or "Bireysel")
             comp_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            comp_item.setForeground(qc("accent" if cust_type.casefold() in {"kurumsal", "vip"} or "bayi" in cust_type.casefold() else "text"))
+            comp_item.setForeground(customer_theme_qcolor(self, "accent" if cust_type.casefold() in {"kurumsal", "vip"} or "bayi" in cust_type.casefold() else "text"))
             self.table.setItem(row_idx, 3, comp_item)
             contract_type = str(data.get("contract_type") or "").upper()
             is_vip = "VIP" in contract_type or cust_type.casefold() == "vip"
@@ -422,11 +432,11 @@ class CustomersDataMixin:
             segment_text = "VIP KURUMSAL" if is_vip_segment else "Kurumsal Bayi" if "bayi" in cust_type.casefold() else cust_type or "Bireysel"
             type_badge = QLabel(segment_text)
             type_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            type_badge.setStyleSheet(theme_qss("QLabel { background: @surface_alt; color: @text; border: 1px solid @border; border-radius: 8px; padding: 4px 8px; font-size: 10px; font-weight: 700; }"))
+            type_badge.setStyleSheet(customer_theme_qss(self, "QLabel { background: @surface_alt; color: @text; border: 1px solid @border; border-radius: 8px; padding: 4px 8px; font-size: 10px; font-weight: 700; }"))
             if is_vip_segment:
-                type_badge.setStyleSheet(theme_qss("QLabel { background: @surface_alt; color: @warning; border: 1px solid @warning; border-radius: 8px; padding: 4px 8px; font-size: 10px; font-weight: 700; }"))
+                type_badge.setStyleSheet(customer_theme_qss(self, "QLabel { background: @surface_alt; color: @warning; border: 1px solid @warning; border-radius: 8px; padding: 4px 8px; font-size: 10px; font-weight: 700; }"))
             elif cust_type.casefold() in {"kurumsal", "vip"} or "bayi" in cust_type.casefold():
-                type_badge.setStyleSheet(theme_qss("QLabel { background: @accent; color: @selection_text; border: 1px solid @accent; border-radius: 8px; padding: 4px 8px; font-size: 10px; font-weight: 700; }"))
+                type_badge.setStyleSheet(customer_theme_qss(self, "QLabel { background: @accent; color: @selection_text; border: 1px solid @accent; border-radius: 8px; padding: 4px 8px; font-size: 10px; font-weight: 700; }"))
             if compact_table:
                 type_badge.setStyleSheet(
                     type_badge.styleSheet()
@@ -435,7 +445,7 @@ class CustomersDataMixin:
                     .replace("border-radius: 8px", "border-radius: 6px")
                 )
             type_container = QWidget()
-            type_container.setStyleSheet(theme_qss("background: transparent; border: none;"))
+            type_container.setStyleSheet(customer_theme_qss(self, "background: transparent; border: none;"))
             type_layout = QHBoxLayout(type_container)
             type_layout.setContentsMargins(0, 0, 0, 0)
             type_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -449,15 +459,15 @@ class CustomersDataMixin:
             contact_item.setFont(QFont("JetBrains Mono", 9))
             self.table.setItem(row_idx, 4, contact_item)
             contact_container = QWidget()
-            contact_container.setStyleSheet(theme_qss("background: transparent; border: none;"))
+            contact_container.setStyleSheet(customer_theme_qss(self, "background: transparent; border: none;"))
             contact_layout = QVBoxLayout(contact_container)
             contact_layout.setContentsMargins(0, 0, 0, 0)
             contact_layout.setSpacing(4)
             phone_label = QLabel(f"\u260e  {phone}")
-            phone_label.setStyleSheet(theme_qss("color: @text; font-family: 'JetBrains Mono'; font-size: 12px; border: none; background: transparent;"))
+            phone_label.setStyleSheet(customer_theme_qss(self, "color: @text; font-family: 'JetBrains Mono'; font-size: 12px; border: none; background: transparent;"))
             phone_label.setToolTip(phone)
             email_label = QLabel(f"\u2709  {email}")
-            email_label.setStyleSheet(theme_qss("color: @text_muted; font-size: 10px; border: none; background: transparent;"))
+            email_label.setStyleSheet(customer_theme_qss(self, "color: @text_muted; font-size: 10px; border: none; background: transparent;"))
             email_label.setToolTip(email)
             contact_layout.addWidget(phone_label)
             contact_layout.addWidget(email_label)
@@ -477,7 +487,7 @@ class CustomersDataMixin:
             service_item = QTableWidgetItem(str(service_count))
             service_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             if service_count:
-                service_item.setForeground(qc("accent"))
+                service_item.setForeground(customer_theme_qcolor(self, "accent"))
             self.table.setItem(row_idx, 5, service_item)
             service_container = QWidget()
             service_container.setStyleSheet("background: transparent; border: none;")
@@ -576,10 +586,10 @@ class CustomersDataMixin:
             status_text = "Pasif" if not is_active else "\u0130ncelemede" if is_problematic else "Aktif VIP" if is_vip_segment else "Aktif"
             status_item = _CustomerSortItem(status_text)
             status_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            status_item.setForeground(qc("warning" if status_text == "\u0130ncelemede" else "accent" if status_text == "Aktif VIP" else "success" if status_text == "Aktif" else "text_muted"))
+            status_item.setForeground(customer_theme_qcolor(self, "warning" if status_text == "\u0130ncelemede" else "accent" if status_text == "Aktif VIP" else "success" if status_text == "Aktif" else "text_muted"))
             self.table.setItem(row_idx, 7, status_item)
             status_container = QWidget()
-            status_container.setStyleSheet(theme_qss("background: transparent; border: none;"))
+            status_container.setStyleSheet(customer_theme_qss(self, "background: transparent; border: none;"))
             status_layout = QHBoxLayout(status_container)
             status_layout.setContentsMargins(0, 0, 0, 0)
             status_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -619,7 +629,7 @@ class CustomersDataMixin:
             else:
                 base_height = 60 if visible_currency_count <= 2 else 72
             if len(str(data["name"])) > 20:
-                base_height = max(base_height, 72 if compact_table else 78)
+                base_height = max(base_height, 56 if compact_table else 60)
             self.table.setRowHeight(row_idx, base_height)
         except Exception as e:
             logger.error(f"ADD_ROW ERROR at index {row_idx}: {e}")
@@ -743,7 +753,7 @@ class CustomersDataMixin:
             )
             visible_codes.append(default_currency)
 
-        color = tc("danger") if has_debt else tc("success") if has_credit else tc("text_muted")
+        color = customer_theme_color(self, "danger") if has_debt else customer_theme_color(self, "success") if has_credit else customer_theme_color(self, "text_muted")
 
         text = "\n".join(lines)
         item = QTableWidgetItem(text)

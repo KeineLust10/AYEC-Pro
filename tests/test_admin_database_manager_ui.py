@@ -12,19 +12,23 @@ if str(ADMIN_ROOT) not in sys.path:
 from pages.database_manager import DatabaseManagerPage
 
 
-def test_database_workspace_and_results_expand_with_desktop_viewport(persistent_qapplication, monkeypatch):
+def test_database_workspace_matches_reference_geometry_and_stacks_on_mobile(persistent_qapplication, monkeypatch):
     monkeypatch.setattr(DatabaseManagerPage, "_load_companies", lambda self: None)
     page = DatabaseManagerPage()
     page.resize(1440, 1080)
     page.show()
     QCoreApplication.processEvents()
 
-    assert page._workspace.maximumHeight() == 16777215
-    assert page._table.height() > page._table.minimumHeight()
-    assert page._workspace.width() == page._scroll.viewport().width() - 32
+    assert page._workspace.maximumHeight() == 412
+    assert page._workspace.minimumHeight() == 412
+    assert page._platform_panel.height() == 92
+    assert page._table.height() >= page._table.minimumHeight()
+    assert page._workspace.width() == page._scroll.viewport().width() - 56
+    assert page._scroll.verticalScrollBarPolicy().name == "ScrollBarAlwaysOff"
 
     page.resize(390, 844)
     QCoreApplication.processEvents()
+    assert page._workspace.maximumHeight() == 16777215
     assert page._result_panel.maximumHeight() == 116
     assert page._table.maximumHeight() == 104
 
@@ -35,7 +39,7 @@ def test_sql_reference_sections_bind_status_audit_and_navigation(persistent_qapp
     monkeypatch.setattr(DatabaseManagerPage, "_load_companies", lambda self: None)
     page = DatabaseManagerPage()
     assert page._module_nav_scroll.widget() is page._module_nav
-    assert page._module_nav_scroll.height() == 40
+    assert page._module_nav_scroll.height() == 44
     assert page._telemetry_table.columnCount() == 6
     assert page._backup_table.columnCount() == 6
     assert [button.text() for button in page._module_buttons] == [
@@ -133,7 +137,7 @@ def test_sql_diagnostics_results_and_query_history(persistent_qapplication, monk
         "ORDER BY id ASC",
         "LIMIT 50;",
     ]
-    assert page._root_layout.contentsMargins().left() == 16
+    assert page._root_layout.contentsMargins().left() == 40
     page._sql_input.setPlainText("SELECT id FROM users LIMIT 5")
     page._show_results({"columns": ["id"], "rows": [[1], [2]], "truncated": False})
 

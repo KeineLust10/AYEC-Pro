@@ -29,6 +29,22 @@ def test_stock_location_context_menu_matches_desktop_labels_and_actions():
     assert 'contextAction(kind, id, button.dataset.contextAction, row)' in web_menu
 
 
+def test_use_part_dialog_uses_all_active_devices_and_desktop_unit_precision():
+    desktop = (ROOT / "src/ui/pages/stock_locations_page.py").read_text(encoding="utf-8")
+    app = (WEB / "app.js").read_text(encoding="utf-8")
+    start = app.index("function stockLocationUsePartDialog")
+    end = app.index("function ayecCreateStockLocationDialog", start)
+    dialog = app[start:end]
+
+    assert 'db.serviceDevices=(source.devices||[]).filter(item=>!Number(item.is_archived||0)&&!Number(item.is_deleted||0)' in app
+    assert 'SELECT tracking_no, customer_name, device_brand, device_model, status' in desktop
+    assert 'WHERE COALESCE(is_archived, 0) = 0 AND COALESCE(is_deleted, 0) = 0' in desktop
+    assert 'Array.isArray(db.serviceDevices)&&db.serviceDevices.length?db.serviceDevices' in dialog
+    assert 'const quantityStep=["Metre","Kg","Lt"].includes(balance.unit)?"0.001":"1"' in dialog
+    assert 'min="${quantityStep}" max="${available}" step="${quantityStep}"' in dialog
+    assert 'self.spn_qty.setDecimals(3 if unit in ("Metre", "Kg", "Lt") else 0)' in desktop
+
+
 def test_stock_location_page_is_exposed_in_navigation_and_routes():
     app = (WEB / "app.js").read_text(encoding="utf-8")
 

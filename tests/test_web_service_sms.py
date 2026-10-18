@@ -165,3 +165,54 @@ def test_service_sms_page_has_composer_and_encrypted_twilio_configuration():
     assert 'twilio_auth_token' in source
     assert 'statusSmsTemplate' in source
     assert 'statusSmsCount' in source
+
+
+def test_customer_sms_uses_tenant_customer_record_and_logs_provider_sid(tmp_path):
+    path = tmp_path / "customer-sms.db"
+    conn = web_main._raw_connect(path)
+    conn.execute("CREATE TABLE settings(key TEXT PRIMARY KEY,value TEXT)")
+    conn.execute("CREATE TABLE customers(id INTEGER PRIMARY KEY,name TEXT,phone TEXT)")
+    conn.execute("INSERT INTO customers VALUES(7,'Customer','05321234567')")
+    conn.executemany("INSERT INTO settings VALUES(?,?)", [
+        ("twilio_account_sid", "AC" + "c" * 32),
+        ("twilio_auth_token", "plain-token"),
+        ("twilio_from_number", "+15551234567"),
+    ])
+    conn.commit()
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self):
+            return json.dumps({"sid": "SM" + "d" * 32}).encode("utf-8")
+
+    calls = []
+
+    def fake_urlopen(request, timeout):
+        calls.append((request, timeout))
+        return Response()
+
+    result = web_main.desktop_send_customer_sms(
+        conn, {"customer_id": 7, "message": "Hello"}, urlopen_fn=fake_urlopen
+    )
+    assert result["message_id"] == "SM" + "d" * 32
+    assert len(calls) == 1
+    row = conn.execute("SELECT tracking_no,phone,message,twilio_sid FROM sms_log").fetchone()
+    assert tuple(row) == ("customer:7", "05321234567", "Hello", "SM" + "d" * 32)
+    conn.close()
+
+
+def test_customer_sms_rejects_missing_customer_and_ui_is_manifest_wired(tmp_path):
+    conn = web_main._raw_connect(tmp_path / "missing-customer.db")
+    conn.execute("CREATE TABLE customers(id INTEGER PRIMARY KEY,name TEXT,phone TEXT)")
+    with pytest.raises(LookupError, match="Customer not found"):
+        web_main.desktop_customer_sms_target(conn, 123)
+    conn.close()
+    source = open("Web_Arayuzu/web/app.js", encoding="utf-8").read()
+    assert "send_sms_dialog:()=>openCustomerSMSManifestDialog()" in source
+    assert "/api/desktop/customer-sms" in source
+    assert "customerSmsTemplate" in source

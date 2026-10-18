@@ -3,6 +3,8 @@ const { chromium } = require("playwright");
 async function capture(baseUrl) {
   const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH });
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1 });
+  const pageErrors = [];
+  page.on("pageerror", error => pageErrors.push(error.message));
   await page.addInitScript(() => {
     window.__backupDownload = null;
     HTMLAnchorElement.prototype.click = function () { if (this.download) window.__backupDownload = { name: this.download, href: this.href }; };
@@ -20,6 +22,9 @@ async function capture(baseUrl) {
     const url = new URL(route.request().url());
     let body = {};
     if (url.pathname === "/api/control/overview") body = { vendor: {}, tenants: [{ id: "tenant-a", company_name: "ASLAN TIC", active: 1 }, { id: "tenant-b", company_name: "Babali Servis", active: 1 }] };
+    else if (url.pathname === "/api/admin/live-status") body = { companies: [{ id: "tenant-a", company_name: "ASLAN TIC", active: 1, online: true, ping_ms: 12, user_id: 1 }] };
+    else if (url.pathname === "/api/admin/audit-logs") body = { logs: [] };
+    else if (url.pathname === "/api/control/backups/create") { calls.push({ method: "POST", url: url.pathname, body: route.request().postDataJSON() }); body = { ok: true, backup_id: 22, size_bytes: 9000, sha256: "c".repeat(64) }; }
     else if (url.pathname.startsWith("/api/admin/backups/") && url.pathname.includes("/download/")) { calls.push({ method: "GET", url: url.pathname + url.search }); await route.fulfill({ status: 200, contentType: "application/vnd.sqlite3", body: "mock-db" }); return; }
     else if (url.pathname.startsWith("/api/admin/backups/") && url.pathname.endsWith("/restore")) { calls.push({ method: "POST", url: url.pathname, body: route.request().postDataJSON() }); body = { ok: true, command_id: 501 }; }
     else if (url.pathname.startsWith("/api/admin/backups/")) body = { backups: backups[decodeURIComponent(url.pathname.split("/").at(-1))] || [] };
@@ -45,14 +50,18 @@ async function capture(baseUrl) {
     await page.evaluate(() => { const input = document.querySelector("#backupSearch"); input.value = "nightly"; input.dispatchEvent(new Event("input", { bubbles: true })); });
     const filtered = await page.locator("[data-backup-row]").evaluateAll((rows) => rows.filter((row) => !row.hidden).length);
     await page.evaluate(() => { const input = document.querySelector("#backupSearch"); input.value = ""; input.dispatchEvent(new Event("input", { bubbles: true })); });
-    await page.locator('[data-backup-download="1"]').evaluate((element) => element.click());
+    await page.locator('[data-backup-select="1"]').evaluate((element) => element.click());
+    const selectedBackup = await page.locator('[data-backup-select="1"]').textContent();
+    if (selectedBackup !== "Secildi") throw new Error(`Backup selection state was not retained: ${selectedBackup}`);
+    await page.locator("#backupSelectedDownload").evaluate((element) => element.click());
     await page.waitForFunction(() => window.__backupDownload !== null);
     const download = await page.evaluate(() => window.__backupDownload);
     if (summary.rows !== 3 || filtered !== 1 || download?.name !== "tenant-a-nightly.db" || !calls.some((call) => call.url.includes("backup_id=11"))) throw new Error(JSON.stringify({ summary, filtered, download, calls }));
     const confirm = page.locator("#backupRestoreConfirm");
     await confirm.evaluate((element) => { element.checked = true; element.dispatchEvent(new Event("change", { bubbles: true })); });
     await page.locator('[data-backup-select="1"]').evaluate((element) => element.click());
-    if (await page.locator("#backupRestoreQueue").isDisabled()) throw new Error("Restore confirmation should enable only after a backup is selected.");
+    const restoreState = await page.evaluate(() => ({ disabled: document.querySelector("#backupRestoreQueue").disabled, checked: document.querySelector("#backupRestoreConfirm").checked, selected: document.querySelector('[data-backup-select="1"]')?.textContent }));
+    if (restoreState.disabled) throw new Error(JSON.stringify(restoreState));
     await page.locator("#backupRestoreQueue").evaluate((element) => element.click());
     await page.locator("#dialogForm").evaluate((form) => form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
     await page.waitForFunction(() => document.querySelector("#appDialog")?.open === false);
@@ -66,7 +75,18 @@ async function capture(baseUrl) {
     await page.screenshot({ path: "artifacts/admin_backup_restore_web_mobile.png", fullPage: true });
     const mobile = await page.evaluate(() => ({ viewport: document.documentElement.clientWidth, document: document.documentElement.scrollWidth, columns: getComputedStyle(document.querySelector(".admin-backup-metrics")).gridTemplateColumns }));
     if (mobile.document > mobile.viewport + 1) throw new Error(JSON.stringify(mobile));
-    return { summary, filtered, download: download.name, restore: restore.body, mobile };
+    await page.locator("#backupCreateNow").evaluate((element) => element.click());
+    await page.waitForFunction(() => !document.querySelector("#backupCreateNow")?.disabled);
+    const create = calls.find((call) => call.url === "/api/control/backups/create");
+    if (!create || create.body.tenant_id !== "tenant-b") throw new Error(JSON.stringify({ create, calls }));
+    await page.evaluate(async () => { activeAdminTab = "live-status"; await loadControlCenter(); });
+    await page.waitForSelector('[data-live-action="backup"][data-live-tenant="tenant-a"]');
+    await page.locator('[data-live-action="backup"][data-live-tenant="tenant-a"]').evaluate((element) => element.click());
+    await page.waitForFunction(() => document.querySelector("#backupCreateNow") && document.querySelector("#adminTabContent")?.textContent.includes("Yedekleme"));
+    const liveCreate = calls.find((call) => call.url === "/api/control/backups/create" && call.body.tenant_id === "tenant-a");
+    if (!liveCreate) throw new Error(JSON.stringify({ calls }));
+    if (pageErrors.length) throw new Error(JSON.stringify({ pageErrors }));
+    return { summary, filtered, download: download.name, restore: restore.body, mobile, centerCreate: create.body, liveCreate: liveCreate.body, pageErrors };
   } finally {
     await browser.close();
   }

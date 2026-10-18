@@ -1,6 +1,10 @@
 import sqlite3
+import os
+import subprocess
+import sys
 import threading
 from http.server import ThreadingHTTPServer
+from pathlib import Path
 
 import requests
 import pytest
@@ -102,7 +106,16 @@ def test_managed_user_creation_rolls_back_personnel_when_audit_insert_fails():
     assert conn.execute("SELECT COUNT(*) FROM personnel WHERE name='Taylor Example'").fetchone()[0] == 0
 
 
-def test_http_managed_user_creation_is_authenticated_and_tenant_scoped(monkeypatch, tmp_path):
+@pytest.mark.parametrize(
+    ("role", "permissions"),
+    [
+        ("Teknisyen", {"pages": [40, 41, 50]}),
+        ("Admin", {"mode": "all"}),
+    ],
+)
+def test_http_managed_user_creation_is_authenticated_and_tenant_scoped(
+    monkeypatch, tmp_path, role, permissions
+):
     _actor, tenant_path = _setup_tenant(monkeypatch, tmp_path)
     server = ThreadingHTTPServer(("127.0.0.1", 0), web_main.AYECRequestHandler)
     worker = threading.Thread(target=server.serve_forever, daemon=True)
@@ -120,25 +133,134 @@ def test_http_managed_user_creation_is_authenticated_and_tenant_scoped(monkeypat
             },
         )
         assert login.status_code == 200
-        response = session.post(f"{base_url}/api/desktop/users", json=_create_payload())
+        response = session.post(
+            f"{base_url}/api/desktop/users",
+            json=_create_payload(role=role, permissions=permissions),
+        )
         assert response.status_code == 201
         created = response.json()
         assert created["username"] == "taylor.example"
-        assert created["role"] == "Teknisyen"
+        assert created["role"] == role
         users = session.get(f"{base_url}/api/desktop/table/users?limit=200")
         assert users.status_code == 200
         assert any(item["username"] == "taylor.example" for item in users.json()["rows"])
         assert all("password" not in item for item in users.json()["rows"])
         with sqlite3.connect(tenant_path) as conn:
-            assert conn.execute(
-                "SELECT COUNT(*) FROM users WHERE username='taylor.example'"
-            ).fetchone()[0] == 1
+            user = conn.execute(
+                "SELECT id,role,permissions FROM users WHERE username='taylor.example'"
+            ).fetchone()
+            assert user is not None
+            assert user[1] == role
+            if role == "Admin":
+                assert user[2] == '{"mode":"all"}'
+            else:
+                assert user[2] == '{"pages":[40,41,50]}'
             assert conn.execute(
                 "SELECT COUNT(*) FROM personnel WHERE name='Taylor Example'"
             ).fetchone()[0] == 1
             assert conn.execute(
                 "SELECT COUNT(*) FROM audit_logs WHERE action='USER_CREATED'"
             ).fetchone()[0] == 1
+    finally:
+        server.shutdown()
+        server.server_close()
+        worker.join(timeout=2)
+
+
+def test_hidden_browser_managed_user_workflows_persist_to_authenticated_tenant(
+    monkeypatch, tmp_path
+):
+    _actor, tenant_path = _setup_tenant(monkeypatch, tmp_path)
+    create_managed_user = web_main.desktop_create_managed_user
+
+    def create_managed_user_with_unique_conflict(conn, actor, payload):
+        if payload.get("username") == "browser.server-conflict":
+            raise sqlite3.IntegrityError("username uniqueness conflict")
+        return create_managed_user(conn, actor, payload)
+
+    monkeypatch.setattr(
+        web_main, "desktop_create_managed_user", create_managed_user_with_unique_conflict
+    )
+    server = ThreadingHTTPServer(("127.0.0.1", 0), web_main.AYECRequestHandler)
+    worker = threading.Thread(target=server.serve_forever, daemon=True)
+    worker.start()
+    base_url = f"http://127.0.0.1:{server.server_address[1]}/"
+    try:
+        session = requests.Session()
+        session.headers["Origin"] = base_url.rstrip("/")
+        login = session.post(
+            f"{base_url.rstrip('/')}/api/auth/login",
+            json={
+                "identifier": "customer-admin",
+                "password": "oldpass123",
+                "tenant_id": "tenant-1",
+            },
+        )
+        assert login.status_code == 200
+        assert login.json()["user"]["role"] == "Admin"
+        assert login.json()["user"]["is_control_admin"] is False
+        session_cookie = session.cookies.get("ayec_session")
+        assert session_cookie
+        env = os.environ.copy()
+        env["AYEC_USER_BASE_URL"] = base_url
+        env["AYEC_USER_SESSION_COOKIE"] = session_cookie
+        audit = subprocess.run(
+            ["node", "tools/quality/user_management_authenticated_roundtrip.cjs"],
+            cwd=Path(__file__).resolve().parents[1],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=45,
+            check=False,
+        )
+        assert audit.returncode == 0, audit.stderr or audit.stdout
+        assert '"created":true' in audit.stdout
+        assert '"invalidEmailBlocked":true' in audit.stdout
+        assert '"duplicateRejected":true' in audit.stdout
+        assert '"weakPasswordRejected":true' in audit.stdout
+        assert '"permissionFailureHandled":true' in audit.stdout
+        assert '"serverValidationHandled":true' in audit.stdout
+        assert '"serverConflictHandled":true' in audit.stdout
+        assert '"editPersisted":true' in audit.stdout
+        assert '"bulkSelectedBeforeSubmit":1' in audit.stdout
+        assert '"bulkConfirmShown":true' in audit.stdout
+        assert '"bulkDialogClosed":true' in audit.stdout
+        assert '"deletedInactive":true' in audit.stdout
+        assert '"browserExceptions":0' in audit.stdout
+        with sqlite3.connect(tenant_path) as conn:
+            user = conn.execute(
+                "SELECT id,role,permissions,password,active FROM users WHERE username='browser.created'"
+            ).fetchone()
+            assert user is not None
+            assert conn.execute(
+                "SELECT COUNT(*) FROM users WHERE username='browser.weak'"
+            ).fetchone()[0] == 0
+            assert conn.execute(
+                "SELECT COUNT(*) FROM users WHERE username='browser.retry'"
+            ).fetchone()[0] == 0
+            assert conn.execute(
+                "SELECT COUNT(*) FROM users WHERE username='browser.denied'"
+            ).fetchone()[0] == 0
+            assert conn.execute(
+                "SELECT COUNT(*) FROM users WHERE username='browser.server-validation'"
+            ).fetchone()[0] == 0
+            assert conn.execute(
+                "SELECT COUNT(*) FROM users WHERE username='browser.server-conflict'"
+            ).fetchone()[0] == 0
+            assert user[1] == "Muhasebe"
+            assert user[2] == '{"pages":[40,41]}'
+            assert web_main.password_matches("BulkChangedPass789", user[3])
+            assert user[4] == 0
+            personnel_rows = conn.execute(
+                "SELECT p.name,p.role,p.active,u.personnel_id FROM users u "
+                "LEFT JOIN personnel p ON p.id=u.personnel_id WHERE u.username='browser.created'"
+            ).fetchall()
+            assert len(personnel_rows) == 1 and personnel_rows[0][0] == "Browser Created User", personnel_rows
+            for action in ("USER_CREATED", "USER_UPDATED", "USER_DELETED"):
+                assert conn.execute(
+                    "SELECT COUNT(*) FROM audit_logs WHERE action=? AND user_id=?",
+                    (action, str(login.json()["user"]["id"])),
+                ).fetchone()[0] == 1
     finally:
         server.shutdown()
         server.server_close()

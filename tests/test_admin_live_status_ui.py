@@ -111,3 +111,10 @@ def test_live_status_reference_header_keeps_compact_action_ribbon(persistent_qap
     assert actions == ["Manuel Yenile", "Acil Anons G\u00f6nder"]
     assert page._counter.height() < 50
     assert page._header_actions.objectName() == "liveHeaderActions"
+    margins = page._page_scroll.widget().layout().contentsMargins()
+    assert (margins.left(), margins.right()) == (40, 16)
+    page.resize(390, 844)
+    persistent_qapplication.processEvents()
+    margins = page._page_scroll.widget().layout().contentsMargins()
+    assert (margins.left(), margins.right()) == (16, 16)
+    assert page._page_scroll.horizontalScrollBar().maximum() == 0

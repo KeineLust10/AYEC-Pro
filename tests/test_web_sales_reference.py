@@ -54,19 +54,39 @@ def test_quote_builder_matches_reference_sections_and_responsive_cards():
     assert "discount_percent:salesDiscountPercent" in app
     assert "data-sales-qty" in app
     assert "data-sales-focus-barcode" in app
-    assert "@media(max-width:760px){body[data-page=\"sales\"] .sales-reference-layout" in styles
-    assert "@media(max-width:430px){body[data-page=\"sales\"] .sales-reference-customer" in styles
+    assert "data-sales-bulk-select" in app
+    assert "data-sales-line-toggle" in app
+    assert "salesLineComposerMarkup()" in app
+    assert "salesLineDomainProducts()" in app
+    assert "data-sales-line-add" in app
+    assert 'id="salesDate" type="date"' in app
+    assert "transaction_date:salesDraft.date" in app
+    assert "let salesStockOnly=false" in app
+    assert "(!salesStockOnly||Number(product.qty||0)>0)" in app
+    assert "data-sales-filter aria-pressed=\"${salesStockOnly}\"" in app
+    assert "F2 Toplu Se\u00e7im" in app
+    assert "@media(max-width:760px){body[data-page=\"sales\"] .sales-line-fields" in styles
+    assert "body[data-page=\"sales\"] .sales-reference-layout" in styles
+    assert "@media(max-width:430px){body[data-page=\"sales\"] .sales-customer-actions" in styles
+    assert "body[data-page=\"sales\"] .sales-line-fields" in styles
+    assert "body[data-page=\"sales\"] .sales-reference-customer" in styles
 
 
 def test_quote_builder_controls_have_bound_interactions():
     app = (WEB / "app.js").read_text(encoding="utf-8")
 
     assert 'event.target.closest("[data-sales-category]")' in app
+    assert 'salesStockOnly=!salesStockOnly;render();return' in app
     assert 'event.target.closest("[data-sales-discount]")' in app
     assert 'event.target.closest("[data-sales-currency]")' in app
     assert 'event.key==="F2"' in app
+    assert '$("[data-sales-bulk-select]")' in app
     assert 'event.key==="F5"' in app
     assert 'event.key==="F8"' in app
+    assert 'event.key==="F10"' in app
+    assert 'event.key==="F12"' in app
+    assert 'data-action="create-proforma">Proforma Olu\\u015ftur <kbd>F10</kbd>' in app
+    assert 'data-action="pay-save">Do\\u011frudan Tahsilat Al &amp; Kaydet <kbd>F12</kbd>' in app
     assert 'event.key==="Enter"' in app
 
 
@@ -90,7 +110,16 @@ def test_sales_cart_context_menu_edits_and_manages_lines():
         assert action in app
     assert "unit_price:salesCart[index]?.unitPriceTry" in app
     assert "description:salesCart[index]?.description" in app
+    assert 'isService=line?.type==="service"' in app
+    assert 'if(!line||(!isService&&!product))return' in app
+    assert 'type="text" inputmode="decimal" value="${esc(line.qty)}"' in app
+    assert 'step="${service?"any":"1"}"' in app
+    assert 'line.priceTry=line.unitPriceTry' in app
+    assert 'max="999999999" step="1"' in app
     bulk_sales = (WEB / "bulk-sales-selection.js").read_text(encoding="utf-8")
+    assert 'type="text" inputmode="decimal" value="${esc(line.qty)}"' in bulk_sales
+    assert 'step="${service?"any":"1"}"' in bulk_sales
+    assert 'line.priceTry=value' in bulk_sales
     assert '<textarea name="description">' in bulk_sales
     assert 'String(form.get("description")||"")' in bulk_sales
     assert '.trim().slice(0,500)' not in bulk_sales

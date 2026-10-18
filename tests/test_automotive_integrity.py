@@ -461,6 +461,8 @@ def test_web_maintenance_save_creates_full_automotive_workflow(tmp_path, monkeyp
             "vehicle_year": 2022,
             "odometer": 45000,
             "service_date": "2026-07-19",
+            "next_maintenance_date": "2026-10-17",
+            "inspection_due_date": "2027-10-16",
             "appointment_date": "2026-07-22",
             "appointment_time": "10:30",
             "items": [
@@ -490,6 +492,8 @@ def test_web_maintenance_save_creates_full_automotive_workflow(tmp_path, monkeyp
     assert result["tracking_no"].startswith("SRV-WEB-")
     assert result["important_items"] == ["Yag Degisimi"]
     assert len(detail["items"]) == 2
+    assert detail["card"]["inspection_notice_date"] == "2027-09-16"
+    assert detail["card"]["reminder_date"] == "2026-10-16"
     assert detail["appointment"]["date"] == "2026-07-22"
     assert detail["appointment"]["time"] == "10:30"
     assert detail["service"]["tracking_no"] == result["tracking_no"]
@@ -647,11 +651,13 @@ def test_web_stock_save_preserves_automotive_metadata(tmp_path, monkeypatch):
             "equivalent_code": "EQ-456",
             "compatible_models": "Ford Focus 2020-2025",
             "shelf_number": "A-12",
+            "description": "Oil filter for Focus\\n[OTO_SUPPLIER] Auto Supply\\n[OTO_VEHICLE_BRAND] Ford\\n[OTO_VEHICLE_MODEL] Focus\\n[OTO_POSITION] Motor",
             "unit": "Metre",
         }
     )
     assert created["part"]["oem_code"] == "OEM-123"
     assert created["part"]["unit"] == "Metre"
+    assert created["part"]["description"] == "Oil filter for Focus\\n[OTO_SUPPLIER] Auto Supply\\n[OTO_VEHICLE_BRAND] Ford\\n[OTO_VEHICLE_MODEL] Focus\\n[OTO_POSITION] Motor"
     with sqlite3.connect(database_path) as conn:
         movement = conn.execute(
             "SELECT description FROM stock_movements WHERE part_id=? ORDER BY id DESC LIMIT 1",
@@ -674,6 +680,7 @@ def test_web_stock_save_preserves_automotive_metadata(tmp_path, monkeypatch):
             "stock": 4,
             "purchase_price": 100,
             "price": 160,
+            "description": "Oil filter for Focus\\n[OTO_SUPPLIER] Auto Supply\\n[OTO_VEHICLE_BRAND] Ford\\n[OTO_VEHICLE_MODEL] Focus\\n[OTO_POSITION] Motor",
         }
     )
     assert updated["part"]["oem_code"] == "OEM-123"
@@ -681,6 +688,7 @@ def test_web_stock_save_preserves_automotive_metadata(tmp_path, monkeypatch):
     assert updated["part"]["compatible_models"] == "Ford Focus 2020-2025"
     assert updated["part"]["shelf_number"] == "A-12"
     assert updated["part"]["unit"] == "Metre"
+    assert updated["part"]["description"] == created["part"]["description"]
     web_main.clear_tenant_context()
 
 

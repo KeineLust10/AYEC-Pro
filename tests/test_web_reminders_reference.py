@@ -27,3 +27,8 @@ def test_reminder_creation_preserves_selected_personnel_id_and_name():
 
     assert 'personnel: personnelName(values.personnel) || ""' in body
     assert 'personnel_id: values.personnel ? Number(values.personnel) : null' in body
+
+
+def test_reminder_personnel_options_include_archived_directory_entries():
+    source = (ROOT / "Web_Arayuzu" / "web" / "reminders-reference.js").read_text(encoding="utf-8")
+    assert 'apiFetch("/api/desktop/table/personnel?limit=500&include_deleted=1")' in source

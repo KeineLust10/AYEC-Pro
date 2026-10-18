@@ -14,10 +14,7 @@ from tests.test_vendor_management_center import _setup_tenant
 
 
 def test_authenticated_customer_map_click_updates_coordinates(monkeypatch, tmp_path):
-    from src.utils.local_secret_store import load_secret
 
-    if not load_secret("tomtom_traffic_api_key"):
-        pytest.skip("The local TomTom map credential is not configured.")
     edge = Path(os.environ.get("EDGE_EXECUTABLE", r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"))
     if not edge.is_file() or not shutil.which("node"):
         pytest.skip("Headless Edge and Node are required for the offscreen map check.")
@@ -65,6 +62,9 @@ def test_authenticated_customer_map_click_updates_coordinates(monkeypatch, tmp_p
         evidence = json.loads(result.stdout.strip().splitlines()[-1])
         assert evidence["changed"] is True
         assert evidence["selected"]["status"].startswith("Haritadan")
+        assert evidence["reverseGeocodeSuccess"]["city"] == "Istanbul"
+        assert evidence["reverseGeocodeSuccess"]["street"] == "Test Street 10"
+        assert evidence["reverseGeocodeSuccess"]["address"] == "10 Test Street, Istanbul"
         assert evidence["browserExceptions"] == 0
         assert output_path.is_file() and output_path.stat().st_size > 0
     finally:

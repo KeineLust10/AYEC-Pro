@@ -1,9 +1,12 @@
 import json
+import os
 import sqlite3
+import subprocess
 import threading
 import urllib.error
 import urllib.request
 from http.server import ThreadingHTTPServer
+from pathlib import Path
 
 import Web_Arayuzu.Main as web
 
@@ -70,6 +73,66 @@ def test_status_board_device_reads_are_authenticated_and_tenant_scoped(
                 )
         except urllib.error.HTTPError as error:
             assert error.code == 401
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=3)
+        web.delete_session(token)
+
+
+def test_hidden_browser_tv_refresh_renders_live_tenant_changes_on_next_poll(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(web, "DB_PATH", tmp_path / "registry.sqlite")
+    tenant_root = tmp_path / "tenants"
+    tenant_root.mkdir()
+    monkeypatch.setattr(web, "TENANT_ROOT", tenant_root)
+    tenant = web.create_tenant("TV Browser Tenant", email="tv@example.invalid")
+    tenant_path = web._tenant_path(tenant)
+    with sqlite3.connect(tenant_path) as conn:
+        conn.execute(
+            "INSERT INTO users(username, password, email, role, active, full_name) "
+            "VALUES (?, ?, ?, ?, 1, ?)",
+            ("qa", web.password_hash("test-password"), "tv@example.invalid", "Admin", "QA User"),
+        )
+        conn.execute(
+            "INSERT INTO devices "
+            "(tracking_no, customer_name, device_brand, device_model, status, entry_date) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            ("TV-A-001", "Tenant TV Customer", "TestBrand", "Model X", "Tamirde", "2026-10-14"),
+        )
+    token, _session = web.create_session(1, False, "Status Board Browser Test", "127.0.0.1", tenant["id"])
+    server = ThreadingHTTPServer(("127.0.0.1", 0), web.AYECRequestHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    base_url = f"http://127.0.0.1:{server.server_port}/"
+    env = os.environ.copy()
+    env["AYEC_STATUS_TV_SESSION_COOKIE"] = token
+    try:
+        audit = subprocess.run(
+            ["node", "tools/quality/service_status_tv_refresh_offscreen.cjs", base_url],
+            cwd=Path(__file__).resolve().parents[1],
+            env=env,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=45,
+            check=False,
+        )
+        assert audit.returncode == 0, audit.stderr or audit.stdout
+        result = json.loads(audit.stdout.strip().splitlines()[-1])
+        assert result["readCount"] >= 2
+        assert result["intervalMs"] == 5000
+        assert 4500 <= result["refreshDelayMs"] <= 8000
+        assert result["rowVisible"] is True
+        assert result["updatedStatusVisible"] is True
+        assert result["browserExceptions"] == 0
+        with sqlite3.connect(tenant_path) as conn:
+            status = conn.execute(
+                "SELECT status FROM devices WHERE tracking_no='TV-A-001'"
+            ).fetchone()[0]
+        assert status == "Teslim Edildi"
     finally:
         server.shutdown()
         server.server_close()

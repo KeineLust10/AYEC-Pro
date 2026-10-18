@@ -331,6 +331,7 @@ class DashboardPage(QWidget):
         brand = QLabel("Ana Dashboard & Komuta Merkezi")
         brand.setObjectName("dashTitle")
         brand.setWordWrap(True)
+        brand.setMinimumWidth(310)
         title_line.addWidget(brand)
         version_badge = QLabel("CANLI V2.4")
         version_badge.setObjectName("dashLiveBadge")

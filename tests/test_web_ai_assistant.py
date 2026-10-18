@@ -11,6 +11,7 @@ import requests
 from tests.test_vendor_management_center import _setup_tenant
 import Web_Arayuzu.Main as web_main
 from src.utils import desktop_web_ai
+from src.utils import local_turkish_tts
 
 
 def test_assistant_query_requires_a_bounded_nonempty_question():
@@ -90,10 +91,12 @@ def test_assistant_browser_surface_and_routes_are_connected():
     root = Path(__file__).resolve().parents[1]
     index = (root / "Web_Arayuzu" / "web" / "index.html").read_text(encoding="utf-8")
     script = (root / "Web_Arayuzu" / "web" / "assistant-reference.js").read_text(encoding="utf-8")
+    panel = (root / "Web_Arayuzu" / "web" / "desktop-assistant-panel.js").read_text(encoding="utf-8")
     assert 'src="assistant-reference.js?' in index
     assert 'href="assistant-reference.css?' in index
     assert 'apiFetch("/api/desktop/assistant/status")' in script
     assert 'apiFetch("/api/desktop/assistant/query"' in script
+    assert 'fetch("/api/desktop/assistant/speech"' in panel
 
 
 def test_assistant_http_routes_require_login_and_use_active_tenant(monkeypatch, tmp_path):
@@ -109,6 +112,14 @@ def test_assistant_http_routes_require_login_and_use_active_tenant(monkeypatch, 
         "query_desktop_assistant",
         lambda path, question: calls.append(("query", Path(path), question)) or {"success": True, "answer": "Fixture response", "error": ""},
     )
+    speech_calls = []
+    wav_payload = b"RIFF" + (36).to_bytes(4, "little") + b"WAVE" + b"fmt " + (16).to_bytes(4, "little") + (1).to_bytes(2, "little") + (1).to_bytes(2, "little") + (8000).to_bytes(4, "little") + (16000).to_bytes(4, "little") + (2).to_bytes(2, "little") + (16).to_bytes(2, "little") + b"data" + (0).to_bytes(4, "little")
+
+    def synthesize(text, output_path, voice=None):
+        speech_calls.append((text, voice, Path(output_path)))
+        Path(output_path).write_bytes(wav_payload)
+
+    monkeypatch.setattr(local_turkish_tts, "synthesize_to_file", synthesize)
     server = ThreadingHTTPServer(("127.0.0.1", 0), web_main.AYECRequestHandler)
     worker = threading.Thread(target=server.serve_forever, daemon=True)
     worker.start()
@@ -118,6 +129,7 @@ def test_assistant_http_routes_require_login_and_use_active_tenant(monkeypatch, 
         anonymous.headers["Origin"] = base_url
         assert anonymous.get(f"{base_url}/api/desktop/assistant/status").status_code == 401
         assert anonymous.post(f"{base_url}/api/desktop/assistant/query", json={"question": "hello"}).status_code == 401
+        assert anonymous.post(f"{base_url}/api/desktop/assistant/speech", json={"text": "hello"}).status_code == 401
 
         session = requests.Session()
         session.headers["Origin"] = base_url
@@ -128,9 +140,17 @@ def test_assistant_http_routes_require_login_and_use_active_tenant(monkeypatch, 
         assert login.status_code == 200
         status = session.get(f"{base_url}/api/desktop/assistant/status")
         answer = session.post(f"{base_url}/api/desktop/assistant/query", json={"question": "Tenant question"})
+        speech = session.post(f"{base_url}/api/desktop/assistant/speech", json={"text": "Turkish reply"})
+        invalid_speech = session.post(f"{base_url}/api/desktop/assistant/speech", json={"text": " "})
 
         assert status.json() == {"configured": False, "key_present": False, "model": "gemini-test"}
         assert answer.json()["answer"] == "Fixture response"
+        assert speech.status_code == 200
+        assert speech.headers["Content-Type"] == "audio/wav"
+        assert speech.content == wav_payload
+        assert invalid_speech.status_code == 400
+        assert speech_calls[0][:2] == ("Turkish reply", None)
+        assert not speech_calls[0][2].exists()
         assert calls == [
             ("status", tenant_path.resolve()),
             ("query", tenant_path.resolve(), "Tenant question"),

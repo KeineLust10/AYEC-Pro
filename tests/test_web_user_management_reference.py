@@ -49,3 +49,26 @@ def test_user_table_rows_expose_the_desktop_edit_delete_context_menu():
     assert '"settings-user-edit"' in source
     assert '"settings-user-delete"' in source
     assert 'apiFetch("/api/desktop/users/delete"' in source
+
+
+def test_user_management_role_filter_normalizes_desktop_role_aliases():
+    source = APP.read_text(encoding="utf-8")
+    assert 'userManagementRoleLabel(user.role)' in source
+    assert 'yonetici:"Admin"' in source
+    assert 'teknisyen:"Teknisyen"' in source
+    assert 'sales:"Sat\\u0131\\u015f"' in source
+
+
+def test_user_search_exposes_and_matches_assigned_personnel_name():
+    source = APP.read_text(encoding="utf-8")
+    backend = (ROOT / "Web_Arayuzu" / "Main.py").read_text(encoding="utf-8")
+    assert 'item["personnel_name"] = personnel_names.get(str(item.get("personnel_id")), "")' in backend
+    assert '[user.username, user.full_name, user.email, user.personnel_name, user.role].join(" ")' in source
+
+
+def test_user_profile_supports_desktop_personnel_detail_and_access_toggle():
+    source = APP.read_text(encoding="utf-8")
+    assert 'data-settings-user-toggle-active="${esc(selected.id)}"' in source
+    assert 'Atanan personel</dt><dd>${esc(selected.personnel_name || "Atanmad' in source
+    assert 'active: Number(user.active ?? 1) !== 0 ? 0 : 1' in source
+    assert 'self.detail_active_button.clicked.connect(self._toggle_selected_user_active)' in (ROOT / "src" / "ui" / "pages" / "settings_widgets" / "user_management.py").read_text(encoding="utf-8")

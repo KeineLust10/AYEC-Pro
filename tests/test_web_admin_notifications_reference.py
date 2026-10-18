@@ -26,6 +26,7 @@ def test_admin_notifications_use_supported_api_and_truthful_audit_history():
     assert 'let audience="selected",notifyType="danger";' in block
     assert 'form.reset();titleInput.value="";bodyInput.value="";' in block
     assert 'admin-notify-preview-heading' in block
+    assert '<svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 4V5L7 9H3' in block
     assert '1920x1080 &#xD6;L&#xC7;EK' in block
     assert 'id="notifyTemplateBtn"' in block
     assert 'id="notifyLogsBtn"' in block
@@ -48,3 +49,13 @@ def test_admin_notifications_fill_width_and_stack_on_mobile():
     assert "@media (max-width: 760px)" in styles
     assert "#adminTabContent .admin-notification-layout { grid-template-columns: minmax(0, 1fr); }" in styles
     assert "#adminTabContent .admin-notification-hero { display: flex; grid-column: 1 / -1;" in styles
+
+
+def test_admin_notifications_formatting_toolbar_matches_reference_height():
+    styles = CSS.read_text(encoding="utf-8")
+    app = (ROOT / "Web_Arayuzu" / "web" / "app.js").read_text(encoding="utf-8")
+
+    assert "admin-notify-formatbar" in app
+    assert "data-notify-format" in app
+    assert "height: 40px; min-height: 40px; max-height: 40px;" in styles
+    assert "height: 120px; min-height: 120px; margin-top: -9px;" in styles

@@ -15,7 +15,8 @@ from src.utils.date_formatter import format_date
 from src.utils.system_config import SystemConfig
 from src.utils.design_system import DesignTokens
 from src.utils.performance_monitor import perf_span
-from src.utils.theme_colors import theme_qss, tc
+from src.ui.pages._customers_visual_theme import customer_theme_color, customer_theme_qss
+from src.utils.theme_colors import tc
 from src.ui.dialogs.customer_360_dialog import Customer360Dialog
 from src.ui.dialogs.service_invoice_dialog import ServiceInvoiceDialog
 from src.ui.dialogs.tahsilat_dialog import TahsilatDialog
@@ -390,16 +391,16 @@ class CustomersFuncMixin:
     def setup_usage_guide_tab(self):
         ly = QVBoxLayout(self.tab_guide); ly.setContentsMargins(0, 10, 0, 0)
         guide_text = QTextBrowser()
-        guide_text.setStyleSheet(theme_qss("border: none; background: transparent; color: @text; padding: 20px;"))
+        guide_text.setStyleSheet(customer_theme_qss(self, "border: none; background: transparent; color: @text; padding: 20px;"))
         html_content = f"""
-        <div style="font-family: {DesignTokens.FONT_FAMILY}; color: {tc('text')};">
-            <h1 style="color: {tc('accent')};">🤝 Müşteri & İlişki Yönetimi (CRM) Kullanım Kılavuzu</h1>
+        <div style="font-family: {DesignTokens.FONT_FAMILY}; color: {customer_theme_color(self, 'text')};">
+            <h1 style="color: {customer_theme_color(self, 'accent')};">&#129309; M\u00fc\u015fteri & \u0130li\u015fki Y\u00f6netimi (CRM) Kullan\u0131m K\u0131lavuzu</h1>
             <p>Bu modül, müşterilerinizin, bayilerinizin ve tedarikçilerinizin bilgilerini merkezi bir yerde toplar, bakiye ve işlem takibi yapmanızı sağlar.</p>
-            <h2 style="color: {tc('primary')};">1. Müşteri Listesi ve Kartlar</h2>
+            <h2 style="color: {customer_theme_color(self, 'accent')};">1. M\u00fc\u015fteri Listesi ve Kartlar</h2>
             <ul><li><b>Hızlı Filtre:</b> Üstteki renkli butonlar ile sadece Borçlu Müşterileri veya Bayileri listeleyebilirsiniz.</li><li><b>Arama:</b> İsim, Telefon veya E-posta girerek anında arama yapabilirsiniz.</li></ul>
-            <h2 style="color: {tc('primary')};">2. İşlemler ve Cari Takibi</h2>
+            <h2 style="color: {customer_theme_color(self, 'accent')};">2. \u0130\u015flemler ve Cari Takibi</h2>
             <ul><li><b>İşlem Yap:</b> Tablonun en sağındaki buton veya sağ tık menüsü ile müşteriye Ödeme Alabilir, Fatura Kesebilir veya Servis Kaydı açabilirsiniz.</li><li><b>Müşteri 360°:</b> Müşteriye çift tıklayarak tüm servis geçmişini, ödemelerini ve notlarını görebilirsiniz.</li></ul>
-            <h2 style="color: {tc('primary')};">3. İletişim Araçları</h2>
+            <h2 style="color: {customer_theme_color(self, 'accent')};">3. \u0130leti\u015fim Ara\u00e7lar\u0131</h2>
             <ul><li><b>WhatsApp:</b> Tek tıkla mesaj gönderebilir veya bakiye hatırlatması yapabilirsiniz.</li></ul>
         </div>
         """

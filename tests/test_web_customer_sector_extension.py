@@ -1,6 +1,9 @@
 import sqlite3
 
-from Web_Arayuzu.Main import save_web_customer_sector_extension
+from Web_Arayuzu.Main import (
+    load_web_customer_sector_extensions,
+    save_web_customer_sector_extension,
+)
 
 
 def test_customer_sector_extension_saves_only_active_sector_fields():
@@ -58,6 +61,40 @@ def test_customer_sector_extension_persists_automotive_profile_fields():
         "SELECT vehicle_plate,vehicle_vin,vehicle_brand,vehicle_model,vehicle_year,vehicle_engine "
         "FROM customer_automotive_extension WHERE customer_id=9"
     ).fetchone() == ("34 ABC 123", "VIN-001", "Fixture", "Model C", "2022", "1.6")
+    conn.close()
+
+
+def test_customer_sector_extension_reads_only_the_active_sector():
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE customers (id INTEGER PRIMARY KEY)")
+    conn.executemany("INSERT INTO customers (id) VALUES (?)", [(11,), (12,)])
+    save_web_customer_sector_extension(
+        conn,
+        11,
+        "otomotiv",
+        {"vehicle_plate": "34 ABC 123", "vehicle_brand": "Fixture"},
+    )
+    save_web_customer_sector_extension(
+        conn,
+        11,
+        "teknik_servis",
+        {"device_type": "Laptop", "device_brand": "Fixture"},
+    )
+
+    assert load_web_customer_sector_extensions(conn, [11, 12], "otomotiv") == {
+        11: {
+            "vehicle_plate": "34 ABC 123",
+            "vehicle_vin": "",
+            "vehicle_brand": "Fixture",
+            "vehicle_model": "",
+            "vehicle_year": "",
+            "vehicle_engine": "",
+        }
+    }
+    assert load_web_customer_sector_extensions(conn, [11], "teknik_servis") == {
+        11: {"device_type": "Laptop", "device_brand": "Fixture", "device_model": ""}
+    }
+    assert load_web_customer_sector_extensions(conn, [11], "unknown") == {}
     conn.close()
 
 

@@ -1,0 +1,39 @@
+const { spawn, execFileSync } = require("node:child_process");
+const path = require("node:path");
+const fs = require("node:fs");
+const edgePath = process.env.EDGE_EXECUTABLE || "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe";
+const port = Number(process.env.AYEC_AUDIT_CDP_PORT || 9262);
+const baseUrl = process.env.AYEC_AUDIT_URL;
+const cookie = process.env.AYEC_LOANER_SESSION_COOKIE;
+const keyboardPage = process.env.AYEC_KEYBOARD_PAGE || "loaners";
+const keyboardKey = process.env.AYEC_KEYBOARD_KEY || "f";
+const searchInputId = process.env.AYEC_KEYBOARD_INPUT || "genericSearch";
+const outDir = path.resolve(process.env.AYEC_AUDIT_OUTPUT || "output/playwright");
+const profile = path.join(outDir, `loaner-keyboard-profile-${process.pid}`);
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+async function run() {
+  if (!baseUrl || !cookie) throw new Error("Authenticated loaner audit configuration is missing.");
+  fs.mkdirSync(outDir, { recursive: true });
+  const browser = spawn(edgePath, ["--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check", `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, "--window-size=1280,900", baseUrl], { stdio: "ignore", windowsHide: true });
+  let socket;
+  try {
+    let target;
+    for (let i=0;i<100;i+=1) { try { target=(await (await fetch(`http://127.0.0.1:${port}/json`)).json()).find(item=>item.type==="page"); } catch (_) {} if(target?.webSocketDebuggerUrl)break; await delay(200); }
+    if(!target?.webSocketDebuggerUrl)throw new Error("No headless Edge CDP target.");
+    socket=new WebSocket(target.webSocketDebuggerUrl);
+    await new Promise((resolve,reject)=>{socket.addEventListener("open",resolve,{once:true});socket.addEventListener("error",reject,{once:true});});
+    let id=0;const pending=new Map(),exceptions=[];
+    socket.addEventListener("message",event=>{const msg=JSON.parse(event.data);if(msg.method==="Runtime.exceptionThrown")exceptions.push(msg.params.exceptionDetails.exception?.description||msg.params.exceptionDetails.text);if(!msg.id)return;const task=pending.get(msg.id);if(!task)return;pending.delete(msg.id);msg.error?task.reject(new Error(msg.error.message)):task.resolve(msg.result);});
+    const send=(method,params={})=>new Promise((resolve,reject)=>{const requestId=++id;pending.set(requestId,{resolve,reject});socket.send(JSON.stringify({id:requestId,method,params}));});
+    const evaluate=async expression=>{const result=await send("Runtime.evaluate",{expression,awaitPromise:true,returnByValue:true});if(result.exceptionDetails)throw new Error(result.exceptionDetails.text);return result.result.value;};
+    await send("Page.enable");await send("Runtime.enable");await send("Network.enable");
+    await send("Network.setCookie",{name:"ayec_session",value:cookie,url:baseUrl});await send("Page.navigate",{url:baseUrl});
+    for(let i=0;i<120;i+=1){if(await evaluate("document.readyState==='complete'&&typeof currentAuthUser!=='undefined'&&Boolean(currentAuthUser?.id)"))break;await delay(200);}
+    const result=await evaluate(`(()=>{page="${keyboardPage}";document.body.dataset.page="${keyboardPage}";const input=document.createElement("input");input.id="${searchInputId}";input.value="keyboard search";document.body.append(input);const event=new KeyboardEvent("keydown",{key:"${keyboardKey}",ctrlKey:true,bubbles:true,cancelable:true});input.dispatchEvent(event);return{role:currentAuthUser.role,focused:document.activeElement===input,selected:input.selectionStart===0&&input.selectionEnd===input.value.length,prevented:event.defaultPrevented,paletteOpen:document.querySelector("#globalSearchDialog")?.open===true}})()`);
+    if(result.role!=="Admin"||!result.focused||!result.selected||!result.prevented||(["contracts","customers"].includes(keyboardPage)&&result.paletteOpen)||exceptions.length)throw new Error(JSON.stringify({result,exceptions}));
+    const shot=await send("Page.captureScreenshot",{format:"png",captureBeyondViewport:true});fs.writeFileSync(path.join(outDir,`${keyboardPage}-keyboard-headless.png`),Buffer.from(shot.data,"base64"));
+    console.log(JSON.stringify({result,exceptions:exceptions.length,headless:true}));
+  } finally {if(socket)socket.close();try{execFileSync("taskkill",["/PID",String(browser.pid),"/T","/F"],{stdio:"ignore",windowsHide:true});}catch(_){browser.kill();}try{fs.rmSync(profile,{recursive:true,force:true});}catch(_){} }
+}
+run().catch(error=>{console.error(error.stack||error);process.exitCode=1;});

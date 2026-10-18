@@ -35,6 +35,10 @@ def test_admin_server_settings_is_full_width_and_mobile_responsive():
     assert '#adminTabContent .admin-server-metric-value strong' in CSS
     assert 'database_size_bytes' in APP and 'network_mbps' in APP
     assert 'admin-server-topology' in APP and 'admin-server-replication' in APP
+    assert '#adminTabContent .admin-server-hero #serverStatusRefresh { width: 217px; color: #dee2f6; border-color: #303444; background: #252a39;' in CSS
+    assert '#adminTabContent .admin-server-infrastructure { grid-template-columns: 220px minmax(0,1fr); grid-template-rows: 28px minmax(0,1fr);' in CSS
+    assert '#adminTabContent .admin-server-node::before { display: block; width: 44px; height: 62px;' in CSS
+    assert '@media(max-width:1279px) {\n  #adminTabContent .admin-server-infrastructure { grid-template-columns: minmax(0,1fr);' in CSS
     assert '#adminTabContent .admin-server-layout { display: grid; grid-template-columns: minmax(0,1.3fr) minmax(300px,.7fr)' in CSS
     assert '@media(max-width:1279px) { #adminTabContent .admin-server-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); }' in CSS
     assert '@media(max-width:767px)' in CSS and '#adminTabContent .admin-server-metrics { grid-template-columns: minmax(0,1fr); }' in CSS

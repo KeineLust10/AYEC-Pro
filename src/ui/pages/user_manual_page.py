@@ -33,7 +33,7 @@ class UserManualPage(QWidget):
         # Tabs
         self.tabs = QTabWidget()
         self.tabs.setStyleSheet(theme_qss("""
-            QTabWidget::pane { border: 1px solid @border; border-radius: 6px; background: white; }
+            QTabWidget::pane { border: 1px solid @border; border-radius: 6px; background: rgb(255, 255, 255); }
             QTabBar::tab {
                 background: @surface_alt;
                 padding: 10px 20px;
@@ -44,7 +44,7 @@ class UserManualPage(QWidget):
                 font-weight: bold;
                 color: @text;
             }
-            QTabBar::tab:selected { background: white; color: @accent_hover; border-bottom: 1px solid white; }
+            QTabBar::tab:selected { background: rgb(255, 255, 255); color: @accent_hover; border-bottom: 1px solid rgb(255, 255, 255); }
         """))
         
         # Guide 1: Kullanım Kılavuzu
@@ -60,6 +60,7 @@ class UserManualPage(QWidget):
     def create_doc_viewer(self, filename):
         """Markdown dosyasını okuyup HTML olarak gösteren widget"""
         viewer = QTextBrowser()
+        viewer.setProperty("skipThemeTransform", True)
         viewer.setOpenExternalLinks(True)
         viewer.setStyleSheet(theme_qss("border: none; padding: 15px; background-color: white;"))
         

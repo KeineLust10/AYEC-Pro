@@ -26,6 +26,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QDate, QTime
 from PyQt6.QtGui import QFont, QColor
 from datetime import datetime
+import re
 from src.ui.dialogs.base_modern_dialog import BaseModernDialog
 from src.ui.widgets.modern_dialog import NoWheelScrollArea
 from src.utils.currency_helper import CurrencyHelper
@@ -39,6 +40,13 @@ from src.ui.dialogs.bank_detail_transactions_mixin import BankDetailTransactions
 
 
 class BankDetailDialog(BankDetailTransactionsMixin, BaseModernDialog):
+
+    @staticmethod
+    def _safe_identifier(name):
+        value = str(name or "")
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", value):
+            raise ValueError("Invalid database identifier")
+        return value
 
     def _on_ui_widget_changed(self, *args):
         from src.ui.utils.ui_signal_helpers import on_ui_widget_changed

@@ -3,6 +3,7 @@ from pathlib import Path
 from datetime import datetime, timedelta
 
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt6.QtGui import QColor, QPainter, QPainterPath, QPen
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -24,6 +25,53 @@ from PyQt6.QtWidgets import (
 )
 
 import api_client
+from toast import show_toast
+
+
+class _BackupMetricIcon(QLabel):
+    def __init__(self, kind: str, color: str):
+        super().__init__()
+        self._kind = kind
+        self._color = QColor(color)
+        self.setObjectName("backupMetricIcon")
+        self.setFixedSize(34, 34)
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor("#252a39"))
+        painter.drawRoundedRect(self.rect().adjusted(0, 0, -1, -1), 4, 4)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.setPen(QPen(self._color, 1.7, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        if self._kind == "archive":
+            painter.drawRoundedRect(9, 8, 16, 18, 1, 1)
+            painter.drawLine(13, 13, 21, 13)
+            painter.drawLine(13, 17, 21, 17)
+            painter.drawLine(13, 21, 19, 21)
+        elif self._kind == "cloud":
+            path = QPainterPath()
+            path.moveTo(9, 23)
+            path.cubicTo(6, 23, 6, 17, 10, 16)
+            path.cubicTo(11, 10, 19, 9, 22, 14)
+            path.cubicTo(28, 14, 28, 23, 22, 23)
+            path.closeSubpath()
+            painter.drawPath(path)
+        elif self._kind == "clock":
+            painter.drawEllipse(8, 8, 18, 18)
+            painter.drawLine(17, 12, 17, 17)
+            painter.drawLine(17, 17, 21, 19)
+        else:
+            path = QPainterPath()
+            path.moveTo(19, 6)
+            path.lineTo(11, 18)
+            path.lineTo(16, 18)
+            path.lineTo(14, 28)
+            path.lineTo(23, 15)
+            path.lineTo(18, 15)
+            path.closeSubpath()
+            painter.drawPath(path)
+        painter.end()
 
 
 class _FetchCompanies(QThread):
@@ -126,8 +174,10 @@ class BackupsPage(QWidget):
             QLabel#backupSubtitle, QLabel#backupMuted { color: #8c909f; }
             QLabel#backupFilterLabel { color: #8c909f; font: 700 9px "JetBrains Mono", "Segoe UI", Arial; }
             QLabel#statusLabel { color: #c2c6d6; }
-            QLabel#backupMetricCaption { color: #8c909f; font-size: 10px; font-weight: 700; }
-            QLabel#backupMetricValue { color: #adc6ff; font-size: 26px; font-weight: 700; }
+            QLabel#backupMetricCaption { color: #8c909f; font: 700 9px "JetBrains Mono", "Segoe UI", Arial; }
+            QLabel#backupMetricValue { color: #adc6ff; font-size: 28px; font-weight: 700; }
+            QLabel#backupMetricIcon { color: #adc6ff; background: #252a39; border-radius: 4px; font: 700 16px "Segoe UI Symbol", "Segoe UI", Arial; }
+            QLabel#backupMetricFootnote { color: #8c909f; font: 10px "JetBrains Mono", "Segoe UI", Arial; }
             QLabel#backupTelemetryValue { color: #4edea3; font-size: 14px; font-weight: 700; }
             QLabel#backupSectionTitle { color: #dee2f6; font-size: 15px; font-weight: 700; }
             QLabel#backupCode { color: #4cd7f6; font-family: 'Segoe UI', Arial; font-size: 10px; }
@@ -153,12 +203,13 @@ class BackupsPage(QWidget):
         scroll.setObjectName("backupScroll")
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         content = QWidget()
         content.setObjectName("backupContent")
         content.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Maximum)
         root = QVBoxLayout(content)
         self._content_layout = root
-        root.setContentsMargins(20, 18, 20, 20)
+        root.setContentsMargins(44, 15, 20, 20)
         root.setSpacing(14)
 
         context = QGridLayout()
@@ -209,28 +260,36 @@ class BackupsPage(QWidget):
         self._metric_rpo = QLabel("-")
         self._metric_rto = QLabel("-")
         metric_values = (
-            ("TOPLAM YEDEK DOSYASI", self._metric_count, "Aktif ve tarihsel depo"),
-            ("BULUT SENKRONIZASYON DURUMU", self._metric_size, "SHA-256 metadatas\u0131 bulunan dosya"),
-            ("KURTARMA NOKTASI HEDEF\u0130 (RPO)", self._metric_rpo, "API verisi sunulmuyor"),
-            ("ORTALAMA GER\u0130 Y\u00dcKLEME (RTO)", self._metric_rto, "Restore telemetrisi yok"),
+            ("TOPLAM YEDEK DOSYASI", self._metric_count, "Aktif & Tarihsel Depo", "archive", "#adc6ff"),
+            ("BULUT SENKRON\u0130ZASYON DURUMU", self._metric_size, "SHA-256 metadatas\u0131 bulunan dosya", "cloud", "#4edea3"),
+            ("KURTARMA NOKTASI HEDEF\u0130 (RPO)", self._metric_rpo, "API verisi sunulmuyor", "clock", "#4cd7f6"),
+            ("ORTALAMA GER\u0130 Y\u00dcKLEME (RTO)", self._metric_rto, "Restore telemetrisi yok", "bolt", "#adc6ff"),
         )
         self._metric_grid = QGridLayout()
         self._metric_grid.setContentsMargins(0, 0, 0, 0)
         self._metric_grid.setSpacing(10)
         self._metric_cards = []
-        for index, (caption_text, value, footnote) in enumerate(metric_values):
+        for index, (caption_text, value, footnote, icon_text, icon_color) in enumerate(metric_values):
             card = QFrame()
             card.setObjectName("backupMetric")
             card.setMinimumHeight(130)
             card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
             card_layout = QVBoxLayout(card)
-            card_layout.setContentsMargins(14, 10, 14, 10)
+            card_layout.setContentsMargins(14, 8, 14, 10)
+            card_layout.setSpacing(3)
+            heading_layout = QHBoxLayout()
+            heading_layout.setContentsMargins(0, 0, 0, 0)
+            heading_layout.setSpacing(8)
             caption = QLabel(caption_text)
             caption.setObjectName("backupMetricCaption")
+            icon = _BackupMetricIcon(icon_text, icon_color)
+            heading_layout.addWidget(caption, 1)
+            heading_layout.addWidget(icon)
             value.setObjectName("backupMetricValue")
+            value.setStyleSheet(f"color: {icon_color};")
             note = QLabel(footnote)
-            note.setObjectName("backupMuted")
-            card_layout.addWidget(caption)
+            note.setObjectName("backupMetricFootnote")
+            card_layout.addLayout(heading_layout)
             card_layout.addWidget(value)
             card_layout.addWidget(note)
             self._metric_cards.append(card)
@@ -485,8 +544,7 @@ class BackupsPage(QWidget):
     def _layout_responsive_controls(self):
         compact = self.width() < 700
         if hasattr(self, "_content_layout"):
-            margin = 12 if compact else 20
-            self._content_layout.setContentsMargins(margin, 12 if compact else 18, margin, 16 if compact else 20)
+            self._content_layout.setContentsMargins(12, 12, 12, 16) if compact else self._content_layout.setContentsMargins(44, 15, 20, 20)
         if hasattr(self, "_context_layout"):
             self._clear_layout(self._context_layout)
             if compact:
@@ -591,7 +649,9 @@ class BackupsPage(QWidget):
         self._status.setText("Anl\u0131k yedek ba\u015flatma merkezi API taraf\u0131nda sunulmuyor.")
 
     def _upload_unavailable(self):
-        self._status.setText("Yedek i\u00e7e aktarma merkezi API taraf\u0131nda sunulmuyor.")
+        message = "Yedek i\u00e7e aktarma merkezi API taraf\u0131nda sunulmuyor."
+        self._status.setText(message)
+        show_toast(self, message, "warning")
 
     def _keep(self, worker: QThread):
         self._workers.add(worker)
@@ -601,7 +661,7 @@ class BackupsPage(QWidget):
     def _load_companies(self):
         worker = _FetchCompanies()
         worker.done.connect(self._populate_companies)
-        worker.error.connect(lambda error: self._status.setText(f"Hata: {error}"))
+        worker.error.connect(self._show_error)
         self._keep(worker)
 
     def _populate_companies(self, companies: list):
@@ -621,7 +681,7 @@ class BackupsPage(QWidget):
         self._status.setText("Yedekler y\u00fckleniyor...")
         worker = _FetchBackups(str(tenant_id))
         worker.done.connect(self._populate_backups)
-        worker.error.connect(lambda error: self._status.setText(f"Hata: {error}"))
+        worker.error.connect(self._show_error)
         self._keep(worker)
 
     def _populate_backups(self, items: list):
@@ -723,20 +783,22 @@ class BackupsPage(QWidget):
             return
         self._status.setText("Yedek indiriliyor...")
         worker = _DownloadBackup(str(tenant_id), item, target)
-        worker.done.connect(lambda path: self._status.setText(f"Yedek kaydedildi: {path}"))
-        worker.error.connect(lambda error: self._status.setText(f"Hata: {error}"))
+        worker.done.connect(self._download_done)
+        worker.error.connect(self._show_error)
         self._keep(worker)
 
     def _restore_selected(self):
         if not self._restore_ack.isChecked():
-            self._status.setText("Geri yukleme icin istemci uyarisi onayi gerekli.")
+            message = "Geri yukleme icin istemci uyarisi onayi gerekli."
+            self._status.setText(message)
+            show_toast(self, message, "warning")
             return
         item = self._selected()
         tenant_id = self._company_combo.currentData()
         if not item or not tenant_id:
             return
         company = self._company_combo.currentText()
-        answer = QMessageBox.warning(
+        answer = QMessageBox.question(
             self,
             "Geri Y\u00fckleme Onay\u0131",
             f"{company} i\u00e7in '{item.get('filename', '?')}' yede\u011fi geri y\u00fckleme "
@@ -750,11 +812,23 @@ class BackupsPage(QWidget):
         self._status.setText("Geri y\u00fckleme komutu g\u00f6nderiliyor...")
         worker = _RestoreBackup(str(tenant_id), item)
         worker.done.connect(self._restore_done)
-        worker.error.connect(lambda error: self._status.setText(f"Hata: {error}"))
+        worker.error.connect(self._show_error)
         self._keep(worker)
 
     def _restore_done(self, result: dict):
         command_id = result.get("command_id")
         suffix = f" Komut No: {command_id}" if command_id else ""
-        self._status.setText(f"\u2713 Geri y\u00fckleme kuyru\u011fa al\u0131nd\u0131.{suffix}")
+        message = f"Geri y\u00fckleme kuyru\u011fa al\u0131nd\u0131.{suffix}"
+        self._status.setText(f"\u2713 {message}")
+        show_toast(self, message, "success")
+
+    def _download_done(self, path):
+        message = f"Yedek kaydedildi: {path}"
+        self._status.setText(message)
+        show_toast(self, message, "success")
+
+    def _show_error(self, error):
+        message = f"Hata: {error}"
+        self._status.setText(message)
+        show_toast(self, message, "error")
     QGridLayout,

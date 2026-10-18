@@ -557,7 +557,7 @@ button.dashboard-recent-row {
   max-width: calc(100vw - var(--sidebar, 260px));
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  gap: 10px;
+  gap: 6px;
   padding: 24px 28px 28px;
   overflow: auto;
   border: 1px solid var(--line);
@@ -598,9 +598,9 @@ html[data-theme="midnight"] body[data-page="dashboard"] .dashboard-shortcut-over
 .dashboard-shortcut-grid {
   display: grid;
   min-width: 0;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   align-content: start;
-  gap: 14px;
+  gap: 10px 14px;
 }
 
 @media (min-width: 1976px) {
@@ -674,6 +674,10 @@ html[data-theme="midnight"] body[data-page="dashboard"] .dashboard-shortcut-over
 }
 
 @media (max-width: 1100px) {
+  .dashboard-shortcut-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .dashboard-status-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
@@ -808,3 +812,8 @@ html[data-theme="midnight"] body[data-page="dashboard"] .dashboard-shortcut-over
     gap: 4px;
   }
 }
+
+.dashboard-shortcut-overlay{container-type:inline-size}
+@container (max-width:653px){.dashboard-shortcut-grid{grid-template-columns:minmax(0,1fr)}}
+@container (min-width:654px) and (max-width:973px){.dashboard-shortcut-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@container (min-width:1294px){.dashboard-shortcut-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}

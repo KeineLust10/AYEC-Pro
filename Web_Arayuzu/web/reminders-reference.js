@@ -82,7 +82,7 @@
       + '</tr></thead><tbody>' + rows.map(function (row) {
         return '<tr tabindex="0" data-reminder-id="' + esc(row.id) + '" aria-selected="false">'
           + '<td>' + esc(row.id) + '</td><td class="reminder-row-title">' + esc(row.title) + '</td>'
-          + '<td>' + esc(row.personnel) + '</td><td>' + esc(row.date) + '</td>'
+          + '<td title="' + esc(row.personnel) + '">' + esc(row.personnel) + '</td><td>' + esc(row.date) + '</td>'
           + '<td class="reminder-row-description">' + esc(row.description) + '</td>'
           + '<td>' + esc(row.status) + '</td></tr>';
       }).join("") + '</tbody></table></div>';
@@ -122,7 +122,7 @@
     try {
       var result = await Promise.all([
         apiFetch("/api/desktop/table/reminders?limit=500&q=" + encodeURIComponent(query || "")),
-        apiFetch("/api/desktop/table/personnel?limit=500")
+        apiFetch("/api/desktop/table/personnel?limit=500&include_deleted=1")
       ]);
       window.currentGenericData = result[0];
       window.currentGenericMeta = meta;
@@ -155,9 +155,23 @@
   });
 
   document.addEventListener("keydown", function (event) {
-    if ((event.key === "Enter" || event.key === " ") && event.target.matches("[data-reminder-id]")) {
+    var row = event.target.closest && event.target.closest("[data-reminder-id]");
+    if (!row) return;
+    if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
-      event.target.click();
+      row.click();
+      return;
+    }
+    var rows = Array.from(row.closest("tbody")?.querySelectorAll("[data-reminder-id]") || []);
+    var index = rows.indexOf(row);
+    var next = event.key === "ArrowDown" ? index + 1
+      : event.key === "ArrowUp" ? index - 1
+        : event.key === "Home" ? 0
+          : event.key === "End" ? rows.length - 1 : index;
+    if (next !== index && next >= 0 && next < rows.length) {
+      event.preventDefault();
+      rows[next].focus();
+      rows[next].click();
     }
   });
 

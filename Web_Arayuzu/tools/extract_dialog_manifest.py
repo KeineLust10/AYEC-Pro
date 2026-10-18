@@ -1,10 +1,11 @@
-import streamlit as st
-import pandas as pd
-import sqlite3
+import ast
+import json
+import re
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DIALOG_DIR = ROOT / "src" / "ui" / "dialogs"
-OUT_JSON = ROOT / "web_interface" / "static" / "dialogs.generated.json"
+DIALOG_DIR = ROOT.parent / "src" / "ui" / "dialogs"
+OUT_JSON = ROOT / "web" / "dialogs.generated.json"
 
 WIDGET_TYPES = {
     "QLineEdit": "text",
@@ -192,7 +193,7 @@ def parse_file(path):
         tree = ast.parse(text, filename=str(path))
     except SyntaxError as exc:
         return {
-            "file": str(path.relative_to(ROOT)).replace("\\", "/"),
+            "file": str(path.relative_to(ROOT.parent)).replace("\\", "/"),
             "key": path.stem,
             "error": str(exc),
             "classes": [],
@@ -210,7 +211,7 @@ def parse_file(path):
         cls = next((c["name"] for c in visitor.classes if "Dialog" in c["name"]), None)
         title = cls or path.stem.replace("_", " ").title()
     return {
-        "file": str(path.relative_to(ROOT)).replace("\\", "/"),
+        "file": str(path.relative_to(ROOT.parent)).replace("\\", "/"),
         "key": path.stem,
         "title": title,
         "classes": visitor.classes,
@@ -232,7 +233,7 @@ def main():
         if path.name != "__init__.py"
     ]
     summary = {
-        "source": str(DIALOG_DIR.relative_to(ROOT)).replace("\\", "/"),
+        "source": str(DIALOG_DIR.relative_to(ROOT.parent)).replace("\\", "/"),
         "generated_at": "static",
         "dialog_count": len(dialogs),
         "button_count": sum(d["counts"]["buttons"] for d in dialogs),
@@ -241,10 +242,10 @@ def main():
     }
     OUT_JSON.parent.mkdir(parents=True, exist_ok=True)
     OUT_JSON.write_text(
-        json.dumps({"summary": summary, "dialogs": dialogs}, ensure_ascii=False, indent=2),
+        json.dumps({"summary": summary, "dialogs": dialogs}, ensure_ascii=True, indent=2),
         encoding="utf-8",
     )
-    print(json.dumps(summary, ensure_ascii=False, indent=2))
+    print(json.dumps(summary, ensure_ascii=True, indent=2))
 
 
 if __name__ == "__main__":

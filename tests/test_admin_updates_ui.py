@@ -51,9 +51,16 @@ def test_update_distribution_reflows_without_horizontal_overflow_on_mobile(persi
     monkeypatch.setattr(UpdatesPage, "_load_companies", lambda self: None)
     page = UpdatesPage()
     page._populate_companies([{"id": "tenant-1", "company_name": "ASLAN TIC", "active": 1}])
+    page.resize(1440, 1000)
+    page.show()
+    persistent_qapplication.processEvents()
+    assert page._root_layout.contentsMargins().left() == 40
+    assert page._metric_cards[0].minimumHeight() == 128
+    assert page._params_panel.minimumHeight() == 208
     page.resize(390, 844)
     page.show()
     persistent_qapplication.processEvents()
+    assert page._params_panel.minimumHeight() == 0
 
     metric_columns = {page._metric_grid.getItemPosition(index)[1] for index in range(page._metric_grid.count())}
     scroll = page.findChild(QScrollArea, "updatesScroll")

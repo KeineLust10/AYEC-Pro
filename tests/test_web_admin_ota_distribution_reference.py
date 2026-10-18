@@ -46,7 +46,8 @@ def test_ota_reference_layout_is_full_width_and_responsive():
     assert "#adminTabContent .admin-ota-grid { display: grid; grid-template-columns: minmax(0,7fr) minmax(280px,5fr);" in styles
     assert "@media(max-width:1023px) { #adminTabContent .admin-ota-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); }" in styles
     assert "@media(max-width:767px)" in styles
-    assert "@media(max-width:430px) { #adminTabContent .admin-ota-hero { width: calc(100% + 40px); min-height: 293px; margin-left: -20px;" in styles
+    assert "@media(max-width:430px) { #adminTabContent .admin-ota-hero { width: calc(100% + 40px); min-height: 291px; margin-left: -20px;" in styles
+    assert "#adminTabContent .admin-ota-hero { padding-right: 20px; padding-left: 20px; }" in styles
     assert "#adminTabContent .admin-ota-grid { grid-template-columns: minmax(0,1fr); }" in styles
     assert "#adminTabContent .admin-ota-target-row code" in styles
     assert "#adminTabContent .admin-ota-metric-icon { position: absolute; top: 13px; right: 13px;" in styles

@@ -6,7 +6,7 @@ async function run(baseUrl) {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1 });
   try {
     await page.goto(baseUrl, { waitUntil: "networkidle" });
-    const source = fs.readFileSync("tools/quality/license_requests_dom_capture.cjs", "utf8");
+    const source = fs.readFileSync(require("node:path").join(__dirname, "license_requests_dom_capture.cjs"), "utf8");
     const capture = Function(`return (${source});`)();
     return await capture(page);
   } finally {

@@ -10,9 +10,47 @@ from PyQt6.QtWebEngineCore import QWebEngineSettings
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 
 import api_client
+from toast import show_toast
+
+
+ICON_FALLBACKS = {
+    "info": "i", "warning": "!", "report": "!", "rocket_launch": ">",
+    "build": "+", "campaign": ">", "category": "#", "group_add": "+",
+    "edit_note": "*", "format_bold": "B", "format_italic": "I", "format_list_bulleted": "*",
+    "code": "&lt;&gt;", "send": ">", "desktop_windows": "#", "history_edu": "o",
+    "history_toggle_off": "o", "sync": "R", "bolt": "!", "bookmark_manager": "*",
+    "cell_tower": "o", "check_circle": "v", "close": "x", "dashboard": "#",
+    "database": "#", "domain": "#", "done": "v", "key": "K",
+    "logout": ">", "notifications_active": "!", "person": "o", "progress_activity": "o",
+    "receipt_long": "#", "restart_alt": "R", "rule": "v", "search": "?",
+    "system_update_alt": "v", "terminal": ">", "tune": "=", "vpn_key": "K",
+    "calendar_clock": "o", "backup": "#",
+}
 
 
 REFERENCE = Path("C:/Users/yedek/Desktop/Y\u00f6netim Konsolu Tasar\u0131m/Merkezi bildirim.html")
+
+
+class _NotificationCanvas(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._view = None
+
+    def set_view(self, view):
+        self._view = view
+        view.setParent(self)
+        self._place_view()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._place_view()
+
+    def _place_view(self):
+        if self._view is None:
+            return
+        expanded = self.width() >= 761
+        offset = 264 if expanded else 0
+        self._view.setGeometry(-offset, 0, self.width() + offset, self.height())
 
 
 class _SendThread(QThread):
@@ -61,7 +99,10 @@ class NotificationsPage(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
-        self._view = QWebEngineView(self)
+        self._canvas = _NotificationCanvas(self)
+        layout.addWidget(self._canvas, 1)
+        self._view = QWebEngineView(self._canvas)
+        self._canvas.set_view(self._view)
         self._view.setObjectName("adminNotificationReference")
         settings = self._view.settings()
         settings.setDefaultTextEncoding("UTF-8")
@@ -70,8 +111,12 @@ class NotificationsPage(QWidget):
         self._channel.registerObject("notifications", self)
         self._view.page().setWebChannel(self._channel)
         self._view.loadFinished.connect(self._on_loaded)
-        layout.addWidget(self._view, 1)
         source = REFERENCE.read_text(encoding="utf-8")
+        source = re.sub(
+            r'(<span\b(?=[^>]*\bmaterial-symbols-outlined\b)[^>]*>)\s*([^<]+?)\s*(</span>)',
+            lambda match: match.group(1) + ICON_FALLBACKS.get(match.group(2).strip(), match.group(2)) + match.group(3),
+            source,
+        )
         head_match = re.search(r"<head\b[^>]*>(.*?)</head>", source, re.IGNORECASE | re.DOTALL)
         main_match = re.search(r"<main\b([^>]*)>(.*?)</main>", source, re.IGNORECASE | re.DOTALL)
         if not head_match or not main_match:
@@ -102,12 +147,13 @@ class NotificationsPage(QWidget):
         bootstrap = r"""
           (() => {
             const style=document.createElement('style');
-            style.textContent='html,body{margin:0!important;min-height:100%;width:100%;font-family:"Plus Jakarta Sans","Segoe UI",Arial,sans-serif!important} body{background:#0e1321;color:#dee2f6} .font-display,.font-headline-lg,.font-headline-md,.font-body-default{font-family:"Plus Jakarta Sans","Segoe UI",Arial,sans-serif!important} .font-label-code,.font-badge-status{font-family:"JetBrains Mono","Segoe UI",Arial,monospace!important} .material-symbols-outlined{font-family:"Segoe UI Symbol","Segoe UI",Arial,sans-serif!important;font-variant-ligatures:none} #admin-notify-status{font:600 12px "Segoe UI",Arial,sans-serif;margin-top:8px;min-height:18px;color:#4edea3}';
+            style.textContent='html,body{margin:0!important;min-height:100%;width:100%;font-family:"Plus Jakarta Sans","Segoe UI",Arial,sans-serif!important} body{background:#0e1321;color:#dee2f6} main{width:calc(100% - 288px)!important;margin-left:288px!important;padding-top:0!important} @media(max-width:760px){main{width:100%!important;margin-left:0!important;padding-top:0!important}} .font-display,.font-headline-lg,.font-headline-md,.font-body-default{font-family:"Plus Jakarta Sans","Segoe UI",Arial,sans-serif!important} .font-label-code,.font-badge-status{font-family:"JetBrains Mono","Segoe UI",Arial,monospace!important} .material-symbols-outlined{font-family:"Segoe UI Symbol","Segoe UI",Arial,sans-serif!important;font-variant-ligatures:none} #admin-notify-status{display:none;font:600 12px "Segoe UI",Arial,sans-serif;margin-top:8px;min-height:18px;color:#4edea3}';
             document.head.appendChild(style);
-            const iconMap={info:'\u24d8',warning:'\u26a0',report:'!',rocket_launch:'\u27a4',build:'\u2692',campaign:'\u25b6',category:'\u25a3',group_add:'+',edit_note:'\u270e',format_bold:'B',format_italic:'I',format_list_bulleted:'\u2022',code:'<>',send:'\u27a4',desktop_windows:'\u25a3',history_edu:'\u25f7',history_toggle_off:'\u25f7',sync:'\u21bb',bolt:'\u26a1',bookmark_manager:'\u2605',cell_tower:'\u25ce',check_circle:'\u2713',close:'x',dashboard:'\u25a6',database:'\u25c8',domain:'\u25a6',done:'\u2713',key:'\u26bf',logout:'\u21aa',notifications_active:'\u266a',person:'\u25cf',progress_activity:'\u25cc',receipt_long:'\u2637',restart_alt:'\u21bb',rule:'\u2713',search:'\u2315',system_update_alt:'\u21e9',terminal:'\u25a3',tune:'\u2637',vpn_key:'\u26bf'};
-            const normalizeIcons=root=>root.querySelectorAll('.material-symbols-outlined').forEach(icon=>{const key=icon.textContent.trim();if(iconMap[key])icon.textContent=iconMap[key]});
+            const iconMap={info:'i',warning:'!',report:'!',rocket_launch:'>',build:'+',campaign:'>',category:'#',group_add:'+',edit_note:'*',format_bold:'B',format_italic:'I',format_list_bulleted:'*',code:'<>',send:'>',desktop_windows:'#',history_edu:'o',history_toggle_off:'o',sync:'R',bolt:'!',bookmark_manager:'*',cell_tower:'o',check_circle:'v',close:'x',dashboard:'#',database:'#',domain:'#',done:'v',key:'K',logout:'>',notifications_active:'!',person:'o',progress_activity:'o',receipt_long:'#',restart_alt:'R',rule:'v',search:'?',system_update_alt:'v',terminal:'>',tune:'=',vpn_key:'K',calendar_clock:'o',backup:'#'};
+            const normalizeIcon=icon=>{const key=icon.textContent.trim();if(iconMap[key])icon.textContent=iconMap[key]};
+            const normalizeIcons=root=>{if(root?.matches?.('.material-symbols-outlined'))normalizeIcon(root);root?.querySelectorAll?.('.material-symbols-outlined').forEach(normalizeIcon)};
             normalizeIcons(document);
-            new MutationObserver(changes=>changes.forEach(change=>change.addedNodes.forEach(node=>{if(node.nodeType===1){if(node.matches?.('.material-symbols-outlined')){const key=node.textContent.trim();if(iconMap[key])node.textContent=iconMap[key]}normalizeIcons(node)}}))).observe(document.body,{childList:true,subtree:true});
+            new MutationObserver(changes=>changes.forEach(change=>{if(change.type==='characterData'){normalizeIcons(change.target.parentElement);return}change.addedNodes.forEach(node=>{if(node.nodeType===1)normalizeIcons(node)})})).observe(document.body,{childList:true,characterData:true,subtree:true});
             const form=document.getElementById('broadcast-form');
             if(form&&!document.getElementById('admin-notify-status')){const status=document.createElement('div');status.id='admin-notify-status';form.appendChild(status)}
             document.querySelectorAll('[data-target="pilot"],[data-target="operator"]').forEach(b=>{b.disabled=true;b.title='Bu hedef grubu gonderim API tarafinda desteklenmiyor'});
@@ -127,7 +173,7 @@ class NotificationsPage(QWidget):
               if(!targets.length){window.notifyStatus('En az bir firma secin.',false);return}
               window.notificationsBridge.sendFromReference(JSON.stringify(targets),title,body,icons[type]||'info',popup,confirm);
             },true)}
-            const bridgeScript=document.createElement('script');bridgeScript.src='qrc:///qtwebchannel/qwebchannel.js';bridgeScript.onload=()=>new QWebChannel(qt.webChannelTransport,channel=>{window.notificationsBridge=channel.objects.notifications;window.notifyStatus=(text,success)=>{const node=document.getElementById('admin-notify-status');if(node){node.textContent=text;node.style.color=success?'#4edea3':'#ffb4ab'}};window.notifyReady=true;});document.head.appendChild(bridgeScript);
+            const bridgeScript=document.createElement('script');bridgeScript.src='qrc:///qtwebchannel/qwebchannel.js';bridgeScript.onload=()=>new QWebChannel(qt.webChannelTransport,channel=>{window.notificationsBridge=channel.objects.notifications;window.notifyStatus=(text,success)=>{if(window.notificationsBridge)window.notificationsBridge.showStatus(text,success)};window.notifyReady=true;});document.head.appendChild(bridgeScript);
           })();
         """
         self._view.page().runJavaScript(bootstrap)
@@ -148,10 +194,11 @@ class NotificationsPage(QWidget):
         self._view.page().runJavaScript(script)
 
     def _show_status(self, message: str, success: bool):
-        encoded = json.dumps(message, ensure_ascii=True)
-        self._view.page().runJavaScript(
-            "if(window.notifyStatus)window.notifyStatus(%s,%s);" % (encoded, "true" if success else "false")
-        )
+        show_toast(self, message, "success" if success else "error")
+
+    @pyqtSlot(str, bool)
+    def showStatus(self, message: str, success: bool):
+        self._show_status(message, success)
 
     @pyqtSlot(str, str, str, str, bool, bool)
     def sendFromReference(self, targets_json: str, title: str, body: str, icon: str, popup: bool, confirm: bool):

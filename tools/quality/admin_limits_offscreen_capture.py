@@ -48,7 +48,7 @@ def main() -> int:
         return 10
     if page._metric_tenants.text() != "4" or page._metric_critical.text() != "0":
         return 2
-    if page._metric_db.text() != "3.77 MB / 100 GB" or page._metric_users.text() != "8" or page._metric_devices.text() != "24 / 400 Cihaz" or page._metric_services.text() != "412 / 4,000 Fis":
+    if page._metric_db.text() != "3.77 MB / 100 GB" or page._metric_users.text() != "8" or page._metric_devices.text() != "24 / 400 Cihaz" or page._metric_services.text() != "412 / 4,000 Fi\u015f":
         return 8
     if len(page._policy_controls) != 3 or page._upgrade_total.text() != "$ 750 / Ay" or page._upgrade_tenant.count() != 4:
         return 9

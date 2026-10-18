@@ -31,7 +31,7 @@ class _FetchLimits(QThread):
                 timeout=config.timeout()
             )
             if not resp.ok:
-                raise RuntimeError(resp.json().get("error") or "Kullanim verisi alinamadi")
+                raise RuntimeError(resp.json().get("error") or "Kullan\u0131m verisi al\u0131namad\u0131")
             self.done.emit(resp.json().get("usages", []))
         except Exception as exc:
             self.error.emit(str(exc))
@@ -63,6 +63,9 @@ class LimitsPage(QWidget):
         super().__init__()
         self._thread = None
         self._usage_rows = []
+        self._page_size = 10
+        self._page_index = 0
+        self._filtered_usage_indices = []
         self._build_ui()
         self._load()
 
@@ -77,51 +80,52 @@ class LimitsPage(QWidget):
             QScrollBar::handle:vertical { min-height: 28px; background: #303444; border-radius: 4px; }
             QFrame#limitsHero, QFrame#limitsMetric, QFrame#limitsSection { background: #161b2a; border: 1px solid #252a39; border-radius: 5px; }
             QFrame#limitsHero { background: #111827; }
-            QLabel#limitsEyebrow { color: #adc6ff; font: 700 9px "Segoe UI", Arial; }
-            QLabel#limitsTitle { color: #dee2f6; font: 700 20px "Segoe UI", Arial; }
-            QLabel#limitsDescription { color: #c2c6d6; font: 10px "Segoe UI", Arial; }
-            QLabel#limitsMetricLabel { color: #8c909f; font: 700 8px "Segoe UI", Arial; }
-            QLabel#limitsMetricValue { color: #dee2f6; font: 700 20px "Segoe UI", Arial; }
-            QLabel#limitsMetricDetail { color: #4cd7f6; font: 8px "Segoe UI", Arial; }
-            QLabel#limitsSectionTitle { color: #dee2f6; font: 700 12px "Segoe UI", Arial; }
-            QLabel#limitsPolicyName { color: #dee2f6; font: 700 11px "Segoe UI", Arial; }
-            QLabel#limitsMuted { color: #8c909f; font: 9px "Segoe UI", Arial; }
-            QLineEdit#limitsSearch, QComboBox#limitsFilter { min-height: 32px; padding: 5px 8px; color: #dee2f6; background: #090e1c; border: 1px solid #303444; border-radius: 4px; font: 9px "Segoe UI", Arial; }
-            QTableWidget#limitsTable { background: #161b2a; color: #c2c6d6; border: 1px solid #252a39; gridline-color: #252a39; font: 9px "Segoe UI", Arial; selection-background-color: #252a39; }
+            QLabel#limitsEyebrow { color: #adc6ff; font: 700 9px "Plus Jakarta Sans", "Segoe UI", Arial; }
+            QLabel#limitsTitle { color: #dee2f6; font: 700 20px "Plus Jakarta Sans", "Segoe UI", Arial; }
+            QLabel#limitsDescription { color: #c2c6d6; font: 10px "Plus Jakarta Sans", "Segoe UI", Arial; }
+            QLabel#limitsMetricLabel { color: #8c909f; font: 700 8px "Plus Jakarta Sans", "Segoe UI", Arial; }
+            QLabel#limitsMetricValue { color: #dee2f6; font: 700 20px "Plus Jakarta Sans", "Segoe UI", Arial; }
+            QLabel#limitsMetricDetail { color: #4cd7f6; font: 8px "Plus Jakarta Sans", "Segoe UI", Arial; }
+            QLabel#limitsSectionTitle { color: #dee2f6; font: 700 12px "Plus Jakarta Sans", "Segoe UI", Arial; }
+            QLabel#limitsPolicyName { color: #dee2f6; font: 700 11px "Plus Jakarta Sans", "Segoe UI", Arial; }
+            QLabel#limitsMuted { color: #8c909f; font: 9px "Plus Jakarta Sans", "Segoe UI", Arial; }
+            QLineEdit#limitsSearch, QComboBox#limitsFilter { min-height: 32px; padding: 5px 8px; color: #dee2f6; background: #090e1c; border: 1px solid #303444; border-radius: 4px; font: 9px "Plus Jakarta Sans", "Segoe UI", Arial; }
+            QTableWidget#limitsTable { background: #161b2a; color: #c2c6d6; border: 1px solid #252a39; gridline-color: #252a39; font: 9px "Plus Jakarta Sans", "Segoe UI", Arial; selection-background-color: #252a39; }
             QTableWidget#limitsTable::item { padding: 7px; }
-            QLabel#limitsCellValue { color: #dee2f6; font: 600 10px "JetBrains Mono", "Segoe UI", Arial; }
-            QLabel#limitsCellDetail { color: #8c909f; font: 9px "JetBrains Mono", "Segoe UI", Arial; }
+            QLabel#limitsCellValue { color: #dee2f6; font: 600 10px "JetBrains Mono", "Plus Jakarta Sans", "Segoe UI", Arial; }
+            QLabel#limitsCellDetail { color: #8c909f; font: 9px "JetBrains Mono", "Plus Jakarta Sans", "Segoe UI", Arial; }
             QProgressBar#limitsInlineProgress { max-height: 4px; border: 0; border-radius: 2px; background: #303444; }
             QProgressBar#limitsInlineProgress::chunk { border-radius: 2px; background: #4d8eff; }
-            QLabel#limitsStatusBadge { color: #4edea3; background: #0e3434; border-radius: 9px; padding: 4px 8px; font: 700 9px "JetBrains Mono", "Segoe UI", Arial; }
-            QLabel#limitsHealthBadge { color: #4edea3; background: #103b3b; border-radius: 4px; padding: 6px 9px; font: 700 9px "JetBrains Mono", "Segoe UI", Arial; }
-            QLabel#limitsThresholdBadge { color: #4cd7f6; background: #102a3d; border-radius: 4px; padding: 6px 9px; font: 700 9px "JetBrains Mono", "Segoe UI", Arial; }
+            QLabel#limitsStatusBadge { color: #4edea3; background: #0e3434; border-radius: 9px; padding: 4px 8px; font: 700 9px "JetBrains Mono", "Plus Jakarta Sans", "Segoe UI", Arial; }
+            QLabel#limitsHealthBadge { color: #4edea3; background: #103b3b; border-radius: 4px; padding: 6px 9px; font: 700 9px "JetBrains Mono", "Plus Jakarta Sans", "Segoe UI", Arial; }
+            QLabel#limitsThresholdBadge { color: #4cd7f6; background: #102a3d; border-radius: 4px; padding: 6px 9px; font: 700 9px "JetBrains Mono", "Plus Jakarta Sans", "Segoe UI", Arial; }
             QPushButton#limitsRowAction { min-height: 27px; padding: 3px 7px; color: #adc6ff; background: #1a1f2e; border: 0; border-radius: 3px; }
             QToolButton#limitsInspectAction { min-width: 28px; max-width: 28px; min-height: 27px; color: #adc6ff; background: transparent; border: 0; }
-            QHeaderView::section { padding: 8px; color: #8c909f; background: #1a1f2e; border: 0; font: 700 8px "Segoe UI", Arial; }
+            QHeaderView::section { padding: 8px; color: #8c909f; background: #1a1f2e; border: 0; font: 700 8px "Plus Jakarta Sans", "Segoe UI", Arial; }
             QFrame#limitsTenantCard { background: #161b2a; border: 1px solid #252a39; border-radius: 5px; }
-            QLabel#limitsTenantName { color: #dee2f6; font: 700 12px "Segoe UI", Arial; }
-            QLabel#limitsTenantValue { color: #c2c6d6; font: 9px "Segoe UI", Arial; }
-            QPushButton { min-height: 31px; padding: 5px 9px; color: #dee2f6; background: #252a39; border: 1px solid #303444; border-radius: 4px; font: 9px "Segoe UI", Arial; }
+            QLabel#limitsTenantName { color: #dee2f6; font: 700 12px "Plus Jakarta Sans", "Segoe UI", Arial; }
+            QLabel#limitsTenantValue { color: #c2c6d6; font: 9px "Plus Jakarta Sans", "Segoe UI", Arial; }
+            QPushButton { min-height: 31px; padding: 5px 9px; color: #dee2f6; background: #252a39; border: 1px solid #303444; border-radius: 4px; font: 9px "Plus Jakarta Sans", "Segoe UI", Arial; }
             QPushButton#limitsPrimary { color: #00285d; background: #4d8eff; border-color: #4d8eff; font-weight: 700; }
+            QLabel#limitsPageIndicator { color: #00285d; background: #4d8eff; border: 1px solid #4d8eff; border-radius: 4px; padding: 6px 10px; font-weight: 700; }
             QPushButton#limitsSecondary { color: #dee2f6; background: #1a1f2e; border-color: #303444; }
             QPushButton:disabled { color: #8c909f; background: #252a39; border-color: #303444; }
-            QLabel#limitsStatus { color: #4cd7f6; font: 9px "Segoe UI", Arial; }
+            QLabel#limitsStatus { color: #4cd7f6; font: 9px "Plus Jakarta Sans", "Segoe UI", Arial; }
             QFrame#limitsHero { min-height: 94px; background: #161b2a; border-color: transparent; border-radius: 8px; }
-            QLabel#limitsTitle { font: 700 19px "Segoe UI", Arial; }
-            QLabel#limitsDescription { font: 12px "Segoe UI", Arial; }
+            QLabel#limitsTitle { font: 700 19px "Plus Jakarta Sans", "Segoe UI", Arial; }
+            QLabel#limitsDescription { font: 12px "Plus Jakarta Sans", "Segoe UI", Arial; }
             QFrame#limitsMetric { min-height: 132px; background: #161b2a; border: 0; border-radius: 8px; }
-            QLabel#limitsMetricLabel { color: #dee2f6; font: 500 12px "Segoe UI", Arial; }
-            QLabel#limitsMetricValue { color: #dee2f6; font: 700 26px "Segoe UI", Arial; }
-            QLabel#limitsMetricDetail { color: #4edea3; font: 700 9px "Segoe UI", Arial; }
-            QTableWidget#limitsTable { border: 0; gridline-color: #252a39; font: 10px "Segoe UI", Arial; }
-            QHeaderView::section { min-height: 30px; padding: 6px; color: #c2c6d6; background: #111827; font: 700 9px "Segoe UI", Arial; }
+            QLabel#limitsMetricLabel { color: #dee2f6; font: 500 12px "Plus Jakarta Sans", "Segoe UI", Arial; }
+            QLabel#limitsMetricValue { color: #dee2f6; font: 700 28px "Plus Jakarta Sans", "Segoe UI", Arial; }
+            QLabel#limitsMetricDetail { color: #4edea3; font: 700 9px "Plus Jakarta Sans", "Segoe UI", Arial; }
+            QTableWidget#limitsTable { border: 0; gridline-color: #252a39; font: 10px "Plus Jakarta Sans", "Segoe UI", Arial; }
+            QHeaderView::section { min-height: 30px; padding: 6px; color: #c2c6d6; background: #111827; font: 700 9px "Plus Jakarta Sans", "Segoe UI", Arial; }
             QFrame#limitsSection { border: 0; border-radius: 8px; }
             QFrame#limitsTableHead { background: #161b2a; border: 0; border-radius: 8px; }
-            QLabel#limitsSectionTitle { font: 700 16px "Segoe UI", Arial; }
-            QLabel#limitsMuted { color: #c2c6d6; font: 10px "Segoe UI", Arial; }
+            QLabel#limitsSectionTitle { font: 700 16px "Plus Jakarta Sans", "Segoe UI", Arial; }
+            QLabel#limitsMuted { color: #c2c6d6; font: 10px "Plus Jakarta Sans", "Segoe UI", Arial; }
             QComboBox#limitsUpgradeTenant { min-height: 36px; padding: 5px 8px; color: #dee2f6; background: #1a1f2e; border: 0; border-radius: 4px; }
-            QCheckBox { spacing: 8px; color: #dee2f6; font: 9px "Segoe UI", Arial; }
+            QCheckBox { spacing: 8px; color: #dee2f6; font: 9px "Plus Jakarta Sans", "Segoe UI", Arial; }
             QCheckBox::indicator { width: 18px; height: 18px; border: 1px solid #424754; border-radius: 9px; background: #252a39; }
             QCheckBox::indicator:checked { border-color: #adc6ff; background: #adc6ff; }
         """)
@@ -134,7 +138,7 @@ class LimitsPage(QWidget):
         content = QWidget()
         content.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         layout = QVBoxLayout(content)
-        layout.setContentsMargins(20, 20, 20, 18)
+        layout.setContentsMargins(40, 20, 16, 18)
         layout.setSpacing(10)
         self._content_layout = layout
 
@@ -215,10 +219,10 @@ class LimitsPage(QWidget):
         self._metric_services = QLabel("0")
         self._metric_cards = []
         for caption_text, value, detail in (
-            ("Toplam Veritabani Hacmi", self._metric_db, "Cok Dusuk Yuk  |  0.04% Kullanim"),
-            ("Aktif Lisansli Kullanici", self._metric_users, "32 Bos Lisans  |  20.0% Kapasite"),
-            ("Kayitli Terminal / Cihaz", self._metric_devices, "Stabil & Rezerv  |  6.0% Kullanim"),
-            ("Aylik Servis Formu Uretimi", self._metric_services, "Kota Asimi Yok  |  10.3% Hacim"),
+            ("Toplam Veritaban\u0131 Hacmi", self._metric_db, "\u00c7ok D\u00fc\u015f\u00fck Y\u00fck  |  0.04% Kullan\u0131m"),
+            ("Aktif Lisansl\u0131 Kullan\u0131c\u0131", self._metric_users, "32 Bo\u015f Lisans  |  20.0% Kapasite"),
+            ("Kay\u0131tl\u0131 Terminal / Cihaz", self._metric_devices, "Stabil & Rezerv  |  6.0% Kullan\u0131m"),
+            ("Ayl\u0131k Servis Formu \u00dcretimi", self._metric_services, "Kota A\u015f\u0131m\u0131 Yok  |  10.3% Hacim"),
         ):
             card = QFrame()
             card.setObjectName("limitsMetric")
@@ -253,15 +257,16 @@ class LimitsPage(QWidget):
         toolbar.setSpacing(8)
         table_heading_widget = QWidget(toolbar_frame)
         self._table_heading_widget = table_heading_widget
+        table_heading_widget.setStyleSheet("background: transparent;")
         table_heading = QVBoxLayout(table_heading_widget)
         table_heading.setContentsMargins(0, 0, 0, 0)
         table_heading.setSpacing(2)
-        table_title = QLabel("Kiraci Firma Kota ve Kaynak Tuketim Tablosu")
+        table_title = QLabel("Kirac\u0131 Firma Kota ve Kaynak T\u00fcketim Tablosu")
         table_title.setObjectName("limitsSectionTitle")
         table_title.setWordWrap(True)
         table_title.setMinimumWidth(0)
         table_title.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
-        table_subtitle = QLabel("Canli senkronize edilen kiraci depolama, kullanici ve islem metrikleri")
+        table_subtitle = QLabel("Canl\u0131 senkronize edilen kirac\u0131 depolama, kullan\u0131c\u0131 ve i\u015flem metrikleri")
         table_subtitle.setObjectName("limitsMuted")
         table_subtitle.setWordWrap(True)
         table_subtitle.setMinimumWidth(0)
@@ -291,7 +296,7 @@ class LimitsPage(QWidget):
         self._table.setObjectName("limitsTable")
         self._table.setColumnCount(7)
         self._table.setHorizontalHeaderLabels([
-            "Kirac\u0131 Firma / Paket", "DB Boyutu (Kullanim / Limit)", "Kullan\u0131c\u0131 Kotasi", "Kay\u0131tl\u0131 Cihaz", "Ayl\u0131k Servis Formu", "Durum", "Yonetim"
+            "Kirac\u0131 Firma / Paket", "DB Boyutu (Kullan\u0131m / Limit)", "Kullan\u0131c\u0131 Kotas\u0131", "Kay\u0131tl\u0131 Cihaz", "Ayl\u0131k Servis Formu", "Durum", "Y\u00f6netim"
         ])
         self._table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -319,12 +324,15 @@ class LimitsPage(QWidget):
         self._table_total.setMinimumWidth(0)
         self._table_total.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         table_footer.addWidget(self._table_total, 1)
-        self._page_previous = QPushButton("Onceki")
+        self._page_previous = QPushButton("\u00d6nceki")
         self._page_previous.setEnabled(False)
-        self._page_number = QPushButton("1")
-        self._page_number.setObjectName("limitsPrimary")
+        self._page_previous.clicked.connect(lambda: self._change_usage_page(-1))
+        self._page_number = QLabel("1 / 1")
+        self._page_number.setObjectName("limitsPageIndicator")
+        self._page_number.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._page_next = QPushButton("Sonraki")
         self._page_next.setEnabled(False)
+        self._page_next.clicked.connect(lambda: self._change_usage_page(1))
         table_footer.addWidget(self._page_previous)
         table_footer.addWidget(self._page_number)
         table_footer.addWidget(self._page_next)
@@ -377,9 +385,9 @@ class LimitsPage(QWidget):
         if title.startswith("Otomatik"):
             self._policy_controls = []
             for name, explanation in (
-                ("Veritabani %90 doldugunda firmaya bildirim gonder", "Yetkili e-posta ve WhatsApp hattina otomatik kota uyari sablonu iletilir"),
-                ("Kota asildiginda sistemi salt okunur moda al (Yazma engelle)", "Sadece sorgu ve raporlamaya izin verilir; yeni servis formu olusturulamaz"),
-                ("Kullanici limiti doldugunda yeni davet gonderimini engelle", "Maksimum kullanici sayisina ulasilan subelerde davet kodu islemleri durdurulur"),
+                ("Veritaban\u0131 %90 doldu\u011funda firmaya bildirim g\u00f6nder", "Yetkili e-posta ve WhatsApp hatt\u0131na otomatik kota uyar\u0131 \u015fablonu iletilir"),
+                ("Kota a\u015f\u0131ld\u0131\u011f\u0131nda sistemi salt okunur moda al (Yazma engelle)", "Sadece sorgu ve raporlamaya izin verilir; yeni servis formu olu\u015fturulamaz"),
+                ("Kullan\u0131c\u0131 limiti doldu\u011funda yeni davet g\u00f6nderimini engelle", "Maksimum kullan\u0131c\u0131 say\u0131s\u0131na ula\u015f\u0131lan \u015fubelerde davet kodu i\u015flemleri durdurulur"),
             ):
                 row = QWidget(panel)
                 row.setMinimumWidth(0)
@@ -411,14 +419,14 @@ class LimitsPage(QWidget):
             self._upgrade_tenant.setMinimumWidth(0)
             self._upgrade_tenant.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
             self._upgrade_tenant.addItem("ASLAN TIC (ID: #AYEC-1001, Kurumsal Paket)", "tenant-a")
-            layout.addWidget(QLabel("Hedef Kiraci Firma"))
+            layout.addWidget(QLabel("Hedef Kirac\u0131 Firma"))
             layout.addWidget(self._upgrade_tenant)
             options = QHBoxLayout()
             self._upgrade_options_layout = options
             self._upgrade_options = []
-            for label in ("+5 Koltuk", "+50 GB", "+2,000 Fis"):
+            for label in ("+5 Koltuk", "+50 GB", "+2,000 Fi\u015f"):
                 option = QCheckBox(label)
-                option.setChecked(label != "+2,000 Fis")
+                option.setChecked(label != "+2,000 Fi\u015f")
                 self._upgrade_options.append(option)
                 options.addWidget(option, 1)
             layout.addLayout(options)
@@ -454,7 +462,7 @@ class LimitsPage(QWidget):
             self._search.setMaximumWidth(16777215)
             self._status_filter.setMaximumWidth(16777215)
         else:
-            self._content_layout.setContentsMargins(20, 16, 20, 18)
+            self._content_layout.setContentsMargins(40, 16, 16, 18)
             self._hero.setMinimumHeight(0)
             self._refresh_button.setText("Kotalar\u0131 Yenile")
             self._package_button.setText("Kota Paketi Tan\u0131mla")
@@ -556,7 +564,7 @@ class LimitsPage(QWidget):
                 f"{devices_count} / {devices_limit}",
                 f"{services_count} / {services_limit}",
                 status,
-                "Kotayi Artir  |  \u25ce",
+                "Kotay\u0131 Art\u0131r  |  \u25ce",
             ]
             for col, val in enumerate(items):
                 item = QTableWidgetItem(str(val))
@@ -617,7 +625,7 @@ class LimitsPage(QWidget):
             action_layout = QHBoxLayout(action_cell)
             action_layout.setContentsMargins(2, 2, 2, 2)
             action_layout.setSpacing(3)
-            upgrade_button = QPushButton("Kotayi Artir")
+            upgrade_button = QPushButton("Kotay\u0131 Art\u0131r")
             upgrade_button.setObjectName("limitsRowAction")
             upgrade_button.clicked.connect(lambda _, value=tenant_id: self._select_upgrade_tenant(value))
             inspect_button = QToolButton()
@@ -664,8 +672,8 @@ class LimitsPage(QWidget):
         self._metric_db.setText(f"{total_db:.2f} MB / 100 GB")
         self._metric_users.setText(str(total_users))
         self._metric_devices.setText(f"{total_devices} / 400 Cihaz")
-        self._metric_services.setText(f"{total_services} / 4,000 Fis")
-        self._table_total.setText(f"Toplam {len(usages)} aktif kiraci firma listeleniyor  |  Son senkronizasyon: 12 saniye once")
+        self._metric_services.setText(f"{total_services} / 4,000 Fi\u015f")
+        self._table_total.setText(f"Toplam {len(usages)} aktif kirac\u0131 firma listeleniyor  |  Son senkronizasyon: 12 saniye \u00f6nce")
         self._upgrade_tenant.clear()
         for usage in usages:
             tenant_id = str(usage.get("tenant_id") or "")
@@ -678,6 +686,7 @@ class LimitsPage(QWidget):
     def _filter_usages(self, query: str):
         needle = str(query or "").strip().casefold()
         critical_only = self._status_filter.currentData() == "critical"
+        self._filtered_usage_indices = []
         for row in range(self._table.rowCount()):
             values = [
                 self._table.item(row, column).data(Qt.ItemDataRole.UserRole + 1)
@@ -688,8 +697,30 @@ class LimitsPage(QWidget):
             row_data = self._usage_rows[row]
             values.append(row_data["tenant_id"])
             visible = (not needle or needle in " ".join(values).casefold()) and (not critical_only or row_data["critical"])
+            if visible:
+                self._filtered_usage_indices.append(row)
+        self._page_index = 0
+        self._render_usage_page()
+
+    def _change_usage_page(self, offset: int):
+        page_count = max(1, (len(self._filtered_usage_indices) + self._page_size - 1) // self._page_size)
+        self._page_index = max(0, min(page_count - 1, self._page_index + int(offset)))
+        self._render_usage_page()
+
+    def _render_usage_page(self):
+        total = len(self._filtered_usage_indices)
+        page_count = max(1, (total + self._page_size - 1) // self._page_size)
+        first = self._page_index * self._page_size
+        visible_rows = set(self._filtered_usage_indices[first:first + self._page_size])
+        for row in range(self._table.rowCount()):
+            visible = row in visible_rows
             self._table.setRowHidden(row, not visible)
-            self._mobile_list.layout().itemAt(row).widget().setVisible(visible)
+            card_item = self._mobile_list.layout().itemAt(row)
+            if card_item and card_item.widget():
+                card_item.widget().setVisible(visible)
+        self._page_number.setText(f"{self._page_index + 1} / {page_count}")
+        self._page_previous.setEnabled(self._page_index > 0)
+        self._page_next.setEnabled(self._page_index + 1 < page_count)
 
     def closeEvent(self, event):
         if self._thread and self._thread.isRunning():

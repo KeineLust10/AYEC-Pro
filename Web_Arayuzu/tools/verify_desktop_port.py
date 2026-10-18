@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import ast
 import json
+from urllib.error import URLError
 import urllib.request
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DESKTOP = ROOT.parent / "Masaustu"
+DESKTOP = ROOT.parent
 APP = (ROOT / "web" / "app.js").read_text(encoding="utf-8")
 
 
@@ -21,21 +22,37 @@ def literal_assignment(path: Path, name: str):
     raise KeyError(name)
 
 
-page_names = literal_assignment(DESKTOP / "src" / "utils" / "page_config.py", "PAGE_NAMES")
-missing_pages = [label for label in page_names.values() if label not in APP]
+def source_contains_label(source: str, label: str) -> bool:
+    if label in source:
+        return True
+    escaped = "".join(
+        f"\\u{ord(character):04x}" if ord(character) > 127 else character
+        for character in label
+    )
+    return escaped in source
 
-manifest = json.loads((DESKTOP / "web_interface" / "static" / "dialogs.generated.json").read_text(encoding="utf-8"))
+
+page_names = literal_assignment(DESKTOP / "src" / "utils" / "page_config.py", "PAGE_NAMES")
+missing_pages = [label for label in page_names.values() if not source_contains_label(APP, label)]
+
+manifest = json.loads((ROOT / "web" / "dialogs.generated.json").read_text(encoding="utf-8"))
 dialog_keys = [dialog["key"] for dialog in manifest["dialogs"]]
 direct_dialogs = [
     "add_customer_dialog", "add_stock_dialog", "payment_dialog", "tahsilat_dialog",
-    "new_service_dialog", "customer_360_dialog", "stock_smart_import_dialog", "technician_panel",
+    "offer_acceptance_dialog", "customer_vehicle_dialog", "bank_detail_dialog_components", "alert_edit_dialog", "brand_edit_dialog", "loan_detail_dialog", "loan_wizard_advanced", "new_service_dialog", "customer_360_dialog", "stock_smart_import_dialog", "technician_panel",
 ]
 missing_direct = [key for key in direct_dialogs if key not in APP]
 
-with urllib.request.urlopen("http://127.0.0.1:8501/api/desktop/health", timeout=3) as response:
-    health = json.load(response)
-with urllib.request.urlopen("http://127.0.0.1:8501/api/desktop/dialogs", timeout=3) as response:
-    live_manifest = json.load(response)
+live_api_error = None
+try:
+    with urllib.request.urlopen("http://127.0.0.1:8501/api/desktop/health", timeout=3) as response:
+        health = json.load(response)
+    with urllib.request.urlopen("http://127.0.0.1:8501/api/desktop/dialogs", timeout=3) as response:
+        live_manifest = json.load(response)
+except (URLError, TimeoutError) as error:
+    live_api_error = str(error)
+    health = {"ok": False}
+    live_manifest = {}
 
 report = {
     "ok": not missing_pages and not missing_direct and health.get("ok") is True,
@@ -48,6 +65,7 @@ report = {
     "critical_direct_dialogs": len(direct_dialogs) - len(missing_direct),
     "missing_critical_direct_dialogs": missing_direct,
     "database_tables": health.get("tables"),
+    "live_api_error": live_api_error,
 }
 print(json.dumps(report, ensure_ascii=False, indent=2))
 raise SystemExit(0 if report["ok"] else 1)

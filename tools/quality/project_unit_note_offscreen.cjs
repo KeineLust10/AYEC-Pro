@@ -62,6 +62,7 @@ async function run() {
     };
     await send("Page.enable");
     await send("Runtime.enable");
+    await send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
     await send("Page.navigate", { url: baseUrl });
     let ready = false;
     for (let attempt = 0; attempt < 100; attempt += 1) {
@@ -103,7 +104,80 @@ async function run() {
     if (!result.initial.open || result.initial.title !== "Teknik Not" || result.initial.note !== "Original note" || !expected || exceptions.length) {
       throw new Error(`Project note editor mismatch: ${JSON.stringify({ result, browserExceptions: exceptions })}`);
     }
-    process.stdout.write(JSON.stringify({ ...result, browserExceptions: exceptions.length, headless: true }) + "\n");
+    const menuResult = await evaluate(`(()=>{
+      const oldLoadPart9Projects=loadPart9Projects;
+      const oldApiFetch=apiFetch;
+      window.__p9UnitContextWrites=[];
+      window.__p9ProductAction=false;
+      loadPart9Projects=async()=>{};
+      apiFetch=async(url,options={})=>{window.__p9UnitContextWrites.push({url,body:JSON.parse(options.body||"{}")});return{ok:true,rows:[],columns:[]}};
+      db.settings.contextMenu=true;
+      desktopSettings.rc_projects="1";
+      p9ProjectState.projects=[{id:42,name:"Audit Project"}];
+      p9ProjectState.selectedId=42;
+      p9ProjectState.units=[{id:954,project_id:42,status:"Bekliyor"}];
+      document.querySelectorAll("dialog[open]").forEach(dialog=>dialog.close());
+      document.querySelector("#toastRoot")?.replaceChildren();
+      page="projects";
+      document.body.dataset.page="projects";
+      document.querySelector("#content").innerHTML='<div class="page-head"><div><h2>Project Detail</h2></div></div><section class="p9-project-screen"><div class="p9-unit-grid"><article class="p9-unit-card" data-p9-unit-card="954"><header><strong>Block A - Unit 101</strong><span>Bekliyor</span></header><small>Floor 1 | Apartment</small><div class="p9-unit-meta"><span>Installed devices</span><b>0</b></div></article></div></section>';
+      const card=document.querySelector('[data-p9-unit-card="954"]');
+      card.innerHTML+='<button type="button" data-p9-unit-products>Products</button>';
+      card.querySelector("[data-p9-unit-products]").addEventListener("click",()=>{window.__p9ProductAction=true});
+      const openEvent=new MouseEvent("contextmenu",{bubbles:true,cancelable:true,clientX:1270,clientY:890});
+      card.dispatchEvent(openEvent);
+      const menu=document.querySelector("#contextMenu");
+      const box=menu.getBoundingClientRect();
+      const initial={opened:menu.classList.contains("open")&&menu.classList.contains("project-unit-context-menu"),defaultPrevented:openEvent.defaultPrevented,actions:Array.from(menu.querySelectorAll("[data-p9-unit-context-status]"),node=>node.dataset.p9UnitContextStatus).concat(menu.querySelector("[data-p9-unit-context-products]")?.lastElementChild?.textContent.trim()),checked:menu.querySelector('[data-p9-unit-context-status="Bekliyor"]')?.getAttribute("aria-checked"),bounds:{x:box.x,y:box.y,width:box.width,height:box.height}};
+      window.__p9UnitContextRestore={oldLoadPart9Projects,oldApiFetch,card};
+      return initial;
+    })()`);
+    const menuImage = await send("Page.captureScreenshot", { format: "png", captureBeyondViewport: true, clip: { x: 0, y: 0, width: 1280, height: 900, scale: 1 } });
+    const menuScreenshot = path.join(outputDir, "project-unit-context-menu-headless.png");
+    fs.writeFileSync(menuScreenshot, Buffer.from(menuImage.data, "base64"));
+    const menuActions = await evaluate(`(async()=>{
+      const menu=document.querySelector("#contextMenu");
+      menu.querySelector('[data-p9-unit-context-status="Devam Ediyor"]').click();
+      await new Promise(resolve=>setTimeout(resolve,0));
+      const status={writes:window.__p9UnitContextWrites.slice(),closed:!menu.classList.contains("open")};
+      const card=window.__p9UnitContextRestore.card;
+      desktopSettings.rc_projects="1";
+      card.dispatchEvent(new MouseEvent("contextmenu",{bubbles:true,cancelable:true,clientX:1270,clientY:890}));
+      menu.querySelector("[data-p9-unit-context-products]").click();
+      const products={triggered:window.__p9ProductAction,closed:!menu.classList.contains("open")};
+      await new Promise(resolve=>setTimeout(resolve,25));
+      const dialog=document.querySelector("#appDialog");
+      const productsDialogOpen=dialog?.open===true;
+      dialog?.close("cancel");
+      window.__p9ProductAction=false;
+      const unitHeader=card.querySelector("header");
+      unitHeader.dispatchEvent(new MouseEvent("click",{bubbles:true,cancelable:true}));
+      await new Promise(resolve=>setTimeout(resolve,0));
+      const singleClick={productsOpened:window.__p9ProductAction,dialogOpen:document.querySelector("#appDialog")?.open===true};
+      unitHeader.dispatchEvent(new MouseEvent("dblclick",{bubbles:true,cancelable:true}));
+      await new Promise(resolve=>setTimeout(resolve,25));
+      const doubleClick={productsOpened:window.__p9ProductAction,dialogOpen:document.querySelector("#appDialog")?.open===true,title:document.querySelector("#dialogTitle")?.textContent||""};
+      document.querySelector("#appDialog")?.close("cancel");
+      desktopSettings.rc_projects="0";
+      const disabledEvent=new MouseEvent("contextmenu",{bubbles:true,cancelable:true,clientX:300,clientY:300});
+      card.dispatchEvent(disabledEvent);
+      const gate={prevented:disabledEvent.defaultPrevented,opened:menu.classList.contains("open")};
+      const restore=window.__p9UnitContextRestore;
+      loadPart9Projects=restore.oldLoadPart9Projects;
+      apiFetch=restore.oldApiFetch;
+      restore.card.remove();
+      delete window.__p9UnitContextRestore;
+      delete window.__p9UnitContextWrites;
+      delete window.__p9ProductAction;
+      return {status,products,productsDialogOpen,singleClick,doubleClick,gate};
+    })()`);
+    const statusWrite = menuActions.status.writes.find(item => item.url === "/api/desktop/table/project_units");
+    const box = menuResult.bounds;
+    const menuFits = box.x >= 0 && box.y >= 0 && box.x + box.width <= 1280 && box.y + box.height <= 900;
+    if (!menuResult.opened || !menuResult.defaultPrevented || JSON.stringify(menuResult.actions) !== JSON.stringify(["Bekliyor", "Devam Ediyor", "Tamamlandı", "Ürünleri Yönet"]) || menuResult.checked !== "true" || !menuFits || !menuActions.status.closed || statusWrite?.body?.id !== 954 || statusWrite.body.status !== "Devam Ediyor" || statusWrite.body._action !== "update" || !menuActions.products.triggered || !menuActions.products.closed || !menuActions.productsDialogOpen || menuActions.singleClick.productsOpened || menuActions.singleClick.dialogOpen || !menuActions.doubleClick.productsOpened || !menuActions.doubleClick.dialogOpen || !menuActions.doubleClick.title.includes("Kurulu Ürünler") || menuActions.gate.prevented || menuActions.gate.opened || exceptions.length) {
+      throw new Error(`Project unit context menu mismatch: ${JSON.stringify({ menuResult, menuActions, browserExceptions: exceptions.length })}`);
+    }
+    process.stdout.write(JSON.stringify({ ...result, projectUnitContextMenu: menuResult, projectUnitActions: menuActions, menuScreenshot, browserExceptions: exceptions.length, headless: true }) + "\n");
   } finally {
     try { socket?.close(); } catch (_) {}
     try {

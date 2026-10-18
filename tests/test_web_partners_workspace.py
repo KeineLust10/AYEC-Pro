@@ -1,5 +1,7 @@
 import base64
+import os
 import sqlite3
+import subprocess
 import threading
 from http.server import ThreadingHTTPServer
 from pathlib import Path
@@ -11,6 +13,15 @@ import Web_Arayuzu.Main as web_main
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_partner_shipment_date_defaults_to_the_local_desktop_date():
+    web = (ROOT / "Web_Arayuzu/web/partners-reference.js").read_text(encoding="utf-8")
+    helper = next(line.strip() for line in web.splitlines() if line.startswith("  function partnerLocalDateInputValue("))
+    script = helper + "\nprocess.stdout.write(partnerLocalDateInputValue(new Date('2026-01-01T23:30:00Z')));"
+    environment = dict(os.environ, TZ="Pacific/Kiritimati")
+    result = subprocess.run(["node", "-e", script], capture_output=True, text=True, env=environment, check=True)
+    assert result.stdout == "2026-01-02"
 
 
 def test_partner_workspace_web_view_exposes_filters_and_shipment_tabs():
@@ -27,16 +38,30 @@ def test_partner_workspace_web_view_exposes_filters_and_shipment_tabs():
     assert r'.replace(/[\u0300-\u036f]/g, "").replaceAll("\u0131", "i")' in web
     assert 'row.serial_no || row.external_ref_no' in web
     assert 'id="partnerShipmentAdd"' in web
+    assert 'photoButton.id = "partnerShipmentPhotoButton"' in web
+    assert 'documentsButton.id = "partnerShipmentDocumentsButton"' in web
+    assert 'function openPartnerShipmentPhotoGallery(partner, row, form)' in web
+    assert 'apiFetch("/api/desktop/partners/shipment-photos"' in web
     assert 'data-partner-shipment="${esc(row.id)}"' in web
     for field in (
         "customer_name", "product_name", "serial_no", "issue_summary", "shipment_reason",
         "external_ref_no", "outbound_tracking_no", "return_tracking_no", "partner_cost",
         "customer_price", "quote_status", "quote_amount", "approval_status", "sent_at",
         "contract_type", "sla_level", "accessories", "cost_responsibility", "return_qc",
-        "cosmetic_status", "missing_parts", "returned_at", "currency", "notes",
+        "cosmetic_status", "missing_parts", "returned_at", "notes",
     ):
         assert f'"{field}"' in web
+    assert 'text("contract_type", "Sozlesme", partner.contract_type || "Standart Anlasma", true)' in web
+    assert 'text("sla_level", "SLA", partner.sla_level || "24 Saat Donus", true)' in web
+    assert 'const currencyCode = String(db.settings.currency || "TRY").toUpperCase()' in web
+    assert 'class="partner-shipment-amount"' in web
+    assert '"currency": str(setting_value(conn, "currency") or setting_value(conn, "default_currency", "TRY")).strip().upper()' in (
+        ROOT / "Web_Arayuzu/Main.py"
+    ).read_text(encoding="utf-8")
     assert 'apiFetch("/api/desktop/partners/shipments"' in web
+    api = (ROOT / "Web_Arayuzu/Main.py").read_text(encoding="utf-8")
+    assert 'path == "/api/desktop/partners/shipment-photos"' in api
+    assert 'r"/api/desktop/partners/shipment-photo/(\\d+)"' in api
     assert 'row.oncontextmenu = (event) => showPartnerShipmentMenu(event, shipment)' in web
     assert '["Ac / Duzenle", "edit"]' in web
     assert '["Belge Merkezi", "documents"]' in web
@@ -273,6 +298,8 @@ def test_partner_workspace_api_filters_partners_and_scopes_shipments(monkeypatch
         assert requests.get(
             f"{base_url}/api/desktop/partners/documents?partner_id={partner_id}", timeout=5
         ).status_code == 401
+        with sqlite3.connect(tenant_path) as conn:
+            conn.execute("INSERT OR REPLACE INTO settings(key, value) VALUES('currency', 'USD')")
         shipment_payload = {
             "partner_id": partner_id,
             "customer_name": "New customer",
@@ -290,6 +317,48 @@ def test_partner_workspace_api_filters_partners_and_scopes_shipments(monkeypatch
         )
         assert created.status_code == 201
         created_id = created.json()["id"]
+        png_data = base64.b64encode(bytes.fromhex("89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000b49444154789c636000020000050001a5f645400000000049454e44ae426082")).decode("ascii")
+        photo_url = f"{base_url}/api/desktop/partners/shipment-photos"
+        photo_query = {"partner_id": partner_id, "shipment_id": created_id}
+        assert requests.get(photo_url, params=photo_query, timeout=5).status_code == 401
+        photo_upload = session.post(
+            photo_url,
+            json={**photo_query, "data": png_data, "label": "shipment.png"},
+            timeout=5,
+        )
+        assert photo_upload.status_code == 201, photo_upload.text
+        photo_id = photo_upload.json()["id"]
+        photos = session.get(photo_url, params=photo_query, timeout=5)
+        assert photos.status_code == 200
+        assert photos.json()["rows"] == [{
+            "id": photo_id, "photo_label": "shipment.png", "created_at": photos.json()["rows"][0]["created_at"],
+            "available": True,
+        }]
+        image = session.get(
+            f"{base_url}/api/desktop/partners/shipment-photo/{photo_id}",
+            params=photo_query,
+            timeout=5,
+        )
+        assert requests.get(
+            f"{base_url}/api/desktop/partners/shipment-photo/{photo_id}",
+            params=photo_query,
+            timeout=5,
+        ).status_code == 401
+        assert image.status_code == 200
+        assert image.headers["Content-Type"] == "image/png"
+        assert image.content == bytes.fromhex("89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000b49444154789c636000020000050001a5f645400000000049454e44ae426082")
+        foreign_photo_query = {"partner_id": listing.json()["partners"][1]["id"], "shipment_id": created_id}
+        assert session.get(photo_url, params=foreign_photo_query, timeout=5).status_code == 404
+        assert session.get(
+            f"{base_url}/api/desktop/partners/shipment-photo/{photo_id}",
+            params=foreign_photo_query,
+            timeout=5,
+        ).status_code == 404
+        deleted_photo = session.post(
+            photo_url, json={**photo_query, "_action": "delete", "id": photo_id}, timeout=5
+        )
+        assert deleted_photo.status_code == 200
+        assert session.get(photo_url, params=photo_query, timeout=5).json()["rows"] == []
         shipment_payload.update({"id": created_id, "status": "Geri geldi"})
         updated = session.post(
             f"{base_url}/api/desktop/partners/shipments", json=shipment_payload, timeout=5
@@ -297,14 +366,14 @@ def test_partner_workspace_api_filters_partners_and_scopes_shipments(monkeypatch
         assert updated.status_code == 200
         with sqlite3.connect(tenant_path) as conn:
             saved = conn.execute(
-                "SELECT customer_name, product_name, status, partner_cost FROM partner_shipments WHERE id=?",
+                "SELECT customer_name, product_name, status, partner_cost, currency FROM partner_shipments WHERE id=?",
                 (created_id,),
             ).fetchone()
             timeline = conn.execute(
                 "SELECT COUNT(*) FROM partner_timeline WHERE shipment_id=? AND event_type='shipment_saved'",
                 (created_id,),
             ).fetchone()[0]
-        assert saved == ("New customer", "New device", "Geri geldi", 120.5)
+        assert saved == ("New customer", "New device", "Geri geldi", 120.5, "USD")
         assert timeline == 2
         wrong_partner_update = session.post(
             f"{base_url}/api/desktop/partners/shipments",

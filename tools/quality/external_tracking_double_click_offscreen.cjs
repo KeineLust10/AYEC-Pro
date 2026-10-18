@@ -70,8 +70,12 @@ async function run() {
       await delay(200);
     }
     const pageResult = await evaluate(`(async () => {
+      for (let attempt = 0; attempt < 50 && !document.querySelector("#authRoot .auth-shell"); attempt += 1) await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, 100));
       document.querySelector("#authRoot")?.remove();
       document.body.classList.remove("auth-active");
+      document.querySelector("#appShell")?.removeAttribute("inert");
+      document.querySelector("#appShell")?.removeAttribute("aria-hidden");
       window.__originalExternalApiFetch = apiFetch;
       apiFetch = async url => {
         if (url.includes("external_warranty_tracking")) return { rows: [
@@ -85,6 +89,7 @@ async function run() {
         ], columns: ["id", "internal_tracking_no", "customer_name", "product_name", "external_service_name", "external_service_no", "sent_date", "status", "notes", "outbound_cargo_no", "inbound_cargo_no", "warranty_coverage", "repair_cost"] };
         return { rows: [], columns: [], count: 0 };
       };
+      window.__externalTrackingFixtureFetch = apiFetch;
       page = "logistics";
       document.body.dataset.page = "logistics";
       db.settings.doubleClick = true;
@@ -94,15 +99,37 @@ async function run() {
       const row = document.querySelector('[data-external-row="93"]');
       if (!row) throw new Error("External tracking fixture row did not render.");
       const bounds = selector => { const node=document.querySelector(selector),rect=node?.getBoundingClientRect();return rect?{x:Math.round(rect.x),y:Math.round(rect.y),width:Math.round(rect.width),height:Math.round(rect.height)}:null; };
-      return { rowCount: document.querySelectorAll('[data-external-row]').length, columns: Array.from(document.querySelectorAll("#externalTrackingHost thead th"), node => node.textContent.trim()), actions: Array.from(document.querySelectorAll(".external-tracking-command-row"), row => Array.from(row.querySelectorAll("button"), button => Array.from(button.attributes).find(attribute => attribute.name.startsWith("data-external-"))?.name)), monthControl: { tag: document.querySelector("#externalTrackingMonth")?.tagName, first: document.querySelector("#externalTrackingMonth option")?.textContent, second: document.querySelector("#externalTrackingMonth option:nth-child(2)")?.value, options: document.querySelectorAll("#externalTrackingMonth option").length }, summary: { total: document.querySelector("#externalTrackingTotal")?.textContent, active: document.querySelector("#externalTrackingActive")?.textContent, pending: document.querySelector("#externalTrackingPending")?.textContent, received: document.querySelector("#externalTrackingReceived")?.textContent }, statusBadges: Array.from(document.querySelectorAll("[data-external-row] .badge"), node => ({ label: node.textContent.trim(), tone: Array.from(node.classList).find(name => ["info", "warn", "danger", "success", "neutral"].includes(name)) || "", background: getComputedStyle(node).backgroundColor, color: getComputedStyle(node).color })), geometry: { tabs: bounds(".external-tracking-tabs"), header: bounds("#externalTrackingPanel .page-head"), metrics: bounds(".external-tracking-metrics"), filters: bounds(".external-tracking-filters"), table: bounds(".external-tracking-table"), firstRow: bounds("[data-external-row]") } };
+      const rowActions=Array.from(row.querySelectorAll("[data-external-edit], [data-external-delete]"),node=>{const rect=node.getBoundingClientRect();return {action:node.hasAttribute("data-external-edit")?"edit":"delete",width:Math.round(rect.width),height:Math.round(rect.height)}});
+      const pendingMetricLabel=document.querySelector("#externalTrackingPending")?.parentElement?.querySelector("footer")?.textContent.trim();
+      return { rowActions, pendingMetricLabel, rowCount: document.querySelectorAll('[data-external-row]').length, columns: Array.from(document.querySelectorAll("#externalTrackingHost thead th"), node => node.innerText.replace(/\s+/g, " ").trim()), actions: Array.from(document.querySelectorAll(".external-tracking-command-row"), row => Array.from(row.querySelectorAll("button"), button => Array.from(button.attributes).find(attribute => attribute.name.startsWith("data-external-"))?.name)), monthControl: { tag: document.querySelector("#externalTrackingMonth")?.tagName, first: document.querySelector("#externalTrackingMonth option")?.textContent, second: document.querySelector("#externalTrackingMonth option:nth-child(2)")?.value, options: document.querySelectorAll("#externalTrackingMonth option").length }, summary: { total: document.querySelector("#externalTrackingTotal")?.textContent, active: document.querySelector("#externalTrackingActive")?.textContent, pending: document.querySelector("#externalTrackingPending")?.textContent, received: document.querySelector("#externalTrackingReceived")?.textContent }, statusBadges: Array.from(document.querySelectorAll("[data-external-row] .badge"), node => ({ label: node.textContent.trim(), tone: Array.from(node.classList).find(name => ["info", "warn", "danger", "success", "neutral"].includes(name)) || "", background: getComputedStyle(node).backgroundColor, color: getComputedStyle(node).color })), geometry: { tabs: bounds(".external-tracking-tabs"), header: bounds("#externalTrackingPanel .page-head"), metrics: bounds(".external-tracking-metrics"), filters: bounds(".external-tracking-filters"), table: bounds(".external-tracking-table"), firstRow: bounds("[data-external-row]") } };
     })()`);
     if (pageResult.rowCount !== 4) throw new Error(`External tracking page fixture mismatch: ${JSON.stringify(pageResult)}`);
+    if (JSON.stringify(pageResult.rowActions) !== JSON.stringify([{ action: "edit", width: 74, height: 30 }, { action: "delete", width: 36, height: 30 }])) throw new Error(`External tracking row action geometry mismatch: ${JSON.stringify(pageResult.rowActions)}`);
+    if (!String(pageResult.pendingMetricLabel).startsWith("Fiyat / Onay")) throw new Error(`External tracking pending metric label mismatch: ${pageResult.pendingMetricLabel}`);
     const expectedBadges = [["info", "rgb(16, 26, 43)", "rgb(37, 99, 235)"], ["danger", "rgb(127, 29, 29)", "rgb(192, 132, 252)"], ["success", "rgb(7, 48, 52)", "rgb(78, 222, 163)"], ["success", "rgb(7, 48, 52)", "rgb(78, 222, 163)"]];
     const actualBadges = pageResult.statusBadges.map(badge => [badge.tone, badge.background, badge.color]);
     if (JSON.stringify(actualBadges) !== JSON.stringify(expectedBadges)) throw new Error(`External tracking status palette mismatch: ${JSON.stringify(pageResult.statusBadges)}`);
     if (pageResult.summary.total !== "18" || pageResult.summary.active !== "5" || pageResult.summary.pending !== "5" || pageResult.summary.received !== "8") throw new Error(`External tracking summary mismatch: ${JSON.stringify(pageResult.summary)}`);
-    if (JSON.stringify(pageResult.columns.slice(5)) !== JSON.stringify(["GARANT\u0130 KAPSAMI", "MAL\u0130YET / TUTAR", "DURUM", "\u0130\u015eLEMLER"]) || pageResult.monthControl.tag !== "SELECT" || pageResult.monthControl.first !== "T\u00FCm Aylar" || pageResult.monthControl.options !== 2) throw new Error(`External tracking table control parity mismatch: ${JSON.stringify({ columns: pageResult.columns, monthControl: pageResult.monthControl })}`);
+    if (JSON.stringify(pageResult.columns.slice(5).map(value => value.replace(/\n/g, " "))) !== JSON.stringify(["GARANT\u0130 KAPSAMI", "MAL\u0130YET / TUTAR", "DURUM", "\u0130\u015ELEMLER"]) || pageResult.monthControl.tag !== "SELECT" || pageResult.monthControl.first !== "T\u00FCm Aylar" || pageResult.monthControl.options !== 2) throw new Error(`External tracking table control parity mismatch: ${JSON.stringify({ columns: pageResult.columns, monthControl: pageResult.monthControl })}`);
     if (JSON.stringify(pageResult.actions) !== JSON.stringify([["data-external-cargo-sync", "data-external-manifest", "data-external-export"], ["data-external-add", "data-external-import", "data-external-documents", "data-external-multiselect"]]) || pageResult.monthControl.second !== "2026-09") throw new Error(`External tracking action layout mismatch: ${JSON.stringify({ actions: pageResult.actions, monthControl: pageResult.monthControl })}`);
+    const manifestFlow = await evaluate(`(async () => {
+      window.__manifestPrintCalls = 0;
+      window.print = () => { window.__manifestPrintCalls += 1; };
+      document.querySelector("[data-external-manifest]").click();
+      const dialog = document.querySelector("#appDialog");
+      const bulkRows = Array.from(document.querySelectorAll("#dialogBody .external-cargo-manifest tbody tr"), row => row.innerText.replace(/\\s+/g, " ").trim());
+      document.querySelector("#dialogSubmit").click();
+      const bulkPrinted = window.__manifestPrintCalls === 1;
+      dialog.close("audit");
+      document.querySelector('[data-external-row="94"]').click();
+      document.querySelector("[data-external-manifest]").click();
+      const selectedRows = Array.from(document.querySelectorAll("#dialogBody .external-cargo-manifest tbody tr"), row => row.innerText.replace(/\\s+/g, " ").trim());
+      document.querySelector("#dialogSubmit").click();
+      const selectedPrinted = window.__manifestPrintCalls === 2;
+      dialog.close("audit");
+      return {bulkCount: bulkRows.length, containsLast: bulkRows.some(row => row.includes("GAR-2026-75")), bulkPrinted, selectedCount: selectedRows.length, selectedRow: selectedRows[0] || "", excludesOther: !selectedRows.some(row => row.includes("GAR-2026-058")), selectedPrinted};
+    })()`);
+    if (manifestFlow.bulkCount !== 18 || !manifestFlow.containsLast || !manifestFlow.bulkPrinted || manifestFlow.selectedCount !== 1 || !manifestFlow.selectedRow.includes("GAR-2026-059") || !manifestFlow.excludesOther || !manifestFlow.selectedPrinted) throw new Error(`External cargo manifest workflow mismatch: ${JSON.stringify(manifestFlow)}`);
     const panelScreenshot = await send("Page.captureScreenshot", { format: "png", captureBeyondViewport: true });
     fs.writeFileSync(path.join(outputDir, "external-tracking-panel-current-headless.png"), Buffer.from(panelScreenshot.data, "base64"));
     await evaluate(`(() => { const style=document.createElement("style");style.textContent="#appShell{display:block!important;min-height:0!important;height:auto!important;padding:0!important}#appShell>.topbar,#sidebar,#shellStatusBar{display:none!important}.main{display:block!important;min-height:0!important;overflow:visible!important}#content{padding:0!important;min-height:0!important;overflow:visible!important}.external-tracking-tabs{display:none!important}body{overflow:hidden!important}";document.head.appendChild(style); })()`);
@@ -144,6 +171,76 @@ async function run() {
       return {touchMenu,touchMoveCanceled,keyboardMenu,labels,editTitle,deleteTitle,galleryTitle,exportUrl,disabledDefaultPrevented:disabledEvent.defaultPrevented};
     })()`);
     if (!contextMenuFlow.touchMenu.open || contextMenuFlow.touchMenu.targetId !== "93" || JSON.stringify(contextMenuFlow.touchMenu.actions) !== JSON.stringify(["edit", "delete", "gallery", "export"]) || !contextMenuFlow.touchMoveCanceled || !contextMenuFlow.keyboardMenu.prevented || !contextMenuFlow.keyboardMenu.open || contextMenuFlow.keyboardMenu.focusedAction !== "edit" || JSON.stringify(contextMenuFlow.labels) !== JSON.stringify(["D\u00fczenle", "Sil", "Foto\u011fraf Galerisi", "Secilileri Excel D\u0131şa Aktar"]) || !String(contextMenuFlow.editTitle).includes("D\u00fczenle") || !String(contextMenuFlow.deleteTitle).includes("Sil") || contextMenuFlow.galleryTitle !== "Foto\u011fraf Galerisi" || !contextMenuFlow.exportUrl.includes("/api/desktop/external-tracking/export?ids=93") || contextMenuFlow.disabledDefaultPrevented) throw new Error(`External tracking context menu mismatch: ${JSON.stringify(contextMenuFlow)}`);
+    const photoGalleryFlow = await evaluate(`(async () => {
+      const photo = {id: 501, tracking_no: "GAR-2026-058", photo_label: "fixture.png", url: "/fixture.png", available: true};
+      let deleted = false;
+      let uploadRequest = null;
+      let deleteRequest = null;
+      apiFetch = async (url, options = {}) => {
+        if (String(url).startsWith("/api/desktop/external-tracking/photos")) {
+          if (options.method === "POST") {
+            const payload = JSON.parse(options.body || "{}");
+            if (payload._action === "delete") { deleteRequest = payload; deleted = true; return {ok: true}; }
+            uploadRequest = {tracking_no: payload.tracking_no, label: payload.label, stage: payload.stage || "", dataLength: String(payload.data || "").length};
+            return {ok: true};
+          }
+          return {rows: deleted ? [] : [photo]};
+        }
+        return {rows: [], columns: []};
+      };
+      const row = document.querySelector('[data-external-row="93"]');
+      db.settings.contextMenu = true;
+      row.dispatchEvent(new MouseEvent("contextmenu", {bubbles: true, cancelable: true, clientX: 420, clientY: 570}));
+      document.querySelector('#contextMenu [data-external-context="gallery"]').click();
+      await new Promise(resolve => setTimeout(resolve, 20));
+      const loadedPhoto = document.querySelector('#dialogBody [data-external-photo-list] img');
+      const input = document.querySelector('#dialogBody [data-external-photo-input]');
+      Object.defineProperty(input, "files", {configurable: true, value: [new File(["photo-data"], "fixture.png", {type: "image/png"})]});
+      await input.onchange();
+      const uploadedPhoto = Boolean(document.querySelector('#dialogBody [data-external-photo-list] img'));
+      document.querySelector('#dialogBody [data-external-photo-delete="501"]').click();
+      await new Promise(resolve => setTimeout(resolve, 20));
+      const deletedPhoto = !document.querySelector('#dialogBody [data-external-photo-list] img');
+      return {title: document.querySelector("#dialogTitle")?.textContent, loadedPhoto: loadedPhoto?.getAttribute("src"), uploadedPhoto, uploadRequest, deletedPhoto, deleteRequest};
+    })()`);
+    if (photoGalleryFlow.title !== "Foto\u011fraf Galerisi" || photoGalleryFlow.loadedPhoto !== "/fixture.png" || !photoGalleryFlow.uploadedPhoto || photoGalleryFlow.uploadRequest?.tracking_no !== "GAR-2026-058" || photoGalleryFlow.uploadRequest?.label !== "fixture.png" || photoGalleryFlow.uploadRequest?.dataLength < 8 || !photoGalleryFlow.deletedPhoto || Number(photoGalleryFlow.deleteRequest?.id) !== 501) throw new Error(`External tracking photo gallery mismatch: ${JSON.stringify(photoGalleryFlow)}`);
+    const importFlow = await evaluate(`(async () => {
+      let request = null;
+      apiFetch = async (url, options = {}) => {
+        if (url === "/api/desktop/external-tracking/import") { request = {url, payload: JSON.parse(options.body || "{}")}; return {success: 1, failures: 0}; }
+        return window.__externalTrackingFixtureFetch(url);
+      };
+      const input = document.querySelector("[data-external-import-file]");
+      const file = new File(["internal_tracking_no,customer_name\\nNEW-1,Fixture"], "fixture.csv", {type: "text/csv"});
+      Object.defineProperty(input, "files", {configurable: true, value: [file]});
+      input.onchange();
+      await new Promise(resolve => setTimeout(resolve, 120));
+      return {url: request?.url, filename: request?.payload?.filename, dataLength: String(request?.payload?.data || "").length, rowCount: document.querySelectorAll("[data-external-row]").length, toast: document.querySelector("#toast")?.textContent || ""};
+    })()`);
+    if (importFlow.url !== "/api/desktop/external-tracking/import" || importFlow.filename !== "fixture.csv" || importFlow.dataLength < 20 || importFlow.rowCount !== 4) throw new Error(`External tracking CSV import mismatch: ${JSON.stringify(importFlow)}`);
+    const saveFlow = await evaluate(`(async () => {
+      const writes = [];
+      window.__externalTrackingWrites = writes;
+      apiFetch = async (url, options = {}) => {
+        if (url === "/api/desktop/table/external_warranty_tracking" && options.method === "POST") { const payload = JSON.parse(options.body || "{}"); writes.push(payload); return {ok: true}; }
+        if (String(url).startsWith("/api/desktop/external-tracking/photos")) return {rows: []};
+        return window.__externalTrackingFixtureFetch(url);
+      };
+      document.querySelector("[data-external-add]").click();
+      const createForm = document.querySelector("#dialogForm");
+      createForm.elements.internal_tracking_no.value = "GAR-NEW-001";
+      createForm.elements.customer_name.value = "Fixture Customer";
+      createForm.requestSubmit();
+      await new Promise(resolve => setTimeout(resolve, 40));
+      const createRequest = writes[0] || null;
+      document.querySelector('[data-external-row="93"] [data-external-edit]').click();
+      const editForm = document.querySelector("#dialogForm");
+      editForm.elements.status.value = "Geri Geldi";
+      editForm.requestSubmit();
+      await new Promise(resolve => setTimeout(resolve, 60));
+      return {createRequest, updateRequest: writes[1] || null, closed: !document.querySelector("#appDialog")?.open, count: writes.length};
+    })()`);
+    if (saveFlow.count !== 2 || saveFlow.createRequest?.internal_tracking_no !== "GAR-NEW-001" || saveFlow.createRequest?.customer_name !== "Fixture Customer" || saveFlow.createRequest?.id || saveFlow.updateRequest?.id !== 93 || saveFlow.updateRequest?._action !== "update" || saveFlow.updateRequest?.status !== "Geri Geldi" || !saveFlow.closed) throw new Error(`External tracking create/update mismatch: ${JSON.stringify(saveFlow)}`);
     const filterFlow = await evaluate(`(() => {
       const month=document.querySelector("#externalTrackingMonth");
       month.value="2026-09";month.dispatchEvent(new Event("change",{bubbles:true}));
@@ -169,17 +266,32 @@ async function run() {
       const row = document.querySelector('[data-external-row="93"]');
       row.dispatchEvent(new MouseEvent("dblclick", { bubbles: true, cancelable: true }));
       const opened = Boolean(document.querySelector("#appDialog")?.open);
-      apiFetch = window.__originalExternalApiFetch;
-      delete window.__originalExternalApiFetch;
       return { opened };
     })()`);
     if (disabledResult.opened) throw new Error(`External tracking double-click preference was ignored: ${JSON.stringify(disabledResult)}`);
+    const deleteFlow = await evaluate(`(async () => {
+      const writes = window.__externalTrackingWrites;
+      const row = document.querySelector('[data-external-row="93"]');
+      row.querySelector("[data-external-delete]").click();
+      document.querySelector("#dialogCancel").click();
+      const cancelPreserved = writes.length === 2;
+      row.querySelector("[data-external-delete]").click();
+      document.querySelector("#dialogSubmit").click();
+      await new Promise(resolve => setTimeout(resolve, 50));
+      return {cancelPreserved, request: writes.at(-1), count: writes.length, dialogOpen: Boolean(document.querySelector("#appDialog")?.open)};
+    })()`);
+    if (!deleteFlow.cancelPreserved || deleteFlow.count !== 3 || deleteFlow.request?.id !== 93 || deleteFlow.request?._action !== "delete" || deleteFlow.dialogOpen) throw new Error(`External tracking confirmed delete mismatch: ${JSON.stringify(deleteFlow)}`);
+    await evaluate(`(() => { apiFetch = window.__originalExternalApiFetch; delete window.__originalExternalApiFetch; })()`);
     fs.writeFileSync(path.join(outputDir, "external-tracking-edit-dialog-headless.png"), Buffer.from(screenshot.data, "base64"));
     if (exceptions.length) throw new Error(`Browser exceptions: ${JSON.stringify(exceptions)}`);
-    console.log(JSON.stringify({ pageResult, isolatedGeometry, contextMenuFlow, filterFlow, enabledResult, disabledResult, browserExceptions: exceptions.length, headless: true }));
+    console.log(JSON.stringify({ pageResult, manifestFlow, isolatedGeometry, contextMenuFlow, photoGalleryFlow, importFlow, saveFlow, filterFlow, enabledResult, disabledResult, deleteFlow, browserExceptions: exceptions.length, headless: true }));
   } finally {
     if (socket) socket.close();
-    browser.kill();
+    if (browser.pid) await new Promise(resolve => {
+      const killer = spawn("taskkill.exe", ["/PID", String(browser.pid), "/T", "/F"], { stdio: "ignore", windowsHide: true });
+      killer.once("exit", resolve);
+      killer.once("error", resolve);
+    });
   }
 }
 

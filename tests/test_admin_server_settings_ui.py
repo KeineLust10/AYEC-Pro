@@ -7,12 +7,13 @@ ADMIN_ROOT = ROOT / "Admin_Konsol"
 if str(ADMIN_ROOT) not in sys.path:
     sys.path.insert(0, str(ADMIN_ROOT))
 
-from pages.server_settings import ServerSettingsPage
+from pages.server_settings import ServerSettingsPage, _ServerMetricIcon
 
 
 def test_server_status_binds_resource_and_identity_values(persistent_qapplication, monkeypatch):
     monkeypatch.setattr(ServerSettingsPage, "_refresh_status", lambda self: None)
     page = ServerSettingsPage()
+    assert [icon._kind for icon in page.findChildren(_ServerMetricIcon)] == ["cpu", "ram", "disk", "database", "network"]
     page._populate(
         {
             "cpu_percent": 23,
@@ -34,9 +35,14 @@ def test_server_status_binds_resource_and_identity_values(persistent_qapplicatio
     assert len(page._metric_cards) == 5
     page.resize(1440, 1000)
     page._apply_responsive_layout()
+    assert page._page_layout.contentsMargins().left() == 44
+    assert page._page_layout.contentsMargins().right() == 0
+    assert page._page_layout.contentsMargins().top() == 20
     assert all(card.minimumHeight() >= 186 for card in page._metric_cards)
     page.resize(390, 844)
     page._apply_responsive_layout()
+    assert page._page_layout.contentsMargins().left() == 20
+    assert page._page_layout.contentsMargins().right() == 20
     assert all(card.minimumHeight() == 136 for card in page._metric_cards)
     assert not page._database_bar.isVisible()
     assert not page._network_bar.isVisible()

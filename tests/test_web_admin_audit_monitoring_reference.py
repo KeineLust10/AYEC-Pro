@@ -50,4 +50,6 @@ def test_audit_monitoring_workspace_stacks_and_keeps_event_stream_usable_on_mobi
     assert ".audit-workspace { grid-template-columns: minmax(0, 1fr); }" in styles
     assert ".audit-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }" in styles
     assert "body[data-page=\"control-center\"] .audit-metrics { grid-template-columns: minmax(0, 1fr);" in styles
+    assert 'body[data-page="control-center"] .audit-page-title-row { display: grid; grid-template-columns: minmax(0,132px) minmax(0,1fr);' in styles
+    assert 'body[data-page="control-center"] .audit-compliance-tags span:first-child { min-height: 48px; margin-top: 12px;' in styles
 

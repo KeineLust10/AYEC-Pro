@@ -55,6 +55,7 @@ async function run() {
     await send("Page.enable");
     await send("Runtime.enable");
     await send("Network.enable");
+    await send("Page.addScriptToEvaluateOnNewDocument", { source: `if(location.pathname==="/field-vector-map-dist/index.html"){const auditMap={onClick(handler){this.handler=handler},select(){},refresh(){}};Object.defineProperty(window,"initAyecTomTomMap",{configurable:true,set(){Object.defineProperty(window,"initAyecTomTomMap",{configurable:true,writable:true,value:()=>{window.ayecTomTomMap=auditMap;const map=document.querySelector("#map");if(map){const surface=document.createElement("button");surface.id="map-audit-surface";surface.type="button";surface.setAttribute("aria-label","Map test surface");surface.style.cssText="position:absolute;inset:0;z-index:1000;opacity:0;border:0;padding:0;cursor:crosshair";surface.addEventListener("click",()=>auditMap.handler?.(40.105,27.657));map.append(surface)}document.querySelector("#map-status").textContent="Offline map fixture ready";setTimeout(()=>window.dispatchEvent(new Event("ayec-map-ready")),0);return true}})},get(){return undefined}})}` });
     await send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
     for (const cookie of cookies) await send("Network.setCookie", { ...cookie, url: baseUrl });
     await send("Page.navigate", { url: baseUrl });
@@ -67,8 +68,8 @@ async function run() {
     if (!ready) throw new Error("Authenticated customer editor scripts did not load.");
     const fixture = await evaluate(`(() => {
       const form=document.createElement("form");form.id="dialogForm";form.style.cssText="position:fixed;inset:12px auto auto 12px;width:760px;height:650px;z-index:99999;background:#fff;overflow:auto;padding:12px";
-      form.innerHTML='<input name="latitude" type="hidden" value="40.1044116"><input name="longitude" type="hidden" value="27.6563981"><button type="button" data-customer-geolocate>Locate</button><p data-customer-location-status></p><div class="customer-location-map" data-customer-map-wrap><iframe title="Customer map" data-customer-location-map></iframe><button type="button" data-customer-map-apply>Apply</button></div>';
-      document.body.append(form);openCustomerLocationMap(form);return true;
+      form.innerHTML='<input name="latitude" type="hidden" value="40.1044116"><input name="longitude" type="hidden" value="27.6563981"><input name="city"><input name="district"><input name="neighborhood"><input name="street"><input name="zip_code"><textarea name="address"></textarea><button type="button" data-customer-geolocate>Locate</button><p data-customer-location-status></p><div class="customer-location-map" data-customer-map-wrap><iframe title="Customer map" data-customer-location-map></iframe><button type="button" data-customer-map-apply>Apply</button></div>';
+      document.body.append(form);window.__customerMapAuditForm=form;openCustomerLocationMap(form);return true;
     })()`);
     if (!fixture) throw new Error("Could not create map fixture.");
     let map = null;
@@ -85,6 +86,16 @@ async function run() {
     await send("Input.dispatchMouseEvent", { type: "mouseReleased", x: rect.x + rect.width * 0.72, y: rect.y + rect.height * 0.52, button: "left", clickCount: 1 });
     await wait(900);
     const selected = await evaluate(`(() => ({latitude:document.querySelector('#dialogForm [name="latitude"]').value,longitude:document.querySelector('#dialogForm [name="longitude"]').value,status:document.querySelector('#dialogForm [data-customer-location-status]').textContent,mapStatus:document.querySelector('#dialogForm iframe').contentDocument.querySelector('#map-status').textContent}))()`);
+    const screenshot = await send("Page.captureScreenshot", { format: "png", fromSurface: true });
+    fs.writeFileSync(outputPath, Buffer.from(screenshot.data, "base64"));
+    const reverseGeocodeSuccess = await evaluate(`(async () => {
+      const form=window.__customerMapAuditForm,originalApiFetch=apiFetch;let request=null;
+      apiFetch=async(url,options={})=>{request={url,body:JSON.parse(options.body||"{}")} ;return {city:"Istanbul",district:"Kadikoy",neighborhood:"Moda",street:"Test Street 10",zip_code:"34710",display_name:"10 Test Street, Istanbul"}};
+      const apply=form.querySelector("[data-customer-map-apply]");if(!apply)return {error:"apply-control-missing",formHtml:form.innerHTML};apply.click();
+      for(let attempt=0;attempt<20;attempt+=1){if(form.querySelector("[data-customer-location-status]").textContent==="Konumdan adres bilgileri dolduruldu.")break;await new Promise(resolve=>setTimeout(resolve,10))}
+      apiFetch=originalApiFetch;
+      return {request,latitude:form.elements.latitude.value,longitude:form.elements.longitude.value,city:form.elements.city.value,district:form.elements.district.value,neighborhood:form.elements.neighborhood.value,street:form.elements.street.value,zipCode:form.elements.zip_code.value,address:form.elements.address.value,status:form.querySelector("[data-customer-location-status]").textContent,mapHidden:form.querySelector("[data-customer-map-wrap]").hidden};
+    })()`);
     const geolocationDenied = await evaluate(`(async () => {
       Object.defineProperty(navigator,"geolocation",{configurable:true,value:{getCurrentPosition(_success,failure){failure({message:"Permission denied"})}}});
       document.querySelector('#dialogForm [data-customer-geolocate]').click();
@@ -114,12 +125,11 @@ async function run() {
       const requestError={status:status.textContent,enabled:!search.disabled};
       apiFetch=originalApiFetch;form.remove();return {noResults,requestError};
     })()`);
-    const screenshot = await send("Page.captureScreenshot", { format: "png", fromSurface: true });
-    fs.writeFileSync(outputPath, Buffer.from(screenshot.data, "base64"));
     const changed = Math.abs(Number(selected.latitude) - 40.1044116) > 0.00005 || Math.abs(Number(selected.longitude) - 27.6563981) > 0.00005;
-    process.stdout.write(JSON.stringify({ map, selected, changed, geolocationDenied, reverseGeocodeError, addressSearchErrors, browserExceptions: exceptions.length, screenshot: outputPath }) + "\n");
+    process.stdout.write(JSON.stringify({ map, selected, changed, reverseGeocodeSuccess, geolocationDenied, reverseGeocodeError, addressSearchErrors, browserExceptions: exceptions.length, screenshot: outputPath }) + "\n");
     if (!changed || !selected.status.includes("Haritadan")) throw new Error(`Map click did not update the selected customer coordinates: ${JSON.stringify({map,selected})}`);
     if (geolocationDenied.status !== "Permission denied" || geolocationDenied.latitude !== selected.latitude || geolocationDenied.longitude !== selected.longitude) throw new Error(`Geolocation denial was not handled cleanly: ${JSON.stringify(geolocationDenied)}`);
+    if (reverseGeocodeSuccess.request?.url !== "/api/desktop/field-service/reverse-geocode" || reverseGeocodeSuccess.request?.body?.lat !== Number(selected.latitude) || reverseGeocodeSuccess.request?.body?.lon !== Number(selected.longitude) || reverseGeocodeSuccess.city !== "Istanbul" || reverseGeocodeSuccess.district !== "Kadikoy" || reverseGeocodeSuccess.neighborhood !== "Moda" || reverseGeocodeSuccess.street !== "Test Street 10" || reverseGeocodeSuccess.zipCode !== "34710" || reverseGeocodeSuccess.address !== "10 Test Street, Istanbul" || reverseGeocodeSuccess.status !== "Konumdan adres bilgileri dolduruldu." || !reverseGeocodeSuccess.mapHidden) throw new Error(`Map reverse-geocode flow mismatch: ${JSON.stringify(reverseGeocodeSuccess)}`);
     if (reverseGeocodeError.result !== false || !reverseGeocodeError.status.includes("adres bilgileri getirilemedi") || reverseGeocodeError.street !== "Fixture-Street" || reverseGeocodeError.address !== "Fixture-Address") throw new Error(`Reverse geocoding error changed saved address data: ${JSON.stringify(reverseGeocodeError)}`);
     if (!addressSearchErrors.noResults.status.includes("Adres konumu bulunamadı") || !addressSearchErrors.noResults.enabled || addressSearchErrors.requestError.status !== "Fixture address search unavailable" || !addressSearchErrors.requestError.enabled) throw new Error(`Customer address search error state mismatch: ${JSON.stringify(addressSearchErrors)}`);
   } finally {

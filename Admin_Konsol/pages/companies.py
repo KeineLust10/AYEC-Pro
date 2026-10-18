@@ -214,6 +214,7 @@ class CompaniesPage(QWidget):
         self._companies: list[dict] = []
         self._selected_tenant: dict | None = None
         self._thread = None
+        self._company_workers = set()
         self._overview_thread = None
         self._overview_workers = set()
         self._company_filter = "all"
@@ -500,11 +501,35 @@ class CompaniesPage(QWidget):
         self._user_table.itemDoubleClicked.connect(self._show_user_details)
 
     def _load_companies(self, search: str = ""):
-        t = _FetchCompanies(search, getattr(self, '_product_code', ''))
-        t.done.connect(self._populate_list)
-        t.error.connect(lambda e: self._status_lbl.setText(f"Hata: {e}"))
+        requested_search = str(search or "")
+        requested_product = str(getattr(self, "_product_code", ""))
+        t = _FetchCompanies(requested_search, requested_product)
+        t.done.connect(
+            lambda companies, query=requested_search, product=requested_product:
+                self._populate_list_if_current(query, product, companies)
+        )
+        t.error.connect(
+            lambda error, query=requested_search, product=requested_product:
+                self._show_company_error_if_current(query, product, error)
+        )
+        self._company_workers.add(t)
+        t.finished.connect(lambda current=t: self._company_workers.discard(current))
         t.start()
         self._thread = t
+
+    def _company_request_is_current(self, search: str, product_code_value: str) -> bool:
+        return (
+            product_code_value == str(getattr(self, "_product_code", ""))
+            and search == (self._search.text() if hasattr(self, "_search") else "")
+        )
+
+    def _populate_list_if_current(self, search: str, product_code_value: str, companies: list):
+        if self._company_request_is_current(search, product_code_value):
+            self._populate_list(companies)
+
+    def _show_company_error_if_current(self, search: str, product_code_value: str, error: str):
+        if self._company_request_is_current(search, product_code_value):
+            self._status_lbl.setText(f"Hata: {error}")
 
     def _on_search(self, text: str):
         self._load_companies(text)

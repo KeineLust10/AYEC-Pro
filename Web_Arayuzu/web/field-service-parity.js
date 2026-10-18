@@ -3,6 +3,8 @@
   let fieldMapCenter = { lat: 40.10441, lng: 27.65640 };
   let fieldMap = null;
   let fieldMapElement = null;
+  let fieldMapPromise = null;
+  let fieldMapResizeObserver = null;
   let officeMarker = null;
   let personnelMarkers = new Map();
   let routeLine = null;
@@ -19,6 +21,7 @@
   let locationShareConfirmed = false;
   let leafletPromise = null;
   let fieldPanelMode = "customer";
+  let fieldLocationAddress = "Haritadan se\u00e7ilen nokta";
   let fieldRadarCategory = "all";
   let routeDrawing = false;
   let routePoints = [];
@@ -39,6 +42,7 @@
       ["home", "Eve Don (Merkez)"], ["whatsapp-paste", "WhatsApp Konumu Yapistir"],
       ["share-location", "Konum Baglantisini Paylas"], ["assign-location", "Secili Konumu Personele Ata"]
     ];
+    if (window.ayecIsAdmin?.()) actions.push(["tomtom-key", "TomTom API Anahtari"]);
     actions.forEach(([action, label]) => {
       const button = document.createElement("button");
       button.type = "button";
@@ -79,11 +83,11 @@
   }
 
   async function runFieldMapAction(action) {
+    if (action === "tomtom-key") return openFieldTomTomKeyDialog();
     if (action === "manual-location") return openManualFieldLocation();
     if (action === "home") {
       await ensureFieldMap();
-      fieldMap?.flyTo([fieldMapCenter.lat, fieldMapCenter.lng], 13);
-      if (vectorMapReady) vectorMapFrame.contentWindow.ayecTomTomMap.flyTo(fieldMapCenter.lat, fieldMapCenter.lng, 13);
+      focusFieldLocation({ lat: fieldMapCenter.lat, lon: fieldMapCenter.lng, display_name: "" }, 13);
       return;
     }
     if (action === "whatsapp-paste") return openWhatsAppLocationPaste();
@@ -104,6 +108,22 @@
       const footer = document.querySelector(".field-map-canvas>footer span");
       if (footer) footer.textContent = "Durak eklemek icin haritaya tiklayin; en az iki durak secin.";
     }
+  }
+
+  async function openFieldTomTomKeyDialog() {
+    if (!window.isSecureContext) return toast("API anahtari guvenli baglanti olmadan ayarlanamaz.", "error");
+    let status = "missing";
+    try {
+      status = (await apiFetch("/api/desktop/field-service/tomtom-key")).status || status;
+    } catch (error) {
+      return toast(error.message || "API anahtari durumu alinamadi.", "error");
+    }
+    const statusText = status === "configured" ? "Bu firma icin anahtar kayitli." : status === "unavailable" ? "Kayitli anahtar okunamiyor; yeni anahtar kaydedebilirsiniz." : "Bu firma icin anahtar kaydi bulunamadi.";
+    openDialog("TomTom API Anahtari", "SAHA SERVISI", `<div class="field-tomtom-key"><p>${statusText} Anahtar Windows DPAPI ile bu firmaya ozel saklanir.</p><label>TomTom API Anahtari<input name="api_key" type="password" autocomplete="new-password" required maxlength="2048"></label></div>`, async form => {
+      await apiFetch("/api/desktop/field-service/tomtom-key", { method: "POST", body: JSON.stringify({ api_key: form.get("api_key") }) });
+      toast("TomTom API anahtari guvenli olarak kaydedildi.");
+      return true;
+    }, "Guvenli Kaydet");
   }
 
   async function openManualFieldLocation() {
@@ -204,7 +224,15 @@
       if (result.ok && Array.isArray(result.geometry)) {
         routeLine.setLatLngs(result.geometry);
         routeLine.setStyle({ dashArray: null, opacity: 1 });
-        if (footer) footer.textContent = `TomTom yol rotasi | ${(Number(result.distance_meters || 0) / 1000).toFixed(1)} km`;
+        if (footer) footer.textContent = `TomTom yol rotas\u0131 | ${(Number(result.distance_meters || 0) / 1000).toFixed(1)} km`;
+      } else {
+        const message = result.reason === "missing_key"
+          ? "TomTom yol rotas\u0131 i\u00e7in sunucu API anahtar\u0131 yap\u0131land\u0131r\u0131lmam\u0131\u015f. Taslak rota kullan\u0131l\u0131yor."
+          : result.reason === "no_route"
+            ? "TomTom bu duraklar aras\u0131nda yol rotas\u0131 bulamad\u0131. Taslak rota kullan\u0131l\u0131yor."
+            : "TomTom yol tarifi al\u0131namad\u0131. Taslak rota kullan\u0131l\u0131yor.";
+        if (footer) footer.textContent = message;
+        toast(message, "warning");
       }
     } catch (error) {
       if (footer) footer.textContent = error.message || "Taslak rota haritada gosteriliyor.";
@@ -230,13 +258,21 @@
       button.setAttribute("aria-pressed", String(selected));
     });
     const jobs = fieldPanelMode === "jobs";
+    const customer = fieldPanelMode === "customer";
+    const queueHeader = document.querySelector(".field-map-queue > header");
     const personnelQueue = document.querySelector(".field-personnel-queue");
     const jobRows = document.querySelector("#fieldMapRows");
+    const customerCard = document.querySelector("[data-field-customer-location]");
+    if (queueHeader) queueHeader.hidden = !jobs;
     if (personnelQueue) personnelQueue.hidden = jobs;
     if (jobRows) jobRows.hidden = !jobs;
+    if (customerCard) customerCard.hidden = !customer;
     const status = document.querySelector("#fieldMapStatus");
     if (status) status.hidden = !jobs;
+    const searchPanel = document.querySelector(".field-map-search");
+    if (searchPanel) searchPanel.hidden = customer;
     const search = document.querySelector("#genericSearch");
+    if (search) search.hidden = customer;
     if (search) search.placeholder = jobs ? "M\u00fc\u015fteri veya i\u015f ara..." : "Teknisyen veya i\u015f emri ara...";
     const filters = document.querySelector(".field-radar-filters");
     if (filters) filters.hidden = fieldPanelMode !== "teams";
@@ -260,6 +296,14 @@
     });
     const header = queue.querySelector(":scope > header");
     header?.after(tabs);
+    const customerCard = document.createElement("section");
+    customerCard.className = "field-customer-location";
+    customerCard.dataset.fieldCustomerLocation = "";
+    customerCard.innerHTML = '<header><h3>M\u00dc\u015eTER\u0130 KONUM & WHATSAPP</h3><span class="field-customer-badge">SECILI NOKTA</span></header><div class="field-customer-info-head"><strong>M\u00dc\u015eTER\u0130 B\u0130LG\u0130S\u0130</strong><span data-field-customer-order>\u0130\u015e EMR\u0130 SE\u00c7\u0130LMED\u0130</span></div><div class="field-customer-details"><div><label>M\u00dc\u015eTER\u0130 ADI</label><strong>\u0130\u015f emri se\u00e7ilmedi</strong></div><div><label>GSM / WHATSAPP</label><strong>Kay\u0131tl\u0131 telefon yok</strong></div></div><label class="field-customer-label">SE\u00c7\u0130LEN SERV\u0130S ADRES\u0130</label><div class="field-customer-address" data-field-customer-address></div><div class="field-customer-coordinates" data-field-customer-coordinates></div><label class="field-customer-label">G\u00d6NDER\u0130LECEK WHATSAPP MESAJI</label><div class="field-customer-preview" data-field-customer-preview></div><div class="field-customer-actions"><button type="button" class="success" data-field-customer-share>WhatsApp ile Payla\u015f</button><button type="button" class="secondary" data-field-customer-assign>Personele Ata</button></div>';
+    tabs.after(customerCard);
+    customerCard.querySelector("[data-field-customer-share]")?.addEventListener("click", shareFieldLocation);
+    customerCard.querySelector("[data-field-customer-assign]")?.addEventListener("click", openFieldLocationAssignment);
+    renderFieldCustomerLocationCard();
     const filters = document.createElement("div");
     filters.className = "field-radar-filters";
     filters.setAttribute("role", "group");
@@ -286,8 +330,25 @@
     setFieldPanelMode(fieldPanelMode);
   }
 
+  function renderFieldCustomerLocationCard() {
+    const card = document.querySelector("[data-field-customer-location]");
+    if (!card) return;
+    const { lat, lng } = currentFieldCoordinates();
+    const coordinates = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    const address = card.querySelector("[data-field-customer-address]");
+    const coordinateLabel = card.querySelector("[data-field-customer-coordinates]");
+    const preview = card.querySelector("[data-field-customer-preview]");
+    const mapsUrl = `https://www.google.com/maps?q=${lat.toFixed(6)},${lng.toFixed(6)}`;
+    if (address) address.textContent = fieldLocationAddress || "Haritadan se\u00e7ilen nokta";
+    if (coordinateLabel) coordinateLabel.textContent = coordinates;
+    if (preview) preview.textContent = `AYEC Pro Saha Konum Payla\u015f\u0131m\u0131\nHaritada se\u00e7ilen konum: ${lat.toFixed(6)}, ${lng.toFixed(6)}\n${mapsUrl}`;
+  }
+
   function coordinate(person) {
-    const lat = Number(person?.lat), lng = Number(person?.lng);
+    const rawLat = person?.lat, rawLng = person?.lng;
+    if (rawLat === null || rawLat === undefined || rawLng === null || rawLng === undefined
+      || String(rawLat).trim() === "" || String(rawLng).trim() === "") return null;
+    const lat = Number(rawLat), lng = Number(rawLng);
     if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
     return { lat, lng };
   }
@@ -322,16 +383,55 @@
         const style = document.createElement("link");
         style.id = "fieldLeafletCss";
         style.rel = "stylesheet";
-        style.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+        style.href = "/vendor/leaflet/leaflet.css?v=1.9.4";
         document.head.append(style);
       }
       const script = document.createElement("script");
-      script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+      script.src = "/vendor/leaflet/leaflet.js?v=1.9.4";
       script.onload = () => window.L ? resolve(window.L) : reject(new Error("Map library did not initialize"));
       script.onerror = () => reject(new Error("Map library could not be loaded"));
       document.head.append(script);
     });
     return leafletPromise;
+  }
+
+  function ensureFieldMapDarkFilter() {
+    if (document.getElementById("ayecFieldMapDarkFilter")) return;
+    const namespace = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(namespace, "svg");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("width", "0");
+    svg.setAttribute("height", "0");
+    svg.style.position = "absolute";
+    const definitions = document.createElementNS(namespace, "defs");
+    const filter = document.createElementNS(namespace, "filter");
+    filter.id = "ayecFieldMapDarkFilter";
+    filter.setAttribute("color-interpolation-filters", "sRGB");
+    filter.setAttribute("x", "-5%");
+    filter.setAttribute("y", "-5%");
+    filter.setAttribute("width", "110%");
+    filter.setAttribute("height", "110%");
+    const grayscale = document.createElementNS(namespace, "feColorMatrix");
+    grayscale.setAttribute("type", "matrix");
+    grayscale.setAttribute("values", "0.299 0.587 0.114 0 0 0.299 0.587 0.114 0 0 0.299 0.587 0.114 0 0 0 0 0 1 0");
+    grayscale.setAttribute("result", "fieldMapLuminance");
+    const transfer = document.createElementNS(namespace, "feComponentTransfer");
+    transfer.setAttribute("in", "fieldMapLuminance");
+    const colors = [[140, 144, 159], [86, 103, 127], [27, 40, 59], [24, 34, 54], [17, 24, 39], [32, 45, 67], [48, 59, 84]];
+    const palette = Array.from({ length: 256 }, (_, luminance) => {
+      const color = luminance < 40 ? colors[0] : luminance < 110 ? colors[1] : luminance < 200 ? colors[2] : luminance < 236 ? colors[3] : luminance < 248 ? colors[4] : luminance < 253 ? colors[5] : colors[6];
+      return color.map(channel => (channel / 255).toFixed(4));
+    });
+    ["R", "G", "B"].forEach((channel, index) => {
+      const component = document.createElementNS(namespace, `feFunc${channel}`);
+      component.setAttribute("type", "table");
+      component.setAttribute("tableValues", palette.map(color => color[index]).join(" "));
+      transfer.append(component);
+    });
+    filter.append(grayscale, transfer);
+    definitions.append(filter);
+    svg.append(definitions);
+    document.body.prepend(svg);
   }
 
   function updateTrafficControl() {
@@ -443,40 +543,85 @@
     const root = document.querySelector("#fieldPersonnelMap");
     if (!root) return null;
     if (fieldMap && fieldMapElement === root) return fieldMap;
+    if (fieldMapPromise) {
+      await fieldMapPromise;
+      if (!root.isConnected) return null;
+      if (fieldMap && fieldMapElement === root) return fieldMap;
+    }
+    fieldMapResizeObserver?.disconnect();
+    fieldMapResizeObserver = null;
     if (fieldMap) fieldMap.remove();
     trafficLayer = null;
     fieldMap = null;
+    fieldMapElement = null;
     officeMarker = null;
     personnelMarkers.clear();
-    const L = await loadLeaflet();
-    if (!root.isConnected) return null;
-    fieldMap = L.map(root, { zoomControl: false }).setView([fieldMapCenter.lat, fieldMapCenter.lng], 13);
-    fieldMapElement = root;
-    fieldMap.on("click", event => {
-      const point = { lat: event.latlng.lat, lng: event.latlng.lng };
-      if (routeDrawing) {
-        routePoints.push(point);
-        if (routeLine) fieldMap.removeLayer(routeLine);
-        routeLine = L.polyline(routePoints.map(item => [item.lat, item.lng]), {
-          color: "#4edea3", weight: 4, opacity: 0.9, dashArray: "8 6"
-        }).addTo(fieldMap);
-        const footer = document.querySelector(".field-map-canvas>footer span");
-        if (footer) footer.textContent = `${routePoints.length} durak secildi`;
-        return;
+    const initialization = (async () => {
+      const L = await loadLeaflet();
+      if (!root.isConnected) return null;
+      fieldMap = L.map(root, { zoomControl: false }).setView([fieldMapCenter.lat, fieldMapCenter.lng], 13);
+      fieldMapElement = root;
+      fieldMap.on("click", event => {
+        const point = { lat: event.latlng.lat, lng: event.latlng.lng };
+        if (routeDrawing) {
+          routePoints.push(point);
+          if (routeLine) fieldMap.removeLayer(routeLine);
+          routeLine = L.polyline(routePoints.map(item => [item.lat, item.lng]), {
+            color: "#4edea3", weight: 4, opacity: 0.9, dashArray: "8 6"
+          }).addTo(fieldMap);
+          const footer = document.querySelector(".field-map-canvas>footer span");
+          if (footer) footer.textContent = `${routePoints.length} durak secildi`;
+          return;
+        }
+        focusFieldLocation({ lat: point.lat, lon: point.lng, display_name: "Secilen Konum" });
+      });
+      L.control.zoom({ position: "topright" }).addTo(fieldMap);
+      if (typeof L.control === "function") {
+        const homeControl = L.control({ position: "topright" });
+        homeControl.onAdd = () => {
+          const button = L.DomUtil.create("button", "field-map-home-control");
+          button.type = "button";
+          button.textContent = "O";
+          button.title = "Haritayi merkeze al";
+          button.setAttribute("aria-label", "Haritayi merkeze al");
+          L.DomEvent.disableClickPropagation(button);
+          L.DomEvent.on(button, "click", event => {
+            L.DomEvent.preventDefault(event);
+            fieldMap.setView([fieldMapCenter.lat, fieldMapCenter.lng], 13);
+          });
+          return button;
+        };
+        homeControl.addTo(fieldMap);
       }
-      focusFieldLocation({ lat: point.lat, lon: point.lng, display_name: "Secilen Konum" });
-    });
-    L.control.zoom({ position: "bottomright" }).addTo(fieldMap);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 19,
-      attribution: "&copy; OpenStreetMap contributors"
-    }).addTo(fieldMap);
-    officeMarker = L.circleMarker([fieldMapCenter.lat, fieldMapCenter.lng], {
-      radius: 7, color: "#ffffff", weight: 2, fillColor: "#ef4444", fillOpacity: 1
-    }).addTo(fieldMap).bindPopup("Merkez Ofis");
-    addTrafficLayer();
-    setTimeout(() => fieldMap?.invalidateSize(), 100);
-    return fieldMap;
+      ensureFieldMapDarkFilter();
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        className: "field-map-base-tiles",
+        referrerPolicy: "strict-origin-when-cross-origin",
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors'
+      }).addTo(fieldMap);
+      officeMarker = L.circleMarker([fieldMapCenter.lat, fieldMapCenter.lng], {
+        radius: 7, color: "#ffffff", weight: 2, fillColor: "#ef4444", fillOpacity: 1
+      }).addTo(fieldMap).bindPopup("Merkez Ofis");
+      addTrafficLayer();
+      const activeMap = fieldMap;
+      const refreshSize = () => {
+        if (fieldMap === activeMap && fieldMapElement === root && root.isConnected) activeMap.invalidateSize({ pan: true, debounceMoveend: true });
+      };
+      if (typeof ResizeObserver === "function") {
+        fieldMapResizeObserver = new ResizeObserver(refreshSize);
+        fieldMapResizeObserver.observe(root);
+      }
+      requestAnimationFrame(() => requestAnimationFrame(refreshSize));
+      setTimeout(refreshSize, 180);
+      return fieldMap;
+    })();
+    fieldMapPromise = initialization;
+    try {
+      return await initialization;
+    } finally {
+      if (fieldMapPromise === initialization) fieldMapPromise = null;
+    }
   }
 
   function drawPersonnelMarkers(L) {
@@ -577,14 +722,16 @@
     }
   }
 
-  function focusFieldLocation(result) {
+  function focusFieldLocation(result, zoom = 15) {
     const point = coordinate({ lat: result.lat, lng: result.lon });
     if (!point || !fieldMap || !window.L) return;
     if (fieldLocationMarker) fieldMap.removeLayer(fieldLocationMarker);
     fieldLocationMarker = window.L.marker([point.lat, point.lng]).addTo(fieldMap)
       .bindPopup(esc(result.display_name || "Konum"));
-    fieldMap.flyTo([point.lat, point.lng], 15);
+    fieldMap.flyTo([point.lat, point.lng], zoom);
     fieldLocationMarker.openPopup();
+    fieldLocationAddress = String(result.display_name || "");
+    renderFieldCustomerLocationCard();
     if (vectorMapReady) {
       vectorMapFrame.contentWindow.ayecTomTomMap.select(point.lat, point.lng);
       vectorMapFrame.contentWindow.ayecTomTomMap.flyTo(point.lat, point.lng, 15);
@@ -744,10 +891,10 @@
       ? "Kay\u0131tl\u0131 personel koordinatlar\u0131"
       : "Varsay\u0131lan i\u015fletme konumu";
     const gpsCount = fieldPersonnel.filter(coordinate).length;
-    const gpsMetric = document.querySelector(".field-map-metrics article:nth-child(4) strong");
-    const gpsNote = document.querySelector(".field-map-metrics article:nth-child(4) footer");
-    if (gpsMetric) gpsMetric.textContent = `${gpsCount} / ${fieldPersonnel.length}`;
-    if (gpsNote) gpsNote.textContent = `${gpsCount} personel i\u00e7in konum kayd\u0131`;
+    const personnelMetric = document.querySelector("#fieldMapPersonnel");
+    const gpsNote = document.querySelector("#fieldMapGpsNote");
+    if (personnelMetric) personnelMetric.textContent = `${fieldPersonnel.length} Personel`;
+    if (gpsNote) gpsNote.textContent = `${gpsCount} GPS kaydi / ${fieldPersonnel.length} personel`;
     const connected = document.querySelector(".field-map-offline");
     if (connected) {
       connected.innerHTML = `<i></i>${gpsCount} GPS / ${fieldPersonnel.length} PERSONEL`;
@@ -904,9 +1051,10 @@
     event.preventDefault();
     const menu = document.querySelector("#contextMenu");
     menu.innerHTML = '<button type="button" role="menuitem" data-context-action="field-personnel-finish">G\u00f6revi Tamamla / Bo\u015fa \u00c7\u0131kar</button>';
-    menu.style.left = Math.max(8, Math.min(event.clientX, innerWidth - 220)) + "px";
-    menu.style.top = Math.max(8, Math.min(event.clientY, innerHeight - 64)) + "px";
     menu.classList.add("open");
+    const bounds = menu.getBoundingClientRect();
+    menu.style.left = Math.max(8, Math.min(event.clientX, Math.max(8, innerWidth - bounds.width - 8))) + "px";
+    menu.style.top = Math.max(8, Math.min(event.clientY, Math.max(8, innerHeight - bounds.height - 8))) + "px";
     menu.querySelectorAll("[data-context-action]").forEach(button => {
       button.onclick = () => {
         menu.classList.remove("open");

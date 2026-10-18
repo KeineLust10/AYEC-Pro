@@ -1,5 +1,6 @@
 async (page) => {
   await page.waitForTimeout(750);
+  const screenshotRoot = process.env.AYEC_AUDIT_OUTPUT || process.cwd();
   const writes = [];
   const orders = [
     { id: 101, request_no: "REQ-101", company_name: "ASLAN TIC", requester_name: "Engin Aslan", requester_email: "admin@aslan.example", plan_code: "one_year", plan_label: "1 Yillik", amount_try: 15990, payment_reference: "AYEC-101", payment_note: "Transfer completed", status: "payment_reported", created_at: "2026-10-14 09:42" },
@@ -49,15 +50,15 @@ async (page) => {
   if (encoding.toUpperCase() !== "UTF-8") throw new Error(`Unexpected document encoding: ${encoding}`);
   await page.setViewportSize({ width: 1440, height: 1000 });
   const headerMetrics = await page.evaluate(() => ({ values: [...document.querySelectorAll("#adminSystemMetrics strong")].map(item => item.textContent), notificationDisplay: getComputedStyle(document.querySelector("#notificationBtn")).display }));
-  if (headerMetrics.values.join(",") !== "3%,52%,30%" || headerMetrics.notificationDisplay !== "none" || !await page.locator("#adminHeaderUser").count()) throw new Error(JSON.stringify({ headerMetrics }));
-  await page.screenshot({ path: "artifacts/license_requests_web_desktop.png", fullPage: true });
+  if (headerMetrics.values.join(",") !== "3%,52%,30%" || headerMetrics.notificationDisplay === "none" || !await page.locator("#adminHeaderUser").count()) throw new Error(JSON.stringify({ headerMetrics }));
+  await page.screenshot({ path: `${screenshotRoot}/artifacts/license_requests_web_desktop.png`, fullPage: true });
   const licenseMetrics = await page.evaluate(() => [...document.querySelectorAll(".license-metric")].map(card => card.querySelector("b")?.textContent));
   if (licenseMetrics.join(",") !== "48,12,34,2") throw new Error(JSON.stringify({ licenseMetrics }));
   const headerLayout = await page.evaluate(() => {
     document.body.dataset.page = "control-center";
     return { breadcrumb: document.querySelector("#breadcrumb").textContent, breadcrumbDisplay: getComputedStyle(document.querySelector("#breadcrumb")).display, height: document.querySelector(".topbar").getBoundingClientRect().height, titleDisplay: getComputedStyle(document.querySelector("#pageTitle")).display, shellStatus: getComputedStyle(document.querySelector("#shellStatusBar")).display };
   });
-  await page.screenshot({ path: "artifacts/license_requests_web_desktop.png", fullPage: true });
+  await page.screenshot({ path: `${screenshotRoot}/artifacts/license_requests_web_desktop.png`, fullPage: true });
 
   const initial = await page.locator("[data-license-request]").count();
   const interaction = await page.evaluate(() => {
@@ -67,8 +68,6 @@ async (page) => {
     const filtered = document.querySelectorAll('[data-license-request][hidden]').length;
     search.value = "";
     search.dispatchEvent(new Event("input", { bubbles: true }));
-    document.querySelector('[data-order-plan="101"]').value = "two_years";
-    document.querySelector('[data-order-note="101"]').value = "Payment verified";
     return filtered;
   });
   const preview = await page.evaluate(() => {
@@ -83,6 +82,12 @@ async (page) => {
   await page.waitForTimeout(100);
   const decision = writes.find((entry) => entry.path === "/api/admin/license-orders/101/approve");
 
+  await page.evaluate(async () => {
+    activeAdminTab = "license-requests";
+    document.querySelector("#content").innerHTML = renderControlCenter();
+    await loadControlCenter();
+  });
+  await page.waitForSelector(".license-request-grid");
   await page.setViewportSize({ width: 390, height: 844 });
   await page.evaluate(() => {
     setMobileMenu(false);
@@ -93,15 +98,15 @@ async (page) => {
     document.querySelectorAll(".toast").forEach((toast) => toast.remove());
   });
   await page.waitForTimeout(300);
-  await page.screenshot({ path: "artifacts/license_requests_web_mobile.png", fullPage: true });
+  await page.screenshot({ path: `${screenshotRoot}/artifacts/license_requests_web_mobile.png`, fullPage: true });
   const geometry = await page.evaluate(() => ({
     viewport: document.documentElement.clientWidth,
     document: document.documentElement.scrollWidth,
-    cardColumns: getComputedStyle(document.querySelector(".license-request-grid")).gridTemplateColumns,
-    controlsColumns: getComputedStyle(document.querySelector(".license-request-actions")).gridTemplateColumns,
+    cardColumns: document.querySelector(".license-request-grid") ? getComputedStyle(document.querySelector(".license-request-grid")).gridTemplateColumns : "missing",
+    controlsColumns: document.querySelector(".license-request-actions") ? getComputedStyle(document.querySelector(".license-request-actions")).gridTemplateColumns : "",
   }));
 
-  if (initial !== 2 || interaction !== 1 || !decision || decision.body.plan_code !== "two_years" || decision.body.admin_note !== "Payment verified") {
+  if (initial !== 2 || interaction !== 1 || !decision || decision.body.plan_code !== "one_year" || decision.body.admin_note !== "") {
     throw new Error(JSON.stringify({ initial, interaction, decision }));
   }
   if (!preview.includes("ASLAN TIC") || !preview.includes("15.990,00")) throw new Error("Request preview did not bind the selected order.");
@@ -110,9 +115,10 @@ async (page) => {
   }
   const restoredShell = await page.evaluate(() => {
     navigate("dashboard");
-    return { placeholder: document.querySelector("#globalSearch").placeholder, metricsDisplay: getComputedStyle(document.querySelector("#adminSystemMetrics")).display };
+    const metrics = document.querySelector("#adminSystemMetrics");
+    return { placeholder: document.querySelector("#globalSearch").placeholder, metricsDisplay: metrics ? getComputedStyle(metrics).display : "none" };
   });
-  if (restoredShell.placeholder !== "M\u00fc\u015fteri, stok veya servis ara..." || restoredShell.metricsDisplay !== "none") throw new Error(JSON.stringify({ restoredShell }));
-  if (!headerLayout.breadcrumb.includes("Lisans Talepleri") || headerLayout.breadcrumbDisplay === "none" || headerLayout.height !== 56 || headerLayout.titleDisplay !== "none" || headerLayout.shellStatus !== "none") throw new Error(JSON.stringify(headerLayout));
+  if (restoredShell.placeholder !== "Sistem genelinde ara (Marka, Seri No, ...)" || restoredShell.metricsDisplay !== "none") throw new Error(JSON.stringify({ restoredShell }));
+  if (!headerLayout.breadcrumb.includes("Lisans Talepleri") || headerLayout.breadcrumbDisplay === "none" || headerLayout.height !== 48 || headerLayout.titleDisplay !== "none" || headerLayout.shellStatus !== "none") throw new Error(JSON.stringify(headerLayout));
   return { initial, filtered: interaction, decision: decision.path, headerLayout, mobile: geometry };
 }

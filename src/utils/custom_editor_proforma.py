@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import os
 import re
+from io import BytesIO
 from datetime import datetime, timedelta
 from html.parser import HTMLParser
 from xml.sax.saxutils import escape
@@ -585,6 +586,28 @@ def build_custom_editor_proforma(
                 continue
             if kind == "image":
                 src = text
+                if src.startswith(("data:image/png;base64,", "data:image/jpeg;base64,")):
+                    encoded = src.partition(",")[2]
+                    if len(encoded) > 180_000:
+                        continue
+                    try:
+                        import base64
+
+                        image_bytes = base64.b64decode(encoded, validate=True)
+                        if len(image_bytes) > 135_000:
+                            continue
+                        from PIL import Image as PilImage
+
+                        with PilImage.open(BytesIO(image_bytes)) as source_image:
+                            if source_image.width * source_image.height > 20_000_000:
+                                continue
+                        img = Image(BytesIO(image_bytes))
+                        img._restrictSize(120 * mm, 60 * mm)
+                        img.hAlign = "LEFT"
+                        story.extend([img, Spacer(1, 2 * mm)])
+                    except Exception as exc:
+                        logger.warning("Custom proforma embedded image skipped: %s", exc)
+                    continue
                 if src.startswith("file:///"):
                     src = src[8:]
                 if os.path.exists(src):

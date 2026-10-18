@@ -1,8 +1,18 @@
 // Service list reference route for desktop web and mobile layouts.
 const ayecServiceListState = {
   tab: "all", query: "", status: "all", date: "last_30", priority: "all",
-  page: 1, pageSize: 15, selected: new Set()
+  page: 1, pageSize: 15, currentId: null, selected: new Set()
 };
+
+function setServiceListCurrentRow(row) {
+  if (!row) return;
+  ayecServiceListState.currentId = String(row.dataset.id);
+  document.querySelectorAll(".service-list-table tbody tr[data-kind=service]").forEach(item => {
+    const current = item === row;
+    item.classList.toggle("is-current", current);
+    item.setAttribute("aria-selected", String(current));
+  });
+}
 
 const ayecServiceListTabs = [
   ["all", "T\u00fcm Cihazlar"], ["today", "Randevulu"],
@@ -23,13 +33,21 @@ function ayecServiceListRows() {
   }));
 }
 
+function ayecServiceListIsInvoiced(item) {
+  return ["1", "true"].includes(String(item.is_invoiced || "0").trim().toLowerCase());
+}
+
 function ayecServiceListMatchTab(item, key) {
   if (key === "all") return true;
-  if (key === "today") return Boolean(item.appointment_id || item.appointment_date);
+  if (key === "today") return ayecServiceListDateMatches(item, "today");
   if (key === "pending_approval") return /onay|bekle/i.test(item.approval_status || item.status || "");
-  if (key === "cargo") return serviceStatusKey(item) === "kargo" || /kargo/i.test(item.delivery_type || "");
-  if (key === "invoiced") return Boolean(item.invoice_no || item.invoice_id);
-  if (key === "uninvoiced") return !item.invoice_no && !item.invoice_id;
+  if (key === "cargo") {
+    const shipment = `${item.delivery_type || ""} ${item.service_source || ""}`.toLocaleLowerCase("tr-TR");
+    const status = String(item.status || "").trim().toLocaleLowerCase("tr-TR");
+    return shipment.includes("kargo") || ["kargo bekliyor", "kargoya verildi"].includes(status);
+  }
+  if (key === "invoiced") return ayecServiceListIsInvoiced(item);
+  if (key === "uninvoiced") return !ayecServiceListIsInvoiced(item);
   if (key === "outbound") return /onar.maya giden|d.s servis/i.test(item.status || item.delivery_type || "");
   if (key === "inbound") return /onar.mdan gelen|servisten d.nd./i.test(item.status || item.delivery_type || "");
   return true;
@@ -74,14 +92,75 @@ function ayecServiceListFiltered() {
     if (state.priority !== "all" && String(item.priority || item.urgency || "Normal") !== state.priority) return false;
     if (state.date !== "all" && !ayecServiceListDateMatches(item, state.date)) return false;
     return !query || ayecDashboardText([
-      item.id, item.customer, item.phone, item.device, item.device_model,
-      item.serial_no, item.status, item.brand
+      item.id, item.customer, item.brand, item.model
     ].join(" ")).includes(query);
   });
 }
 
 function ayecServiceListMetric(label, value, note, tone, icon) {
   return `<article class="service-list-metric tone-${tone}"><span class="service-list-metric-icon">${icon}</span><small>${label}</small><strong>${value}</strong><span class="service-list-metric-note">${note}</span></article>`;
+}
+
+function ayecServiceListMoney(value, currency = "TRY") {
+  const code = String(currency || "TRY").toUpperCase();
+  const symbol = code === "USD" ? "$" : code === "EUR" ? "\u20ac" : "\u20ba";
+  const amount = Number(value) || 0;
+  return `${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${symbol}`;
+}
+
+async function exportServiceList(format, selectedOnly = false) {
+  const columns = [
+    ["tracking_no", "Takip No", item => item.tracking_no || item.no || item.id],
+    ["customer", "M\u00fc\u015fteri", item => item.customer],
+    ["company", "\u015eirket", item => item.company || item.company_name],
+    ["device_type", "Cihaz T\u00fcr\u00fc", item => item.device_type || item.type],
+    ["brand", "Marka", item => item.brand || item.device_brand],
+    ["model", "Model", item => item.model || item.device_model],
+    ["entry_date", "Giri\u015f Tarihi", item => item.entry],
+    ["exit_date", "\u00c7\u0131k\u0131\u015f Tarihi", item => item.delivery],
+    ["price", "\u00dccret", item => item.price],
+    ["status", "Durum", item => item.status],
+    ["urgency", "Aciliyet", item => item.priority || item.urgency || "Normal"]
+  ];
+  const rows = ayecServiceListFiltered().filter(item => !selectedOnly || ayecServiceListState.selected.has(String(item.id)));
+  if (!rows.length) { toast("D\u0131\u015fa aktar\u0131lacak kay\u0131t bulunamad\u0131", "warning"); return false; }
+  const records = rows.map(item => ({
+    ...Object.fromEntries(columns.map(([key, , getValue]) => [key, getValue(item) ?? ""])),
+    price_display: ayecServiceListMoney(item.price, item.currency || "TRY")
+  }));
+  const date = new Date().toISOString().slice(0, 10).replaceAll("-", "");
+  if (format === "csv") {
+    download(`servis_listesi_${date}.csv`, csv(rows.map(item => Object.fromEntries(columns.map(([, label, getValue]) => [label, getValue(item) ?? ""])))));
+    return true;
+  }
+  const response = await fetch(`/api/desktop/service-list/export/${format}`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json", ...(typeof ayecFiscalArchiveHeaders === "function" ? ayecFiscalArchiveHeaders() : {}) },
+    body: JSON.stringify({ records })
+  });
+  if (!response.ok) {
+    let message = "D\u0131\u015fa aktar\u0131m tamamlanamad\u0131";
+    try { message = (await response.json()).error || message; } catch {}
+    throw new Error(message);
+  }
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `servis_listesi_${date}.${format}`;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 500);
+  return true;
+}
+
+function openServiceListExportDialog(selectedOnly = false) {
+  const title = selectedOnly ? "Se\u00e7ili Servis Kay\u0131tlar\u0131n\u0131 D\u0131\u015fa Aktar" : "Servis Listesini D\u0131\u015fa Aktar";
+  const detail = selectedOnly ? "Se\u00e7ili ve etkin filtreye uyan servis kay\u0131tlar\u0131 aktar\u0131l\u0131r." : "Etkin filtrelerdeki t\u00fcm servis kay\u0131tlar\u0131 aktar\u0131l\u0131r.";
+  openDialog(title, "RAPOR B\u0130\u00c7\u0130M\u0130", `<div class="field"><label for="serviceListExportFormat">Dosya bi\u00e7imi</label><select id="serviceListExportFormat" name="format"><option value="xlsx">Excel (.xlsx)</option><option value="csv">CSV (.csv)</option><option value="pdf">PDF (.pdf)</option></select><small>${detail}</small></div>`, async formData => {
+    try { return await exportServiceList(String(formData.get("format") || "xlsx"), selectedOnly); }
+    catch (error) { toast(error.message || "D\u0131\u015fa aktar\u0131m tamamlanamad\u0131", "error"); return false; }
+  }, "D\u0131\u015fa Aktar");
 }
 
 function renderServiceListReference() {
@@ -101,20 +180,21 @@ function renderServiceListReference() {
   ).join("");
   const body = visible.map(item => {
     const selected = ayecServiceListState.selected.has(String(item.id));
+    const current = ayecServiceListState.currentId === String(item.id);
     const status = String(item.status || "Bekliyor");
     const statusTone = serviceStatusKey(item);
     const phone = item.phone || item.customer_contact || "";
     const serial = item.serial_no || item.serial || "";
-    return `<tr data-kind="service" class="${selected ? "is-selected" : ""}" data-id="${esc(item.id)}" data-customer="${esc(item.customerId || item.customer_id || "")}">
+    return `<tr data-kind="service" aria-selected="${current}" class="${[selected ? "is-selected" : "", current ? "is-current" : ""].filter(Boolean).join(" ")}" data-id="${esc(item.id)}" data-customer="${esc(item.customerId || item.customer_id || "")}">
       <td data-label="Se\u00e7"><input type="checkbox" data-service-select="${esc(item.id)}" ${selected ? "checked" : ""} aria-label="Kayd\u0131 se\u00e7"></td>
       <td data-label="Takip No"><strong class="service-list-ticket">${esc(item.id || "-")}</strong></td>
       <td data-label="M\u00fc\u015fteri"><strong>${esc(item.customer)}</strong><small>${esc(phone)}</small></td>
       <td data-label="Cihaz / Model"><strong>${esc(item.device)}</strong><small>${esc(serial ? `SN: ${serial}` : item.device_type || "")}</small></td>
       <td data-label="Kabul Tarihi">${esc(String(item.entry).slice(0, 10))}</td>
       <td data-label="Teslim Tarihi">${esc(String(item.delivery).slice(0, 10))}</td>
-      <td data-label="\u00dccret"><strong class="service-list-price">${money(item.price, item.currency || "TRY")}</strong></td>
-      <td data-label="Durum"><span class="service-list-status status-${statusTone}">${esc(status)}</span></td>
-      <td data-label="Aciliyet"><span class="service-list-priority">${esc(item.priority || item.urgency || "Normal")}</span></td>
+      <td data-label="\u00dccret"><strong class="service-list-price">${ayecServiceListMoney(item.price, item.currency || "TRY")}</strong></td>
+      <td data-label="Durum"><span class="service-list-status status-${statusTone}" aria-label="${esc(status)}" title="${esc(status)}">${esc(serviceListStatusDisplay(status))}</span></td>
+      <td data-label="Aciliyet"><span class="service-list-priority priority-${serviceListPriorityTone(item.priority || item.urgency || "Normal")}">${esc(item.priority || item.urgency || "Normal")}</span></td>
       <td data-label="\u0130\u015flemler"><div class="service-list-actions">
         <button type="button" data-action="service-detail" data-id="${esc(item.id)}" data-customer="${esc(item.customerId || item.customer_id || "")}" title="Servis ayr\u0131nt\u0131s\u0131" aria-label="Servis ayr\u0131nt\u0131s\u0131">&#9673;</button>
         <button type="button" data-action="technician-open" data-id="${esc(item.id)}" data-customer="${esc(item.customerId || item.customer_id || "")}" title="Teknisyen i\u015flemi" aria-label="Teknisyen i\u015flemi">&#9998;</button>
@@ -132,17 +212,17 @@ function renderServiceListReference() {
     ayecServiceListMetric("PAR\u00c7A BEKLEYEN", `${parts} Cihaz`, "Normal ak\u0131\u015f", "amber", "&#9203;"),
     ayecServiceListMetric("TESL\u0130ME HAZIR", `${all.filter(item => /haz.r|tamamland/i.test(item.status || "")).length} Cihaz`, "Onay bekleyen", "green", "&#10003;"),
     ayecServiceListMetric("KARGO SEVK\u0130YAT", `${cargo} Paket`, "Kurye \u00e7a\u011fr\u0131ld\u0131", "purple", "&#128666;"),
-    ayecServiceListMetric("TAHM\u0130N\u0130 C\u0130RO", money(revenue, all[0]?.currency || "TRY"), "Servis kay\u0131tlar\u0131", "gold", "&#8378;"),
+    ayecServiceListMetric("TAHM\u0130N\u0130 C\u0130RO", ayecServiceListMoney(revenue, all[0]?.currency || "TRY"), "Servis kay\u0131tlar\u0131", "gold", "&#8378;"),
     ayecServiceListMetric("ORT. \u00c7\u00d6Z\u00dcM S\u00dcRES\u0130", "0.9 G\u00fcn", "Ayn\u0131 g\u00fcn teslim", "indigo", "&#9711;")
   ].join("");
   return `<div class="service-list-ref">
     <header class="service-list-heading"><div><span class="service-list-heading-icon">&#9881;</span><div><h1>Servis Listesi</h1><p>T\u00fcm teknik servis ve onar\u0131m kay\u0131tlar\u0131n\u0131 tek ekrandan y\u00f6netin, filtreleyin ve raporlay\u0131n.</p></div></div><div class="service-list-heading-actions"><div class="service-list-bulk"><button type="button" class="secondary" data-service-command="bulk-toggle" aria-expanded="false">Toplu \u0130\u015flemler</button><div class="service-list-bulk-menu" data-service-menu hidden><button type="button" data-service-command="bulk-export">Se\u00e7ili kay\u0131tlar\u0131 d\u0131\u015fa aktar</button><button type="button" data-service-command="bulk-print">Se\u00e7ili servis fi\u015flerini yazd\u0131r</button><hr><button type="button" data-service-command="bulk-select-page">Bu sayfan\u0131n t\u00fcm\u00fcn\u00fc se\u00e7</button><button type="button" data-service-command="bulk-clear">Se\u00e7imi kald\u0131r</button></div></div><button type="button" class="secondary" data-service-command="refresh">&#8635; Yenile</button><button type="button" class="secondary" data-service-command="history">&#9719; Servis Ge\u00e7mi\u015fi</button><button type="button" class="secondary" data-service-command="export">&#8681; D\u0131\u015fa Aktar</button><button type="button" class="primary" data-action="new-service">+ Yeni Cihaz Kayd\u0131</button></div></header>
     <section class="service-list-metrics">${metricHTML}</section>
     <nav class="service-list-tabs" aria-label="Servis kategorileri">${tabs}</nav>
-    <section class="service-list-filters"><input id="serviceListSearch" type="search" value="${esc(ayecServiceListState.query)}" placeholder="Takip no, m\u00fc\u015fteri veya cihaz ara..." aria-label="Servis ara"><select id="serviceListStatus" aria-label="Durum filtresi"><option value="all">Durum: T\u00fcm\u00fc</option>${[["waiting","Bekliyor"],["repair","Tamirde"],["parts","Par\u00e7a Bekliyor"],["testing","Test S\u00fcrecinde"],["delivered","Teslim Edildi"],["cancelled","\u0130ptal / \u0130ade"]].map(([key,label])=>`<option value="${key}" ${ayecServiceListState.status === key ? "selected" : ""}>${label}</option>`).join("")}</select><select id="serviceListDate" aria-label="Tarih aral\u0131\u011f\u0131"><option value="all">Tarih Aral\u0131\u011f\u0131: T\u00fcm\u00fc</option><option value="today" ${ayecServiceListState.date === "today" ? "selected" : ""}>Bug\u00fcn</option><option value="week" ${ayecServiceListState.date === "week" ? "selected" : ""}>Bu Hafta</option><option value="month" ${ayecServiceListState.date === "month" ? "selected" : ""}>Bu Ay</option><option value="last_30" ${ayecServiceListState.date === "last_30" ? "selected" : ""}>Son 30 G\u00fcn</option><option value="year" ${ayecServiceListState.date === "year" ? "selected" : ""}>Bu Y\u0131l</option></select><select id="serviceListPriority" aria-label="\u00d6ncelik filtresi"><option value="all">\u00d6ncelik: T\u00fcm</option><option value="Normal" ${ayecServiceListState.priority === "Normal" ? "selected" : ""}>Normal</option><option value="Acil" ${ayecServiceListState.priority === "Acil" ? "selected" : ""}>Acil</option></select><button type="button" class="primary" data-service-command="filter">Filtrele</button><button type="button" class="secondary" data-service-command="clear">Temizle</button></section>
+    <section class="service-list-filters"><input id="serviceListSearch" type="search" value="${esc(ayecServiceListState.query)}" placeholder="Takip no, m\u00fc\u015fteri veya cihaz ara..." aria-label="Servis ara"><select id="serviceListStatus" aria-label="Durum filtresi"><option value="all">Durum: T\u00fcm\u00fc</option>${[["waiting","Bekliyor"],["repair",currentSector === "otomotiv" ? "Serviste" : "Tamirde"],["parts","Par\u00e7a Bekliyor"],["testing","Test S\u00fcrecinde"],["delivered","Teslim Edildi"],["cancelled","\u0130ptal / \u0130ade"]].map(([key,label])=>`<option value="${key}" ${ayecServiceListState.status === key ? "selected" : ""}>${label}</option>`).join("")}</select><select id="serviceListDate" aria-label="Tarih aral\u0131\u011f\u0131"><option value="all">Tarih Aral\u0131\u011f\u0131: T\u00fcm\u00fc</option><option value="today" ${ayecServiceListState.date === "today" ? "selected" : ""}>Bug\u00fcn</option><option value="week" ${ayecServiceListState.date === "week" ? "selected" : ""}>Bu Hafta</option><option value="month" ${ayecServiceListState.date === "month" ? "selected" : ""}>Bu Ay</option><option value="last_30" ${ayecServiceListState.date === "last_30" ? "selected" : ""}>Son 30 G\u00fcn</option><option value="year" ${ayecServiceListState.date === "year" ? "selected" : ""}>Bu Y\u0131l</option></select><select id="serviceListPriority" aria-label="\u00d6ncelik filtresi"><option value="all">\u00d6ncelik: T\u00fcm</option><option value="Normal" ${ayecServiceListState.priority === "Normal" ? "selected" : ""}>Normal</option><option value="Acil" ${ayecServiceListState.priority === "Acil" ? "selected" : ""}>Acil</option></select><button type="button" class="primary" data-service-command="filter">Filtrele</button><button type="button" class="secondary" data-service-command="clear">Temizle</button></section>
     <section class="service-list-quick-actions" aria-label="H\u0131zl\u0131 i\u015flemler"><button type="button" data-service-command="history">&#9719; Servis Ge\u00e7mi\u015fi</button><button type="button" data-service-command="print">&#9113; Detayl\u0131 Fi\u015f Yazd\u0131r</button><button type="button" data-service-command="cargo">&#128666; Kargo Fi\u015fi Yazd\u0131r</button><button type="button" data-service-command="dispatch">E-\u0130rsaliye</button><button type="button" data-service-command="invoice">E-Fatura</button><button type="button" data-service-command="whatsapp">WhatsApp Bildirim</button></section>
     <section class="service-list-table-wrap"><table class="service-list-table"><thead><tr><th><input type="checkbox" data-service-select-all aria-label="T\u00fcm kay\u0131tlar\u0131 se\u00e7"></th><th>TAK\u0130P NO</th><th>M\u00dc\u015eTER\u0130</th><th>C\u0130HAZ / MODEL</th><th>KABUL TAR\u0130H\u0130</th><th>TESL\u0130M TAR\u0130H\u0130</th><th>\u00dcCRET</th><th>DURUM</th><th>AC\u0130L\u0130YET</th><th>\u0130\u015eLEMLER</th></tr></thead><tbody>${body || `<tr><td colspan="10" class="service-list-empty">Bu filtrede servis kayd\u0131 bulunamad\u0131.</td></tr>`}</tbody></table></section>
-    <footer class="service-list-pagination"><span>${rows.length} kay\u0131ttan ${rows.length ? start + 1 : 0}-${Math.min(start + ayecServiceListState.pageSize, rows.length)} aras\u0131 g\u00f6steriliyor.</span><div><label>Sayfa ba\u015f\u0131na <select id="serviceListPageSize"><option ${ayecServiceListState.pageSize === 15 ? "selected" : ""}>15</option><option ${ayecServiceListState.pageSize === 25 ? "selected" : ""}>25</option><option ${ayecServiceListState.pageSize === 50 ? "selected" : ""}>50</option></select></label><button type="button" data-service-page="prev" ${ayecServiceListState.page <= 1 ? "disabled" : ""} aria-label="\u00d6nceki">&lt;</button><b>${ayecServiceListState.page}</b><button type="button" data-service-page="next" ${ayecServiceListState.page >= pages ? "disabled" : ""} aria-label="Sonraki">&gt;</button></div></footer>
+    <footer class="service-list-pagination"><span>${rows.length} kay\u0131ttan ${rows.length ? start + 1 : 0}-${Math.min(start + ayecServiceListState.pageSize, rows.length)} aras\u0131 g\u00f6steriliyor.</span><div><label>Sayfa ba\u015f\u0131na <select id="serviceListPageSize">${[8,15,25,50,100].map(size=>`<option value="${size}" ${ayecServiceListState.pageSize===size?"selected":""}>${size}</option>`).join("")}</select></label><button type="button" data-service-page="prev" ${ayecServiceListState.page <= 1 ? "disabled" : ""} aria-label="\u00d6nceki">&lt;</button><b>${ayecServiceListState.page}</b><button type="button" data-service-page="next" ${ayecServiceListState.page >= pages ? "disabled" : ""} aria-label="Sonraki">&gt;</button></div></footer>
   </div>`;
 }
 
@@ -168,6 +248,8 @@ render = function () {
   $("#serviceListPriority").onchange = event => { ayecServiceListState.priority = event.target.value; ayecServiceListState.page = 1; render(); };
   $("#serviceListPageSize").onchange = event => { ayecServiceListState.pageSize = Number(event.target.value) || 15; ayecServiceListState.page = 1; render(); };
   content.onclick = async event => {
+    const serviceRow = event.target.closest(".service-list-table tbody tr[data-kind=service]");
+    if (serviceRow) setServiceListCurrentRow(serviceRow);
     const tab = event.target.closest("[data-service-tab]");
     if (tab) { ayecServiceListState.tab = tab.dataset.serviceTab; ayecServiceListState.page = 1; render(); return; }
     const pageButton = event.target.closest("[data-service-page]");
@@ -191,7 +273,7 @@ render = function () {
     if (action === "bulk-export") {
       const items = ayecServiceListFiltered().filter(item => ayecServiceListState.selected.has(String(item.id)));
       if (!items.length) { toast("Önce servis kay\u0131tlar\u0131n\u0131 se\u00e7in", "warning"); return; }
-      download("servis-secili-kayitlar.csv", csv(items));
+      openServiceListExportDialog(true);
       return;
     }
     if (action === "bulk-print") {
@@ -205,10 +287,17 @@ render = function () {
       return;
     }
     if (action === "refresh") { try { await hydrateDesktop(false); render(); } catch (error) { toast(error.message || "Servis listesi yenilenemedi", "error"); } return; }
-    if (action === "export") { download("servis-listesi.csv", csv(ayecServiceListFiltered())); return; }
+    if (action === "export") { openServiceListExportDialog(); return; }
     if (action === "clear") { Object.assign(ayecServiceListState, { tab: "all", query: "", status: "all", date: "all", priority: "all", page: 1 }); render(); return; }
     if (action === "filter") { ayecServiceListState.query = search?.value || ""; ayecServiceListState.page = 1; render(); return; }
-    if (action === "print") { window.print(); return; }
+    if (action === "print") {
+      const currentId = ayecServiceListState.currentId;
+      if (!currentId) { toast("L\u00fctfen fi\u015fini yazd\u0131rmak istedi\u011finiz bir servis se\u00e7in.", "warning"); return; }
+      const [customer, service] = findService(currentId);
+      if (!customer || !service) { toast("Servis kayd\u0131 bulunamad\u0131.", "warning"); return; }
+      openServiceBulkPrint([{customer, service}]);
+      return;
+    }
     const selectedId = command.dataset.id || [...ayecServiceListState.selected][0];
     if (!selectedId) { toast("\u00d6nce bir servis kayd\u0131 se\u00e7in", "warning"); return; }
     const row = ayecServiceListRows().find(item => String(item.id) === String(selectedId));
@@ -292,7 +381,9 @@ render = function () {
 };
 
 function openServiceStatusDialog(customer, service) {
-  const statuses = ["Bekliyor", "Tamirde", "Par\u00e7a Bekliyor", "Test S\u00fcrecinde", "Haz\u0131r", "Teslim Edildi", "\u0130ptal"];
+  const statuses = currentSector === "otomotiv"
+    ? ["Bekliyor", "Serviste", "Par\u00e7a Bekliyor", "Test S\u00fcrecinde", "Haz\u0131r", "Teslim Edildi", "\u0130ptal"]
+    : ["Bekliyor", "Tamirde", "Par\u00e7a Bekliyor", "Test S\u00fcrecinde", "Haz\u0131r", "Teslim Edildi", "\u0130ptal"];
   const options = statuses.map(status => `<option ${String(service.status || "") === status ? "selected" : ""}>${status}</option>`).join("");
   openDialog("Durum De\u011fi\u015ftir", "SERV\u0130S " + esc(service.no || ""), `<div class="field"><label>Yeni servis durumu</label><select name="status" required>${options}</select></div>`, async formData => {
     const deviceId = Number(service.id);
@@ -494,6 +585,7 @@ showContext = function(event, kind, id) {
   document.body.append(statusPanel);
   menu.style.left = Math.max(8, Math.min(event.clientX, innerWidth - menu.offsetWidth - 8)) + "px";
   menu.style.top = Math.max(8, Math.min(event.clientY, innerHeight - menu.offsetHeight - 8)) + "px";
+  menu.querySelector('button[role="menuitem"]')?.focus();
   const close = () => {
     menu.remove();
     printPanel.remove();
@@ -603,12 +695,22 @@ document.addEventListener("dblclick",event=>{
 },true);
 
 document.addEventListener("contextmenu",event=>{
+  if(page==="service-list"){
+    const serviceRow=event.target.closest(".service-list-table tbody tr[data-kind=service]");if(!serviceRow)return;
+    setServiceListCurrentRow(serviceRow);
+    return showContext(event,"service",serviceRow.dataset.id);
+  }
   if(page!=="dashboard")return;
   const recent=event.target.closest(".dashboard-recent-row[data-action=service-detail]");if(!recent)return;
   showContext(event,"service",recent.dataset.id);
 },true);
 document.addEventListener("keydown",event=>{
-  if(page!=="dashboard"||!(event.key==="ContextMenu"||(event.shiftKey&&event.key==="F10")))return;
+  const serviceRow=event.target.closest(".service-list-table tbody tr[data-kind=service]");
+  if(!(event.key==="ContextMenu"||(event.shiftKey&&event.key==="F10")))return;
+  if(page==="service-list"&&serviceRow){
+    event.preventDefault();const box=serviceRow.getBoundingClientRect();showContext({preventDefault(){},clientX:box.left+24,clientY:box.top+24,currentTarget:serviceRow},"service",serviceRow.dataset.id);return;
+  }
+  if(page!=="dashboard")return;
   const recent=event.target.closest(".dashboard-recent-row[data-action=service-detail]");if(!recent)return;
   event.preventDefault();const box=recent.getBoundingClientRect();showContext({preventDefault(){},clientX:box.left+24,clientY:box.top+24,currentTarget:recent},"service",recent.dataset.id);
 },true);
@@ -634,20 +736,126 @@ function visibleRowsForServiceList() {
   return ayecServiceListFiltered().slice(start, start + ayecServiceListState.pageSize);
 }
 
+function serviceListStatusDisplay(status) {
+  return String(status || "Bekliyor").toLocaleUpperCase("tr-TR").replace(" ", "\n");
+}
+
+function serviceListPriorityTone(priority) {
+  const value = String(priority || "Normal").toLocaleLowerCase("tr-TR");
+  if (/y\u00fcksek|acil/.test(value)) return "high";
+  if (/d\u00fc\u015f\u00fck/.test(value)) return "low";
+  return "normal";
+}
+
+function serviceReceiptPartValues(part) {
+  const read = (...keys) => {
+    for (const key of keys) {
+      const value = part?.[key];
+      if (value !== undefined && value !== null && value !== "") return value;
+    }
+    return "";
+  };
+  let quantity = Number(read("quantity", "qty", "amount") || 1);
+  if (!Number.isFinite(quantity)) quantity = 1;
+  let total = read("line_total", "total", "total_price", "price");
+  if (total === "") total = Number(read("unit_price") || 0) * quantity;
+  total = Number(total || 0);
+  return {
+    name: String(read("part_name", "name", "product_name", "description") || "-"),
+    quantity,
+    total: Number.isFinite(total) ? total : 0
+  };
+}
+
 function openServiceBulkPrint(records) {
+  const settings = db.settings || {};
+  const companyName = db.company_name || settings.company_name || settings.company || "AYEC Pro";
+  const companyAddress = settings.company_address || settings.address || "";
+  const companyPhone = settings.company_phone || settings.company_gsm || settings.phone || "";
+  const companyEmail = settings.company_email || settings.email || "";
+  const terms = settings.service_terms || "Cihaz tesliminden itibaren servis garantisi uygulanir.";
+  const printedAt = new Date().toLocaleString("sv-SE", {hour12:false}).slice(0,16);
+  const receiptMoney = amount => Number(amount || 0).toLocaleString("en-US", {minimumFractionDigits:2, maximumFractionDigits:2}) + " TL";
+  const requestedSize = String(settings.print_document_page_size || "A4").toUpperCase();
+  const printPageSize = ["A3", "A4", "A5"].includes(requestedSize) ? requestedSize : "A4";
+  const printOrientation = String(settings.print_document_orientation || "portrait").toLowerCase() === "landscape" ? "landscape" : "portrait";
+  const paperDimensions = {A3:[297,420],A4:[210,297],A5:[148,210]}[printPageSize];
+  const printPageWidth = printOrientation === "landscape" ? paperDimensions[1] : paperDimensions[0];
+  const printPageHeight = printOrientation === "landscape" ? paperDimensions[0] : paperDimensions[1];
+  const printContentWidth = (printPageWidth - 12) * 0.945;
+  const printTableWidth = (printPageWidth - 12) * 0.9;
+  const printTableOffset = (printPageWidth - 12 - printTableWidth) / 2 - 2;
   const slips = records.map(({customer, service}) => {
     const tracking = service.no || ayecDashboardId(service);
-    const parts = (service.used_parts || []).map(part => `<li>${esc(part.part_name)} x ${Number(part.quantity || 1)}</li>`).join("");
-    return `<article class="service-bulk-slip"><header><strong>AYEC PRO SERV\u0130S F\u0130\u015e\u0130</strong><span>${esc(tracking)}</span></header><dl><div><dt>M\u00fc\u015fteri</dt><dd>${esc(customer.name || "-")}</dd></div><div><dt>Telefon</dt><dd>${esc(customer.phone || service.customer_contact || "-")}</dd></div><div><dt>Cihaz / Ara\u00e7</dt><dd>${esc(service.device || [service.brand, service.model].filter(Boolean).join(" ") || "-")}</dd></div><div><dt>Seri No / Plaka</dt><dd>${esc(service.serial || service.plate || "-")}</dd></div><div><dt>Giri\u015f Tarihi</dt><dd>${esc(service.date || service.entry_date || "-")}</dd></div><div><dt>Tahmini Teslim</dt><dd>${esc(service.delivery || service.estimated_date || "-")}</dd></div><div><dt>Durum</dt><dd>${esc(service.status || "Bekliyor")}</dd></div><div><dt>Teknisyen</dt><dd>${esc(service.technician || "-")}</dd></div><div><dt>Ar\u0131za / Talep</dt><dd>${esc(service.fault_description || service.note || "-")}</dd></div><div><dt>Yap\u0131lan \u0130\u015flem</dt><dd>${esc(service.repair_details || "-")}</dd></div><div><dt>\u00dccret</dt><dd>${money(service.amount || service.price || service.labor_cost || 0, service.currency || "TRY")}</dd></div><div><dt>\u00d6deme</dt><dd>${esc(service.payment_status || "Beklemede")}</dd></div></dl><strong>Kullan\u0131lan Par\u00e7alar</strong><ul>${parts || "<li>Par\u00e7a kullan\u0131lmad\u0131</li>"}</ul><footer>\u0130mza: ____________________</footer></article>`;
+    const serviceCustomer = service.customer_name || service.customer || customer.name || "-";
+    const customerPhone = service.customer_contact || customer.phone || "-";
+    const parts = (service.used_parts || []).map(serviceReceiptPartValues);
+    const labor = Number(service.labor_cost || 0) || 0;
+    const total = parts.reduce((sum, part) => sum + part.total, 0) + labor;
+    const partRows = parts.map((part, index) => `<tr><td>${index + 1}</td><td>${esc(part.name)}</td><td>${esc(part.quantity)}</td><td>${receiptMoney(part.total)}</td></tr>`);
+    if (labor > 0) partRows.push(`<tr><td>${parts.length + 1}</td><td>SERVIS ISCILIK</td><td>1</td><td>${receiptMoney(labor)}</td></tr>`);
+    if (!partRows.length) partRows.push('<tr><td>1</td><td>KAYITLI PARCA YOK</td><td>-</td><td>0.00 TL</td></tr>');
+    const trackingQr = "/api/desktop/service-tracking/qr?tracking_no=" + encodeURIComponent(tracking);
+    const businessContact = [companyAddress, companyPhone ? "Tel: " + companyPhone : "", companyEmail].filter(Boolean).map(esc).join("<br>");
+    const device = [service.brand, service.model].filter(Boolean).join(" ") || service.device || service.device_type || "-";
+    const serial = service.serial || service.serial_no || service.plate || "-";
+    const fault = service.reported_fault || service.fault_description || "-";
+    const technicianNotes = service.repair_notes || service.technician_notes || service.description || "-";
+    const deliveredBy = service.delivered_by_name || service.delivered_by || "-";
+    const deliveredPhone = service.delivered_by_phone || "-";
+    const info = [["MUSTERI", serviceCustomer], ["TAKIP NO", tracking], ["CIHAZ", device], ["SERI NO", serial], ["DURUM", service.status || "Bekliyor"], ["TESLIM SEKLI", service.delivery_method || service.delivery_type || "-"]];
+    const faultSection = fault && fault !== "-" ? `<section class="service-receipt-notes service-receipt-fault"><h3>BILDIRILEN ARIZA</h3><p>${esc(fault)}</p></section>` : "";
+    const notesSection = technicianNotes && technicianNotes !== "-" ? `<section class="service-receipt-notes"><h3>YAPILAN ISLEMLER / TEKNISYEN NOTU</h3><p>${esc(technicianNotes)}</p></section>` : "";
+    const trackingQrSection = `<section class="service-receipt-qr"><img src="${esc(trackingQr)}" alt="Takip QR"><p>Takip QR<br><b>${esc(tracking)}</b><br>Servis kaydini hizli acmak icin okutun.</p></section>`;
+    return `<article class="service-bulk-slip"><header><strong>${esc(String(companyName).toLocaleUpperCase("tr-TR"))}</strong><small>${businessContact}</small></header><h2><span>DETAYLI SERVIS FISI</span><time>${esc(printedAt)}</time></h2><dl class="service-receipt-info">${info.map(([label,value]) => `<div><dt>${label}</dt><dd>${esc(value || "-")}</dd></div>`).join("")}</dl><dl class="service-receipt-parties"><div><dt>CIHAZ SAHIBI</dt><dd>${esc(serviceCustomer)}</dd></div><div><dt>TESLIM EDEN</dt><dd>${esc(deliveredBy)}</dd></div><div><dt>ILETISIM</dt><dd>${esc(customerPhone)}</dd></div><div><dt>TESLIM EDEN TEL</dt><dd>${esc(deliveredPhone)}</dd></div></dl>${trackingQrSection}${faultSection}${notesSection}<h3>PARCA VE ISCLIK DETAYI</h3><table class="service-receipt-parts"><thead><tr><th>SIRA</th><th>URUN / ISLEM</th><th>ADET</th><th>TUTAR</th></tr></thead><tbody>${partRows.join("")}</tbody></table><div class="service-receipt-total"><strong>GENEL TOPLAM</strong><b>${receiptMoney(total)}</b></div><section class="service-receipt-terms"><h3>SERVIS SARTLARI</h3><p>${esc(terms)}</p></section><footer><span>TESLIM EDEN IMZASI</span><span>SERVIS YETKILISI</span></footer></article>`;
   }).join("");
-  openDialog("Se\u00e7ili Servis Fi\u015fleri", "TOPLU SERV\u0130S \u00c7IKTISI", `<div class="service-bulk-print">${slips}</div>`, () => true, "Kapat");
+  openDialog("Se\u00e7ili Servis Fi\u015fleri", "TOPLU SERV\u0130S \u00c7IKTISI", `<style>@page{size:${printPageWidth}mm ${printPageHeight}mm;margin:6mm}.service-bulk-print{max-width:${printContentWidth}mm;margin:0 auto}.service-bulk-slip{box-sizing:border-box;width:100%}@media print{html,body{background:#fff!important}html{background:#fff!important;min-height:100%!important}body{height:100vh!important;min-height:100vh!important}#appDialog{position:static!important;inset:auto!important;width:100%!important;max-width:none!important;height:100vh!important;max-height:none!important;margin:0!important;padding:0!important;border:0!important;background:#fff!important;overflow:visible!important;box-shadow:none!important}#appDialog::backdrop{background:transparent!important}.service-bulk-print{display:block;width:${printContentWidth}mm;max-width:none;margin:0 0 0 2.18mm}.service-bulk-slip{width:100%}.service-bulk-slip .service-receipt-info{margin-top:10px!important}.service-bulk-slip .service-receipt-notes p{min-height:0!important;padding:0!important;border:0!important}.service-bulk-slip .service-receipt-fault{margin-top:5px!important}.service-bulk-slip .service-receipt-parts th,.service-bulk-slip .service-receipt-parts td{line-height:18px!important}.service-bulk-slip .service-receipt-info,.service-bulk-slip .service-receipt-parties,.service-bulk-slip .service-receipt-qr,.service-bulk-slip .service-receipt-parts{width:var(--service-receipt-table-width);margin-left:var(--service-receipt-table-offset)}.service-bulk-slip .service-receipt-total{width:43.1%;margin:5px 2pt 0 auto;padding:5px 7px 5px 8px;justify-content:space-between}}</style><div class="service-bulk-print">${slips}</div>`, () => true, "Kapat");
   const dialog = $("#appDialog");
+  const fitServiceReceiptToPage = () => {
+    const availableHeight = (printPageHeight - 6) * 96 / 25.4;
+    const previous = [];
+    dialog.querySelectorAll(".service-bulk-slip").forEach(slip => {
+      previous.push({slip, zoom:slip.style.zoom});
+      slip.style.zoom = "1";
+      const naturalHeight = slip.getBoundingClientRect().height;
+      const requiredFit = availableHeight / Math.max(naturalHeight, 1);
+      const scale = Math.min(1, Math.max(0.4, requiredFit));
+      slip.style.zoom = String(scale);
+      slip.style.setProperty("--service-receipt-table-width", `${printTableWidth / scale}mm`);
+      slip.style.setProperty("--service-receipt-table-offset", `${printTableOffset / scale}mm`);
+    });
+    return previous;
+  };
+  dialog.__fitServiceReceiptToPage = fitServiceReceiptToPage;
+  dialog.__prepareServiceReceiptPrint = () => {
+    const root = document.createElement("div");
+    root.id = "serviceReceiptPrintRoot";
+    root.className = "service-receipt-print-root";
+    root.innerHTML = `${dialog.querySelector(".service-bulk-print")?.outerHTML || ""}<style>@page{background:#fff!important}@media print{html,body{margin:0!important;padding:0!important;background:#fff!important;color:#111!important}body>*:not(#serviceReceiptPrintRoot){display:none!important}body>#serviceReceiptPrintRoot{display:block!important;visibility:visible!important;position:static!important;width:100%!important;height:auto!important;min-height:0!important;margin:0!important;padding:0!important;background:#fff!important;color:#111!important;overflow:visible!important}}</style>`;
+    document.body.append(root);
+    if (dialog.open) dialog.close();
+    return root;
+  };
+  dialog.__cleanupServiceReceiptPrint = root => root?.remove();
+  const cleanupPrintDialog = () => { dialog.classList.remove("dialog-wide", "service-print-dialog"); document.body.classList.remove("service-form-open"); };
   dialog.classList.add("dialog-wide", "service-print-dialog");
   document.body.classList.add("service-form-open");
-  dialog.addEventListener("close", () => { dialog.classList.remove("dialog-wide", "service-print-dialog"); document.body.classList.remove("service-form-open"); }, {once:true});
+  dialog.addEventListener("close", cleanupPrintDialog, {once:true});
   $("#dialogFooter").innerHTML = '<button type="button" class="secondary" id="serviceBulkPrintClose">Kapat</button><button type="button" class="primary" id="serviceBulkPrintAction">Yazd\u0131r / PDF</button>';
   $("#serviceBulkPrintClose").onclick = () => dialog.close();
-  $("#serviceBulkPrintAction").onclick = () => window.print();
+  $("#serviceBulkPrintAction").onclick = () => {
+    const previous = fitServiceReceiptToPage();
+    const printRoot = dialog.__prepareServiceReceiptPrint();
+    try { window.print(); }
+    finally {
+      dialog.__cleanupServiceReceiptPrint(printRoot);
+      previous.forEach(item => { item.slip.style.zoom = item.zoom; });
+      dialog.classList.add("dialog-wide", "service-print-dialog");
+      document.body.classList.add("service-form-open");
+      dialog.addEventListener("close", cleanupPrintDialog, {once:true});
+      dialog.showModal();
+    }
+  };
 }
 
 const ayecServiceMenu = ayecSectorMenuModels.teknik_servis

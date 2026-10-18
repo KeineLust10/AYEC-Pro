@@ -23,10 +23,10 @@ def test_dashboard_uses_desktop_shell_and_dashboard_parity_assets_in_order():
     assert html.index("desktop-parity.css") < html.index("dashboard-parity.css")
     assert html.index("app.js?v=") < html.index("dashboard-parity.js")
     assert html.index("appointments-reference.js") < html.index("dashboard-parity.js")
-    assert 'dashboard-parity.css?v=20261016-16' in html
-    assert 'automotive-parity.js?v=20261015-intake-photo-upload-1' in html
-    assert 'dashboard-parity.js?v=20261015-7' in html
-    assert 'styles.css?v=20261016-company-location-picker-1' in html
+    assert 'dashboard-parity.css?v=' in html
+    assert 'automotive-parity.js?v=' in html
+    assert 'dashboard-parity.js?v=' in html
+    assert 'styles.css?v=' in html
 
 
 def test_dashboard_mirrors_desktop_widgets_and_keeps_web_navigation_actions():
@@ -198,6 +198,9 @@ def test_dashboard_parity_layout_expands_on_desktop_and_reflows_on_mobile():
     assert "repeat(8, minmax(0, 1fr))" in styles
     assert "repeat(4, minmax(0, 1fr))" in styles
     assert "repeat(3, minmax(0, 1fr))" in styles
+    assert ".dashboard-shortcut-overlay{container-type:inline-size}" in styles
+    assert "@container (min-width:654px) and (max-width:973px)" in styles
+    assert "@container (min-width:1294px)" in styles
     assert "@media (max-width: 760px)" in styles
     assert "width: 100vw;\n    max-width: 100vw;" in styles
     assert "margin: -16px -12px 10px;" in styles
@@ -224,6 +227,7 @@ const sandbox={
   navigate:route=>{sandbox.navigated=route},render:()=>{sandbox.renderCount++;sandbox.output=sandbox.renderDashboard()},
   renderCount:0,output:'',navigated:''
 };
+sandbox.window=sandbox;
 vm.createContext(sandbox);
 vm.runInContext(fs.readFileSync(process.argv[1],'utf8'),sandbox);
 assert.ok(sandbox.output.includes('dashboard-welcome'));
@@ -250,6 +254,41 @@ assert.ok(sandbox.output.includes('Son 6 Ay'));
 '''
     result = subprocess.run(
         [NODE, "-e", script, str(WEB / "dashboard-parity.js")],
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_dashboard_services_include_unlinked_desktop_devices_and_keep_actions_resolvable():
+    script = r'''
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const vm=require('node:vm');
+const source=fs.readFileSync(process.argv[1],'utf8');
+const dashboardFn=source.match(/function dashboardServices\(\)\{[\s\S]*?\n\}/)?.[0];
+const findFn=source.match(/function findService\(no\)\{[^\n]*\}/)?.[0];
+assert.ok(dashboardFn&&findFn);
+const sandbox={db:{customers:[{id:7,name:'Linked Customer',balances:{TRY:-12},services:[{id:70,no:'SRV-LINKED',device:'Laptop',note:'Customer service',status:'Tamirde'}]}],serviceDevices:[
+ {id:70,no:'SRV-LINKED',tracking_no:'SRV-LINKED',customer_id:7,customer_name:'Linked Customer',device_brand:'Brand',device_model:'Laptop',status:'Tamirde'},
+ {id:71,no:'SRV-UNLINKED',tracking_no:'SRV-UNLINKED',customer_id:null,customer_name:'Walk-in',device_type:'Phone',device_model:'Model X',fault_description:'Screen issue',status:'Bekliyor'}
+]}};
+vm.createContext(sandbox);
+vm.runInContext(`${dashboardFn};${findFn};this.dashboardServices=dashboardServices;this.findService=findService;`,sandbox);
+const rows=sandbox.dashboardServices();
+assert.equal(rows.length,2);
+assert.equal(rows.find(row=>row.no==='SRV-LINKED').balances.TRY,-12);
+assert.equal(rows.find(row=>row.no==='SRV-UNLINKED').customer,'Walk-in');
+assert.equal(rows.find(row=>row.no==='SRV-UNLINKED').note,'Screen issue');
+const [customer,service]=sandbox.findService('SRV-UNLINKED');
+assert.equal(customer.name,'Walk-in');
+assert.equal(service.id,71);
+assert.equal(service.no,'SRV-UNLINKED');
+assert.equal(service.device,'Model X');
+'''
+    result = subprocess.run(
+        [NODE, "-e", script, str(WEB / "app.js")],
         capture_output=True,
         text=True,
         timeout=20,

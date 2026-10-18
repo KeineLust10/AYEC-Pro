@@ -1,6 +1,7 @@
 """Admin server status and connection settings page."""
 
 from PyQt6.QtCore import QThread, Qt, QTimer, pyqtSignal
+from PyQt6.QtGui import QColor, QPainter, QPen
 from PyQt6.QtWidgets import (
     QApplication,
     QBoxLayout,
@@ -21,6 +22,54 @@ from PyQt6.QtWidgets import (
 
 import api_client
 import config
+
+
+class _ServerMetricIcon(QLabel):
+    def __init__(self, kind: str, color: str):
+        super().__init__()
+        self._kind = kind
+        self._color = QColor(color)
+        self.setObjectName("metricIcon")
+        self.setFixedSize(18, 18)
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setPen(QPen(self._color, 1.5, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        if self._kind == "cpu":
+            painter.drawRoundedRect(5, 5, 8, 8, 1, 1)
+            for offset in (0, 1, 2):
+                painter.drawLine(4 + offset * 5, 2, 4 + offset * 5, 5)
+                painter.drawLine(4 + offset * 5, 13, 4 + offset * 5, 16)
+            painter.drawLine(2, 6, 5, 6)
+            painter.drawLine(13, 6, 16, 6)
+            painter.drawLine(2, 11, 5, 11)
+            painter.drawLine(13, 11, 16, 11)
+        elif self._kind == "ram":
+            painter.drawRoundedRect(3, 5, 12, 8, 1, 1)
+            painter.drawLine(6, 7, 6, 10)
+            painter.drawLine(9, 7, 9, 10)
+            painter.drawLine(12, 7, 12, 10)
+            painter.drawLine(5, 13, 5, 16)
+            painter.drawLine(13, 13, 13, 16)
+        elif self._kind == "disk":
+            painter.drawRoundedRect(4, 3, 10, 12, 2, 2)
+            painter.drawLine(6, 7, 12, 7)
+            painter.drawEllipse(6, 10, 2, 2)
+            painter.drawEllipse(10, 10, 2, 2)
+        elif self._kind == "database":
+            painter.drawEllipse(3, 3, 12, 4)
+            painter.drawLine(3, 5, 3, 13)
+            painter.drawLine(15, 5, 15, 13)
+            painter.drawArc(3, 10, 12, 4, 180 * 16, 180 * 16)
+            painter.drawArc(3, 6, 12, 4, 180 * 16, 180 * 16)
+        else:
+            painter.drawLine(5, 5, 13, 13)
+            painter.drawLine(13, 5, 5, 13)
+            for x, y in ((3, 3), (11, 3), (3, 11), (11, 11)):
+                painter.drawEllipse(x, y, 4, 4)
+        painter.end()
 
 
 class _FetchServer(QThread):
@@ -55,14 +104,15 @@ class ServerSettingsPage(QWidget):
             QScrollBar:vertical { width: 8px; background: #0e1321; }
             QScrollBar::handle:vertical { min-height: 28px; background: #303444; border-radius: 4px; }
             QFrame#serverHero, QFrame#metricCard, QGroupBox#serverPanel {
-                background: #161b2a; border: 1px solid #1e293b; border-radius: 4px;
+                background: #161b2a; border: 1px solid #1e293b; border-radius: 8px;
             }
-            QFrame#serverHero { background: #111827; }
+            QFrame#serverHero { background: #161b2a; }
             QLabel#serverEyebrow { color: #10b981; font: 700 10px "JetBrains Mono", "Segoe UI", Arial; }
-            QLabel#serverTitle { color: #dee2f6; font: 700 20px "Segoe UI", Arial; }
-            QLabel#serverDescription { color: #c2c6d6; font: 12px "Segoe UI", Arial; }
+            QLabel#metricIcon { background: transparent; }
+            QLabel#serverTitle { color: #dee2f6; font: 700 20px "Plus Jakarta Sans", "Segoe UI", Arial; }
+            QLabel#serverDescription { color: #c2c6d6; font: 12px "Plus Jakarta Sans", "Segoe UI", Arial; }
             QLabel#metricLabel { color: #c2c6d6; font: 700 10px "JetBrains Mono", "Segoe UI", Arial; }
-            QLabel#metricValue { color: #dee2f6; font: 700 30px "JetBrains Mono", "Segoe UI", Arial; }
+            QLabel#metricValue { color: #dee2f6; font: 700 30px "Plus Jakarta Sans", "Segoe UI", Arial; }
             QLabel#metricState, QLabel#serverMeta { color: #8c909f; font: 8px "JetBrains Mono", "Segoe UI", Arial; }
             QProgressBar#metricBar { background: #303444; border: 0; border-radius: 3px; min-height: 6px; max-height: 6px; text-align: center; }
             QProgressBar#metricBar::chunk { background: #4edea3; border-radius: 3px; }
@@ -79,6 +129,7 @@ class ServerSettingsPage(QWidget):
             QPushButton#primaryBtn { color: #002e6a; background: #adc6ff; border-color: #adc6ff; font-weight: 700; }
             QPushButton#secondaryBtn { color: #dee2f6; background: #252a39; }
             QPushButton#primaryBtn:disabled, QPushButton:disabled { color: #8c909f; background: #252a39; border-color: #303444; }
+            QPushButton#serverRestart:disabled { color: #ffdad6; background: #b3261e; border-color: #b3261e; }
             QLabel#infoValue { color: #dee2f6; font: 9px "JetBrains Mono", "Segoe UI", Arial; }
             QFrame#topologyNode, QFrame#topologyRow { background: #090e1c; border: 1px solid #1e293b; border-radius: 5px; }
             QLabel#topologyIcon { color: #adc6ff; font: 700 28px "Segoe UI", Arial; }
@@ -110,7 +161,7 @@ class ServerSettingsPage(QWidget):
         hero_layout.setContentsMargins(14, 11, 14, 11)
         hero.setMinimumHeight(126)
         title_block = QVBoxLayout()
-        eyebrow = QLabel("PLATFORM INFRASTRUCTURE / OPERATIONS")
+        eyebrow = QLabel("TELEMETR\u0130 V2.0")
         eyebrow.setObjectName("serverEyebrow")
         eyebrow.setWordWrap(True)
         eyebrow.setMinimumWidth(0)
@@ -120,7 +171,7 @@ class ServerSettingsPage(QWidget):
         title.setWordWrap(True)
         title.setMinimumWidth(0)
         title.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
-        description = QLabel("Merkezi API kaynaklar\u0131n\u0131 izleyin; sunucu konfig\u00fcrasyonu yaln\u0131zca desteklenen ayarlardan de\u011fi\u015ftirilebilir.")
+        description = QLabel("Merkezi lisans sunucusu, arka plan servisleri, soket kap\u0131lar\u0131, veritaban\u0131 yollar\u0131 ve donan\u0131m kaynaklar\u0131n\u0131 yap\u0131land\u0131r\u0131n.")
         description.setObjectName("serverDescription")
         description.setWordWrap(True)
         description.setMinimumWidth(0)
@@ -139,6 +190,7 @@ class ServerSettingsPage(QWidget):
         self._refresh_button.clicked.connect(self._refresh_status)
         hero_layout.addWidget(self._refresh_button)
         restart = QPushButton("Servisleri Yeniden Ba\u015flat")
+        restart.setObjectName("serverRestart")
         self._restart_button = restart
         restart.setEnabled(False)
         restart.setToolTip("Restart API endpoint is not available.")
@@ -148,11 +200,11 @@ class ServerSettingsPage(QWidget):
         metric_grid = QGridLayout()
         metric_grid.setSpacing(10)
         self._metric_grid = metric_grid
-        self._cpu_bar, self._cpu_lbl, self._cpu_state, cpu_card = self._metric_card("CPU", "cpu")
-        self._ram_bar, self._ram_lbl, self._ram_state, ram_card = self._metric_card("RAM", "ram")
+        self._cpu_bar, self._cpu_lbl, self._cpu_state, cpu_card = self._metric_card("CPU KULLANIMI", "cpu")
+        self._ram_bar, self._ram_lbl, self._ram_state, ram_card = self._metric_card("RAM KULLANIMI", "ram")
         self._disk_bar, self._disk_lbl, self._disk_state, disk_card = self._metric_card("NVME SSD DISK", "disk")
-        self._database_bar, self._database_lbl, self._database_state, database_card = self._metric_card("VERITABANI BOYUTU", "database")
-        self._network_bar, self._network_lbl, self._network_state, network_card = self._metric_card("AG ILETIMI", "network")
+        self._database_bar, self._database_lbl, self._database_state, database_card = self._metric_card("VER\u0130TABANI BOYUTU", "database")
+        self._network_bar, self._network_lbl, self._network_state, network_card = self._metric_card("A\u011e \u0130LET\u0130M\u0130", "network")
         self._metric_cards = [cpu_card, ram_card, disk_card, database_card, network_card]
         self._metric_columns = 0
         layout.addLayout(metric_grid)
@@ -300,8 +352,8 @@ class ServerSettingsPage(QWidget):
     def _apply_responsive_layout(self):
         compact = self.width() < 900
         mobile = self.width() < 760
-        self._page_layout.setSpacing(20 if mobile else 12)
-        self._page_layout.setContentsMargins(20, 20 if mobile else 16, 20, 18)
+        self._page_layout.setSpacing(20)
+        self._page_layout.setContentsMargins(20 if mobile else 44, 20, 20 if mobile else 0, 18)
         self._hero.setMinimumHeight(344 if mobile else 126)
         self._hero_layout.setStretchFactor(self._title_block, 0 if mobile else 1)
         self._hero_layout.setSpacing(12 if mobile else 14)
@@ -437,9 +489,23 @@ class ServerSettingsPage(QWidget):
         layout = QVBoxLayout(card)
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(10)
+        icon_specs = {
+            "CPU KULLANIMI": ("cpu", "#4edea3"),
+            "RAM KULLANIMI": ("ram", "#4cd7f6"),
+            "NVME SSD DISK": ("disk", "#4d8eff"),
+            "VER\u0130TABANI BOYUTU": ("database", "#4edea3"),
+            "A\u011e \u0130LET\u0130M\u0130": ("network", "#4cd7f6"),
+        }
+        kind, color = icon_specs[title]
+        header = QHBoxLayout()
+        header.setContentsMargins(0, 0, 0, 0)
+        header.setSpacing(7)
+        icon = _ServerMetricIcon(kind, color)
         label = QLabel(title)
         label.setObjectName("metricLabel")
         label.setWordWrap(True)
+        header.addWidget(icon)
+        header.addWidget(label, 1)
         value = QLabel("...")
         value.setObjectName("metricValue")
         value.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
@@ -450,7 +516,7 @@ class ServerSettingsPage(QWidget):
         bar.setTextVisible(False)
         state = QLabel("Veri bekleniyor")
         state.setObjectName("metricState")
-        layout.addWidget(label)
+        layout.addLayout(header)
         layout.addWidget(value)
         layout.addWidget(bar)
         layout.addWidget(state)

@@ -1,4 +1,13 @@
 from pathlib import Path
+import os
+import subprocess
+import threading
+from http.server import ThreadingHTTPServer
+
+import requests
+
+from Web_Arayuzu import Main as web_main
+from tests.test_vendor_management_center import _setup_tenant
 
 ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "Web_Arayuzu" / "web"
@@ -78,6 +87,22 @@ def test_logistics_month_filter_accepts_iso_and_localized_dates():
     assert 'value.match(/^(\\d{4})-(\\d{2})/)' in app
     assert 'value.match(/^(\\d{1,2})[./-](\\d{1,2})[./-](\\d{4})/)' in app
     assert "ayecLogisticsMonthMatches(row.date, month)" in app
+
+
+def test_logistics_print_actions_build_row_or_filtered_manifest():
+    app = (WEB / "app.js").read_text(encoding="utf-8")
+
+    assert "function ayecLogisticsFilteredRows()" in app
+    assert "function ayecPrintLogisticsManifest(records)" in app
+    assert 'row ? [row] : ayecLogisticsFilteredRows()' in app
+    assert 'event.target.closest("[data-logistics-print-all]")' in app
+    assert 'popup.document.write(' in app
+    manifest = app[app.index("function ayecPrintLogisticsManifest"):app.index("function ayecLogisticsRender")]
+    assert "popup.print()" in manifest
+    assert "window.print()" not in manifest
+    assert 'const records = ayecLogisticsFilteredRows();' in app
+    assert 'if (!records.length) { toast("Dis aktarilacak kayit bulunamadi.", "warning"); return; }' in app
+    assert 'download("lojistik-takip-" + today() + ".csv", records)' in app
 
 
 def test_loaner_actions_and_category_filters_are_wired():
@@ -175,3 +200,189 @@ def test_loaner_device_forms_and_new_loan_selector_match_desktop_fields():
     assert 'loaner_transactions?limit=1000' in app
     assert 'item.status || ""' in app and 'item.status || "Depoda"' in app
     assert '"Teslim Bilgileri"' in app
+
+
+def test_authenticated_offscreen_loaner_search_shortcut_matches_desktop(monkeypatch, tmp_path):
+    desktop = (ROOT / "src" / "ui" / "pages" / "loaner_devices_page.py").read_text(encoding="utf-8")
+    app = (WEB / "app.js").read_text(encoding="utf-8")
+    assert 'QShortcut(QKeySequence("Ctrl+F"), self)' in desktop
+    assert "self.loaner_search_shortcut.activated.connect(self._focus_loaner_search)" in desktop
+    assert '(page !== "loaners" && page !== "report-templates")' in app
+    _setup_tenant(monkeypatch, tmp_path)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), web_main.AYECRequestHandler)
+    worker = threading.Thread(target=server.serve_forever, daemon=True)
+    worker.start()
+    base_url = f"http://127.0.0.1:{server.server_address[1]}"
+    try:
+        session = requests.Session()
+        session.headers["Origin"] = base_url
+        login = session.post(
+            f"{base_url}/api/auth/login",
+            json={"identifier": "customer-admin", "password": "oldpass123", "tenant_id": "tenant-1"},
+        )
+        assert login.status_code == 200
+        env = os.environ.copy()
+        env["AYEC_AUDIT_URL"] = f"{base_url}/"
+        env["AYEC_LOANER_SESSION_COOKIE"] = session.cookies.get("ayec_session")
+        env["AYEC_AUDIT_CDP_PORT"] = "9262"
+        audit = subprocess.run(
+            ["node", "tools/quality/loaner_keyboard_offscreen.cjs"],
+            cwd=ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=45,
+            check=False,
+        )
+        assert audit.returncode == 0, audit.stderr or audit.stdout
+        assert '"focused":true' in audit.stdout
+        assert '"selected":true' in audit.stdout
+        assert '"prevented":true' in audit.stdout
+        assert '"role":"Admin"' in audit.stdout
+    finally:
+        server.shutdown()
+        server.server_close()
+        worker.join(timeout=2)
+
+
+def test_contract_ctrl_k_targets_page_search_before_global_search(monkeypatch, tmp_path):
+    desktop = (ROOT / "src" / "ui" / "pages" / "contracts_page.py").read_text(encoding="utf-8")
+    script = (WEB / "global-search-reference.js").read_text(encoding="utf-8")
+    assert 'QShortcut(QKeySequence("Ctrl+K"), self)' in desktop
+    assert 'self.contract_search_shortcut.activated.connect(self.contract_search.setFocus)' in desktop
+    assert 'page==="contracts"?document.querySelector("#genericSearch")' in script and 'pageSearch.select()' in script
+    _setup_tenant(monkeypatch, tmp_path)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), web_main.AYECRequestHandler)
+    worker = threading.Thread(target=server.serve_forever, daemon=True)
+    worker.start()
+    base_url = f"http://127.0.0.1:{server.server_address[1]}"
+    try:
+        session = requests.Session()
+        session.headers["Origin"] = base_url
+        login = session.post(
+            f"{base_url}/api/auth/login",
+            json={"identifier": "customer-admin", "password": "oldpass123", "tenant_id": "tenant-1"},
+        )
+        assert login.status_code == 200
+        env = os.environ.copy()
+        env["AYEC_AUDIT_URL"] = f"{base_url}/"
+        env["AYEC_LOANER_SESSION_COOKIE"] = session.cookies.get("ayec_session")
+        env["AYEC_KEYBOARD_PAGE"] = "contracts"
+        env["AYEC_KEYBOARD_KEY"] = "k"
+        env["AYEC_AUDIT_CDP_PORT"] = "9263"
+        audit = subprocess.run(
+            ["node", "tools/quality/loaner_keyboard_offscreen.cjs"],
+            cwd=ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=45,
+            check=False,
+        )
+        assert audit.returncode == 0, audit.stderr or audit.stdout
+        assert '"focused":true' in audit.stdout
+        assert '"selected":true' in audit.stdout
+        assert '"paletteOpen":false' in audit.stdout
+    finally:
+        server.shutdown()
+        server.server_close()
+        worker.join(timeout=2)
+
+
+def test_report_templates_ctrl_f_focuses_its_search_in_hidden_edge(monkeypatch, tmp_path):
+    desktop = (ROOT / "src" / "ui" / "pages" / "report_templates_page.py").read_text(encoding="utf-8")
+    app = (WEB / "app.js").read_text(encoding="utf-8")
+    assert 'QShortcut(QKeySequence("Ctrl+F"), self)' in desktop
+    assert "self.search_shortcut.activated.connect(self.search.setFocus)" in desktop
+    assert 'page !== "report-templates"' in app
+    _setup_tenant(monkeypatch, tmp_path)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), web_main.AYECRequestHandler)
+    worker = threading.Thread(target=server.serve_forever, daemon=True)
+    worker.start()
+    base_url = f"http://127.0.0.1:{server.server_address[1]}"
+    try:
+        session = requests.Session()
+        session.headers["Origin"] = base_url
+        login = session.post(
+            f"{base_url}/api/auth/login",
+            json={"identifier": "customer-admin", "password": "oldpass123", "tenant_id": "tenant-1"},
+        )
+        assert login.status_code == 200
+        env = os.environ.copy()
+        env["AYEC_AUDIT_URL"] = f"{base_url}/"
+        env["AYEC_LOANER_SESSION_COOKIE"] = session.cookies.get("ayec_session")
+        env["AYEC_KEYBOARD_PAGE"] = "report-templates"
+        env["AYEC_KEYBOARD_KEY"] = "f"
+        env["AYEC_AUDIT_CDP_PORT"] = "9264"
+        audit = subprocess.run(
+            ["node", "tools/quality/loaner_keyboard_offscreen.cjs"],
+            cwd=ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=45,
+            check=False,
+        )
+        assert audit.returncode == 0, audit.stderr or audit.stdout
+        assert '"focused":true' in audit.stdout
+        assert '"selected":true' in audit.stdout
+        assert '"prevented":true' in audit.stdout
+    finally:
+        server.shutdown()
+        server.server_close()
+        worker.join(timeout=2)
+
+
+def test_customer_ctrl_k_focuses_customer_filter_before_global_search(monkeypatch, tmp_path):
+    desktop = (ROOT / "src" / "ui" / "pages" / "_customers_base_mixin.py").read_text(encoding="utf-8")
+    app = (WEB / "app.js").read_text(encoding="utf-8")
+    global_search = (WEB / "global-search-reference.js").read_text(encoding="utf-8")
+    assert 'QShortcut(QKeySequence("Ctrl+K"), self)' in desktop
+    assert "self.search_shortcut.activated.connect(self._focus_customer_search)" in desktop
+    assert 'id="customerSearch"' in app
+    assert 'page==="customers"?document.querySelector("#customerSearch")' in global_search
+    _setup_tenant(monkeypatch, tmp_path)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), web_main.AYECRequestHandler)
+    worker = threading.Thread(target=server.serve_forever, daemon=True)
+    worker.start()
+    base_url = f"http://127.0.0.1:{server.server_address[1]}"
+    try:
+        session = requests.Session()
+        session.headers["Origin"] = base_url
+        login = session.post(
+            f"{base_url}/api/auth/login",
+            json={"identifier": "customer-admin", "password": "oldpass123", "tenant_id": "tenant-1"},
+        )
+        assert login.status_code == 200
+        env = os.environ.copy()
+        env["AYEC_AUDIT_URL"] = f"{base_url}/"
+        env["AYEC_LOANER_SESSION_COOKIE"] = session.cookies.get("ayec_session")
+        env["AYEC_KEYBOARD_PAGE"] = "customers"
+        env["AYEC_KEYBOARD_KEY"] = "k"
+        env["AYEC_KEYBOARD_INPUT"] = "customerSearch"
+        env["AYEC_AUDIT_CDP_PORT"] = "9265"
+        audit = subprocess.run(
+            ["node", "tools/quality/loaner_keyboard_offscreen.cjs"],
+            cwd=ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=45,
+            check=False,
+        )
+        assert audit.returncode == 0, audit.stderr or audit.stdout
+        assert '"focused":true' in audit.stdout
+        assert '"selected":true' in audit.stdout
+        assert '"paletteOpen":false' in audit.stdout
+    finally:
+        server.shutdown()
+        server.server_close()
+        worker.join(timeout=2)

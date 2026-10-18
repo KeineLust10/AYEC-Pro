@@ -1157,6 +1157,16 @@ QFocusFrame {{
             skip_transform = False
             try:
                 skip_transform = bool(getattr(target, "property", lambda _k: False)("skipThemeTransform"))
+                if not skip_transform and isinstance(target, QWidget) and not target.isWindow():
+                    skip_transform = bool(target.property("customerReferenceTheme"))
+                    ancestor = target.parentWidget()
+                    while not skip_transform and ancestor is not None:
+                        if ancestor.property("customerReferenceTheme"):
+                            skip_transform = True
+                            break
+                        if ancestor.isWindow():
+                            break
+                        ancestor = ancestor.parentWidget()
             except Exception:
                 skip_transform = False
 

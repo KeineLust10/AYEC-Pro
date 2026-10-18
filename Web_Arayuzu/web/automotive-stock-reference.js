@@ -7,20 +7,21 @@
   const originalStockTabs = stockTabs;
 
   function automotiveStockTable(rows, offset = 0) {
-    const headers = ["ID", "Barkod", "\u00dcr\u00fcn Ad\u0131", "Marka", "Kategori", "OEM", "Muadil", "Uyumlu Modeller", "Raf", "Stok", "Al\u0131\u015f \u25c9", "Sat\u0131\u015f", "PB", "Limit", "\u0130\u015flemler"];
+    const headers = ["ID", "Barkod", "\u00dcr\u00fcn Ad\u0131", "Marka", "Kategori", "OEM", "Muadil", "Ara\u00e7 Marka", "Ara\u00e7 Model", "Uyumlu Modeller", "Konum", "Tedarik\u00e7i", "Raf", "Stok", "Al\u0131\u015f \u25c9", "Sat\u0131\u015f", "PB", "Limit", "\u0130\u015flemler"];
     const cells = (item, index) => {
       const buy = Number(item.buy) || 0;
       const sell = Number(item.sell) || 0;
       const values = [
         String(item.id ?? index + offset + 1), item.barcode || "", item.name || "", item.brand || "", item.category || "",
-        item.oem_code || "", item.equivalent_code || "", item.compatible_models || "", item.shelf_number || item.shelf || "",
-        `${Number(item.qty) || 0}`, money(buy, item.currency), money(sell, item.currency), item.currency || "TRY", String(Number(item.min) || 0),
+        item.oem_code || "", item.equivalent_code || "", item.vehicle_brand || "", item.vehicle_model || "", item.compatible_models || "",
+        item.position || "", item.supplier || "", item.shelf_number || item.shelf || "", `${Number(item.qty) || 0}`,
+        money(buy, item.currency), money(sell, item.currency), item.currency || "TRY", String(Number(item.min) || 0),
         `<div class="row-actions"><button class="mini" data-action="edit-product" data-id="${esc(item.id)}">D\u00fczenle</button><button class="mini danger-outline" data-action="delete-product" data-id="${esc(item.id)}">Sil</button></div>`
       ];
       const priceVisible = purchasePricesVisible || revealedPurchasePriceIds.has(String(item.id));
-      return `<tr data-kind="stock" data-id="${esc(item.id)}">${values.map((value, column) => `<td data-label="${headers[column]}">${column === 4 ? `<span class="badge">${esc(value)}</span>` : column === 9 ? `${statusBadge(Number(item.qty) <= Number(item.min) ? "Kritik" : "Stokta")} ${esc(value)}` : column === 10 ? `<button type="button" class="automotive-purchase-price" data-automotive-price-toggle data-id="${esc(item.id)}" data-purchase-price="${esc(value)}" aria-label="Al\u0131\u015f fiyat\u0131n\u0131 ${priceVisible ? "gizle" : "g\u00f6ster"}">${priceVisible ? esc(value) : "***"}</button>` : column === 14 ? value : esc(value)}</td>`).join("")}</tr>`;
+      return `<tr data-kind="stock" data-id="${esc(item.id)}">${values.map((value, column) => `<td data-label="${headers[column]}">${column === 4 ? `<span class="badge">${esc(value)}</span>` : column === 13 ? `${statusBadge(Number(item.qty) <= Number(item.min) ? "Kritik" : "Stokta")} ${esc(value)}` : column === 14 ? `<button type="button" class="automotive-purchase-price" data-automotive-price-toggle data-id="${esc(item.id)}" data-purchase-price="${esc(value)}" aria-label="Al\u0131\u015f fiyat\u0131n\u0131 ${priceVisible ? "gizle" : "g\u00f6ster"}">${priceVisible ? esc(value) : "***"}</button>` : column === 18 ? value : esc(value)}</td>`).join("")}</tr>`;
     };
-    return `<div class="table-wrap stock-reference-table-wrap automotive-stock-table-wrap"><table class="stock-reference-table automotive-stock-table"><thead><tr>${headers.map((header, index) => `<th>${index === 10 ? `<button type="button" data-automotive-price-all aria-label="Al\u0131\u015f fiyatlar\u0131n\u0131 ${purchasePricesVisible ? "gizle" : "g\u00f6ster"}" title="Al\u0131\u015f fiyatlar\u0131n\u0131 ${purchasePricesVisible ? "gizle" : "g\u00f6ster"}">${header}</button>` : header}</th>`).join("")}</tr></thead><tbody>${rows.map(cells).join("")}</tbody></table></div>`;
+    return `<div class="table-wrap stock-reference-table-wrap automotive-stock-table-wrap"><table class="stock-reference-table automotive-stock-table"><thead><tr>${headers.map((header, index) => `<th>${index === 14 ? `<button type="button" data-automotive-price-all aria-label="Al\u0131\u015f fiyatlar\u0131n\u0131 ${purchasePricesVisible ? "gizle" : "g\u00f6ster"}" title="Al\u0131\u015f fiyatlar\u0131n\u0131 ${purchasePricesVisible ? "gizle" : "g\u00f6ster"}">${header}</button>` : header}</th>`).join("")}</tr></thead><tbody>${rows.map(cells).join("")}</tbody></table></div>`;
   }
 
   function guideMarkup() {
@@ -38,6 +39,33 @@
   };
 
   const originalRender = render;
+  document.addEventListener("click", event => {
+    if (currentSector !== "otomotiv" || page !== "automotive-stock") return;
+    const allButton = event.target.closest("[data-automotive-price-all]");
+    const priceButton = event.target.closest("[data-automotive-price-toggle]");
+    if (!allButton && !priceButton) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (allButton) {
+      purchasePricesVisible = !purchasePricesVisible;
+      revealedPurchasePriceIds.clear();
+    } else {
+      const id = String(priceButton.dataset.id);
+      if (revealedPurchasePriceIds.has(id)) revealedPurchasePriceIds.delete(id);
+      else revealedPurchasePriceIds.add(id);
+    }
+    $$('[data-automotive-price-toggle]').forEach(button => {
+      const shown = purchasePricesVisible || revealedPurchasePriceIds.has(String(button.dataset.id));
+      button.textContent = shown ? button.dataset.purchasePrice : "***";
+      button.setAttribute("aria-label", `Al\u0131\u015f fiyat\u0131n\u0131 ${shown ? "gizle" : "g\u00f6ster"}`);
+    });
+    const button = $('[data-automotive-price-all]');
+    if (button) {
+      const label = `Al\u0131\u015f fiyatlar\u0131n\u0131 ${purchasePricesVisible ? "gizle" : "g\u00f6ster"}`;
+      button.setAttribute("aria-label", label);
+      button.title = label;
+    }
+  }, true);
   render = function (...args) {
     if (lastPage !== page) showingGuide = false;
     lastPage = page;
