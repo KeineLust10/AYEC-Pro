@@ -56,6 +56,15 @@ def test_company_360_reference_uses_fluid_split_and_mobile_stack():
     assert "#adminTabContent .admin-company-kpis article { display: grid; gap: 5px; min-width: 0; min-height: 97px;" in styles
 
 
+def test_company_360_offscreen_capture_checks_add_user_navigation():
+    capture = CAPTURE.read_text(encoding="utf-8")
+
+    assert "company360AddUser" in capture
+    assert "focusRequested:focusRequests===1" in capture
+    assert "scrollRequested:scrollRequests===1" in capture
+    assert 'checks["company_add_user_navigation"]' in capture
+
+
 def test_company_360_list_cards_bind_company_contact_and_license_data():
     app = APP.read_text(encoding="utf-8")
     block = app.split('else if(activeAdminTab === "tenants") {', 1)[1].split('else if(activeAdminTab === "notifications") {', 1)[0]

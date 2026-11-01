@@ -67,7 +67,7 @@ class FieldMapOverview(QFrame):
         brand.setCursor(Qt.CursorShape.PointingHandCursor)
         brand.setStyleSheet(theme_qss(
             "QPushButton{background:transparent;color:@text;border:none;padding:0;"
-            "font-size:18.75px;font-weight:900;text-align:left;}"
+            "font-size:14px;font-weight:900;text-align:left;}"
         ))
         home_callback = actions.get("home")
         if home_callback:
@@ -77,13 +77,13 @@ class FieldMapOverview(QFrame):
         breadcrumb.setFixedHeight(32)
         breadcrumb.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self.breadcrumb = breadcrumb
-        breadcrumb.setStyleSheet(theme_qss("color:@finance_text_muted;font-size:13.75px;font-weight:700;"))
+        breadcrumb.setStyleSheet(theme_qss("color:@finance_text_muted;font-size:11px;font-weight:700;"))
         title_block.addWidget(breadcrumb)
         header.addLayout(title_block)
         header.addStretch(1)
         self.live_teams_label = QLabel("GPS CANLI VER\u0130 AKI\u015eI")
         self.live_teams_label.setFixedHeight(32)
-        self.live_teams_label.setStyleSheet(theme_qss("color:@finance_secondary;font-size:13.75px;font-weight:800;"))
+        self.live_teams_label.setStyleSheet(theme_qss("color:@finance_secondary;font-size:11px;font-weight:800;"))
         header.addWidget(self.live_teams_label)
         action_widths = {
             "create_task": 158,
@@ -101,13 +101,13 @@ class FieldMapOverview(QFrame):
                 button_style = (
                     "QPushButton{background:@accent;color:@accent_foreground;"
                     "border:1px solid @border;border-radius:6px;padding:0 8px;"
-                    "font-size:15px;font-weight:700;}"
+                    "font-size:11px;font-weight:700;}"
                 )
             else:
                 button_style = (
                     "QPushButton{background:@surface_alt;color:@text;"
                     "border:1px solid @border;border-radius:6px;padding:0 8px;"
-                    "font-size:15px;font-weight:700;}"
+                    "font-size:11px;font-weight:700;}"
                 )
             button.setStyleSheet(theme_qss(button_style))
             callback = actions.get(action_name)
@@ -136,7 +136,7 @@ class FieldMapOverview(QFrame):
             button.setCursor(Qt.CursorShape.PointingHandCursor)
             button.setStyleSheet(theme_qss(
                 "QPushButton{background:@surface_alt;color:@text;border:1px solid @border;"
-                "border-radius:5px;font-size:17.5px;font-weight:700;}"
+                "border-radius:5px;font-size:12px;font-weight:700;}"
                 "QPushButton:hover{background:@surface;}"
             ))
             callback = actions.get(action_name)
@@ -167,7 +167,7 @@ class FieldMapOverview(QFrame):
             metric_title.setFixedHeight(19)
             metric_title.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
             metric_title.setStyleSheet(theme_qss(
-                "color:@text_muted;font-size:14px;border:none;"
+                "color:@text_muted;font-size:11px;border:none;"
             ))
             card_heading.addWidget(metric_title, 1)
             metric_icon = LoanerMetricIcon(icon, color)
@@ -177,13 +177,13 @@ class FieldMapOverview(QFrame):
             value.setFixedHeight(25)
             value.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
             value.setStyleSheet(theme_qss(
-                "color:@{};font-size:25px;font-weight:800;border:none;".format(color)
+                "color:@{};font-size:16px;font-weight:800;border:none;".format(color)
             ))
             note = QLabel("Veri kayna\u011f\u0131 ba\u011fl\u0131 de\u011fil")
             note.setWordWrap(True)
             note.setFixedHeight(17)
             note.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-            note.setStyleSheet(theme_qss("color:@finance_text_muted;font-size:12.5px;"))
+            note.setStyleSheet(theme_qss("color:@finance_text_muted;font-size:10px;"))
             self.metric_values.append(value)
             self.metric_notes.append(note)
             card_layout.addLayout(card_heading)
@@ -253,7 +253,7 @@ class FieldOperationsPanel(QFrame):
             button.setFixedHeight(34)
             button.setStyleSheet(theme_qss(
                 "QPushButton{background:transparent;color:@finance_text_muted;border:none;"
-                "border-radius:6px;padding:0 8px;font-size:17.5px;font-weight:700;}"
+                "border-radius:6px;padding:0 8px;font-size:12px;font-weight:700;}"
                 "QPushButton:checked{background:@finance_surface_alt;color:@finance_primary;}"
             ))
             button.clicked.connect(lambda checked=False, value=key: self.select_tab(value))
@@ -281,7 +281,7 @@ class FieldOperationsPanel(QFrame):
             button.setFixedHeight(30)
             button.setStyleSheet(theme_qss(
                 "QPushButton{background:@finance_surface_alt;color:@finance_text_muted;border:none;"
-                "border-radius:5px;padding:0 8px;min-height:34px;font-size:16px;font-weight:700;}"
+                "border-radius:5px;padding:0 8px;min-height:34px;font-size:12px;font-weight:700;}"
                 "QPushButton:checked{background:@selection_bg;color:@selection_text;}"
             ))
             callback = actions.get("filter_category")
@@ -307,13 +307,13 @@ class FieldOperationsPanel(QFrame):
         location_heading = QHBoxLayout()
         location_title = QLabel("M\u00fc\u015fteri Konum & WhatsApp")
         location_title.setStyleSheet(theme_qss(
-            "color:@finance_text;font-size:22.5px;font-weight:700;"
+            "color:@finance_text;font-size:16px;font-weight:700;"
         ))
         location_heading.addWidget(location_title, 1)
         self.location_badge = QLabel("KONUM SECIN")
         self.location_badge.setStyleSheet(theme_qss(
             "color:@finance_secondary;background:@finance_success_bg;border-radius:4px;"
-            "padding:4px 7px;font-size:15px;font-weight:700;"
+            "padding:4px 7px;font-size:11px;font-weight:700;"
         ))
         location_heading.addWidget(self.location_badge)
         location_card_layout.addLayout(location_heading)
@@ -330,12 +330,12 @@ class FieldOperationsPanel(QFrame):
         customer_info_heading = QHBoxLayout()
         customer_info_title = QLabel("M\u00dc\u015eTER\u0130 B\u0130LG\u0130S\u0130")
         customer_info_title.setStyleSheet(theme_qss(
-            "color:@finance_text_muted;font-size:15px;font-weight:700;letter-spacing:0.4px;"
+            "color:@finance_text_muted;font-size:11px;font-weight:700;letter-spacing:0.4px;"
         ))
         customer_info_heading.addWidget(customer_info_title, 1)
         self.customer_selection_label = QLabel("IS EMRI SECILMEDI")
         self.customer_selection_label.setStyleSheet(theme_qss(
-            "color:@finance_text_muted;font-family:'JetBrains Mono';font-size:14px;font-weight:700;"
+            "color:@finance_text_muted;font-family:'JetBrains Mono';font-size:11px;font-weight:700;"
         ))
         customer_info_heading.addWidget(self.customer_selection_label)
         customer_info_layout.addLayout(customer_info_heading)
@@ -347,11 +347,11 @@ class FieldOperationsPanel(QFrame):
         name_label = QLabel("M\u00dc\u015eTER\u0130 ADI")
         phone_label = QLabel("GSM / WHATSAPP")
         for field_label in (name_label, phone_label):
-            field_label.setStyleSheet(theme_qss("color:@finance_text_muted;font-size:15px;font-weight:700;"))
+            field_label.setStyleSheet(theme_qss("color:@finance_text_muted;font-size:11px;font-weight:700;"))
         self.customer_name_value = QLabel("\u0130\u015f emri se\u00e7ilmedi")
         self.customer_phone_value = QLabel("Kay\u0131tl\u0131 telefon yok")
         for value_label in (self.customer_name_value, self.customer_phone_value):
-            value_label.setStyleSheet(theme_qss("color:@finance_text;font-size:18.75px;font-weight:600;"))
+            value_label.setStyleSheet(theme_qss("color:@finance_text;font-size:14px;font-weight:600;"))
         customer_fields.addWidget(name_label, 0, 0)
         customer_fields.addWidget(phone_label, 0, 1)
         customer_fields.addWidget(self.customer_name_value, 1, 0)
@@ -359,7 +359,7 @@ class FieldOperationsPanel(QFrame):
         customer_info_layout.addLayout(customer_fields)
 
         address_title = QLabel("SE\u00c7\u0130LEN SERV\u0130S ADRES\u0130")
-        address_title.setStyleSheet(theme_qss("color:@finance_text_muted;font-size:15px;font-weight:700;"))
+        address_title.setStyleSheet(theme_qss("color:@finance_text_muted;font-size:11px;font-weight:700;"))
         customer_info_layout.addWidget(address_title)
         self.selected_address_label = QLabel("Haritadan se\u00e7ilen nokta")
         self.selected_address_label.setObjectName("field_selected_address")
@@ -367,24 +367,24 @@ class FieldOperationsPanel(QFrame):
         self.selected_address_label.setWordWrap(True)
         self.selected_address_label.setStyleSheet(theme_qss(
             "color:@finance_text;background:@finance_surface_alt;border:1px solid @finance_outline;"
-            "border-radius:5px;padding:8px 10px;font-size:17.5px;"
+            "border-radius:5px;padding:8px 10px;font-size:12px;"
         ))
         location_card_layout.addWidget(customer_info)
 
         self.selected_location_label = QLabel("Haritadan bir nokta secin")
         self.selected_location_label.setStyleSheet(theme_qss(
-            "color:@finance_text;font-family:'JetBrains Mono';font-size:16.25px;font-weight:700;"
+            "color:@finance_text;font-family:'JetBrains Mono';font-size:12px;font-weight:700;"
         ))
         location_card_layout.addWidget(self.selected_location_label)
         share_message_title = QLabel("G\u00d6NDER\u0130LECEK WHATSAPP MESAJI")
-        share_message_title.setStyleSheet(theme_qss("color:@finance_text_muted;font-size:15px;font-weight:700;"))
+        share_message_title.setStyleSheet(theme_qss("color:@finance_text_muted;font-size:11px;font-weight:700;"))
         location_card_layout.addWidget(share_message_title)
         self.share_preview_label = QLabel("AYEC Pro Saha Konum Paylasimi")
         self.share_preview_label.setObjectName("field_whatsapp_preview")
         self.share_preview_label.setWordWrap(True)
         self.share_preview_label.setStyleSheet(theme_qss(
             "color:@finance_text;background:@finance_surface;border:1px solid @finance_outline;"
-            "border-radius:6px;padding:9px;font-size:17.5px;"
+            "border-radius:6px;padding:9px;font-size:12px;"
         ))
         location_card_layout.addWidget(self.share_preview_label)
         location_actions = QVBoxLayout()
@@ -396,7 +396,7 @@ class FieldOperationsPanel(QFrame):
         self.share_location_button.setStyleSheet(theme_qss(
             "QPushButton{background:@finance_success_bg;color:@finance_secondary;"
             "border:1px solid @finance_secondary;border-radius:6px;padding:0 8px;"
-            "font-size:17.5px;font-weight:700;}"
+            "font-size:12px;font-weight:700;}"
             "QPushButton:hover{background:@finance_surface_alt;}"
         ))
         self.assign_location_button = self._action_button(
@@ -413,7 +413,7 @@ class FieldOperationsPanel(QFrame):
         self.location_toggle.setFixedHeight(38)
         self.location_toggle.setStyleSheet(theme_qss(
             "QPushButton{background:@finance_surface_alt;color:@finance_text;border:1px solid "
-            "@finance_outline;border-radius:6px;padding:0 10px;min-height:34px;font-size:17.5px;"
+            "@finance_outline;border-radius:6px;padding:0 10px;min-height:34px;font-size:12px;"
             "font-weight:700;text-align:left;}QPushButton:checked{color:@finance_primary;"
             "border-color:@finance_primary;}"
         ))
@@ -434,7 +434,7 @@ class FieldOperationsPanel(QFrame):
         location_layout.setSpacing(5)
         actions_header = QLabel("Hizli Islemler")
         actions_header.setFont(QFont(DesignTokens.FONT_NAME, 13, QFont.Weight.Bold))
-        actions_header.setStyleSheet(theme_qss("color:@text_muted;font-size:15px;font-weight:700;margin:3px 2px;"))
+        actions_header.setStyleSheet(theme_qss("color:@text_muted;font-size:11px;font-weight:700;margin:3px 2px;"))
         location_layout.addWidget(actions_header)
         self.location_action_buttons = []
         for text, action_name, icon in (
@@ -482,7 +482,7 @@ class FieldOperationsPanel(QFrame):
         self.refresh_button.setFixedHeight(38)
         self.refresh_button.setStyleSheet(theme_qss(
             "QPushButton{background:@finance_surface_alt;color:@finance_text;"
-            "border:1px solid @finance_outline;border-radius:6px;padding:4px 8px;font-size:16.25px;}"
+            "border:1px solid @finance_outline;border-radius:6px;padding:4px 8px;font-size:12px;}"
         ))
         self.refresh_button.clicked.connect(refresh_callback)
         root.addWidget(self.refresh_button)
@@ -512,7 +512,7 @@ class FieldOperationsPanel(QFrame):
         if not jobs:
             empty = QLabel("G\u00f6sterilecek a\u00e7\u0131k i\u015f emri bulunmuyor.")
             empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            empty.setStyleSheet(theme_qss("color:@finance_text_muted;font-size:15px;padding:20px;"))
+            empty.setStyleSheet(theme_qss("color:@finance_text_muted;font-size:11px;padding:20px;"))
             self.jobs_layout.addWidget(empty)
             self.jobs_layout.addStretch(1)
             return
@@ -529,18 +529,18 @@ class FieldOperationsPanel(QFrame):
             layout.setSpacing(4)
             title = str(job.get("customer_name") or job.get("customer") or job.get("title") or "Saha i\u015f emri")
             heading = QLabel(title)
-            heading.setStyleSheet(theme_qss("color:@finance_text;font-size:22.5px;font-weight:700;"))
+            heading.setStyleSheet(theme_qss("color:@finance_text;font-size:16px;font-weight:700;"))
             layout.addWidget(heading)
             date_time = " ".join(str(job.get(key) or "") for key in ("date", "time")).strip()
             status = str(job.get("status") or "Bekliyor")
             meta = QLabel("{}  |  {}".format(date_time or "Tarih belirtilmedi", status))
-            meta.setStyleSheet(theme_qss("color:@finance_secondary;font-size:17.5px;font-weight:600;"))
+            meta.setStyleSheet(theme_qss("color:@finance_secondary;font-size:12px;font-weight:600;"))
             layout.addWidget(meta)
             description = str(job.get("description") or job.get("notes") or "")
             if description:
                 detail = QLabel(description)
                 detail.setWordWrap(True)
-                detail.setStyleSheet(theme_qss("color:@finance_text_muted;font-size:17.5px;"))
+                detail.setStyleSheet(theme_qss("color:@finance_text_muted;font-size:12px;"))
                 layout.addWidget(detail)
             self.jobs_layout.addWidget(card)
         self.jobs_layout.addStretch(1)
@@ -584,7 +584,7 @@ class FieldOperationsPanel(QFrame):
         color = "finance_primary" if action_name == "assign" else "text"
         button.setStyleSheet(theme_qss(
             "QPushButton{{background:@surface;color:@{color};border:1px solid @{border};"
-            "border-radius:6px;text-align:left;padding:0 10px;font-size:15px;}}"
+            "border-radius:6px;text-align:left;padding:0 10px;font-size:11px;}}"
             "QPushButton:hover{{background:@surface_alt;border-color:@{border};}}".format(
                 color=color, border=border
             )
@@ -659,7 +659,7 @@ class PersonnelCard(QFrame):
         status_lbl.setFont(QFont(DesignTokens.FONT_NAME, 11))
         status_lbl.setWordWrap(True)
         status_lbl.setToolTip(status_lbl.text())
-        status_lbl.setStyleSheet(theme_qss("color:@" + status_token + ";border:none;background:transparent;font-size:16.25px;"))
+        status_lbl.setStyleSheet(theme_qss("color:@" + status_token + ";border:none;background:transparent;font-size:12px;"))
 
         layout.addWidget(name_lbl)
         role = QLabel(str(t_data.get("job") or t_data.get("role") or "Personel"))
@@ -667,7 +667,7 @@ class PersonnelCard(QFrame):
         role.setFont(QFont(DesignTokens.FONT_NAME, 11))
         role.setToolTip(role.text())
         role.setWordWrap(True)
-        role.setStyleSheet(theme_qss("color:@finance_text_muted;font-size:17.5px;"))
+        role.setStyleSheet(theme_qss("color:@finance_text_muted;font-size:12px;"))
         layout.addWidget(role)
         layout.addWidget(status_lbl)
         try:
@@ -678,7 +678,7 @@ class PersonnelCard(QFrame):
         coordinates.setTextFormat(Qt.TextFormat.PlainText)
         coordinates.setFont(QFont(DesignTokens.MONO_FONT_NAME, 9))
         coordinates.setToolTip(coordinates.text())
-        coordinates.setStyleSheet(theme_qss("color:@finance_text_muted;font-size:15px;"))
+        coordinates.setStyleSheet(theme_qss("color:@finance_text_muted;font-size:11px;"))
         layout.addWidget(coordinates)
         if t_data.get("last_seen"):
             timestamp = QLabel("Son konum: " + str(t_data["last_seen"]))
@@ -686,12 +686,12 @@ class PersonnelCard(QFrame):
             timestamp.setFont(QFont(DesignTokens.MONO_FONT_NAME, 9))
             timestamp.setWordWrap(True)
             timestamp.setToolTip(timestamp.text())
-            timestamp.setStyleSheet(theme_qss("color:@finance_text_muted;font-size:15px;"))
+            timestamp.setStyleSheet(theme_qss("color:@finance_text_muted;font-size:11px;"))
             layout.addWidget(timestamp)
         self.finish_button = QPushButton("Gorevi Tamamla")
         self.finish_button.setEnabled(callable(finish_callback))
         self.finish_button.setFixedHeight(32)
-        self.finish_button.setStyleSheet(theme_qss("QPushButton{background:@finance_surface_alt;color:@finance_text;border:1px solid @finance_outline;border-radius:4px;padding:0 8px;min-height:36px;font-size:17.5px;}"))
+        self.finish_button.setStyleSheet(theme_qss("QPushButton{background:@finance_surface_alt;color:@finance_text;border:1px solid @finance_outline;border-radius:4px;padding:0 8px;min-height:36px;font-size:12px;}"))
         self.finish_button.clicked.connect(lambda checked=False: self.finish_callback(self.t_data))
         layout.addWidget(self.finish_button)
 

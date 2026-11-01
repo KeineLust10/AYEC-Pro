@@ -11,7 +11,7 @@
       const url = URL.createObjectURL(await response.blob());
       const link = document.createElement("a");
       link.href = url;
-      link.download = `urun_gruplari-${new Date().toISOString().slice(0, 10)}.${extension}`;
+      link.download = `urun_gruplari-${today()}.${extension}`;
       document.body.append(link);
       link.click();
       link.remove();

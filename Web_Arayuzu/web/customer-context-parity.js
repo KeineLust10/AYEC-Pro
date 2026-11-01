@@ -41,6 +41,14 @@
     openPrintView("M\u00fc\u015fteri Listesi", headers, rows);
   }
 
+  document.addEventListener("click", event => {
+    const button = event.target.closest('[data-action="print-customers"]');
+    if (!button || page !== "customers") return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    printCustomerList();
+  }, true);
+
   async function exportCustomerPdf() {
     const table = document.querySelector("#customerTable .customer-data-table");
     if (!table) return window.toast("M\u00fc\u015fteri listesi kullan\u0131lam\u0131yor.", "warning");
@@ -60,7 +68,7 @@
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `musteri_listesi_${new Date().toISOString().slice(0, 10).replaceAll("-", "")}.pdf`;
+      link.download = `musteri_listesi_${today().replaceAll("-", "")}.pdf`;
       document.body.append(link);
       link.click();
       link.remove();
@@ -165,11 +173,10 @@
     if (action === "service") return window.serviceDialog(customer.desktopId || customer.id);
     if (action === "invoice") {
       window.navigate("invoices");
-      const input = document.querySelector("#invoiceCustomer");
-      if (input) {
-        input.value = customer.name;
-        input.dispatchEvent(new Event("input", { bubbles: true }));
-        input.dispatchEvent(new Event("change", { bubbles: true }));
+      const picker = document.querySelector("#invoiceCustomer");
+      if (picker) {
+        picker.value = String(customer.id || customer.desktopId || customer.name || "");
+        picker.dispatchEvent(new Event("change", { bubbles: true }));
       }
       return;
     }
@@ -198,10 +205,32 @@
     if (document.querySelector("#customerTable.multi-select")) activeGroups[3].push(["Se\u00e7ilileri Excel Aktar", "selected-excel"]);
     const menu = document.querySelector("#contextMenu");
     menu.innerHTML = activeGroups.map((group, index) => (index ? '<hr class="customer-context-separator">' : "") + group.map(([label, action]) => `<button type="button" data-customer-context-action="${action}">${label}</button>`).join("")).join("") + '<hr class="customer-context-separator"><button type="button" class="danger" data-customer-context-action="delete">M\u00fc\u015fteriyi Sil</button>';
-    const buttonCount = menu.querySelectorAll("button").length;
-    menu.style.left = `${Math.max(8, Math.min(event.clientX, innerWidth - 240))}px`;
-    menu.style.top = `${Math.max(8, Math.min(event.clientY, innerHeight - buttonCount * 38 - 40))}px`;
+    menu.setAttribute("role", "menu");
+    menu.querySelectorAll("button").forEach(button => button.setAttribute("role", "menuitem"));
+    menu.style.maxHeight = `${Math.max(0, innerHeight - 16)}px`;
+    menu.style.overflowY = "auto";
+    menu.style.left = `${Math.max(8, event.clientX)}px`;
+    menu.style.top = `${Math.max(8, event.clientY)}px`;
     menu.classList.add("open");
+    menu.style.left = `${Math.max(8, Math.min(event.clientX, innerWidth - menu.offsetWidth - 8))}px`;
+    menu.style.top = `${Math.max(8, Math.min(event.clientY, innerHeight - menu.offsetHeight - 8))}px`;
+    menu.onkeydown = keyEvent => {
+      if (keyEvent.key === "Escape") {
+        keyEvent.preventDefault();
+        keyEvent.stopPropagation();
+        menu.classList.remove("open");
+        if(row?.isConnected){if(!row.hasAttribute("tabindex")&&!row.matches("button,a,input,[tabindex]"))row.tabIndex=-1;row.focus()}
+        else if(menu.contains(document.activeElement))document.activeElement.blur();
+        return;
+      }
+      const items = [...menu.querySelectorAll("[data-customer-context-action]")].filter(button => !button.disabled && !button.hidden);
+      const index = items.indexOf(document.activeElement);
+      if (!items.length || !["ArrowDown", "ArrowUp", "Home", "End"].includes(keyEvent.key)) return;
+      keyEvent.preventDefault();
+      const next = keyEvent.key === "Home" ? 0 : keyEvent.key === "End" ? items.length - 1 : keyEvent.key === "ArrowDown" ? (index + 1 + items.length) % items.length : (index - 1 + items.length) % items.length;
+      items[next]?.focus();
+    };
+    menu.querySelector("[data-customer-context-action]")?.focus();
     menu.querySelectorAll("[data-customer-context-action]").forEach(button => {
       button.onclick = () => {
         menu.classList.remove("open");
@@ -216,4 +245,13 @@
       return showCustomerContext(event, id, event.currentTarget);
     };
   }
+
+  document.addEventListener("keydown", event => {
+    if (page !== "customers" || !event.ctrlKey || event.altKey || event.metaKey || event.key.toLowerCase() !== "k" || document.querySelector("#appDialog")?.open) return;
+    const search = document.querySelector("#customerSearch");
+    if (!search) return;
+    event.preventDefault();
+    search.focus();
+    search.select();
+  }, true);
 })();

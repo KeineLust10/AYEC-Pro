@@ -563,14 +563,21 @@ class SideMenu(QWidget):
         if hasattr(self, "scroll_area") and self.scroll_area:
             self.scroll_area.setVisible(True)
         if hasattr(self, "header") and self.header:
-            self.header.setFixedHeight(92)
+            self.header.setFixedHeight(64)
+        if hasattr(self, "header_layout") and self.header_layout:
+            self.header_layout.setContentsMargins(2, 4, 2, 4)
+            self.header_layout.setSpacing(0)
+        if hasattr(self, "brand_card") and self.brand_card:
+            self.brand_card.setFixedHeight(56)
         if hasattr(self, "brand_layout") and self.brand_layout:
-            self.brand_layout.setContentsMargins(8, 10, 8, 10)
-            self.brand_layout.setSpacing(4)
+            self.brand_layout.setContentsMargins(0, 0, 0, 0)
+            self.brand_layout.setSpacing(0)
+            self.brand_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         if hasattr(self, "branding_logo") and self.branding_logo:
-            self.branding_logo.setFixedSize(42, 42)
+            self.branding_logo.setFixedSize(50, 50)
+            self._refresh_branding_pixmap()
         if hasattr(self, "pin_button") and self.pin_button:
-            self.pin_button.setFixedSize(26, 26)
+            self.pin_button.hide()
 
     @staticmethod
     def _branding_text_qss(is_title, compact=False):
@@ -591,10 +598,17 @@ class SideMenu(QWidget):
                 self.branding_subtitle.setText(subtitle)
 
             path = str(logo_path or "").strip()
+            if path and not os.path.exists(path):
+                local_candidate = os.path.join(os.getcwd(), "assets", os.path.basename(path))
+                if os.path.exists(local_candidate):
+                    path = local_candidate
             if hasattr(self, "branding_logo") and self.branding_logo:
                 if path and os.path.exists(path):
-                    pm = QPixmap(path)
+                    pm = QIcon(path).pixmap(QSize(512, 512))
+                    if pm.isNull():
+                        pm = QPixmap(path)
                     if not pm.isNull():
+                        self._branding_source_pixmap = QPixmap(pm)
                         size = 46
                         ratio = self.branding_logo.devicePixelRatioF()
                         pixel_size = max(1, round(size * ratio))
@@ -613,6 +627,7 @@ class SideMenu(QWidget):
                 self.branding_logo.setPixmap(QPixmap())
                 self.branding_logo.setFixedSize(46, 46)
                 if not fallback_pm.isNull():
+                    self._branding_source_pixmap = QPixmap(fallback_pm)
                     ratio = self.branding_logo.devicePixelRatioF()
                     pixel_size = max(1, round(46 * ratio))
                     logo = fallback_pm.scaled(
@@ -661,10 +676,25 @@ class SideMenu(QWidget):
             self.branding_logo.setText("")
             self.branding_logo.setPixmap(chip)
             return
-        logo_path = self.db.get_setting("company_logo", "") or ""
+        logo_path = self.db.get_setting("logo_path", "") or ""
         company_name = self.db.get_setting("company_name", "AYEC Pro") or "AYEC Pro"
         site_title = self.db.get_setting("site_title", "Servis Y\u00f6netimi") or "Servis Y\u00f6netimi"
         self.update_branding(logo_path, company_name, site_title)
+
+    def _refresh_branding_pixmap(self):
+        source = getattr(self, "_branding_source_pixmap", None)
+        label = getattr(self, "branding_logo", None)
+        if source is None or source.isNull() or label is None:
+            return
+        size = max(1, min(label.width(), label.height()))
+        ratio = max(1.0, label.devicePixelRatioF())
+        pixel_size = max(1, round(size * ratio))
+        pixmap = source.scaled(
+            pixel_size, pixel_size, Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        pixmap.setDevicePixelRatio(ratio)
+        label.setPixmap(pixmap)
 
     def refresh_sector_badge(self):
         if not hasattr(self, "branding_sector_badge") or not self.branding_sector_badge:
@@ -686,7 +716,6 @@ class SideMenu(QWidget):
             ("\u00dcr\u00fcn Grubu Y\u00f6netimi", 146),
             ("Marka Adlar\u0131 Y\u00f6netimi", 145),
             ("Rapor C\u00fcmle Kal\u0131plar\u0131", 147),
-            ("\u0130\u015f\u00e7ilik & Fiyat Y\u00f6netimi", 140),
         ]
         return [
             ("SERVIS OPERASYON", [
@@ -701,7 +730,7 @@ class SideMenu(QWidget):
                 ]),
             ]),
             ("MUSTERI", [
-                ("M\u00fc\u015fteri Hub", "\U0001f465", [
+                ("M\u00fc\u015fteri Hub", "@icon:users", [
                     ("M\u00fc\u015fteri Listesi", 21),
                     ("\u00c7al\u0131\u015fma Ortaklar\u0131", 26),
                     ("S\u00f6zle\u015fmeler", 25),
@@ -710,10 +739,11 @@ class SideMenu(QWidget):
                 ]),
             ]),
             ("TICARI", [
-                ("Stok / Sipari\u015f", "\U0001f4e6", [
+                ("Stok / Sipari\u015f", "@icon:layers", [
                     ("Yedek Par\u00e7a", 60),
                     ("Emanet (Konsinye) Cihazlar", 66),
                     ("Depo ve Ara\u00e7 Stoklar\u0131", 51),
+                    ("\u0130\u015f\u00e7ilik & Fiyat Y\u00f6netimi", 140),
                 ]),
                 ("Teklif Y\u00f6netimi", "\U0001f4c4", [
                     ("Teklif Olu\u015ftur", 150),
@@ -1131,8 +1161,14 @@ class SideMenu(QWidget):
                     continue
                 name, page_id = subs[0]
                 label_icon = icon or PAGE_ICONS.get(int(page_id), "")
+                explicit_icon = label_icon[6:] if label_icon.startswith("@icon:") else None
+                if explicit_icon:
+                    label_icon = ""
                 text = f"{label_icon}  {name}" if label_icon else name
                 btn = QPushButton(text)
+                if explicit_icon:
+                    btn.setIcon(navigation_icon(explicit_icon, 16, "text_muted"))
+                    btn.setAccessibleName(name)
                 btn.setCursor(Qt.CursorShape.PointingHandCursor)
                 btn.setFixedHeight(44)
                 btn.setProperty("skipThemeTransform", False)
@@ -1197,13 +1233,13 @@ class SideMenu(QWidget):
                                 ("Lojistik & Garanti Y\u00f6netimi", 65),
                                 ("\u0130\u015f/Servis Takibi Raporlar\u0131", 201),
                             ], 40),
-                            ("Cari M\u00fc\u015fteriler", "\U0001f465", [
+                            ("Cari M\u00fc\u015fteriler", "@icon:users", [
                                 ("\u00c7al\u0131\u015fma Ortaklar\u0131", 26),
                                 ("S\u00f6zle\u015fmeler", 25),
                                 ("Hat\u0131rlat\u0131c\u0131lar", 90),
                                 ("Duyurular", 120),
                             ], 21),
-                            ("Stok & Sipari\u015f", "\U0001f4e6", [
+                            ("Stok & Sipari\u015f", "@icon:layers", [
                                 ("Stok Lokasyonlar\u0131", 51),
                                 ("Hizmet Tan\u0131mlar\u0131", 140),
                                 ("Cihaz Bilgisi & Markalar", 145),
@@ -1378,13 +1414,24 @@ class SideMenu(QWidget):
                 ))
         if hasattr(self, "header") and self.header:
             self.header.setFixedHeight(60 if collapsed else 126)
+        if hasattr(self, "header_layout") and self.header_layout:
+            if getattr(self, "_icon_only", False):
+                self.header_layout.setContentsMargins(2, 4, 2, 4)
+            else:
+                self.header_layout.setContentsMargins(15, 14, 15, 14)
+        if hasattr(self, "brand_card") and self.brand_card:
+            self.brand_card.setFixedHeight(56 if getattr(self, "_icon_only", False) else (88 if collapsed else 100))
         if hasattr(self, "brand_layout") and self.brand_layout:
             self.brand_layout.setContentsMargins(8 if collapsed else 12, 6 if collapsed else 8, 8 if collapsed else 12, 6 if collapsed else 8)
             self.brand_layout.setSpacing(4 if collapsed else 8)
         if hasattr(self, "branding_logo") and self.branding_logo:
-            self.branding_logo.setFixedSize(42 if collapsed else 52, 42 if collapsed else 52)
+            icon_only = getattr(self, "_icon_only", False)
+            logo_size = 50 if icon_only else (42 if collapsed else 52)
+            self.branding_logo.setFixedSize(logo_size, logo_size)
+            self._refresh_branding_pixmap()
         if hasattr(self, "pin_button") and self.pin_button:
             self.pin_button.setFixedSize(26 if collapsed else 30, 26 if collapsed else 30)
+            self.pin_button.setVisible(not getattr(self, "_icon_only", False))
         self.navigation_layout_changed.emit()
 
     @staticmethod
@@ -2192,8 +2239,8 @@ class SideMenu(QWidget):
                     ]),
                 ]),
                 ("MOD\u00dcLLER", [
-                    ("M\u00fc\u015fteri Hub", "\U0001f465", [("M\u00fc\u015fteri Listesi", 21), ("\u00c7al\u0131\u015fma Ortaklar\u0131", 26)]),
-                    ("Stok & Yedek Par\u00e7a", "\U0001f4e6", [("Stok / Sipari\u015f", 50), ("Yedek Par\u00e7a", 60), ("Emanet Cihazlar", 66)]),
+                    ("M\u00fc\u015fteri Hub", "@icon:users", [("M\u00fc\u015fteri Listesi", 21), ("\u00c7al\u0131\u015fma Ortaklar\u0131", 26)]),
+                    ("Stok & Yedek Par\u00e7a", "@icon:layers", [("Stok / Sipari\u015f", 50), ("Yedek Par\u00e7a", 60), ("Emanet Cihazlar", 66)]),
                 ]),
             ]
         if getattr(self, "_legacy_product_group_reference_navigation", False):
@@ -2216,13 +2263,14 @@ class SideMenu(QWidget):
                         ("\u00dcr\u00fcn Grubu Y\u00f6netimi", 146),
                         ("Marka Adlar\u0131 Y\u00f6netimi", 145),
                         ("Rapor C\u00fcmle Kal\u0131plar\u0131", 147),
+                        ("\u0130\u015f\u00e7ilik & Fiyat Y\u00f6netimi", 140),
                     ]),
                 ]),
                 ("T\u0130CAR\u0130 & M\u00dc\u015eTER\u0130", [
-                    ("M\u00fc\u015fteri Hub", "\U0001f465", [("\u00c7al\u0131\u015fma Ortaklar\u0131", 26), ("M\u00fc\u015fteri Listesi", 21)]),
+                    ("M\u00fc\u015fteri Hub", "@icon:users", [("\u00c7al\u0131\u015fma Ortaklar\u0131", 26), ("M\u00fc\u015fteri Listesi", 21)]),
                     ("Proje Y\u00f6netimi", "\U0001f4ca", [("Projeler", 200), ("Proje Ar\u015fivi", 202)]),
-                    ("Stok / Sipari\u015f", "\U0001f4e6", [("Stok Y\u00f6netimi", 50), ("Yedek Par\u00e7a", 60)]),
-                    ("Teklif Olu\u015ftur", "\U0001f4c4", [("Teklif Olu\u015ftur", 150), ("T\u00fcm Teklifler", 313)]),
+                    ("Stok / Sipari\u015f", "@icon:layers", [("Stok Y\u00f6netimi", 50), ("Yedek Par\u00e7a", 60)]),
+                    ("Teklif Olu\u015ftur", "@icon:file_check", [("Teklif Olu\u015ftur", 150), ("T\u00fcm Teklifler", 313)]),
                 ]),
             ]
         return [
@@ -2253,7 +2301,7 @@ class SideMenu(QWidget):
                 ),
             ]),
             ("MÜŞTERİ", [
-                ("Müşteri Hub", "👥", [
+                ("M\u00fc\u015fteri Hub", "@icon:users", [
                     ("Çalışma Ortakları", 26),
                     ("Müşteri Listesi", 21),
                     ("Sözleşmeler", 25),
@@ -2266,7 +2314,7 @@ class SideMenu(QWidget):
                     ("Projeler", 200),
                     ("Proje Arşivi", 202),
                 ]),
-                ("Stok ve Satış", "📦", [
+                ("Stok ve Sat\u0131\u015f", "@icon:layers", [
                     ("Stok Yönetimi", 50),
                     ("\u00dcr\u00fcn Grubu Y\u00f6netimi", 146),
                     ("Cihaz Bilgisi & Markaları", 145),
@@ -2424,21 +2472,21 @@ class SideMenu(QWidget):
                         ("\u00dcr\u00fcn Grubu Y\u00f6netimi", 146),
                         ("Marka Adlar\u0131 Y\u00f6netimi", 145),
                         ("Rapor C\u00fcmle Kal\u0131plar\u0131", 147),
+                        ("\u0130\u015f\u00e7ilik & Fiyat Y\u00f6netimi", 140),
                     ]),
                 ]),
                 ("T\u0130CAR\u0130 & M\u00dc\u015eTER\u0130", [
-                    ("M\u00fc\u015fteri Hub", "\U0001f465", [("\u00c7al\u0131\u015fma Ortaklar\u0131", 26), ("M\u00fc\u015fteri Listesi", 21)]),
+                    ("M\u00fc\u015fteri Hub", "@icon:users", [("\u00c7al\u0131\u015fma Ortaklar\u0131", 26), ("M\u00fc\u015fteri Listesi", 21)]),
                     ("Proje Y\u00f6netimi", "\U0001f4ca", [("Projeler", 200), ("Proje Ar\u015fivi", 202)]),
-                    ("Stok / Sipari\u015f", "\U0001f4e6", [("Stok Y\u00f6netimi", 50), ("Yedek Par\u00e7a", 60)]),
-                    ("Teklif Olu\u015ftur", "\U0001f4c4", [("Teklif Olu\u015ftur", 150), ("T\u00fcm Teklifler", 313)]),
+                    ("Stok / Sipari\u015f", "@icon:layers", [("Stok Y\u00f6netimi", 50), ("Yedek Par\u00e7a", 60)]),
+                    ("Teklif Olu\u015ftur", "@icon:file_check", [("Teklif Olu\u015ftur", 150), ("T\u00fcm Teklifler", 313)]),
                 ]),
             ]
         sections = self._build_technical_sections_base()
         managed_page_ids = {140, 145, 146, 147}
-        labor_price_item = ("\u0130\u015f\u00e7ilik & Fiyat Y\u00f6netimi", 140)
         offers_group = (
             "Teklif Olu\u015ftur",
-            "\U0001f4c4",
+            "@icon:file_check",
             [
                 ("T\u00fcm Teklifler & Ge\u00e7mi\u015f", 313),
                 ("Teklif Analiz Raporlar\u0131", 314),
@@ -2446,6 +2494,14 @@ class SideMenu(QWidget):
             150,
         )
         additional_service_items = None
+        labor_price_item = None
+        for _section_name, groups in sections:
+            for group_title, _icon, items in groups:
+                if group_title == "Servis Y\u00f6netim Ayar\u0131":
+                    labor_price_item = next(
+                        (item for item in items if not isinstance(item[1], (list, tuple)) and int(item[1]) == 140),
+                        labor_price_item,
+                    )
         normalized_sections = []
         for section_name, groups in sections:
             normalized_groups = []
@@ -2465,11 +2521,6 @@ class SideMenu(QWidget):
                     int(item[1]) for item in items
                     if not isinstance(item[1], (list, tuple))
                 }
-                if {140, 145, 146}.issubset(page_ids) and 50 not in page_ids:
-                    items = [
-                        item for item in items
-                        if isinstance(item[1], (list, tuple)) or int(item[1]) in {145, 146, 147}
-                    ]
                 items = [
                     item for item in items
                     if isinstance(item[1], (list, tuple)) or int(item[1]) != 170
@@ -2481,6 +2532,11 @@ class SideMenu(QWidget):
                     else:
                         retained_items.append(item)
                 items = retained_items
+                if group_title == "Servis Y\u00f6netim Ayar\u0131":
+                    items = [
+                        item for item in items
+                        if isinstance(item[1], (list, tuple)) or int(item[1]) != 140
+                    ]
                 has_service_management = 40 in page_ids
                 if has_service_management:
                     group_title = "Servis Y\u00f6netimi"
@@ -2490,7 +2546,11 @@ class SideMenu(QWidget):
                         if isinstance(item[1], (list, tuple))
                         or int(item[1]) not in managed_page_ids | {150}
                     ]
-                    items.append(labor_price_item)
+                    if labor_price_item and not any(
+                        not isinstance(item[1], (list, tuple)) and int(item[1]) == 140
+                        for item in items
+                    ):
+                        items.append(labor_price_item)
                     group_title = "Stok / Sipari\u015f"
                 if section_name == "SISTEM" and group_title == "Sistem Yard\u0131mc\u0131lar\u0131" and additional_service_items:
                     items.append(additional_service_items)

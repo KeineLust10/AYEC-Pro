@@ -115,3 +115,26 @@ def test_external_tracking_pager_matches_desktop_page_label_width():
     assert "#externalTrackingPagination.external-tracking-page-footer>div b{min-width:52px}" in stylesheet
     assert "min-height:28px;margin:12px 16px 0;padding:0 0 0 4px" in stylesheet
     assert "box-sizing:border-box;width:34px;height:28px;min-height:28px!important" in stylesheet
+
+
+def test_offscreen_route_audit_covers_external_tracking_workbook_import():
+    audit = (ROOT / "tools" / "quality" / "web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+    source = (ROOT / "Web_Arayuzu" / "web" / "external-tracking-reference.js").read_text(encoding="utf-8")
+    index = (ROOT / "Web_Arayuzu" / "web" / "index.html").read_text(encoding="utf-8")
+    assert "externalTrackingImportWorkflow" in audit
+    assert 'externalTrackingImportWorkflow.path !== "/api/desktop/external-tracking/import"' in audit
+    assert 'externalTrackingImportWorkflow.filename !== "QA_external_tracking.csv"' in audit
+    assert 'externalTrackingImportWorkflow.dataDecoded.includes("QA-EXT-IMPORT-9302")' in audit
+    assert "!externalTrackingImportWorkflow.visible" in audit
+    assert "externalTrackingExportSessionWorkflow" in audit
+    assert "externalTrackingExportSessionWorkflow.htmlFallbackRejected" in audit
+    assert 'event.target.closest?.("[data-external-import-file]")' in source
+    assert "importWorkbook(file).finally(() => { input.value = \"\"; });" in source
+    assert "if (response.status === 401 && window.handleUnauthorized) window.handleUnauthorized()" in source
+    assert "assertDownloadResponse(response)" in source
+    assert 'external-tracking-reference.js?v=20261026-export-session-guard-1' in index
+    assert "externalTrackingExportSessionWorkflow" in audit
+    assert "externalDocumentsWorkflow" in audit
+    assert 'externalDocumentsWorkflow.request !== "/api/desktop/documents/center"' in audit
+    assert "!externalDocumentsWorkflow.openAvailable" in audit
+    assert "!externalDocumentsWorkflow.localBlocked" in audit

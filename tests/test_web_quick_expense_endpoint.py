@@ -1,8 +1,17 @@
 import base64
 import sqlite3
+from pathlib import Path
 
 import src.database as database_module
 from Web_Arayuzu import Main as web_main
+
+
+def test_offscreen_route_audit_covers_quick_expense_receipt_upload():
+    route_smoke = (Path(__file__).parents[1] / "tools/quality/web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+
+    assert "result.quickExpenseReceiptWorkflow" in route_smoke
+    assert 'receipt.path !== "/api/desktop/accounting/quick-expense"' in route_smoke
+    assert 'receipt.receiptDecoded !== "%PDF-1.4 QA receipt"' in route_smoke
 
 
 class FakeExpenseDatabase:

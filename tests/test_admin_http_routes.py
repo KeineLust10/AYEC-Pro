@@ -167,6 +167,46 @@ def test_admin_http_routes_cover_login_customer360_backup_restore_and_update(
         worker.join(timeout=5)
 
 
+def test_admin_http_route_pushes_license_to_selected_tenant(monkeypatch, tmp_path):
+    _actor, _tenant_path = _setup_tenant(monkeypatch, tmp_path)
+    published = []
+
+    def publish(tenant_id, payload, source_device_id=""):
+        published.append((tenant_id, payload, source_device_id))
+        return 2
+
+    monkeypatch.setattr(web_main.SYNC_EVENT_HUB, "publish", publish)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), web_main.AYECRequestHandler)
+    worker = threading.Thread(target=server.serve_forever, daemon=True)
+    worker.start()
+    base_url = f"http://127.0.0.1:{server.server_address[1]}"
+    try:
+        session = requests.Session()
+        login = session.post(
+            f"{base_url}/api/admin/login",
+            json={"email": web_main.VENDOR_EMAIL, "password": "operator-test-pass"},
+        )
+        assert login.status_code == 200, login.text
+        published.clear()
+
+        response = session.post(f"{base_url}/api/admin/licenses/tenant-1/push")
+
+        assert response.status_code == 200, response.text
+        assert response.json()["delivered_sessions"] == 2
+        assert published[0][0] == "tenant-1"
+        assert published[0][1]["type"] == "license_updated"
+        assert published[0][2] == ""
+
+        anonymous = requests.Session().post(
+            f"{base_url}/api/admin/licenses/tenant-1/push"
+        )
+        assert anonymous.status_code == 403
+    finally:
+        server.shutdown()
+        server.server_close()
+        worker.join(timeout=5)
+
+
 def test_tax_currency_routes_enforce_admin_and_write_to_authenticated_tenant(
     monkeypatch, tmp_path
 ):
@@ -263,6 +303,59 @@ def test_tax_currency_routes_enforce_admin_and_write_to_authenticated_tenant(
             "vat_default_rate": "8.5",
         }
         assert stored_rates == {"USD": 45.5, "EUR": 49.25, "GBP": 58.75}
+    finally:
+        server.shutdown()
+        server.server_close()
+        worker.join(timeout=5)
+
+
+def test_tenant_license_settings_reads_central_status_and_only_own_orders(
+    monkeypatch, tmp_path
+):
+    _setup_tenant(monkeypatch, tmp_path)
+    with closing(web_main.registry_connect()) as registry:
+        registry.execute(
+            "INSERT INTO tenants(id,company_name,db_filename,created_at,active,product_code) "
+            "VALUES(?,?,?,?,1,?)",
+            ("tenant-2", "Second Company", "Second Company.db", "2026-01-02T00:00:00", "teknik_servis"),
+        )
+        for request_no, tenant_id, payment_reference in (
+            ("REQ-T1", "tenant-1", "PAY-T1"),
+            ("REQ-T2", "tenant-2", "PAY-T2"),
+        ):
+            registry.execute(
+                "INSERT INTO license_orders "
+                "(request_no,tenant_id,plan_code,plan_label,duration_months,amount_try,"
+                "currency,payment_reference,created_at,updated_at) "
+                "VALUES(?,?,?,?,?,?,?,?,?,?)",
+                (request_no, tenant_id, "professional", "Professional", 12, 500, "TRY",
+                 payment_reference, "2026-10-18T00:00:00", "2026-10-18T00:00:00"),
+            )
+        registry.commit()
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), web_main.AYECRequestHandler)
+    worker = threading.Thread(target=server.serve_forever, daemon=True)
+    worker.start()
+    base_url = f"http://127.0.0.1:{server.server_address[1]}"
+    try:
+        anonymous = requests.Session()
+        assert anonymous.get(f"{base_url}/api/license/status").status_code == 401
+        assert anonymous.get(f"{base_url}/api/license/orders").status_code == 401
+
+        tenant_session = requests.Session()
+        login = tenant_session.post(
+            f"{base_url}/api/auth/login",
+            json={"identifier": "customer-admin", "password": "oldpass123", "tenant_id": "tenant-1"},
+        )
+        assert login.status_code == 200, login.text
+
+        status = tenant_session.get(f"{base_url}/api/license/status")
+        assert status.status_code == 200, status.text
+        assert status.json()["tenant"]["company_name"] == "Test Company"
+        assert status.json()["access"]["allowed"] is True
+        orders = tenant_session.get(f"{base_url}/api/license/orders")
+        assert orders.status_code == 200, orders.text
+        assert [order["request_no"] for order in orders.json()["orders"]] == ["REQ-T1"]
     finally:
         server.shutdown()
         server.server_close()

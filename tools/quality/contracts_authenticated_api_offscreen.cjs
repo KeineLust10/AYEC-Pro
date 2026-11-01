@@ -1,4 +1,4 @@
-const { spawn } = require("node:child_process");
+const { spawn, spawnSync } = require("node:child_process");
 const path = require("node:path");
 const fs = require("node:fs");
 const edgePath = process.env.EDGE_EXECUTABLE || "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe";
@@ -18,7 +18,7 @@ async function run() {
   try {
     let target;
     for (let i = 0; i < 100; i += 1) {
-      try { target = (await (await fetch(`http://127.0.0.1:${port}/json`)).json()).find(item => item.type === "page"); } catch (_) {}
+      try { target = (await (await fetch(`http://127.0.0.1:${port}/json`)).json()).find(item => item.type === "page" && item.url?.startsWith(baseUrl)); } catch (_) {}
       if (target?.webSocketDebuggerUrl) break;
       await delay(200);
     }
@@ -28,9 +28,21 @@ async function run() {
     let id = 0;
     const pending = new Map();
     const exceptions = [];
+    const apiResponses = [];
+    const bootstrapStatuses = [];
+    const requestUrls = new Map();
+    const appScriptResponses = [];
+    const appScriptRequests = new Map();
     socket.addEventListener("message", event => {
       const msg = JSON.parse(event.data);
       if (msg.method === "Runtime.exceptionThrown") exceptions.push(msg.params.exceptionDetails.exception?.description || msg.params.exceptionDetails.text);
+      if (msg.method === "Network.requestWillBeSent" && /\/(?:app|sales-draft-parity)\.js(?:\?|$)/.test(new URL(msg.params.request.url).pathname + new URL(msg.params.request.url).search)) appScriptRequests.set(msg.params.requestId, msg.params.request.url);
+      if (msg.method === "Network.responseReceived" && appScriptRequests.has(msg.params.requestId)) appScriptResponses.push({url:msg.params.response.url,status:msg.params.response.status,mimeType:msg.params.response.mimeType});
+      if (msg.method === "Network.loadingFailed" && appScriptRequests.has(msg.params.requestId)) appScriptResponses.push({url:appScriptRequests.get(msg.params.requestId),error:msg.params.errorText});
+      if (msg.method === "Network.requestWillBeSent" && msg.params.request.url.includes("/api/desktop/contracts/")) requestUrls.set(msg.params.requestId, msg.params.request.url);
+      if (msg.method === "Network.responseReceived" && msg.params.response.url.includes("/api/desktop/contracts/")) apiResponses.push({url:msg.params.response.url,status:msg.params.response.status});
+      if (msg.method === "Network.responseReceived" && msg.params.response.url.includes("/api/desktop/bootstrap")) bootstrapStatuses.push(msg.params.response.status);
+      if (msg.method === "Network.loadingFailed" && requestUrls.has(msg.params.requestId)) apiResponses.push({url:requestUrls.get(msg.params.requestId),error:msg.params.errorText});
       if (!msg.id) return;
       const task = pending.get(msg.id);
       if (!task) return;
@@ -46,17 +58,28 @@ async function run() {
     await send("Page.enable");
     await send("Runtime.enable");
     await send("Network.enable");
+    await send("Network.setCacheDisabled", { cacheDisabled: true });
+    await send("Network.setBypassServiceWorker", { bypass: true });
     await send("Network.setCookie", { name: "ayec_session", value: cookie, url: baseUrl });
     await send("Page.navigate", { url: baseUrl });
+    let ready = false;
     for (let i = 0; i < 120; i += 1) {
-      if (await evaluate("document.readyState === 'complete' && typeof apiFetch === 'function' && typeof currentAuthUser !== 'undefined' && Boolean(currentAuthUser?.id)")) break;
+      ready = await evaluate("document.readyState === 'complete' && typeof apiFetch === 'function' && typeof currentAuthUser !== 'undefined' && Boolean(currentAuthUser?.id) && typeof window.renderContractsReference === 'function'");
+      if (ready) break;
       await delay(200);
     }
+    if (!ready) {
+      const diagnostic = await evaluate("({readyState:document.readyState,apiFetch:typeof apiFetch,currentUser:typeof currentAuthUser==='undefined'?null:Boolean(currentAuthUser?.id),contractsRenderer:typeof window.renderContractsReference,appScript:[...document.scripts].find(script=>script.src.includes('app.js'))?.src||null,contractsScript:[...document.scripts].find(script=>script.src.includes('contracts-reference.js'))?.src||null})");
+      throw new Error("Authenticated contracts page did not finish loading: " + JSON.stringify({diagnostic,appScriptResponses,exceptions}));
+    }
+    for (let attempt = 0; attempt < 120 && !bootstrapStatuses.length; attempt += 1) await delay(100);
+    if (!bootstrapStatuses.includes(200)) throw new Error("Authenticated desktop bootstrap did not finish: " + JSON.stringify({bootstrapStatuses,exceptions}));
+    await delay(100);
     const result = await evaluate(`(async () => {
-      document.body.dataset.page = "contracts";
-      page = "contracts";
+      navigate("contracts");
       const contractsShell = document.createElement("div");
-      contractsShell.innerHTML = renderContractsReference();
+      contractsShell.innerHTML = window.renderContractsReference();
+      document.querySelector("#content")?.replaceChildren(contractsShell);
       await loadGenericModule(genericModules.contracts);
       const contractMetrics = [...contractsShell.querySelectorAll(".contracts-reference-metrics .metric strong")].map(node=>node.textContent.trim());
       const slaResponseMetric = contractMetrics[3] || "";
@@ -65,10 +88,17 @@ async function run() {
       const host = document.createElement("div");
       host.innerHTML = '<table class="contracts-reference-table"><tbody><tr data-contract-id="${contractId}"><td>Authenticated contract</td></tr></tbody></table>';
       document.body.append(host);
-      host.querySelector("tr").dispatchEvent(new MouseEvent("dblclick", {bubbles:true,cancelable:true}));
-      for (let i=0;i<40&&!document.querySelector(".contract-detail-modal");i++) await new Promise(resolve=>setTimeout(resolve,100));
+      window.__auditContractDblclick = 0;
+      window.addEventListener("dblclick", () => { window.__auditContractDblclick += 1; }, {capture:true,once:true});
+      const contractRow = host.querySelector("tr");
+      const eventDispatched = contractRow.dispatchEvent(new MouseEvent("dblclick", {bubbles:true,cancelable:true}));
+      for (let i=0;i<300;i++) {
+        const detailModal = document.querySelector(".contract-detail-modal");
+        if (detailModal?.textContent.includes("Maintenance Plan")) break;
+        await new Promise(resolve=>setTimeout(resolve,100));
+      }
       const opened = document.querySelector(".contract-detail-modal")?.textContent || "";
-      if (!opened.includes("Maintenance Plan")) throw new Error("Authenticated contract detail did not load from tenant API: " + opened);
+      if (!opened.includes("Maintenance Plan")) return {detailLoadFailure:{opened,toast:document.querySelector(".toast.error")?.textContent||"",page:document.body.dataset.page,doubleClick:db.settings.doubleClick,rowId:contractRow.dataset.contractId,eventDispatched,auditDblclick:window.__auditContractDblclick}};
       const dataBase64 = btoa("%PDF-1.4 authenticated tenant upload");
       const created = await apiFetch("/api/desktop/contracts/${contractId}/attachments", {method:"POST",body:JSON.stringify({filename:"browser-contract.pdf",data_base64:dataBase64})});
       const attachmentId = created.id;
@@ -78,13 +108,14 @@ async function run() {
       const afterDelete = await apiFetch("/api/desktop/contracts/${contractId}/attachments");
       return {role:currentAuthUser.role,isControlAdmin:currentAuthUser.is_control_admin===true,opened:opened.includes("Maintenance Plan"),uploaded:detail.attachments.some(item=>item.id===attachmentId),attachmentId,deleted:afterDelete.attachments.every(item=>item.id!==attachmentId),slaResponseMetric};
     })()`);
+    if (result.detailLoadFailure) throw new Error("Authenticated contract detail did not load from tenant API: " + JSON.stringify({...result.detailLoadFailure,apiResponses,runtimeExceptions:exceptions}));
     if (result.role !== "Admin" || result.isControlAdmin || !result.opened || !result.uploaded || !result.attachmentId || !result.deleted || result.slaResponseMetric !== "-" || exceptions.length) throw new Error(JSON.stringify({result,exceptions}));
     const shot = await send("Page.captureScreenshot", {format:"png",captureBeyondViewport:true});
     fs.writeFileSync(path.join(outDir,"contracts-authenticated-api-headless.png"),Buffer.from(shot.data,"base64"));
     console.log(JSON.stringify({result,exceptions:exceptions.length,headless:true}));
   } finally {
     if (socket) socket.close();
-    browser.kill();
+    if (browser.pid) spawnSync("taskkill.exe", ["/PID", String(browser.pid), "/T", "/F"], { stdio: "ignore", windowsHide: true });
     try { fs.rmSync(profile,{recursive:true,force:true}); } catch (_) {}
   }
 }

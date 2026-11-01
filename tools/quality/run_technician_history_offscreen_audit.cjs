@@ -9,7 +9,7 @@ const port = 18600 + process.pid % 400;
 const debugPort = 32000 + process.pid % 20000;
 const baseUrl = `http://127.0.0.1:${port}/`;
 const edge = process.env.EDGE_EXECUTABLE || "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe";
-const output = path.join(root, "output", "playwright", "technician-history-offscreen-20261018.json");
+const output = path.join(root, "output", "playwright", "technician-history-offscreen-20261028.json");
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function stopProcess(child) {
@@ -40,7 +40,7 @@ async function stopProcess(child) {
     const profile = path.join(tempRoot, "edge-profile");
     browser = spawn(edge, [
       "--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
-      `--remote-debugging-port=${debugPort}`, `--user-data-dir=${profile}`, "--window-size=1280,900", baseUrl,
+      `--remote-debugging-port=${debugPort}`, `--user-data-dir=${profile}`, "--window-size=1304,929", baseUrl,
     ], { stdio: "ignore", windowsHide: true });
     let target;
     for (let attempt = 0; attempt < 100; attempt += 1) {
@@ -86,6 +86,13 @@ async function stopProcess(child) {
       await delay(200);
     }
     if (!loaded) throw new Error("Technician history UI did not load.");
+    let authSettled = false;
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      authSettled = await evaluate("Boolean(window.ayecApplicationReady || document.querySelector('#authRoot .auth-shell'))");
+      if (authSettled) break;
+      await delay(100);
+    }
+    if (!authSettled) throw new Error("Authentication startup did not settle before the technician audit.");
 
     const historyResult = await evaluate(`(async()=>{
       document.querySelector('#authRoot')?.remove();
@@ -131,30 +138,35 @@ async function stopProcess(child) {
       desktopSettings={technician_station_id:'ST-07',technician_station_esd_status:'Inspection recorded',technician_station_equipment:'Actual microscope'};
       const service={no:'TECH-TABS-AUDIT',checklist_status:'Saved check,Inactive saved',technician:'Tech A'};
       const history=await bindTechnicianHistory(service);await bindTechnicianPanelTabs(service,history);
-      const tabs=[...body.querySelectorAll('[data-technician-tab]')].map(item=>item.textContent);
-      body.querySelector('[data-technician-tab="tests"]').click();
+      const tabs=[...document.querySelectorAll('[data-technician-tab]')].map(item=>item.textContent);
+      document.querySelector('[data-technician-tab="tests"]').click();
       const testInputs=[...body.querySelectorAll('[data-technician-test]')],initiallyChecked=testInputs[0]?.checked||false;
       testInputs[0].checked=true;testInputs[0].dispatchEvent(new Event('change',{bubbles:true}));await new Promise(resolve=>setTimeout(resolve,100));
-      body.querySelector('[data-technician-tab="history"]').click();
+      document.querySelector('[data-technician-tab="history"]').click();
       body.querySelector('.technician-history-toggle').click();await new Promise(resolve=>setTimeout(resolve,100));
       const saved=requests.find(item=>item.url.includes('/api/desktop/technician/checklist'));
-      body.dataset.technicianPanelStartedAt=String(Date.now());body.querySelector('[data-technician-station-open]').click();let station=document.querySelector('.technician-station-dialog');await new Promise(resolve=>setTimeout(resolve,1100));
-      const stationText=station?.textContent||'',firstStationTimer=station?.querySelector('[data-technician-panel-time]')?.textContent||'';station?.close();await new Promise(resolve=>setTimeout(resolve,1100));body.querySelector('[data-technician-station-open]').click();station=document.querySelector('.technician-station-dialog');const stationTimer=station?.querySelector('[data-technician-panel-time]')?.textContent||'';const stationGridValues=[...(station?.querySelectorAll(".technician-station-grid section strong")||[])].map(node=>({text:node.textContent,rect:(()=>{const r=node.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height}})(),scrollWidth:node.scrollWidth,clientWidth:node.clientWidth})),stationBody=station?.querySelector(".dialog-body"),stationBodyScroll={scrollHeight:stationBody?.scrollHeight,clientHeight:stationBody?.clientHeight,scrollWidth:stationBody?.scrollWidth,clientWidth:stationBody?.clientWidth,overflowY:getComputedStyle(stationBody).overflowY};
+      body.dataset.technicianPanelStartedAt=String(Date.now());document.querySelector('[data-technician-station-open]').click();let station=document.querySelector('.technician-station-dialog');await new Promise(resolve=>setTimeout(resolve,1100));
+      const stationText=station?.textContent||'',firstStationTimer=station?.querySelector('[data-technician-panel-time]')?.textContent||'';station?.close();await new Promise(resolve=>setTimeout(resolve,1100));document.querySelector('[data-technician-station-open]').click();station=document.querySelector('.technician-station-dialog');const stationTimer=station?.querySelector('[data-technician-panel-time]')?.textContent||'';const stationGridValues=[...(station?.querySelectorAll(".technician-station-grid section strong")||[])].map(node=>({text:node.textContent,rect:(()=>{const r=node.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height}})(),scrollWidth:node.scrollWidth,clientWidth:node.clientWidth})),stationBody=station?.querySelector(".dialog-body"),stationBodyScroll={scrollHeight:stationBody?.scrollHeight,clientHeight:stationBody?.clientHeight,scrollWidth:stationBody?.scrollWidth,clientWidth:stationBody?.clientWidth,overflowY:getComputedStyle(stationBody).overflowY};
       const bounds=element=>{const rect=element?.getBoundingClientRect();return rect?{x:rect.x,y:rect.y,width:rect.width,height:rect.height}:null};
-      return {tabs,testNames:testInputs.map(item=>item.dataset.technicianTest),initiallyChecked,historyVisible:!body.querySelector('[data-technician-pane="history"]').hidden,historyRendered:body.querySelector('.technician-history-panel')?.textContent.includes('Panel history event')||false,savedBody:saved?.body||'',stationText,firstStationTimer,stationTimer,stationBounds:bounds(station),stationGridValues,stationBodyScroll,stationBodyBounds:bounds(station?.querySelector('.dialog-body')),stationFooterBounds:bounds(station?.querySelector('footer')),stationCloseBounds:bounds(station?.querySelector('.technician-station-close')),stationBackdrop:{background:getComputedStyle(station,'::backdrop').backgroundColor,filter:getComputedStyle(station,'::backdrop').backdropFilter},stationFooterStyle:{minHeight:getComputedStyle(station?.querySelector('footer')).minHeight,padding:getComputedStyle(station?.querySelector('footer')).padding,height:getComputedStyle(station?.querySelector('footer')).height,viewport:innerWidth},stationHeaderStyle:{padding:getComputedStyle(station?.querySelector('header')).padding},stationMedia:{viewport:innerWidth,wide:matchMedia('(min-width:651px)').matches,sheets:[...document.styleSheets].map(sheet=>sheet.href),tailRules:(()=>{const sheet=[...document.styleSheets].find(item=>item.href?.includes('/styles.css'));return sheet?[...sheet.cssRules].slice(-3).map(rule=>rule.cssText):[]})()},parentDialogPreserved:document.querySelector('#appDialog')?.open||false,requests};
+      return {tabs,headerTabParent:document.querySelector("#dialogForm > header .technician-panel-tabs")!==null,tabBounds:[...document.querySelectorAll("[data-technician-tab]")].map(bounds),stationButtonBounds:bounds(document.querySelector("[data-technician-station-open]")),testNames:testInputs.map(item=>item.dataset.technicianTest),initiallyChecked,historyVisible:!body.querySelector('[data-technician-pane="history"]').hidden,historyRendered:body.querySelector('.technician-history-panel')?.textContent.includes('Panel history event')||false,savedBody:saved?.body||'',stationText,firstStationTimer,stationTimer,dialogBounds:bounds(document.querySelector("#appDialog")),dialogBodyBounds:bounds(document.querySelector("#dialogBody")),stationBounds:bounds(station),stationGridValues,stationBodyScroll,stationBodyBounds:bounds(station?.querySelector('.dialog-body')),stationFooterBounds:bounds(station?.querySelector('footer')),stationCloseBounds:bounds(station?.querySelector('.technician-station-close')),stationBackdrop:{background:getComputedStyle(station,'::backdrop').backgroundColor,filter:getComputedStyle(station,'::backdrop').backdropFilter},stationFooterStyle:{minHeight:getComputedStyle(station?.querySelector('footer')).minHeight,padding:getComputedStyle(station?.querySelector('footer')).padding,height:getComputedStyle(station?.querySelector('footer')).height,viewport:innerWidth},stationHeaderStyle:{padding:getComputedStyle(station?.querySelector('header')).padding},stationMedia:{viewport:innerWidth,wide:matchMedia('(min-width:651px)').matches,sheets:[...document.styleSheets].map(sheet=>sheet.href),tailRules:(()=>{const sheet=[...document.styleSheets].find(item=>item.href?.includes('/styles.css'));return sheet?[...sheet.cssRules].slice(-3).map(rule=>rule.cssText):[]})()},parentDialogPreserved:document.querySelector('#appDialog')?.open||false,requests};
     })()`);
+    const panelScreenshot = await send("Page.captureScreenshot", { format: "png", captureBeyondViewport: false });
+    const panelScreenshotPath = path.join(root, "output", "playwright", "technician-history-offscreen-20261028", "technician-panel-tabs.png");
+    fs.mkdirSync(path.dirname(panelScreenshotPath), { recursive: true });
+    fs.writeFileSync(panelScreenshotPath, Buffer.from(panelScreenshot.data, "base64"));
     await send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
     const mobileStationResult = await evaluate(`(()=>{
       const body=document.querySelector('#dialogBody');
-      body.querySelector('[data-technician-station-open]').click();
+      document.querySelector('[data-technician-station-open]').click();
       const dialog=document.querySelector('.technician-station-dialog');
       const rect=dialog.getBoundingClientRect();
-      return {open:dialog.open,viewport:innerWidth,width:rect.width,left:rect.left,right:rect.right,documentWidth:document.documentElement.scrollWidth,footerHeight:dialog.querySelector('footer').getBoundingClientRect().height,closeVisible:dialog.querySelector('.technician-station-close').getBoundingClientRect().right<=innerWidth};
+       const panel=document.querySelector('#appDialog'),panelRect=panel.getBoundingClientRect(),panelHeader=panel.querySelector('form>header'),tabNav=panel.querySelector('.technician-panel-tabs'),tabRect=tabNav.getBoundingClientRect();
+       return {open:dialog.open,viewport:innerWidth,width:rect.width,left:rect.left,right:rect.right,documentWidth:document.documentElement.scrollWidth,footerHeight:dialog.querySelector('footer').getBoundingClientRect().height,closeVisible:dialog.querySelector('.technician-station-close').getBoundingClientRect().right<=innerWidth,panelBounds:{left:panelRect.left,right:panelRect.right,width:panelRect.width,scrollWidth:panel.scrollWidth,clientWidth:panel.clientWidth},panelHeaderScrollWidth:panelHeader.scrollWidth,panelHeaderClientWidth:panelHeader.clientWidth,tabBounds:{left:tabRect.left,right:tabRect.right,width:tabRect.width},tabScrollWidth:tabNav.scrollWidth,tabClientWidth:tabNav.clientWidth};
     })()`);
     await evaluate("document.querySelector('.technician-station-dialog')?.close()");
     await send("Emulation.clearDeviceMetricsOverride");
     const screenshot = await send("Page.captureScreenshot", { format: "png", captureBeyondViewport: false });
-    const screenshotPath = path.join(root, "output", "playwright", "technician-history-offscreen-20261018", "station-dialog.png");
+    const screenshotPath = path.join(root, "output", "playwright", "technician-history-offscreen-20261028", "station-dialog.png");
     fs.mkdirSync(path.dirname(screenshotPath), { recursive: true });
     fs.writeFileSync(screenshotPath, Buffer.from(screenshot.data, "base64"));
     await evaluate("document.querySelector('.technician-station-dialog')?.close()");
@@ -165,19 +177,29 @@ async function stopProcess(child) {
       && reportResult?.names?.length === 1 && reportResult?.names[0] === "Dynamic profile check"
       && reportResult?.selected === "Ge\u00e7ti"
       && reportResult?.requests?.some(url => url.includes("/api/desktop/technician/test-catalog?tracking_no=TECH-CATALOG-AUDIT"))
-      && panelResult?.tabs?.length === 3 && panelResult?.testNames?.length === 1
+      && panelResult?.tabs?.length === 3 && panelResult?.headerTabParent
+      && panelResult?.tabBounds?.length === 3
+      && panelResult.tabBounds.every((item, index) => item.width === [124, 124, 136][index] && item.height === 32)
+      && panelResult?.stationButtonBounds?.width === 96 && panelResult?.stationButtonBounds?.height === 32
+      && panelResult?.testNames?.length === 1
       && panelResult?.initiallyChecked === false && panelResult?.historyVisible && panelResult?.historyRendered
       && JSON.parse(panelResult?.savedBody || "{}").selected_labels?.includes("Inactive saved")
       && panelResult?.requests?.some(item => item.url.includes("/api/desktop/technician/checklist"))
       && mobileStationResult?.open && mobileStationResult?.viewport === 390
       && mobileStationResult?.left >= 0 && mobileStationResult?.right <= 390
       && mobileStationResult?.documentWidth <= 390 && mobileStationResult?.closeVisible
+      && mobileStationResult?.panelBounds?.left >= 0 && mobileStationResult?.panelBounds?.right <= 390
+      && mobileStationResult?.panelBounds?.scrollWidth <= mobileStationResult?.panelBounds?.clientWidth + 1
+      && mobileStationResult?.panelHeaderScrollWidth <= mobileStationResult?.panelHeaderClientWidth + 1
+      && mobileStationResult?.tabBounds?.left >= mobileStationResult?.panelBounds?.left
+      && mobileStationResult?.tabBounds?.right <= mobileStationResult?.panelBounds?.right
+      && mobileStationResult?.tabScrollWidth <= mobileStationResult?.tabClientWidth + 1
       && panelResult?.stationText?.includes("ST-07") && panelResult?.stationText?.includes("Inspection recorded")
       && panelResult?.stationText?.includes("Actual microscope") && panelResult?.stationTimer >= "00:00:02" && panelResult?.stationBodyScroll?.scrollHeight <= panelResult?.stationBodyScroll?.clientHeight + 1 && panelResult?.stationBodyScroll?.overflowY === "hidden" && panelResult?.stationGridValues?.every(item=>item.rect.height<20 && item.scrollWidth<=item.clientWidth)
       && panelResult?.stationBackdrop?.background === "rgb(2, 6, 23)" && panelResult?.stationBackdrop?.filter === "none"
       && panelResult?.parentDialogPreserved
       && unexpectedExceptions.length === 0;
-    const artifact = { passed: !!passed, historyResult, reportResult, panelResult, mobileStationResult, screenshotPath, exceptions, harnessExceptions, unexpectedExceptions, route: baseUrl, browser: "Edge headless" };
+    const artifact = { passed: !!passed, historyResult, reportResult, panelResult, mobileStationResult, panelScreenshotPath, screenshotPath, exceptions, harnessExceptions, unexpectedExceptions, route: baseUrl, browser: "Edge headless" };
     fs.mkdirSync(path.dirname(output), { recursive: true });
     fs.writeFileSync(output, JSON.stringify(artifact, null, 2) + "\n", "utf8");
     if (!passed) throw new Error(`Technician history browser audit failed: ${JSON.stringify(artifact)}`);

@@ -21,6 +21,8 @@ def test_stock_context_menu_has_authenticated_photo_action():
     assert '"/api/desktop/stock/export/xlsx"' in source
     assert '"/api/desktop/stock/delete"' in source
     assert 'name="password" type="password"' in source
+    assert 'String(form.get("password") || "")' in source
+    assert 'String(form.get("password") || "").trim()' not in source
     assert '"\\uD83D\\uDCE6 Stok Ekle/\\u00c7\\u0131kar", "movement"' in source
     assert source.index('"movement"') < source.index('"edit-product"')
     assert 'kind !== "stock"' in source
@@ -34,6 +36,7 @@ def test_stock_movement_history_context_menu_matches_desktop_actions():
     delete_flow = (WEB / "stock-history-delete-confirm.js").read_text(encoding="utf-8")
     desktop = (ROOT / "src" / "ui" / "pages" / "_stock_context_menus.py").read_text(encoding="utf-8")
     page = (WEB / "index.html").read_text(encoding="utf-8")
+    runner = (ROOT / "tools" / "quality" / "web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
     start = web.index('document.addEventListener("contextmenu", function (event) {')
     end = web.index("}, true);", start)
     web_menu = web[start:end]
@@ -55,14 +58,18 @@ def test_stock_movement_history_context_menu_matches_desktop_actions():
     assert "print_history_table" in desktop_menu
     assert "delete_history_context(row)" in desktop_menu
     assert 'ayecContextMenuEnabled("stock")' in web_menu
-    assert 'window.print();' in web
+    assert 'openMovementPrintPreview();' in web
     assert 'if (kind === "movement" && action === "movement-pdf")' in web
     assert 'if (kind === "movement" && action === "movement-print")' in web
     assert '"/api/desktop/stock/movements/export/pdf?"' in web
+    assert 'window.open("about:blank", "_blank")' in web
+    assert 'credentials: "same-origin"' in web
+    assert 'blob.type !== "application/pdf"' in web
     assert '(action === "movement-pdf" || action === "movement-print")' not in web
     assert 'apiFetch("/api/desktop/stock/movements/delete"' in delete_flow
     assert 'stock-movements-page.js' in page
     assert 'stock-history-delete-confirm.js' in page
+    assert "output.stockMovementWorkflow = stockMovementWorkflowAudit" in runner
 
 
 def test_stock_delete_requires_the_current_password_in_the_web_dialog():

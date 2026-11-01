@@ -10,7 +10,7 @@ def test_user_management_view_uses_existing_user_and_permission_fields():
     source = APP.read_text(encoding="utf-8")
     start = source.index("let ayecSettingsUsers =")
     code = source[start:]
-    assert '/api/desktop/table/users?limit=1000' in code
+    assert 'loadAllDesktopTableRows("users")' in code
     for field in ("username", "full_name", "email", "role", "active", "last_login", "interface_edit_access"):
         assert f"selected.{field}" in code or f"user.{field}" in code
     assert "userPermissionPages(selected?.permissions, selected?.role)" in code
@@ -72,3 +72,40 @@ def test_user_profile_supports_desktop_personnel_detail_and_access_toggle():
     assert 'Atanan personel</dt><dd>${esc(selected.personnel_name || "Atanmad' in source
     assert 'active: Number(user.active ?? 1) !== 0 ? 0 : 1' in source
     assert 'self.detail_active_button.clicked.connect(self._toggle_selected_user_active)' in (ROOT / "src" / "ui" / "pages" / "settings_widgets" / "user_management.py").read_text(encoding="utf-8")
+
+
+def test_managed_user_personnel_picker_loads_every_table_page():
+    source = (ROOT / "Web_Arayuzu" / "web" / "user-management-reference.js").read_text(encoding="utf-8")
+    assert "async function loadAllManagedTableRows(table)" in source
+    assert 'personnel=await loadAllManagedTableRows("personnel")' in source
+    assert "offset<Number(first.count||0)" in source
+
+
+
+def test_user_metrics_match_desktop_telemetry_contract():
+    source = APP.read_text(encoding="utf-8")
+    start = source.index("  const metrics = `<section class=\"settings-users-metrics\">")
+    end = source.index("`;", start)
+    metrics = source[start:end]
+    assert "TOPLAM KULLANICI" in metrics
+    assert "ROL DA\\u011eILIMI" in metrics
+    assert "CANLI OTURUMLAR" in metrics
+    assert "G\\u00dcVENL\\u0130K SKORU" in metrics
+    assert "<strong>-</strong>" in metrics
+    desktop = (ROOT / "src" / "ui" / "pages" / "settings_widgets" / "user_management.py").read_text(encoding="utf-8")
+    assert "Oturum telemetrisi yok" in desktop
+    assert "Guvenlik olcumu yok" in desktop
+
+
+
+def test_user_table_matches_desktop_columns_and_normalized_roles():
+    source = APP.read_text(encoding="utf-8")
+    assert "<th>KULLANICI</th><th>ROL</th><th>PERSONEL</th><th>DURUM</th><th></th>" in source
+    assert 'esc(userManagementRoleLabel(user.role) || "Personel")' in source
+    assert 'esc(userManagementRoleLabel(selected.role) || "Personel")' in source
+    assert 'esc(user.personnel_name || "-")' in source
+    assert 'esc(selected.personnel_name || "Atanmad' in source
+    desktop = (ROOT / "src" / "ui" / "pages" / "settings_widgets" / "user_management.py").read_text(encoding="utf-8")
+    assert "self.table.setColumnCount(9)" in desktop
+    assert "normalize_role(user[2] or \"Personel\")" in desktop
+    assert "for hidden_column in (0, 4, 6, 7, 8)" in desktop

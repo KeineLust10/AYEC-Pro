@@ -28,14 +28,25 @@
   function renderMarkdown(source) {
     const lines = String(source || "").replace(/\r/g, "").split("\n");
     const output = [];
-    let paragraph = [], list = "", code = false, codeLines = [];
+    let paragraph = [], listStack = [], code = false, codeLines = [];
     const flushParagraph = () => {
       if (paragraph.length) output.push(`<p>${inlineMarkdown(paragraph.join(" "))}</p>`);
       paragraph = [];
     };
-    const closeList = () => {
-      if (list) output.push(`</${list}>`);
-      list = "";
+    const closeTopList = () => {
+      const frame = listStack.pop();
+      if (!frame) return;
+      if (frame.itemOpen) output.push("</li>");
+      output.push(`</${frame.tag}>`);
+    };
+    const closeList = () => { while (listStack.length) closeTopList(); };
+    const openList = (indent, tag, start = 1) => {
+      output.push(tag === "ol" && start !== 1 ? `<ol start="${start}">` : `<${tag}>`);
+      listStack.push({ indent, tag, itemOpen: false });
+    };
+    const closeListItem = frame => {
+      if (frame?.itemOpen) output.push("</li>");
+      if (frame) frame.itemOpen = false;
     };
     for (let index = 0; index < lines.length; index++) {
       const line = lines[index];
@@ -80,13 +91,24 @@
       if (/^\s*[-*_]{3,}\s*$/.test(line)) { flushParagraph(); closeList(); output.push("<hr>"); continue; }
       const quote = line.match(/^\s*&gt;\s?(.*)$/) || line.match(/^\s*>\s?(.*)$/);
       if (quote) { flushParagraph(); closeList(); output.push(`<blockquote>${inlineMarkdown(quote[1])}</blockquote>`); continue; }
-      const item = line.match(/^\s*(?:[-*+]\s+|\d+[.)]\s+)(.*)$/);
+      const item = line.match(/^([ \t]*)([-*+]|\d+[.)])\s+(.*)$/);
       if (item) {
         flushParagraph();
-        const wanted = /^\s*\d/.test(line) ? "ol" : "ul";
-        if (list && list !== wanted) closeList();
-        if (!list) { list = wanted; output.push(`<${list}>`); }
-        output.push(`<li>${inlineMarkdown(item[1])}</li>`);
+        const indent = item[1].replace(/\t/g, "    ").length;
+        const wanted = /^\d/.test(item[2]) ? "ol" : "ul";
+        const start = wanted === "ol" ? Number.parseInt(item[2], 10) : 1;
+        while (listStack.length && listStack[listStack.length - 1].indent > indent) closeTopList();
+        let frame = listStack[listStack.length - 1];
+        if (!frame || indent > frame.indent) {
+          openList(indent, wanted, start);
+          frame = listStack[listStack.length - 1];
+        } else if (frame.tag !== wanted) {
+          closeTopList();
+          openList(indent, wanted, start);
+          frame = listStack[listStack.length - 1];
+        } else closeListItem(frame);
+        output.push(`<li>${inlineMarkdown(item[3])}`);
+        frame.itemOpen = true;
         continue;
       }
       closeList();
@@ -99,7 +121,18 @@
   }
 
   function manualShell() {
-    return `<section class="manual-reference"><header class="manual-reference-head"><div><h2><span class="manual-heading-icon" aria-hidden="true">&#128218;</span> Yard\u0131m ve K\u0131lavuzlar</h2></div><button type="button" class="secondary" data-manual-refresh>Yenile</button></header><nav class="manual-tabs" role="tablist" aria-label="K\u0131lavuzlar">${Object.entries(names).map(([key, label]) => `<button type="button" role="tab" aria-selected="${selectedManual === key}" data-manual-tab="${key}">${label}</button>`).join("")}</nav><article class="manual-document" id="manualDocument" aria-live="polite"><p class="manual-loading">K\u0131lavuz y\u00fckleniyor...</p></article></section>`;
+    return `<section class="manual-reference"><header class="manual-reference-head"><div><h2><span class="manual-heading-icon" aria-hidden="true">&#128218;</span> Yard\u0131m ve K\u0131lavuzlar</h2></div><button type="button" class="secondary" data-manual-refresh>Yenile</button></header><nav class="manual-tabs" role="tablist" aria-label="K\u0131lavuzlar">${Object.entries(names).map(([key, label]) => `<button type="button" id="manual-tab-${key}" role="tab" aria-controls="manualDocument" aria-selected="${selectedManual === key}" tabindex="${selectedManual === key ? 0 : -1}" data-manual-tab="${key}">${label}</button>`).join("")}</nav><article class="manual-document" id="manualDocument" role="tabpanel" aria-labelledby="manual-tab-${selectedManual}" tabindex="0" aria-live="polite"><p class="manual-loading">K\u0131lavuz y\u00fckleniyor...</p></article></section>`;
+  }
+
+  function selectManualTab(button) {
+    selectedManual = button.dataset.manualTab;
+    document.querySelectorAll("[data-manual-tab]").forEach(tab => {
+      const selected = tab === button;
+      tab.setAttribute("aria-selected", String(selected));
+      tab.tabIndex = selected ? 0 : -1;
+    });
+    $("#manualDocument")?.setAttribute("aria-labelledby", `manual-tab-${selectedManual}`);
+    loadManual();
   }
 
   async function loadManual() {
@@ -123,10 +156,20 @@
     document.body.dataset.page = page;
     $("#content").innerHTML = manualShell();
     $("[data-manual-refresh]").onclick = loadManual;
-    document.querySelectorAll("[data-manual-tab]").forEach(button => button.onclick = () => {
-      selectedManual = button.dataset.manualTab;
-      document.querySelectorAll("[data-manual-tab]").forEach(tab => tab.setAttribute("aria-selected", String(tab === button)));
-      loadManual();
+    const tabs = [...document.querySelectorAll("[data-manual-tab]")];
+    tabs.forEach(button => {
+      button.onclick = () => selectManualTab(button);
+      button.onkeydown = event => {
+        let index = tabs.indexOf(button);
+        if (event.key === "ArrowRight") index = (index + 1) % tabs.length;
+        else if (event.key === "ArrowLeft") index = (index - 1 + tabs.length) % tabs.length;
+        else if (event.key === "Home") index = 0;
+        else if (event.key === "End") index = tabs.length - 1;
+        else return;
+        event.preventDefault();
+        tabs[index].focus();
+        tabs[index].click();
+      };
     });
     loadManual();
   };

@@ -9,6 +9,19 @@ from tests.test_vendor_management_center import _setup_tenant
 import Web_Arayuzu.Main as web_main
 
 
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_offscreen_route_audit_covers_daily_wage_preview_and_accounting_payload():
+    audit = (ROOT / "tools" / "quality" / "web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+    assert "auditPersonnelDailyWage" in audit
+    assert 'payroll.preview.includes("10,800.00 TL")' in audit
+    assert 'payroll.payload.work_days !== "4.5"' in audit
+    assert 'payroll.editPayload.work_days !== "5"' in audit
+    assert 'payroll.editPayload.note !== "Audit corrected shifts"' in audit
+    assert 'String(payroll.deletedId) !== "940062"' in audit
+
+
 def test_personnel_daily_wage_flow_updates_accounting_and_is_authenticated(monkeypatch, tmp_path):
     _actor, tenant_path = _setup_tenant(monkeypatch, tmp_path)
     with sqlite3.connect(tenant_path) as conn:

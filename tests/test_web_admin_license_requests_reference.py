@@ -32,7 +32,57 @@ def test_license_requests_tab_binds_admin_order_and_inventory_contracts():
     assert 'data-license-freeze="${esc(license.tenant_id||"")}"' in app
     assert 'data-license-detail="${esc(license.tenant_id||"")}"' in app
     assert 'apiFetch(`/api/admin/licenses/${encodeURIComponent(license.tenant_id)}`' in app
+    assert 'apiFetch(`/api/admin/licenses/${encodeURIComponent(license.tenant_id)}/push`' in app
+    assert 'result.delivered_sessions' in app
     assert 'license-remote-actions' in app
+
+
+def test_license_push_uses_the_tenant_scoped_sync_event_contract():
+    app = APP_SOURCE.read_text(encoding="utf-8")
+    main = (ROOT / "Web_Arayuzu" / "Main.py").read_text(encoding="utf-8")
+    route_smoke = (ROOT / "tools" / "quality" / "web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+
+    assert 'def admin_push_license(tenant_id: str, actor: dict | None = None) -> dict:' in main
+    assert '"type": "license_updated", "license": license_payload' in main
+    assert '"admin_license_pushed"' in main
+    assert 'if path.startswith("/api/admin/licenses/") and path.endswith("/push"):' in main
+    assert "adminLicenseGrantWorkflow.pushCall" in route_smoke
+    assert '"Lisans oturumlara iletilemedi."' in app
+
+
+def test_control_center_can_issue_catalog_license_directly_to_an_hwid():
+    app = APP_SOURCE.read_text(encoding="utf-8")
+    main = (ROOT / "Web_Arayuzu" / "Main.py").read_text(encoding="utf-8")
+    route_smoke = (ROOT / "tools" / "quality" / "web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+
+    assert 'data-license-grant-open' in app
+    assert 'apiFetch("/api/license/catalog")' in app
+    assert 'apiFetch("/api/admin/license-grants"' in app
+    assert 'controlCenterDirectHwidGrantWorkflow' in route_smoke
+    assert 'if path == "/api/admin/license-grants":' in main
+    assert 'def admin_grant_hwid_license(data: dict, actor: dict) -> dict:' in main
+    assert 'product_code != tenant_product' in main
+
+
+def test_offscreen_route_audit_covers_license_inventory_search_and_status_changes():
+    route_smoke = (ROOT / "tools" / "quality" / "web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+
+    assert "controlCenterLicenseInventoryWorkflow" in route_smoke
+    assert "QA Freeze Company" in route_smoke
+    assert "freezeTitle" in route_smoke
+    assert '.includes("Dondur")' in route_smoke
+    assert 'data-license-freeze="QA-LIC-1"' in route_smoke
+    assert 'data-license-detail="QA-LIC-1"' in route_smoke
+
+
+def test_offscreen_route_audit_covers_payment_gated_license_decisions():
+    route_smoke = (ROOT / "tools" / "quality" / "web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+
+    assert "controlCenterLicenseDecisionWorkflow" in route_smoke
+    assert "payment_reported" in route_smoke
+    assert "payment_pending" in route_smoke
+    assert "QA payment checked" in route_smoke
+    assert "QA payer reference mismatch" in route_smoke
 
 
 def test_license_requests_reference_layout_stacks_cards_and_controls_on_mobile():

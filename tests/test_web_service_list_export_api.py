@@ -1,12 +1,24 @@
 import io
 import threading
 from http.server import ThreadingHTTPServer
+from pathlib import Path
 
 import requests
 from openpyxl import load_workbook
 
 from tests.test_vendor_management_center import _setup_tenant
 import Web_Arayuzu.Main as web_main
+
+
+def test_offscreen_route_audit_covers_selected_service_list_pdf_export():
+    root = Path(__file__).resolve().parents[1]
+    route_smoke = (root / "tools" / "quality" / "web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+    service_list = (root / "Web_Arayuzu" / "web" / "service-list-reference.js").read_text(encoding="utf-8")
+    assert "result.serviceListSelectedExportWorkflow" in route_smoke
+    assert 'exportAudit.url!=="/api/desktop/service-list/export/pdf"' in route_smoke
+    assert "exportAudit.records.length!==2" in route_smoke
+    assert "response.status === 401 && window.handleUnauthorized" in service_list
+    assert "assertDownloadResponse(response)" in service_list
 
 
 def test_service_list_exports_are_authenticated_and_produce_desktop_columns(monkeypatch, tmp_path):

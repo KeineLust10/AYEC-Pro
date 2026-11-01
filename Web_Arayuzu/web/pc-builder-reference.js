@@ -111,7 +111,7 @@
       const categoryParts = pcParts.filter((part) => String(part.category || "").trim().toLowerCase() === row.category.toLowerCase());
       const brands = pcBrandOptions(categoryParts, row.category);
       const spec = row.spec.toLowerCase();
-      const brand = row.brand;
+      const brand = String(row.brand || "").toLowerCase();
       const filtered = categoryParts.filter((part) => {
         const haystack = `${part.name || part.part_name || ""} ${part.code || ""} ${part.description || ""}`;
         return (!brand || pcBrandMatches(brand, haystack)) && (!spec || String(part.name || part.part_name || "").toLowerCase().includes(spec));
@@ -136,7 +136,7 @@
     const offerLabel = `Teklif No: ${pcOfferNo}${selectedCustomer ? `  |  M\u00fc\u015fteri: ${selectedCustomer.name || ""}` : ""}`;
     const vatOptions = [...new Set([0, 1, 8, 18, 20, pcVat])].sort((a, b) => a - b);
     const workflowTabs = window.ayecSalesWorkflowTabs ? window.ayecSalesWorkflowTabs("computer") : "";
-    $("#content").innerHTML = `${workflowTabs}<section class="pc-builder-page"><header class="pc-builder-header"><div><h2><span class="pc-builder-title-icon" aria-hidden="true"><svg viewBox="0 0 28 28" width="28" height="28" focusable="false"><rect x="2" y="2" width="24" height="16" rx="2" fill="#2563eb"/><rect x="4" y="4" width="20" height="12" rx="1" fill="#7dd3fc"/><path d="M11 18v3H8v2h12v-2h-3v-3" fill="#94a3b8"/></svg></span>Bilgisayar Topla</h2><p>Bile\u015fen se\u00e7 \u00b7 Fiyatland\u0131r \u00b7 Teklif olu\u015ftur \u00b7 Sat\u0131\u015fa d\u00f6n\u00fc\u015ft\u00fcr</p></div><div class="pc-offer-meta"><strong>${pcEscape(offerLabel)}</strong><span>Tarih: ${new Date().toLocaleDateString("tr-TR")}</span></div></header><div class="pc-customer-bar"><span class="pc-customer-icon" aria-hidden="true">\ud83d\udc64</span><input id="pcCustomerSearch" type="search" value="${pcEscape(pcCustomerSearch)}" aria-label="M\u00fc\u015fteri ara" placeholder="M\u00fc\u015fteri ara veya se\u00e7..."><select id="pcCustomer" aria-label="M\u00fc\u015fteri se\u00e7in"><option value="">M\u00fc\u015fteri se\u00e7ilmedi</option>${customerOptions}</select></div><div class="pc-preset-bar"><span>H\u0131zl\u0131 \u015eablon:</span><button type="button" data-pc-preset="home">\ud83c\udfe0 Ev & Ofis</button><button type="button" data-pc-preset="gaming">\ud83c\udfae Gaming</button><button type="button" data-pc-preset="content">\ud83c\udfa8 \u0130\u00e7erik \u00dcretici</button><button type="button" data-pc-preset="workstation">\ud83d\udda5 \u0130\u015f \u0130stasyonu</button><button type="button" data-pc-preset="clear">\ud83e\uddf9 Temizle</button><button type="button" class="success" data-pc-action="add-component">+ Bile\u015fen Ekle</button></div><div class="pc-table-scroll" data-pc-table-scroll tabindex="0" role="region" aria-label="Bile\u015fen tablosu"><div class="pc-component-head"><span>Bile\u015fen</span><span>Marka</span><span>\u00d6zellik</span><span>\u00dcr\u00fcn (Stoktan)</span><span>Adet</span><span>Birim Fiyat</span><span>Toplam</span><span>Stok</span><span></span></div><div class="pc-components" id="pcComponents">${pcRowsMarkup()}</div></div><section class="pc-summary"><div><span>Maliyet Toplam\u0131:</span><strong id="pcCost">${pcMoney(totals.cost)}</strong></div><label class="pc-vat"><span>KDV:</span><select id="pcVat">${vatOptions.map((value) => `<option value="${value}" ${value === pcVat ? "selected" : ""}>${value ? `KDV %${value}` : "KDV Yok"}</option>`).join("")}</select></label><div><span>KDV Tutar\u0131:</span><strong id="pcVatAmount">${pcMoney(totals.vatAmount)}</strong></div><label class="pc-margin"><span>K\u00e2r Marj\u0131:</span><input id="pcMargin" type="number" min="0" max="500" step="0.1" value="${pcEscape(pcMargin)}"><span class="pc-margin-suffix">%</span></label><div><span>K\u00e2r:</span><strong class="pc-profit" id="pcProfit">+${pcMoney(totals.profit)}</strong></div><div class="pc-grand"><span>Genel Toplam:</span><strong id="pcGrand">${pcMoney(totals.grand)}</strong></div><label class="pc-note"><span>Teklif Notu:</span><textarea id="pcNote" placeholder="M\u00fc\u015fteriye iletilecek notlar, garanti \u015fartlar\u0131, kurulum \u00fccreti vb.">${pcEscape(pcNote)}</textarea></label></section><div class="pc-actions"><button type="button" data-pc-action="pdf">\u25a7 PDF Teklif</button><button type="button" data-pc-action="customer">M\u00fc\u015fteri 360</button><button type="button" data-pc-action="stock">\u25a3 Stok D\u00fc\u015f\u00fcr</button><button type="button" data-pc-action="finance">\u20ba Finans Kayd\u0131</button><button type="button" data-pc-action="save">Sipari\u015f Kaydet</button><button type="button" class="danger" data-pc-action="clear">Temizle</button></div></section>`;
+    $("#content").innerHTML = `${workflowTabs}<section class="pc-builder-page"><header class="pc-builder-header"><div><h2><span class="pc-builder-title-icon" aria-hidden="true">\ud83d\udda5\ufe0f</span>Bilgisayar Topla</h2><p>Bile\u015fen se\u00e7 \u00b7 Fiyatland\u0131r \u00b7 Teklif olu\u015ftur \u00b7 Sat\u0131\u015fa d\u00f6n\u00fc\u015ft\u00fcr</p></div><div class="pc-offer-meta"><strong>${pcEscape(offerLabel)}</strong><span>Tarih: ${new Date().toLocaleDateString("tr-TR")}</span></div></header><div class="pc-customer-bar"><span class="pc-customer-icon" aria-hidden="true">\ud83d\udc64</span><input id="pcCustomerSearch" type="search" value="${pcEscape(pcCustomerSearch)}" aria-label="M\u00fc\u015fteri ara" placeholder="M\u00fc\u015fteri ara veya se\u00e7..."><select id="pcCustomer" aria-label="M\u00fc\u015fteri se\u00e7in"><option value="">\u2014 M\u00fc\u015fteri Se\u00e7 \u2014</option>${customerOptions}</select></div><div class="pc-preset-bar"><span>H\u0131zl\u0131 \u015eablon:</span><button type="button" data-pc-preset="home">\ud83c\udfe0 Ev & Ofis</button><button type="button" data-pc-preset="gaming">\ud83c\udfae Gaming</button><button type="button" data-pc-preset="content">\ud83c\udfa8 \u0130\u00e7erik \u00dcretici</button><button type="button" data-pc-preset="workstation">\ud83d\udda5 \u0130\u015f \u0130stasyonu</button><button type="button" data-pc-preset="clear">\ud83e\uddf9 Temizle</button><button type="button" class="success" data-pc-action="add-component">+ Bile\u015fen Ekle</button></div><div class="pc-table-scroll" data-pc-table-scroll tabindex="0" role="region" aria-label="Bile\u015fen tablosu"><div class="pc-component-head"><span>Bile\u015fen</span><span>Marka</span><span>\u00d6zellik</span><span>\u00dcr\u00fcn (Stoktan)</span><span>Adet</span><span>Birim Fiyat</span><span>Toplam</span><span>Stok</span><span></span></div><div class="pc-components" id="pcComponents">${pcRowsMarkup()}</div></div><section class="pc-summary"><div><span>Maliyet Toplam\u0131:</span><strong id="pcCost">${pcMoney(totals.cost)}</strong></div><label class="pc-vat"><span>KDV:</span><select id="pcVat">${vatOptions.map((value) => `<option value="${value}" ${value === pcVat ? "selected" : ""}>${value ? `KDV %${value}` : "KDV Yok"}</option>`).join("")}</select></label><div><span>KDV Tutar\u0131:</span><strong id="pcVatAmount">${pcMoney(totals.vatAmount)}</strong></div><label class="pc-margin"><span>K\u00e2r Marj\u0131:</span><input id="pcMargin" type="number" min="0" max="500" step="0.1" value="${pcEscape(pcMargin)}"><span class="pc-margin-suffix">%</span></label><div><span>K\u00e2r:</span><strong class="pc-profit" id="pcProfit">+${pcMoney(totals.profit)}</strong></div><div class="pc-grand"><span>Genel Toplam:</span><strong id="pcGrand">${pcMoney(totals.grand)}</strong></div><label class="pc-note"><span>Teklif Notu:</span><textarea id="pcNote" placeholder="M\u00fc\u015fteriye iletilecek notlar, garanti \u015fartlar\u0131, kurulum \u00fccreti vb.">${pcEscape(pcNote)}</textarea></label></section><div class="pc-actions"><button type="button" title="PDF teklif belgesi oluştur" data-pc-action="pdf">\ud83d\udda8  PDF Teklif</button><button type="button" title="Müşteri kaydına ekle" data-pc-action="customer">\ud83d\udc64 M\u00fc\u015fteri 360</button><button type="button" title="Seçili ürünleri stoktan düş" data-pc-action="stock">\ud83d\udce6 Stok D\u00fc\u015f\u00fcr</button><button type="button" title="Gelir/gider kaydı oluştur" data-pc-action="finance">\ud83d\udcb0 Finans Kayd\u0131</button><button type="button" title="Teklifi sisteme kaydet" data-pc-action="save">\ud83d\udccb Sipari\u015f Kaydet</button><button type="button" class="danger" title="Tüm seçimleri temizle" data-pc-action="clear">\ud83d\uddd1  Temizle</button></div></section>`;
   }
   function pcRefreshTotals() {
     const totals = pcTotals();
@@ -149,14 +149,16 @@
   }
   function pcSelectedCustomer() { return pcCustomers.find((item) => String(item.id) === String(pcCustomerId || $("#pcCustomer")?.value || "")); }
   function pcFilledRows() { return pcRows.filter((row) => row.partId && Number(row.qty) > 0).map((row) => { const part = pcParts.find((item) => String(item.id) === String(row.partId)); return { component: row.name, category: row.category, brand: part?.brand || row.brand || "", product: part?.name || part?.part_name || "", part_id: row.partId, stock: Number(row.stock) || 0, qty: Number(row.qty) || 0, unit_price: Number(row.price) || 0, total: (Number(row.qty) || 0) * (Number(row.price) || 0) }; }); }
-  function pcRequireRows() { const rows = pcFilledRows(); if (!rows.length) { toast("L\u00fctfen en az bir bile\u015fen se\u00e7in.", "error"); return null; } return rows; }
+  function pcRequireRows() { const rows = pcFilledRows(); if (!rows.length) { toast("L\u00fctfen en az bir bile\u015fen se\u00e7in.", "warning"); return null; } return rows; }
   function pcSetQuantity(row, input) { const qty = Math.min(99, Math.max(0, Math.trunc(Number(input.value) || 0))); row.qty = qty; if (input.value !== String(qty)) input.value = String(qty); }
-  function pcSetPrice(row, input) { const parsed = Number(String(input.value || "").replace(",", ".")); const price = Math.min(999999, Math.max(0, Math.round((Number.isFinite(parsed) ? parsed : 0) * 100) / 100)); row.price = price; input.value = price.toFixed(2); }
+  function pcPriceValue(value) { const parsed = Number(String(value || "").replace(",", ".")); return Math.min(999999, Math.max(0, Math.round((Number.isFinite(parsed) ? parsed : 0) * 100) / 100)); }
+  function pcMarginValue(value) { const parsed = Number(value); return Math.min(500, Math.max(0, Math.round((Number.isFinite(parsed) ? parsed : 0) * 10) / 10)); }
+  function pcSetPrice(row, input) { const price = pcPriceValue(input.value); row.price = price; input.value = price.toFixed(2); }
   function pcClear() { pcRows = pcDefaults.map((item) => pcNewRow(...item)); pcOfferNo = pcNewOfferNo(); pcCustomerId = ""; pcCustomerSearch = ""; pcMargin = 20; pcNote = ""; pcRender(); }
   function pcApplyPreset(key) { if (key === "clear") return pcClear(); const preset = pcPresets[key]; if (!preset) return; pcMargin = preset[0]; pcNote = preset[1]; pcRender(); }
   async function pcSaveNote(type) {
     const rows = pcRequireRows(); if (!rows) return;
-    const customer = pcSelectedCustomer(); if (!customer) { toast("Kay\u0131t i\u00e7in \u00f6nce m\u00fc\u015fteri se\u00e7in.", "error"); return; }
+    const customer = pcSelectedCustomer(); if (!customer) { toast("Kay\u0131t i\u00e7in \u00f6nce m\u00fc\u015fteri se\u00e7in.", "warning"); return; }
     const totals = pcTotals();
     const lines = rows.map((row) => `\u2022 ${row.component}: ${row.product}  x${row.qty}  ${pcNativeNumber(row.unit_price)}\u20ba`).join("\n");
     const content = `[Bilgisayar Teklifi #${pcOfferNo}]\n${lines}\nTeklif Toplam\u0131: ${pcNativeNumber(totals.grand)} \u20ba\n${pcNote}`;
@@ -273,16 +275,16 @@
     try {
       if (!pcInitialized) {
         pcMargin = 20;
-        pcVat = Math.max(0, Math.min(100, Number(desktopSettings?.default_vat_percent ?? 20) || 0));
+        pcVat = ayecNormalizeVatPercent(desktopSettings?.default_vat_percent);
         pcInitialized = true;
       }
-      const [parts, customers] = await Promise.all([apiFetch("/api/desktop/table/parts?limit=1000"), apiFetch("/api/desktop/table/customers?limit=1000")]);
-      pcParts = (parts.rows || []).map((part) => ({ ...part, qty: Number(part.stock) || 0 }));
+      const [parts, customers] = await Promise.all([loadAllDesktopTableRows("parts"), loadAllDesktopTableRows("customers")]);
+      pcParts = parts.map((part) => ({ ...part, qty: Number(part.stock) || 0 }));
       for (const row of pcRows) {
         const selected = pcParts.find((part) => String(part.id) === String(row.partId));
         if (selected) { row.stock = Number(selected.qty) || 0; row.price = Number(selected.price) || 0; }
       }
-      pcCustomers = customers.rows || db.customers || [];
+      pcCustomers = customers.length ? customers : db.customers || [];
       window.__pcBuilderParts = pcParts;
       pcRender();
     } catch (error) {
@@ -319,7 +321,7 @@
     if (!action) return;
     try {
       if (action === "clear") pcClear();
-      if (action === "add-component") openDialog("Bile\u015fen Ekle", "PC YAPILANDIRICI", `<div class="form-grid"><div class="field"><label>Bile\u015fen ad\u0131</label><input name="name" required></div><div class="field"><label>Stok kategorisi</label><input name="category" required></div><div class="field full"><label>\u00d6zellik etiketi</label><input name="spec" value="Standart" placeholder="Tip, Ba\u011flant\u0131, H\u0131z"></div></div>`, (form) => { const name = String(form.get("name") || "").trim(); const category = String(form.get("category") || "").trim(); const spec = String(form.get("spec") || "").trim() || "Tip"; if (!name || !category) throw Error("Bile\u015fen ad\u0131 ve stok kategorisi zorunludur."); pcRows.push(pcNewRow(name, category, spec, ["Standart"])); pcRender(); return true; }, "Bile\u015fen Ekle");
+      if (action === "add-component") openDialog("Bile\u015fen Ekle", "PC YAPILANDIRICI", `<div class="form-grid"><div class="field"><label>Bile\u015fen ad\u0131</label><input name="name"></div><div class="field"><label>Stok kategorisi</label><input name="category"></div><div class="field full"><label>\u00d6zellik etiketi</label><input name="spec" value="Standart" placeholder="Tip, Ba\u011flant\u0131, H\u0131z"></div></div>`, (form) => { const name = String(form.get("name") || "").trim(); const category = String(form.get("category") || "").trim(); const spec = String(form.get("spec") || "").trim() || "Tip"; if (!name) { toast("Bile\u015fen ad\u0131 bo\u015f b\u0131rak\u0131lamaz.", "warning"); return true; } if (!category) return true; pcRows.push(pcNewRow(name, category, spec, ["Standart"])); pcRender(); return true; }, "Bile\u015fen Ekle");
       if (action === "pdf") pcOpenProformaDialog();
       if (action === "customer") { const customer = await pcSaveNote("Teklif"); if (customer) customer360(db.customers.find((item) => String(item.id) === String(customer.id)) || customer); }
       if (action === "save") await pcSaveOffer();
@@ -353,7 +355,7 @@
       }
       if (event.target.matches("[data-pc-qty]")) pcSetQuantity(row, event.target);
       if (event.target.matches("[data-pc-price]")) pcSetPrice(row, event.target);
-      if (filtersChanged) { if (!pcSelectedPartMatches(row)) { row.partId = ""; row.price = 0; row.stock = null; } pcRender(); } else pcRefreshTotals();
+      if (filtersChanged) { if (!pcSelectedPartMatches(row)) { row.partId = ""; row.price = 0; row.stock = null; } const rowKey = row.key; const focusSelector = event.target.matches("[data-pc-brand]") ? "[data-pc-brand]" : "[data-pc-spec]"; pcRender(); document.querySelector(`[data-pc-row="${CSS.escape(rowKey)}"] ${focusSelector}`)?.focus({ preventScroll: true }); } else pcRefreshTotals();
     }
     if (event.target.id === "pcVat") { pcVat = Number(event.target.value) || 0; pcRefreshTotals(); }
   });
@@ -361,11 +363,11 @@
     if (page !== "pc-builder") return;
     if (event.target.id === "pcCustomerSearch") {
       pcCustomerSearch = event.target.value;
-      const query = pcCustomerSearch.trim().toLocaleLowerCase("tr-TR");
-      const customers = pcCustomers.filter((customer) => !query || String(customer.name || "").toLocaleLowerCase("tr-TR").includes(query));
+      const query = pcCustomerSearch.trim().toLowerCase();
+      const customers = pcCustomers.filter((customer) => !query || String(customer.name || "").toLowerCase().includes(query));
       const select = $("#pcCustomer");
       const selectedId = select?.value || pcCustomerId;
-      pcCustomerId = selectedId && customers.some((customer) => String(customer.id) === String(selectedId)) ? selectedId : "";
+      pcCustomerId = selectedId;
       if (select) {
         select.innerHTML = `<option value="">M\u00fc\u015fteri se\u00e7ilmedi</option>${customers.map((customer) => `<option value="${pcEscape(customer.id)}">${pcEscape(customer.name)}</option>`).join("")}`;
         select.value = pcCustomerId;
@@ -376,8 +378,8 @@
     const rowElement = event.target.closest("[data-pc-row]");
     const row = rowElement && pcRows.find((item) => item.key === rowElement.dataset.pcRow);
     if (row && event.target.matches("[data-pc-qty]")) { pcSetQuantity(row, event.target); pcRefreshTotals(); }
-    if (row && event.target.matches("[data-pc-price]")) { row.price = Math.max(0, Number(event.target.value) || 0); pcRefreshTotals(); }
-    if (event.target.id === "pcMargin") { pcMargin = Math.min(500, Math.max(0, Number(event.target.value) || 0)); pcRefreshTotals(); }
+    if (row && event.target.matches("[data-pc-price]")) { row.price = pcPriceValue(event.target.value); pcRefreshTotals(); }
+    if (event.target.id === "pcMargin") { pcMargin = pcMarginValue(event.target.value); pcRefreshTotals(); }
     if (event.target.id === "pcNote") pcNote = event.target.value;
   });
 })();

@@ -163,7 +163,8 @@
       const item = fields.get(key);
       const value = esc(desktopSettings[key] ?? item?.[3] ?? "");
       const type = item?.[2] === "number" ? "number" : "text";
-      return `<label class="company-number-field"><span>${label}</span><input class="exact-setting" data-setting-key="${key}" data-setting-scope="settings" type="${type}" value="${value}"></label>`;
+      const range = type === "number" ? ' min="0" max="999999" step="1" required' : "";
+      return `<label class="company-number-field"><span>${label}</span><input class="exact-setting" data-setting-key="${key}" data-setting-scope="settings" type="${type}"${range} value="${value}"></label>`;
     };
     return `<div class="company-number-grid">${groups.map(([title, code, prefix, next]) => `<article class="company-number-card"><header><strong>${title}</strong><span>${code}</span></header>${input(prefix, "\u00d6n Ek")}${input(next, "Sonraki")}</article>`).join("")}</div>`;
   }
@@ -189,10 +190,10 @@
     if (!body) return;
     try {
       const [mappingData, accountData, partData, serviceData] = await Promise.all([
-        apiFetch("/api/desktop/table/product_bank_mappings?limit=1000"),
-        apiFetch("/api/desktop/table/bank_accounts?limit=500"),
-        apiFetch("/api/desktop/table/parts?limit=500"),
-        apiFetch("/api/desktop/table/service_definitions?limit=500"),
+        loadAllDesktopTableData("product_bank_mappings"),
+        loadAllDesktopTableData("bank_accounts"),
+        loadAllDesktopTableData("parts"),
+        loadAllDesktopTableData("service_definitions"),
       ]);
       const mappings = mappingData.rows || [];
       const mappingByKey = new Map(mappings.map(row => [`${row.item_type}:${row.item_id}`, row]));
@@ -255,6 +256,29 @@
 
   function bindCompanyControls(host) {
     const numberRows = () => [...host.querySelectorAll(".company-number-card")].map(card => [card.querySelector("header strong").textContent, ...[...card.querySelectorAll("input")].map(input => input.value)]);
+    const openCompanyNumberPrintPreview = () => {
+      const popup = window.open("", "_blank");
+      if (!popup) return toast("Allow pop-ups to open the number settings print preview.", "error");
+      const rows = numberRows().map(row => `<tr>${row.map(value => `<td>${esc(value)}</td>`).join("")}</tr>`).join("");
+      const html = `<!doctype html><html><head><meta charset="utf-8"><title>Numara Ayarlari</title><style>body{font:12pt Arial,sans-serif;color:#111;padding:15mm}h2{font-size:18pt}table{border-collapse:collapse;width:100%}th,td{border:1px solid #777;padding:7px;text-align:left}</style></head><body><h2>Numara Ayarlari</h2><table><thead><tr><th>T\u00fcr</th><th>\u00d6n Ek</th><th>Sonraki Numara</th></tr></thead><tbody>${rows}</tbody></table></body></html>`;
+      popup.document.open();
+      popup.document.write(html);
+      popup.document.close();
+      popup.focus();
+      window.setTimeout(() => { if (!popup.closed) popup.print(); }, 100);
+    };
+    const saveButton = document.querySelector('[data-action="save-settings"]');
+    if (saveButton && saveButton.dataset.companyNumberValidation !== "1") {
+      saveButton.dataset.companyNumberValidation = "1";
+      saveButton.addEventListener("click", event => {
+        if (page !== "settings" || settingsSection !== "company") return;
+        const invalid = [...document.querySelectorAll(".company-number-card input[type=number]")].find(input => !input.checkValidity());
+        if (!invalid) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        toast("Numara saya\u00e7lar\u0131 0 ile 999999 aras\u0131nda olmal\u0131.", "error");
+      }, true);
+    }
     host.querySelector("[data-company-number-copy]")?.addEventListener("click", async () => {
       try { await navigator.clipboard.writeText(numberRows().map(row => row.join("\t")).join("\n")); toast("Numara ayarlar\u0131 panoya kopyaland\u0131", "success"); }
       catch (error) { toast(error.message || "Panoya kopyalanamad\u0131", "error"); }
@@ -266,7 +290,7 @@
     };
     host.querySelector("[data-company-number-csv]")?.addEventListener("click", () => exportNumbers(",", "firma-numaralari.csv", "text/csv;charset=utf-8"));
     host.querySelector("[data-company-number-excel]")?.addEventListener("click", () => exportNumbers(";", "firma-numaralari.xls", "application/vnd.ms-excel;charset=utf-8"));
-    host.querySelector("[data-company-number-print]")?.addEventListener("click", () => window.print());
+    host.querySelector("[data-company-number-print]")?.addEventListener("click", openCompanyNumberPrintPreview);
     host.querySelectorAll("[data-company-jump]").forEach(button => button.addEventListener("click", () => {
       const target = host.querySelector(`#${CSS.escape(button.dataset.companyJump)}`);
       target?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -454,7 +478,11 @@
         const shownLabel = displayLabels[name] || label;
         const value = name === "company_authorized_person"
           ? desktopSettings.company_authorized_person ?? desktopSettings.authorized_person ?? fallback ?? ""
-          : desktopSettings[name] ?? fallback ?? "";
+          : name === "tax_office"
+            ? desktopSettings.company_tax_office ?? desktopSettings.tax_office ?? fallback ?? ""
+            : name === "tax_number"
+              ? desktopSettings.company_tax_number ?? desktopSettings.tax_number ?? fallback ?? ""
+              : desktopSettings[name] ?? fallback ?? "";
         if (type === "checkbox") return `<label class="field company-editor-check"><span>${shownLabel}</span><input type="hidden" name="${name}" value="0"><input type="checkbox" name="${name}" value="1" ${settingBool(value) ? "checked" : ""}></label>`;
         if (name === "cargo_company") {
           const options = ["Yurti\u00e7i Kargo", "Aras Kargo", "MNG Kargo", "S\u00fcrat Kargo", "PTT Kargo"];
@@ -467,17 +495,29 @@
             : name === "print_document_page_size" ? ["A4", "A3", "A5"] : ["portrait", "landscape"];
           return `<label class="field"><span>${shownLabel}</span><select name="${name}">${options.map(option => `<option value="${option}" ${value === option ? "selected" : ""}>${option}</option>`).join("")}</select></label>`;
         }
-        const control = type === "textarea" ? `<textarea name="${name}" rows="${name.includes("contract") ? 3 : 2}">${esc(value)}</textarea>` : `<input name="${name}" type="${type}" value="${esc(value)}">`;
+        const numericStep = ["print_label_width_mm", "print_label_height_mm"].includes(name) ? ` step="any"` : "";
+        const control = type === "textarea" ? `<textarea name="${name}" rows="${name.includes("contract") ? 3 : 2}">${esc(value)}</textarea>` : `<input name="${name}" type="${type}" value="${esc(value)}"${numericStep}>`;
         return `<label class="field ${type === "textarea" ? "full" : ""}"><span>${shownLabel}</span>${control}</label>`;
       };
-      const body = `<div class="company-settings-editor"><nav class="company-editor-tabs" role="tablist">${tabs.map((tab, index) => `<button type="button" role="tab" aria-selected="${index === 0}" data-company-editor-tab="${tab.id}" class="${index === 0 ? "active" : ""}">${tab.label}</button>`).join("")}</nav>${tabs.map((tab, index) => `<section class="company-editor-panel" role="tabpanel" data-company-editor-panel="${tab.id}" ${index ? "hidden" : ""}><header><strong>${tab.title}</strong>${index === 0 ? "<span>G\u00f6r\u00fcnt\u00fclenen Ekran: IMAGE_9</span>" : ""}</header><div class="form-grid">${tab.keys.map(fieldHtml).join("")}</div></section>`).join("")}</div>`;
+      const body = `<div class="company-settings-editor"><nav class="company-editor-tabs" role="tablist">${tabs.map((tab, index) => `<button type="button" role="tab" id="company-editor-tab-${tab.id}" aria-controls="company-editor-panel-${tab.id}" aria-selected="${index === 0}" tabindex="${index === 0 ? 0 : -1}" data-company-editor-tab="${tab.id}" class="${index === 0 ? "active" : ""}">${tab.label}</button>`).join("")}</nav>${tabs.map((tab, index) => `<section class="company-editor-panel" role="tabpanel" id="company-editor-panel-${tab.id}" aria-labelledby="company-editor-tab-${tab.id}" data-company-editor-panel="${tab.id}" ${index ? "hidden" : ""}><header><strong>${tab.title}</strong>${index === 0 ? "<span>G\u00f6r\u00fcnt\u00fclenen Ekran: IMAGE_9</span>" : ""}</header><div class="form-grid">${tab.keys.map(fieldHtml).join("")}</div></section>`).join("")}</div>`;
       openDialog("Firma Ayarlar\u0131n\u0131 Gir", "SISTEM PARAMETRELER\u0130", body, async values => {
+        const labelWidthValue = String(values.get("print_label_width_mm") || desktopSettings.print_label_width_mm || "70").replace(/\s+/g, "");
+        const labelHeightValue = String(values.get("print_label_height_mm") || desktopSettings.print_label_height_mm || "45").replace(/\s+/g, "");
+        const labelWidthNumber = Number(labelWidthValue);
+        const labelHeightNumber = Number(labelHeightValue);
+        const labelDimensionsValid = Number.isFinite(labelWidthNumber) && labelWidthNumber > 0 && Number.isFinite(labelHeightNumber) && labelHeightNumber > 0;
+        const labelWidth = labelDimensionsValid ? labelWidthValue : "70";
+        const labelHeight = labelDimensionsValid ? labelHeightValue : "45";
+        values.set("print_label_width_mm", labelWidth);
+        values.set("print_label_height_mm", labelHeight);
         for (const [key, value] of values.entries()) {
           await desktopWrite("settings", { key, value });
           desktopSettings[key] = value;
           const aliases = {
             admin_whatsapp: "whatsapp_admin_phone",
             company_authorized_person: "authorized_person",
+            tax_office: "company_tax_office",
+            tax_number: "company_tax_number",
             print_document_page_size: "document_page_size",
             print_document_orientation: "document_orientation"
           };
@@ -486,12 +526,11 @@
             desktopSettings[aliases[key]] = value;
           }
         }
-        const labelWidth = values.get("print_label_width_mm") || desktopSettings.print_label_width_mm || "70";
-        const labelHeight = values.get("print_label_height_mm") || desktopSettings.print_label_height_mm || "45";
         const labelSize = `${labelWidth}x${labelHeight}`;
         await desktopWrite("settings", { key: "label_size", value: labelSize });
         desktopSettings.label_size = labelSize;
         applyDocumentPrintPreferences();
+        refreshCompanyLogo();
         render();
         toast("Firma bilgileri kaydedildi", "success");
       }, "G\u00dcNCELLE");
@@ -504,6 +543,19 @@
           tab.setAttribute("aria-selected", String(active));
         });
         dialog.querySelectorAll("[data-company-editor-panel]").forEach(panel => { panel.hidden = panel.dataset.companyEditorPanel !== selected; });
+      }));
+      dialog.querySelectorAll("[data-company-editor-tab]").forEach(button => button.addEventListener("keydown", event => {
+        const tabs = [...dialog.querySelectorAll("[data-company-editor-tab]")];
+        const index = tabs.indexOf(button);
+        let next = index;
+        if (event.key === "ArrowRight") next = (index + 1) % tabs.length;
+        else if (event.key === "ArrowLeft") next = (index - 1 + tabs.length) % tabs.length;
+        else if (event.key === "Home") next = 0;
+        else if (event.key === "End") next = tabs.length - 1;
+        else return;
+        event.preventDefault();
+        tabs[next].focus();
+        tabs[next].click();
       }));
     });
   }

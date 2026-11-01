@@ -31,8 +31,14 @@ The GIS popup flow needs no client secret or redirect URI. Complete Google
 consent-screen branding, support contact, authorized domain, privacy policy,
 and production publishing as required by Google Cloud.
 
-The Google button appears only when a Client ID is configured. Registration
-requires company, sector and username. Server-side token
+Google buttons appear in the web UI and desktop login only when a Client ID is
+configured. Run `CONFIGURE_GOOGLE_SIGNIN.cmd` in the deployed server folder to
+set `google_client_id` in the protected `official-services.json` without
+changing SMTP. Alternatively, set `AYEC_GOOGLE_CLIENT_ID` for the AYEC Pro Web
+service identity. The desktop uses the same web authorization flow in the
+system browser and a short-lived PKCE handoff; no native Google secret or
+redirect URI is needed. Registration requires company, sector, username and a
+company address that can be resolved to a map location. Server-side token
 verification binds the Google subject to the newly created account. Existing
 password accounts are not automatically linked by email. Disabled accounts and
 expired licenses remain blocked on Google login.

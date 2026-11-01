@@ -6,13 +6,14 @@ const edge = process.env.EDGE_EXECUTABLE || "C:\\Program Files (x86)\\Microsoft\
 const port = Number(process.env.AYEC_STOCK_USE_PART_CDP_PORT || 9245);
 const baseUrl = process.env.AYEC_AUDIT_URL || "http://127.0.0.1:8851/";
 const outputDir = path.resolve(process.env.AYEC_AUDIT_OUTPUT || "output/playwright");
+const viewportWidth = Number(process.env.AYEC_STOCK_USE_PART_WIDTH || 1280);
 const profile = path.join(outputDir, `stock-use-part-headless-profile-${process.pid}`);
 
 async function run() {
   fs.mkdirSync(outputDir, { recursive: true });
   const browser = spawn(edge, [
     "--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
-    `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, "--window-size=1280,900", baseUrl,
+    `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, `--window-size=${viewportWidth},900`, baseUrl,
   ], { stdio: "ignore", windowsHide: true });
   let socket;
   try {
@@ -57,7 +58,7 @@ async function run() {
     };
     await send("Page.enable");
     await send("Runtime.enable");
-    await send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
+    await send("Emulation.setDeviceMetricsOverride", { width: viewportWidth, height: 900, deviceScaleFactor: 1, mobile: false });
     let ready = false;
     for (let attempt = 0; attempt < 60; attempt += 1) {
       ready = await evaluate("document.readyState === 'complete' && typeof stockLocationUsePartDialog === 'function' && typeof hydrateDesktop === 'function'");
@@ -77,7 +78,7 @@ async function run() {
       const mapped={devices:db.serviceDevices.map(item=>({no:item.no,customerName:item.customerName,device:item.device,status:item.status}))};
       stockLocationUsePartDialog({id:'13',name:'QA Part'},'8');
       const dialog=document.querySelector('#appDialog'),selector=dialog.querySelector('[name="tracking_no"]'),quantity=dialog.querySelector('[name="quantity"]');
-      const initial={dialogOpen:dialog.open,options:[...selector.options].map(option=>({value:option.value,text:option.textContent})),unitStep:quantity.step,unitMin:quantity.min,unitMax:quantity.max,available:dialog.querySelector('input[disabled][value="4"]')!==null};
+      const bounds=dialog.getBoundingClientRect(),initial={dialogOpen:dialog.open,options:[...selector.options].map(option=>({value:option.value,text:option.textContent})),unitStep:quantity.step,unitMin:quantity.min,unitMax:quantity.max,available:dialog.querySelector('input[disabled][value="4"]')!==null,layout:{viewport:innerWidth,dialogWidth:Math.round(bounds.width),dialogLeft:Math.round(bounds.left),dialogRight:Math.round(bounds.right),documentWidth:document.documentElement.scrollWidth}};
       selector.value='SRV-UNLINKED';quantity.value='2';dialog.querySelector('[name="note"]').value='Installed from stock';dialog.querySelector('#dialogSubmit').click();await new Promise(resolve=>setTimeout(resolve,180));
       const write=requests.map(item=>item.body?JSON.parse(item.body):null).find(body=>body?.action==='use-part');
       db.stockLocationBalances[0].unit='Kg';stockLocationUsePartDialog({id:'13',name:'QA Part'},'8');
@@ -88,6 +89,7 @@ async function run() {
     if (state.mapped.devices.length !== 2 || !values.includes("SRV-UNLINKED") || values.includes("SRV-ARCHIVED") || values.includes("SRV-DELETED") || state.initial.unitStep !== "1" || state.initial.unitMin !== "1" || state.initial.unitMax !== "4" || !state.initial.available) throw new Error("Use-part device list or integer quantity mismatch: " + JSON.stringify(state));
     if (state.write?.action !== "use-part" || state.write.tracking_no !== "SRV-UNLINKED" || state.write.quantity !== 2 || state.write.note !== "Installed from stock") throw new Error("Use-part write mismatch: " + JSON.stringify(state.write));
     if (state.fractional.step !== "0.001" || state.fractional.min !== "0.001" || state.fractional.max !== "4") throw new Error("Fractional quantity mismatch: " + JSON.stringify(state.fractional));
+    if (viewportWidth <= 600 && (state.initial.layout.dialogLeft < 0 || state.initial.layout.dialogRight > viewportWidth || state.initial.layout.documentWidth > viewportWidth)) throw new Error("Mobile use-part dialog exceeds viewport: " + JSON.stringify(state.initial.layout));
     if (exceptions.length) throw new Error("Browser exceptions: " + JSON.stringify(exceptions));
     const screenshot = await send("Page.captureScreenshot", { format: "png", fromSurface: true });
     fs.writeFileSync(path.join(outputDir, "stock-location-use-part-headless.png"), Buffer.from(screenshot.data, "base64"));

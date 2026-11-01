@@ -48,7 +48,7 @@ async function run() {
     await send("Network.setCookie", { name: "ayec_session", value: cookie, url: baseUrl });
     await send("Page.navigate", { url: baseUrl });
     for (let i = 0; i < 120; i += 1) {
-      if (await evaluate("document.readyState === 'complete' && typeof bindInvoiceComposer === 'function' && typeof currentAuthUser !== 'undefined' && Boolean(currentAuthUser?.id)")) break;
+      if (await evaluate("document.readyState === 'complete' && typeof bindInvoiceComposer === 'function' && typeof renderInvoiceComposer === 'function' && typeof currentAuthUser !== 'undefined' && Boolean(currentAuthUser?.id)")) break;
       await delay(200);
     }
     const result = await evaluate(`(async () => {
@@ -56,17 +56,26 @@ async function run() {
       document.querySelector("#content").innerHTML = renderInvoiceComposer();
       bindInvoiceComposer();
       const lines = () => document.querySelectorAll("#invoiceLinesBody [data-invoice-line]").length;
+      const originalCustomers = db.customers;
+      db.customers = [...originalCustomers, {id:99997,name:"Keyboard Fixture Customer"}];
+      const customerPicker = document.querySelector("#invoiceCustomer");
+      const customerOption = document.createElement("option");
+      customerOption.value = "99997";
+      customerOption.textContent = "Keyboard Fixture Customer";
+      customerPicker.append(customerOption);
       const initialRows = lines();
       window.dispatchEvent(new KeyboardEvent("keydown", {key:"F2",bubbles:true,cancelable:true}));
       const afterF2 = lines();
       window.dispatchEvent(new KeyboardEvent("keydown", {key:"F4",bubbles:true,cancelable:true}));
       const f4FocusedCustomer = document.activeElement?.id === "invoiceCustomer";
-      document.querySelector("#invoiceCustomer").value = "Keyboard Fixture Customer";
+      customerPicker.value = "99997";
+      customerPicker.dispatchEvent(new Event("change", {bubbles:true}));
       document.querySelector(".invoice-line-description").value = "Keyboard Fixture Service";
       const calls = [];
       window.apiFetch = async (url, options={}) => {calls.push({url,options}); return url === "/api/desktop/einvoice/send" ? {id:77,sandbox:true,uuid:"fixture-uuid",status:"TEST_QUEUED"} : {id:77};};
       window.dispatchEvent(new KeyboardEvent("keydown", {key:"F12",bubbles:true,cancelable:true}));
       for (let i=0;i<40&&!calls.some(call=>call.url==="/api/desktop/einvoice/send");i++) await new Promise(resolve=>setTimeout(resolve,100));
+      db.customers = originalCustomers;
       return {role:currentAuthUser.role,initialRows,afterF2,f4FocusedCustomer,sendCalls:calls.filter(call=>call.url==="/api/desktop/einvoice/send").length,sendPayload:JSON.parse(calls.find(call=>call.url==="/api/desktop/einvoice/send")?.options.body||"{}").receiver_name||""};
     })()`);
     if (result.role !== "Admin" || result.afterF2 !== result.initialRows + 1 || !result.f4FocusedCustomer || result.sendCalls !== 1 || result.sendPayload !== "Keyboard Fixture Customer" || exceptions.length) throw new Error(JSON.stringify({ result, exceptions }));

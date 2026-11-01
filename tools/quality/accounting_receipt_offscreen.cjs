@@ -6,13 +6,15 @@ const edgePath = process.env.EDGE_EXECUTABLE || "C:\\Program Files (x86)\\Micros
 const port = Number(process.env.AYEC_AUDIT_CDP_PORT || 9253);
 const baseUrl = process.env.AYEC_AUDIT_URL || "http://127.0.0.1:8851/";
 const outDir = path.resolve(process.env.AYEC_AUDIT_OUTPUT || "output/playwright");
+const viewportWidth = Number(process.env.AYEC_AUDIT_WIDTH || 1280);
+const viewportHeight = Number(process.env.AYEC_AUDIT_HEIGHT || 900);
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "ayec-accounting-receipt-edge-"));
 const profile = path.join(tempRoot, "profile");
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function run() {
   fs.mkdirSync(outDir, { recursive: true });
-  const browser = spawn(edgePath, ["--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check", `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, "--window-size=1280,900", baseUrl], { stdio: "ignore", windowsHide: true });
+  const browser = spawn(edgePath, ["--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check", `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, `--window-size=${viewportWidth},${viewportHeight}`, baseUrl], { stdio: "ignore", windowsHide: true });
   let socket;
   try {
     let target;
@@ -43,16 +45,16 @@ async function run() {
       return result.result.value;
     };
     await send("Page.enable"); await send("Runtime.enable");
-    await send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
+    await send("Emulation.setDeviceMetricsOverride", { width: viewportWidth, height: viewportHeight, deviceScaleFactor: 1, mobile: false });
     for (let i = 0; i < 80; i += 1) {
-      if (await evaluate("document.readyState === 'complete' && typeof financeDetailDialog === 'function' && document.querySelector('#appDialog')")) break;
+      if (await evaluate("document.readyState === 'complete' && typeof financeDetailDialog === 'function' && document.querySelector('#appDialog') && (applicationStarted === true || document.querySelector('#authRoot')?.hidden === false)")) break;
       await delay(200);
     }
     const ready = await evaluate(`(() => {
       document.querySelector("#authRoot")?.remove(); document.body.classList.remove("auth-active");
       const customer={id:17,name:"QA Customer",phone:"5550000017",balances:{TRY:0,USD:0,EUR:0},services:[{id:220,no:"SRV-TEST-73",device:"Fixture device",status:"Teslim Edildi",repair_details:"Screen replaced\\nPort cleaned",labor_cost:30,cargo_fee:5,used_parts:[{part_name:"LCD Panel",quantity:2,price:10,currency:"TRY"}]}],quotes:[]};
       db.customers=[customer]; db.finance=[];
-      const item={id:73,source:"accounting",receipt_available:true,type_label:"Gider",type:"Wrong type fallback",description:"Fixture <receipt> | Ref: SRV-TEST-73",tracking_no:"SRV-TEST-73",customer_id:17,customer_name:"QA <Customer>",customer:"Wrong customer fallback",operator_name:"Fixture Operator",timestamp:"2026-10-17 10:00",date:"2026-10-17",created_at:"Wrong date fallback",amount:999,amount_try:73,currency:"TRY"};
+      const item={id:73,source:"accounting",receipt_available:true,status_label:"Onayland\u0131",type_label:"Gider",type:"Wrong type fallback",description:"Fixture <receipt> | Ref: SRV-TEST-73",tracking_no:"SRV-TEST-73",customer_id:17,customer_name:"QA <Customer>",customer:"Wrong customer fallback",operator_name:"Fixture Operator",timestamp:"2026-10-17 10:00",date:"2026-10-17",created_at:"Wrong date fallback",amount:999,amount_try:73,currency:"TRY"};
       window.__receiptItem=item;
       ayecFinanceLedgerItems=[item]; db.finance=[];
       window.__receiptRequests=[]; window.__receiptClicked=null;
@@ -70,7 +72,10 @@ async function run() {
       const serviceLineRows=[...document.querySelectorAll(".finance-detail-lines tbody tr")].map(row=>row.textContent.trim());
       const detailLogLines=[...document.querySelectorAll(".finance-detail-notes .finance-detail-log p")].map(node=>node.textContent);
       const detailFooter=document.querySelector(".finance-detail-notes footer")?.textContent||"";
-      return {button:!!button,receiptPrintButton:!!receiptPrintButton,customerButton:!!customerButton,copyButton:!!copyButton,serviceButton:!!serviceButton,serviceLineRows,detailLogLines,detailFooter,dialogOpen:document.querySelector("#appDialog")?.open===true};
+      const rect=node=>{const r=node.getBoundingClientRect();return [Math.round(r.x),Math.round(r.y),Math.round(r.width),Math.round(r.height)]};
+      const dialogHeader=(()=>{const dialog=document.querySelector("#appDialog"),header=dialog?.querySelector("form>header"),heading=header?.querySelector(":scope>div"),title=header?.querySelector("#dialogTitle"),eyebrow=header?.querySelector("#dialogEyebrow");return{dialog:dialog&&rect(dialog),header:header&&rect(header),heading:heading&&rect(heading),title:title&&rect(title),eyebrow:eyebrow&&rect(eyebrow),headingDisplay:heading&&getComputedStyle(heading).display,titleDisplay:title&&getComputedStyle(title).display,eyebrowDisplay:eyebrow&&getComputedStyle(eyebrow).display,titleText:title?.textContent,eyebrowText:eyebrow?.textContent,titleRow:heading?.querySelector(".finance-detail-title-row")?.textContent,statusBadge:heading?.querySelector(".finance-detail-status-badge")?.textContent,recordBadge:heading?.querySelector(".finance-detail-record-badge")?.textContent}})();
+      const mobileLayout=(()=>{const dialog=document.querySelector("#appDialog"),dialogRect=dialog?.getBoundingClientRect(),footer=document.querySelector("#dialogFooter"),footerRect=footer?.getBoundingClientRect(),buttons=[...footer?.querySelectorAll("button")||[]].map(node=>({action:node.dataset.financeDetailAction||node.textContent.trim(),rect:rect(node)}));return{viewport:[innerWidth,innerHeight],documentWidth:document.documentElement.scrollWidth,dialog:dialogRect&&rect(dialog),footer:footerRect&&rect(footer),buttons,footerButtonsFit:!!dialogRect&&buttons.every(item=>item.rect[1]+item.rect[3]<=Math.round(dialogRect.bottom)+1&&item.rect[0]>=Math.round(dialogRect.left)-1)}})();
+      return {button:!!button,receiptPrintButton:!!receiptPrintButton,customerButton:!!customerButton,copyButton:!!copyButton,serviceButton:!!serviceButton,serviceLineRows,detailLogLines,detailFooter,dialogOpen:document.querySelector("#appDialog")?.open===true,dialogHeader,mobileLayout};
     })()`);
     const detailShot=await send("Page.captureScreenshot",{format:"png",captureBeyondViewport:true});
     fs.writeFileSync(path.join(outDir,"accounting-receipt-detail-headless.png"),Buffer.from(detailShot.data,"base64"));
@@ -92,7 +97,7 @@ async function run() {
       printFinanceTransactionReceipt({...window.__receiptItem,id:74,currency:"USD",amount:123,amount_try:999});
       await new Promise(resolve=>setTimeout(resolve,25));
       const foreignReceiptMarkup=[...document.querySelectorAll('iframe[aria-hidden="true"]')].at(-1)?.srcdoc||"";
-      const printedReceipt={title:receiptMarkup.includes("AYEC Pro - Islem Makbuzu"),record:receiptMarkup.includes("Kayit: 73"),date:receiptMarkup.includes("Tarih: 2026-10-17")&&!receiptMarkup.includes("Wrong date fallback"),type:receiptMarkup.includes("Tur: Gider")&&!receiptMarkup.includes("Wrong type fallback"),customerEscaped:receiptMarkup.includes("QA &lt;Customer&gt;")&&!receiptMarkup.includes("Wrong customer fallback"),amount:receiptMarkup.includes("Tutar: "+money(73,"TRY"))&&!receiptMarkup.includes("Tutar: "+money(999,"TRY")),foreignAmount:foreignReceiptMarkup.includes("Tutar: "+money(123,"USD"))&&!foreignReceiptMarkup.includes("Tutar: "+money(999,"USD")),descriptionEscaped:receiptMarkup.includes("Fixture &lt;receipt&gt;"),plainDesktopRows:receiptMarkup.includes("Kayit: 73<br>Tarih: 2026-10-17")&&!receiptMarkup.includes("<h1>"),nativeTypography:receiptMarkup.includes('@page{size:A4;margin:0}body{font:9pt Inter,"Segoe UI",Arial,sans-serif;margin:4px')};
+      const printedReceipt={title:receiptMarkup.includes("AYEC Pro - Makbuz"),record:receiptMarkup.includes("Makbuz No</small><strong>73"),date:receiptMarkup.includes("Tarih</small><strong>2026-10-17")&&!receiptMarkup.includes("Wrong date fallback"),type:receiptMarkup.includes("Islem Turu</small><strong>Gider")&&!receiptMarkup.includes("Wrong type fallback"),customerEscaped:receiptMarkup.includes("QA &lt;Customer&gt;")&&!receiptMarkup.includes("Wrong customer fallback"),amount:receiptMarkup.includes("Alinan Tutar</small><strong>"+money(73,"TRY"))&&!receiptMarkup.includes(money(999,"TRY")),foreignAmount:foreignReceiptMarkup.includes("Alinan Tutar</small><strong>"+money(123,"USD"))&&!foreignReceiptMarkup.includes(money(999,"USD")),descriptionEscaped:receiptMarkup.includes("Fixture &lt;receipt&gt;"),professionalLayout:receiptMarkup.includes(".grid{display:grid;grid-template-columns:1fr 1fr"),nativeTypography:receiptMarkup.includes("@page{size:A4;margin:16mm}")};
       const button=document.querySelector('[data-finance-detail-action="receipt"]');
       button?.dispatchEvent(new MouseEvent("click",{bubbles:true,cancelable:true}));
       await new Promise(resolve=>setTimeout(resolve,40));
@@ -131,10 +136,10 @@ async function run() {
     const serviceDescriptionMatch=ready.detailLogLines[0]?.includes("Screen replaced")&&ready.detailLogLines[0]?.includes("Port cleaned")&&ready.detailLogLines[1]?.includes("Fixture <receipt>")&&ready.detailFooter.includes("Fixture Operator")&&ready.detailFooter.includes("2026-10-17 10:00");
     const selectedRowsMatch=result.selectedServiceRows.length===1&&result.selectedServiceRows[0].includes("Fixture SSD")&&result.selectedServiceRows[0].includes("SSD-01")&&result.selectedServiceRows[0].includes("20");
     const relatedRowsMatch=result.relatedDescriptionRows.length===1&&result.relatedDescriptionRows[0].includes("Related part")&&result.relatedDescriptionRows[0].includes("123,45")&&result.relatedDescriptionRows[0].includes("—");
-    if (!ready.button || !ready.receiptPrintButton || !ready.customerButton || !ready.copyButton || !ready.serviceButton || !serviceRowsMatch || !serviceDescriptionMatch || !selectedRowsMatch || !relatedRowsMatch || !ready.dialogOpen || result.copiedTracking !== "SRV-TEST-73" || !result.serviceForm.visible || !result.serviceForm.title.includes("SRV-TEST-73") || !result.descriptionTrackingFallback || !result.customerActionHiddenWithoutCustomer || !result.customer360.visible || result.customer360.title !== "QA Customer" || Object.values(result.printedReceipt).some(value=>!value) || !result.button || result.requested !== "/api/desktop/accounting/73/receipt/download" || result.clicked?.href !== "blob:receipt-fixture" || result.clicked?.download !== "expense-receipt.pdf" || !result.dialogOpen || !result.hiddenWithoutReceipt || exceptions.length) throw new Error(JSON.stringify({ready,result,exceptions}));
+    if (!ready.button || !ready.receiptPrintButton || !ready.customerButton || !ready.copyButton || !ready.serviceButton || !serviceRowsMatch || !serviceDescriptionMatch || !selectedRowsMatch || !relatedRowsMatch || !ready.dialogOpen || !ready.mobileLayout.footerButtonsFit || ready.mobileLayout.documentWidth > ready.mobileLayout.viewport[0] || ready.dialogHeader.statusBadge!=="Onayland\u0131" || ready.dialogHeader.recordBadge!=="#KAYIT-73" || result.copiedTracking !== "SRV-TEST-73" || !result.serviceForm.visible || !result.serviceForm.title.includes("SRV-TEST-73") || !result.descriptionTrackingFallback || !result.customerActionHiddenWithoutCustomer || !result.customer360.visible || result.customer360.title !== "QA Customer" || Object.values(result.printedReceipt).some(value=>!value) || !result.button || result.requested !== "/api/desktop/accounting/73/receipt/download" || result.clicked?.href !== "blob:receipt-fixture" || result.clicked?.download !== "expense-receipt.pdf" || !result.dialogOpen || !result.hiddenWithoutReceipt || exceptions.length) throw new Error(JSON.stringify({ready,result,exceptions}));
     const screenshot = await send("Page.captureScreenshot", {format:"png", captureBeyondViewport:true});
     fs.writeFileSync(path.join(outDir,"accounting-receipt-download-headless.png"),Buffer.from(screenshot.data,"base64"));
-    console.log(JSON.stringify({result,exceptions:exceptions.length,headless:true}));
+    console.log(JSON.stringify({result,dialogHeader:ready.dialogHeader,mobileLayout:ready.mobileLayout,exceptions:exceptions.length,headless:true}));
   } finally {
     if (socket) socket.close();
     try { execFileSync("taskkill", ["/PID", String(browser.pid), "/T", "/F"], { stdio: "ignore" }); } catch (_) { browser.kill(); }

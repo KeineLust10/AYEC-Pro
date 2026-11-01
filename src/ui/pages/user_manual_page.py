@@ -9,6 +9,7 @@ try:
 except ImportError:
     markdown = None
 from src.utils.theme_colors import theme_qss
+from src.utils.theme_manager import ThemeManager
 from src.utils.path_helper import PathHelper
 
 class UserManualPage(QWidget):
@@ -33,7 +34,7 @@ class UserManualPage(QWidget):
         # Tabs
         self.tabs = QTabWidget()
         self.tabs.setStyleSheet(theme_qss("""
-            QTabWidget::pane { border: 1px solid @border; border-radius: 6px; background: rgb(255, 255, 255); }
+            QTabWidget::pane { border: 1px solid @border; border-radius: 6px; background: @surface; }
             QTabBar::tab {
                 background: @surface_alt;
                 padding: 10px 20px;
@@ -44,7 +45,7 @@ class UserManualPage(QWidget):
                 font-weight: bold;
                 color: @text;
             }
-            QTabBar::tab:selected { background: rgb(255, 255, 255); color: @accent_hover; border-bottom: 1px solid rgb(255, 255, 255); }
+            QTabBar::tab:selected { background: @surface; color: @accent_hover; border-bottom: 1px solid @surface; }
         """))
         
         # Guide 1: Kullanım Kılavuzu
@@ -62,7 +63,9 @@ class UserManualPage(QWidget):
         viewer = QTextBrowser()
         viewer.setProperty("skipThemeTransform", True)
         viewer.setOpenExternalLinks(True)
-        viewer.setStyleSheet(theme_qss("border: none; padding: 15px; background-color: white;"))
+        viewer.setStyleSheet(theme_qss(
+            "QTextBrowser { border: none; padding: 14px; background-color: @surface; color: @text; }"
+        ))
         
         # Try to find file in root or dist
         paths_to_check = [
@@ -83,35 +86,44 @@ class UserManualPage(QWidget):
                     content = f"Error reading file: {e}"
         
         if markdown is None:
-            viewer.setPlainText(content)
+            palette = ThemeManager.current_palette()
+            viewer.setMarkdown(content)
+            viewer.document().setDefaultStyleSheet(self._manual_document_css(palette))
             return viewer
 
         # Convert MD to HTML
         try:
             html_content = markdown.markdown(content, extensions=['tables', 'fenced_code'])
-            # Basic styling
-            styled_html = f"""
-            <html>
-            <head>
-                <style>
-                    body {{ font-family: 'Segoe UI', sans-serif; color: black; line-height: 1.6; }}
-                    h1, h2, h3 {{ color: black; border-bottom: 1px solid lightgray; padding-bottom: 5px; }}
-                    code {{ background-color: whitesmoke; padding: 2px 5px; border-radius: 3px; font-family: Consolas, monospace; }}
-                    pre {{ background-color: whitesmoke; padding: 10px; border-radius: 5px; overflow-x: auto; }}
-                    blockquote {{ border-left: 4px solid dodgerblue; margin: 0; padding-left: 15px; color: gray; }}
-                    table {{ border-collapse: collapse; width: 100%; margin: 15px 0; }}
-                    th, td {{ border: 1px solid silver; padding: 8px; text-align: left; }}
-                    th {{ background-color: gainsboro; }}
-                </style>
-            </head>
-            <body>
-            {html_content}
-            </body>
-            </html>
-            """
+            palette = ThemeManager.current_palette()
+            styled_html = "<html><head><style>{}</style></head><body>{}</body></html>".format(
+                self._manual_document_css(palette), html_content
+            )
             viewer.setHtml(styled_html)
         except Exception as e:
-            viewer.setText(f"Markdown render hatası: {e}\n\n{content}")
+            viewer.setMarkdown(content)
             
         return viewer
+
+    @staticmethod
+    def _manual_document_css(palette):
+        text = palette.get("text", "#E2E8F0")
+        muted = palette.get("text_muted", "#94A3B8")
+        surface = palette.get("surface", "#0F172A")
+        surface_alt = palette.get("surface_alt", "#1E293B")
+        border = palette.get("border", "#334155")
+        accent = palette.get("accent", "#3B82F6")
+        return (
+            "body { font-family: 'Segoe UI', sans-serif; color: " + text + "; "
+            "background-color: " + surface + "; line-height: 1.55; } "
+            "h1, h2, h3 { color: " + text + "; border-bottom: 1px solid " + border + "; "
+            "padding-bottom: 5px; } a { color: " + accent + "; } "
+            "code, pre { background-color: " + surface_alt + "; color: " + text + "; "
+            "border-radius: 4px; font-family: Consolas, monospace; } "
+            "code { padding: 2px 5px; } pre { padding: 10px; } "
+            "blockquote { border-left: 4px solid " + accent + "; margin: 0; "
+            "padding-left: 15px; color: " + muted + "; } "
+            "table { border-collapse: collapse; width: 100%; margin: 15px 0; } "
+            "th, td { border: 1px solid " + border + "; padding: 8px; text-align: left; } "
+            "th { background-color: " + surface_alt + "; color: " + text + "; }"
+        )
 

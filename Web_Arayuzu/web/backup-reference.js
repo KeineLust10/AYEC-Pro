@@ -10,6 +10,9 @@
     }).join("") + '</div><div class="settings-grid">' + toggles.map(function (field) {
       return exactSettingsField(field, definition.scope || "settings");
     }).join("") + '</div>';
+    var wipeAction = userAdminRole(currentAuthUser?.role)
+      ? '<button type="button" class="secondary" data-backup-wipe>Firma Verilerini Her Yerde S\u0131f\u0131rla</button>'
+      : "";
     return pageHead(
       "Yedekleme ve Veri G\u00fcvenli\u011fi Merkezi",
       "Tenant veritaban\u0131n\u0131 merkezi yedek ar\u015fivine kaydedin ve gerekti\u011finde indirin."
@@ -17,6 +20,7 @@
       + '<button type="button" class="primary" data-backup-create>Hemen Sunucu Yede\u011fi Al</button>'
       + '<button type="button" class="secondary" data-backup-restore>Geri Y\u00fckleme Merkezini A\u00e7</button>'
       + '<button type="button" class="secondary" data-backup-stage>Dosyadan Merkezi Geri Y\u00fckleme Haz\u0131rla</button>'
+      + wipeAction
       + '<input type="file" id="backupRestoreFile" accept=".db,.sqlite,.sqlite3" hidden>'
       + '<button type="button" class="secondary" data-action="export-all">Web JSON D\u0131\u015fa Aktar</button>'
       + '</section>'
@@ -54,6 +58,7 @@
     bindPageBeforeBackupReference();
     if (page !== "backup") return;
     var create = document.querySelector("[data-backup-create]");
+    var wipe = document.querySelector("[data-backup-wipe]");
     var refresh = document.querySelector("[data-backup-refresh]");
     var restore = document.querySelector("[data-backup-restore]");
     var stageRestore = document.querySelector("[data-backup-stage]");
@@ -69,6 +74,7 @@
       dailyTime.disabled = !dailyEnabled.checked;
     });
     if (create) create.addEventListener("click", createTenantBackup);
+    if (wipe && userAdminRole(currentAuthUser?.role)) wipe.addEventListener("click", openTenantWipeDialog);
     if (refresh) refresh.addEventListener("click", loadTenantBackups);
     if (restore) restore.addEventListener("click", openRestoreCenter);
     if (stageRestore && restoreFile) {
@@ -209,15 +215,52 @@
     }
   }
 
+  function openTenantWipeDialog() {
+    var phrase = "T\u00dcM VER\u0130LER\u0130 S\u0130L";
+    openDialog(
+      "Firma Verilerini Her Yerde S\u0131f\u0131rla",
+      "GER\u0130 ALINAMAZ \u0130\u015eLEM",
+      '<p role="alert">Sunucudaki operasyon verileri temizlenecek. Ba\u011fl\u0131 masa\u00fcst\u00fc cihazlar eski veriyi e\u015fitleyemeyecek. Silmeden \u00f6nce olu\u015fturulan yedek 30 g\u00fcn korunacak.</p>'
+        + '<div class="field"><label for="backupWipePhrase">Onaylamak i\u00e7in <strong>' + phrase + '</strong> yaz\u0131n</label>'
+        + '<input id="backupWipePhrase" name="phrase" type="text" autocomplete="off" required></div>'
+        + '<div class="field"><label for="backupWipePassword">Y\u00f6netici parolas\u0131</label>'
+        + '<input id="backupWipePassword" name="password" type="password" autocomplete="current-password" required></div>',
+      async function (form) {
+        var enteredPhrase = String(form.get("phrase") || "").trim();
+        var password = String(form.get("password") || "");
+        if (enteredPhrase !== phrase) throw Error("Onay metni e\u015fle\u015fmiyor.");
+        if (!password) throw Error("Y\u00f6netici parolas\u0131n\u0131 girin.");
+        var result = await apiFetch("/api/admin/wipe-user-data", {
+          method: "POST",
+          body: JSON.stringify({ phrase: enteredPhrase, password: password })
+        });
+        await hydrateDesktop();
+        await loadTenantBackups();
+        toast("Firma verileri temizlendi. 30 g\u00fcn korunan yedek #" + String(result.backup_id || "-") + ".", "success");
+        return true;
+      },
+      "Firma Verilerini S\u0131f\u0131rla"
+    );
+  }
+
   async function downloadTenantBackup(id, button) {
     button.disabled = true;
     try {
-      var response = await fetch("/api/desktop/backups/" + encodeURIComponent(id) + "/download", { credentials: "same-origin" });
+      var endpoint = "/api/desktop/backups/" + encodeURIComponent(id) + "/download";
+      var response = await fetch(endpoint, { credentials: "same-origin", cache: "no-store" });
       if (!response.ok) {
         var errorBody = await response.json().catch(function () { return {}; });
         throw Error(errorBody.error || "Yedek indirilemedi (" + response.status + ")");
       }
+      if (typeof assertDownloadResponse === "function") assertDownloadResponse(response);
+      var contentType = String(response.headers.get("Content-Type") || "").split(";", 1)[0].trim().toLowerCase();
+      if (["application/vnd.sqlite3", "application/x-sqlite3", "application/octet-stream"].indexOf(contentType) < 0) {
+        throw Error("Sunucu beklenen SQLite yedek dosyas\u0131n\u0131 d\u00f6nd\u00fcrmedi.");
+      }
       var blob = await response.blob();
+      if (!blob.size || (await blob.slice(0, 16).text()) !== "SQLite format 3\u0000") {
+        throw Error("Sunucu yan\u0131t\u0131 ge\u00e7erli bir SQLite yede\u011fi de\u011fil.");
+      }
       var url = URL.createObjectURL(blob);
       var link = document.createElement("a");
       link.href = url;

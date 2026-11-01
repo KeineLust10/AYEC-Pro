@@ -479,6 +479,10 @@ class ExternalTrackingPage(QWidget):
 
         # Table
         self.table = QTableWidget()
+        self.table.setMinimumWidth(0)
+        self.table.setSizePolicy(
+            QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Expanding
+        )
         self.table.setColumnCount(9)
         self.table.setHorizontalHeaderLabels([
             "Takip No /\nServis No", "M\u00fc\u015fteri & \u00dcr\u00fcn", "D\u0131\u015f Servis / Yer",
@@ -487,7 +491,12 @@ class ExternalTrackingPage(QWidget):
         ])
         
         # Modern Table Style
-        self.table.setStyleSheet(theme_qss(DesignTokens.get_table_qss()))
+        self.table.setStyleSheet(theme_qss(
+            DesignTokens.get_table_qss() + """
+            QTableWidget::item:hover { background: @surface_alt; color: @text; }
+            QTableWidget::item:selected { background: @surface_alt; color: @text; }
+            """
+        ))
         header_view = self.table.horizontalHeader()
         header_view.setHighlightSections(False)
         
@@ -500,7 +509,8 @@ class ExternalTrackingPage(QWidget):
         self.table.setColumnWidth(4, 174)  # Cargo tracking
         self.table.setColumnWidth(5, 120)  # Status
         header_view.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        header_view.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
+        header_view.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        header_view.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
         header_view.setSectionResizeMode(6, QHeaderView.ResizeMode.Fixed)
         self.table.setColumnWidth(6, 150)
         self.table.setColumnWidth(7, 124)

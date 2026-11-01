@@ -147,6 +147,7 @@ class AddUnitDialog(BaseModernDialog):
         block_names = self._get_block_names()
         unit_count = self.spin_unit_count.value()
         created = 0
+        failed = 0
         for block in block_names:
             for i in range(unit_count):
                 unit_no = f"{block}-{i + 1}"
@@ -165,15 +166,24 @@ class AddUnitDialog(BaseModernDialog):
                     'parent_unit_id': None,
                     'unit_kind': 'Daire',
                 }
-                self.db.add_project_unit(data)
-                created += 1
-        show_success(self.parent(), f"{created} daire oluşturuldu.")
-        self.accept()
+                unit_id = self.db.add_project_unit(data)
+                if unit_id is None:
+                    failed += 1
+                else:
+                    created += 1
+        if failed:
+            show_error(self.parent(), f"{created} daire kaydedildi, {failed} daire kaydedilemedi.")
+        if created:
+            if not failed:
+                show_success(self.parent(), f"{created} daire olu\u015fturuldu.")
+            self.accept()
+        elif not failed:
+            show_error(self.parent(), "Daire kayd\u0131 olu\u015fturulamad\u0131.")
 
 class AddSubDialog(BaseModernDialog):
     """Project team and subcontractor assignment dialog."""
     def __init__(self, db, project_id, parent=None):
-        super().__init__(parent, title="Ekip \u00dcyesi / Ta\u015feron Ekle", width=840, height=1044)
+        super().__init__(parent, title="Ekip \u00dcyesi / Ta\u015feron Ekle", width=840, height=900)
         self.db = db
         self.project_id = project_id
         self.setFont(QFont("Segoe UI", 10))
@@ -201,16 +211,16 @@ class AddSubDialog(BaseModernDialog):
         title_layout = QVBoxLayout(title_block)
         title_layout.setContentsMargins(0, 8, 0, 0)
         title_layout.setSpacing(6)
-        self.lbl_title.setFont(QFont(DesignTokens.FONT_FAMILY, 18, QFont.Weight.Bold))
-        self.lbl_title.setFixedHeight(30)
+        self.lbl_title.setFont(QFont(DesignTokens.FONT_FAMILY, 14, QFont.Weight.Bold))
+        self.lbl_title.setFixedHeight(26)
         self.lbl_title.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         title_layout.addWidget(self.lbl_title)
         subtitle = QLabel("Projeye uzman ta\u015feron, usta veya saha teknikeri atan\u0131n")
-        subtitle.setFont(QFont("Segoe UI", 11))
-        subtitle.setFixedHeight(22)
+        subtitle.setFont(QFont("Segoe UI", 10))
+        subtitle.setFixedHeight(20)
         subtitle.setStyleSheet(theme_qss("color: @text_muted; font-size: 12px; border: none;"))
         title_layout.addWidget(subtitle)
-        title_block.setFixedHeight(68)
+        title_block.setFixedHeight(56)
         brand = QLabel("AYEC PRO")
         brand.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
         brand.setStyleSheet(theme_qss("background: #13233d; color: #60a5fa; border: 1px solid #28436a; border-radius: 5px; padding: 10px; font-size: 10px; font-weight: 700;"))
@@ -218,8 +228,8 @@ class AddSubDialog(BaseModernDialog):
         header_layout.insertWidget(2, title_block)
         header_layout.insertWidget(3, brand)
         header_layout.setContentsMargins(30, 0, 14, 0)
-        self.header.setFixedHeight(116)
-        self.footer.setFixedHeight(90)
+        self.header.setFixedHeight(76)
+        self.footer.setFixedHeight(64)
         self.footer_layout.insertStretch(0, 1)
         self.setup_sub_ui()
         self._apply_part9_reference_style(subtitle, brand)
@@ -229,13 +239,13 @@ class AddSubDialog(BaseModernDialog):
         body = QWidget()
         content = QVBoxLayout(body)
         outer_layout.addWidget(body)
-        content.setContentsMargins(24, 22, 24, 22)
-        content.setSpacing(24)
+        content.setContentsMargins(20, 14, 20, 14)
+        content.setSpacing(14)
 
         def _lbl(text):
             l = QLabel(text)
-            l.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
-            l.setStyleSheet(theme_qss("color: @text_muted; font-weight: bold; font-size: 11px;"))
+            l.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
+            l.setStyleSheet(theme_qss("color: @text_muted; font-weight: bold; font-size: 10px;"))
             return l
 
         def _inp(placeholder=""):
@@ -243,7 +253,7 @@ class AddSubDialog(BaseModernDialog):
             i.setFont(QFont("Segoe UI", 11))
             i.setPlaceholderText(placeholder)
             i.setStyleSheet(theme_qss(DesignTokens.get_input_qss()))
-            i.setFixedHeight(52)
+            i.setFixedHeight(42)
             return i
 
         def _field(label, widget):
@@ -270,7 +280,7 @@ class AddSubDialog(BaseModernDialog):
             "\u2744\ufe0f \u0130klimlendirme & Havaland\u0131rma",
         ])
         self.cmb_job.setStyleSheet(theme_qss(DesignTokens.get_input_qss() + " QComboBox { background: @surface; color: @text; } QComboBox QAbstractItemView { background: @surface; color: @text; selection-background-color: @primary; }"))
-        self.cmb_job.setFixedHeight(52)
+        self.cmb_job.setFixedHeight(42)
         content.addWidget(_field("Uzmanl\u0131k Alan\u0131 *", self.cmb_job))
 
         payment_card = QFrame()
@@ -314,7 +324,7 @@ class AddSubDialog(BaseModernDialog):
         price_layout.addWidget(price_label)
         self.txt_total = _inp("0,00")
         self.txt_total.setText("0,00")
-        self.txt_total.setFixedHeight(48)
+        self.txt_total.setFixedHeight(42)
         self.txt_total.setFont(QFont("Consolas", 14, QFont.Weight.DemiBold))
         self.txt_total.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.txt_total.setStyleSheet("QLineEdit { background: transparent; color: #34d399; border: 0; font: 600 14px Consolas, monospace; padding: 8px 0; }")
@@ -336,13 +346,13 @@ class AddSubDialog(BaseModernDialog):
         phone_col.setSpacing(8)
         phone_col.addWidget(_lbl("Telefon Numaras\u0131"))
         self.txt_phone = _inp("05xx xxx xx xx")
-        self.txt_phone.setFixedHeight(48)
+        self.txt_phone.setFixedHeight(42)
         phone_col.addWidget(self.txt_phone)
         email_col = QVBoxLayout()
         email_col.setSpacing(8)
         email_col.addWidget(_lbl("E-posta Adresi"))
         self.txt_email = _inp("ornek@mail.com")
-        self.txt_email.setFixedHeight(48)
+        self.txt_email.setFixedHeight(42)
         email_col.addWidget(self.txt_email)
         contact_layout.addLayout(phone_col)
         contact_layout.addLayout(email_col)
@@ -444,7 +454,7 @@ class AddSubDialog(BaseModernDialog):
         self.txt_notes = QTextEdit()
         self.txt_notes.setFont(QFont("Segoe UI", 11))
         self.txt_notes.setPlaceholderText("Ta\u015feronun i\u015f kapsam\u0131, malzeme sorumluluklar\u0131 ve i\u015f teslim tarihleri ile ilgili notlar...")
-        self.txt_notes.setFixedHeight(108)
+        self.txt_notes.setFixedHeight(82)
         self.txt_notes.setStyleSheet(theme_qss(DesignTokens.get_input_qss()))
         content.addWidget(_field("G\u00f6rev A\u00e7\u0131klamas\u0131 & Notlar", self.txt_notes))
 

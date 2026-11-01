@@ -24,6 +24,47 @@ def test_partner_shipment_date_defaults_to_the_local_desktop_date():
     assert result.stdout == "2026-01-02"
 
 
+def test_partner_workspace_tabs_follow_keyboard_and_aria_tab_semantics():
+    web = (ROOT / "Web_Arayuzu/web/partners-reference.js").read_text(encoding="utf-8")
+    audit = (ROOT / "tools/quality/web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+
+    assert 'role="tablist" aria-label="Partner sevkiyatlar\\u0131"' in web
+    assert 'role="tab" id="partner-tab-${tab.id}"' in web
+    assert 'aria-selected="${selectedTab === tab.id}"' in web
+    assert 'role="tabpanel" aria-labelledby="partner-tab-${selectedTab}"' in web
+    assert 'event.key === "ArrowRight"' in web
+    assert 'event.key === "ArrowLeft"' in web
+    assert 'event.key === "Home"' in web
+    assert 'event.key === "End"' in web
+    assert "const tabs = shipment.workspaceTabKeyboard" in audit
+    assert 'tabs.afterRight.focus !== "history"' in audit
+    assert 'tabs.afterEnd !== "trends"' in audit
+
+
+def test_offscreen_route_audit_covers_partner_shipment_create_and_edit():
+    audit = (ROOT / "tools/quality/web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+    assert "result.partnerShipmentCrudWorkflow = await auditPartnerShipmentCrud(evaluate)" in audit
+    assert 'shipment.createPayload.partner_id !== 940081' in audit
+    assert 'shipment.updatePayload.outbound_tracking_no !== "QA-OUT-UPDATED"' in audit
+    assert 'shipment.uploadedFilename !== "QA Partner Document.txt"' in audit
+    assert 'String(shipment.deletedDocumentId) !== "940083"' in audit
+    assert 'shipment.profileCreatePayload.name !== "Audit Partner Created"' in audit
+    assert 'shipment.profileUpdatePayload.city !== "Istanbul"' in audit
+    assert "result.partnerNotesWorkflow = await auditPartnerNotes(evaluate)" in audit
+    assert 'notes.timelineText.includes("Audit timeline event")' in audit
+    assert 'notes.trendsText.includes("2026-10")' in audit
+    assert 'notes.createCall.title !== "Audit note title"' in audit
+    assert 'notes.updateCall.title !== "Edited audit note"' in audit
+    assert 'notes.deleteCall.action !== "delete"' in audit
+    assert 'notes.previewDialogOpen' in audit
+    assert 'notes.pdfHtmlValid' in audit
+    assert 'data-partner-note-open=' in (ROOT / "Web_Arayuzu/web/partners-reference.js").read_text(encoding="utf-8")
+    assert 'window.open("", "_blank", "popup,width=900,height=700")' in (ROOT / "Web_Arayuzu/web/partners-reference.js").read_text(encoding="utf-8")
+    assert "result.partnerShipmentPhotoWorkflow = await auditPartnerShipmentPhotos(evaluate)" in audit
+    assert 'photos.payload.label !== "QA Partner Shipment A.jpg"' in audit
+    assert 'photos.nextImageUrl.includes("/api/desktop/partners/shipment-photo/940087?")' in audit
+
+
 def test_partner_workspace_web_view_exposes_filters_and_shipment_tabs():
     web = (ROOT / "Web_Arayuzu/web/partners-reference.js").read_text(encoding="utf-8")
     desktop_ui = (ROOT / "src/ui/pages/_cpp_ui_mixin.py").read_text(encoding="utf-8")
@@ -95,6 +136,14 @@ def test_partner_workspace_web_view_exposes_filters_and_shipment_tabs():
     assert '{ id: "trends", label: "Trendler" }' in web
     assert 'partnerAnalyticsTable("timeline")' in web
     assert 'partnerAnalyticsTable("trends")' in web
+    assert 'id="partnerFinanceSummary"' in web
+    assert 'id="partnerFinanceEntries"' in web
+    assert 'id="partnerFinanceReconciliation"' in web
+    assert 'if (selectedTab === "finance" && selectedPartner)' in web
+    assert '.then(drawPartnerFinanceContent)' in web
+    assert 'id="partnerWorkspaceDocuments"' in web
+    assert 'function loadPartnerDocumentsTab(partner)' in web
+    assert 'if (selectedTab === "documents" && selectedPartner) loadPartnerDocumentsTab(selectedPartner)' in web
 
 
 def test_partner_workspace_api_filters_partners_and_scopes_shipments(monkeypatch, tmp_path):

@@ -16,6 +16,10 @@ def test_customer_history_export_matches_desktop_two_sheet_selection():
     assert 'customer/history/export/xlsx' in app
     assert 'item.no || ""' in app and 'item.category || ""' in app
     assert 'window.print()' in app
+    assert 'money(item.amount || 0, item.currency || "TRY")' in app
+    assert 'window.money(' not in app
+    assert 'typeof db !== "undefined" && Array.isArray(db.finance)' in app
+    assert 'window.db.finance' not in app
 
     payload = web_main.customer_history_workbook(
         "Example",

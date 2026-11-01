@@ -36,7 +36,10 @@ async function stopProcess(child) {
     if (!ready) throw new Error("Temporary AYEC web server did not start.");
 
     const audits = [];
-    for (const [index, script] of ["partner_finance_manifest_offscreen.cjs", "partner_shipment_manifest_offscreen.cjs"].entries()) {
+    const scripts = process.env.AYEC_PARTNER_AUDITS
+      ? process.env.AYEC_PARTNER_AUDITS.split(",").map(value => value.trim()).filter(Boolean)
+      : ["partner_finance_manifest_offscreen.cjs", "partner_shipment_manifest_offscreen.cjs", "partner_shipment_context_actions_offscreen.cjs"];
+    for (const [index, script] of scripts.entries()) {
       const audit = spawnSync(process.execPath, [path.join(__dirname, script)], {
         cwd: tempRoot,
         encoding: "utf8",

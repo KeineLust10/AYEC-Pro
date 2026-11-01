@@ -372,6 +372,7 @@ def test_nested_menu_groups_keep_their_parent_open():
     assert 145 in settings_pages
     assert 147 in settings_pages
     assert 140 in [page_id for _, page_id in stock_group.sub_buttons]
+    assert [page_id for _, page_id in stock_group.sub_buttons] == [50, 66, 51, 250, 300, 140]
     assert menu._btn_map[145].accessibleName() == "Marka Adlar\u0131 Y\u00f6netimi"
 
     menu.close()

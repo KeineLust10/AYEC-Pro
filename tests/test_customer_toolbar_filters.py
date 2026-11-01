@@ -128,10 +128,17 @@ def test_customer_filters_live_in_secondary_toolbar_and_add_action_stays_in_head
         toggle_multiselect = copy_list
 
     app = QApplication.instance() or QApplication([])
-    apply_reference_font(app)
-    ThemeManager.apply_theme(app, "AYEC", animate=False)
+    previous_theme = ThemeManager._current_theme
+    previous_font = app.font()
+    previous_palette = app.palette()
+    previous_stylesheet = app.styleSheet()
+    previous_app_raw = ThemeManager._app_stylesheet_raw
+    previous_app_final = ThemeManager._app_stylesheet_final
+    previous_last_palette = ThemeManager._last_palette
     page = ToolbarPage()
     try:
+        apply_reference_font(app)
+        ThemeManager.apply_theme(app, "AYEC", animate=False)
         page.resize(1500, 260)
         page.show()
         app.processEvents()
@@ -160,6 +167,18 @@ def test_customer_filters_live_in_secondary_toolbar_and_add_action_stays_in_head
         assert toolbar_layout.direction() == QBoxLayout.Direction.TopToBottom
     finally:
         page.close()
+        ThemeManager.apply_theme(app, previous_theme, animate=False)
+        app.setFont(previous_font)
+        app.setPalette(previous_palette)
+        original_app_setter = ThemeManager._original_app_set_stylesheet
+        if original_app_setter is not None:
+            original_app_setter(previous_stylesheet)
+        else:
+            app.setStyleSheet(previous_stylesheet)
+        ThemeManager._app_stylesheet_raw = previous_app_raw
+        ThemeManager._app_stylesheet_final = previous_app_final
+        ThemeManager._last_palette = previous_last_palette
+        app.processEvents()
 
 
 def test_customer_header_actions_resolve_checked_customer_records():

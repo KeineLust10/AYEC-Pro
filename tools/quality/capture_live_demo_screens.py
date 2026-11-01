@@ -21,11 +21,14 @@ from src.ui.main_window import MainWindow
 
 PAGES = (
     (40, "dashboard"),
-    (21, "customers"),
-    (50, "stock"),
-    (30, "appointments"),
-    (41, "service_board"),
+    (42, "service_devices"),
+    (41, "service_kanban"),
+    (61, "field_map"),
     (101, "finance"),
+    (50, "stock"),
+    (130, "settings"),
+    (21, "customers"),
+    (30, "appointments"),
 )
 
 
@@ -49,7 +52,8 @@ class LiveCapture:
                 "role": "admin",
             },
         )
-        self.window.showMaximized()
+        self.window.resize(1600, 900)
+        self.window.show()
 
     def start(self) -> int:
         QTimer.singleShot(800, self.capture_next)

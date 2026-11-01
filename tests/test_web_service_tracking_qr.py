@@ -1,7 +1,13 @@
 import threading
+import os
+import subprocess
+from pathlib import Path
 from http.server import ThreadingHTTPServer
 
 import requests
+import cv2
+import numpy as np
+from reportlab.graphics.barcode import qr as reportlab_qr
 
 from tests.test_web_service_sms import _service_database
 from tests.test_vendor_management_center import _setup_tenant
@@ -12,13 +18,23 @@ def test_service_tracking_qr_is_authenticated_and_tenant_scoped(monkeypatch, tmp
     _actor, tenant_path = _setup_tenant(monkeypatch, tmp_path)
     _service_database(tenant_path)
     issued = {}
+    qr_payloads = []
+    qr_widgets = []
     issue_token = web_main.service_tracking_token
+    qr_widget = reportlab_qr.QrCodeWidget
 
     def capture_tenant_scope(tracking_no, tenant_id=""):
         issued["tenant_id"] = tenant_id
         return issue_token(tracking_no, tenant_id=tenant_id)
 
+    def capture_qr_payload(payload, *args, **kwargs):
+        qr_payloads.append(str(payload))
+        widget = qr_widget(payload, *args, **kwargs)
+        qr_widgets.append(widget)
+        return widget
+
     monkeypatch.setattr(web_main, "service_tracking_token", capture_tenant_scope)
+    monkeypatch.setattr(reportlab_qr, "QrCodeWidget", capture_qr_payload)
     server = ThreadingHTTPServer(("127.0.0.1", 0), web_main.AYECRequestHandler)
     worker = threading.Thread(target=server.serve_forever, daemon=True)
     worker.start()
@@ -46,6 +62,34 @@ def test_service_tracking_qr_is_authenticated_and_tenant_scoped(monkeypatch, tmp
         assert "<svg" in response.text
         assert "SRV-API-1" not in response.text
         assert issued["tenant_id"] == "tenant-1"
+        expected_token = issue_token("SRV-API-1", tenant_id="tenant-1")
+        assert qr_payloads == [f"{web_main.SERVICE_TRACKING_URL}/{expected_token}"]
+        modules = np.asarray(qr_widgets[0].qr.modules, dtype=np.uint8)
+        qr_pixels = np.pad((1 - modules) * 255, 4, constant_values=255)
+        qr_pixels = cv2.resize(qr_pixels, None, fx=8, fy=8, interpolation=cv2.INTER_NEAREST)
+        decoded_qr, _, _ = cv2.QRCodeDetector().detectAndDecode(qr_pixels)
+        assert decoded_qr == qr_payloads[0]
+        edge = Path(os.environ.get("EDGE_EXECUTABLE", r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"))
+        if edge.is_file():
+            svg_path = tmp_path / "service-tracking-qr.svg"
+            png_path = tmp_path / "service-tracking-qr.png"
+            svg_path.write_bytes(response.content)
+            browser = subprocess.run(
+                [
+                    str(edge), "--headless=new", "--disable-gpu", "--no-first-run",
+                    "--no-default-browser-check", "--disable-extensions",
+                    f"--user-data-dir={tmp_path / 'edge-qr-profile'}", "--window-size=768,768",
+                    f"--screenshot={png_path}", svg_path.resolve().as_uri(),
+                ],
+                capture_output=True,
+                timeout=30,
+                check=False,
+            )
+            assert browser.returncode == 0
+            rendered_qr = cv2.imread(str(png_path), cv2.IMREAD_GRAYSCALE)
+            assert rendered_qr is not None
+            rendered_payload, _, _ = cv2.QRCodeDetector().detectAndDecode(rendered_qr)
+            assert rendered_payload == qr_payloads[0]
         token = web_main.service_tracking_token("SRV-API-1")
         assert web_main.service_tracking_token_value(token) == "SRV-API-1"
         legacy_public = requests.get(f"{base_url}/api/public/service/{token}")

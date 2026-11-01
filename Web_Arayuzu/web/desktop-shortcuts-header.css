@@ -1,0 +1,2 @@
+#headerShortcutsBtn{display:none!important;flex:0 0 26px;width:26px;min-width:26px;height:26px;min-height:26px;align-items:center;justify-content:center;padding:0;border:0;background:transparent;color:var(--ink);font-size:16px}
+@media(min-width:1400px){#headerShortcutsBtn{display:flex!important}}

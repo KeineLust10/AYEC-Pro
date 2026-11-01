@@ -47,7 +47,8 @@ async function capture(baseUrl) {
     await page.evaluate(() => document.querySelectorAll(".toast").forEach((toast) => toast.remove()));
     await page.screenshot({ path: "artifacts/admin_backup_restore_web_desktop.png", fullPage: true });
     const summary = await page.evaluate(() => ({ tenant: document.querySelector("#backupTenantSelect")?.value, rows: document.querySelectorAll("[data-backup-row]").length, bytes: document.querySelectorAll(".admin-backup-metrics article")[2]?.querySelector("strong")?.textContent }));
-    await page.evaluate(() => { const input = document.querySelector("#backupSearch"); input.value = "nightly"; input.dispatchEvent(new Event("input", { bubbles: true })); });
+    await page.evaluate(() => { const dateFilter = document.querySelector("#backupDateFilter"); dateFilter.value = "all"; dateFilter.dispatchEvent(new Event("change", { bubbles: true })); const input = document.querySelector("#backupSearch"); input.value = "nightly"; input.dispatchEvent(new Event("input", { bubbles: true })); });
+    await page.waitForFunction(() => [...document.querySelectorAll("[data-backup-row]")].filter((row) => !row.hidden).length === 1);
     const filtered = await page.locator("[data-backup-row]").evaluateAll((rows) => rows.filter((row) => !row.hidden).length);
     await page.evaluate(() => { const input = document.querySelector("#backupSearch"); input.value = ""; input.dispatchEvent(new Event("input", { bubbles: true })); });
     await page.locator('[data-backup-select="1"]').evaluate((element) => element.click());

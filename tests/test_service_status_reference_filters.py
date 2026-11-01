@@ -165,7 +165,6 @@ def test_status_delivery_column_preserves_estimate_and_open_signal(monkeypatch):
         (2, "SRV-B", "Customer B", "Brand", "Model", "PARCA BEKLIYOR", "2026-09-02", "2026-09-06", "ACIL", "", "", 0, 0),
         (3, "SRV-C", "Customer C", "Brand", "Model", "TESLIME HAZIR", "2026-09-03", "2026-09-06", "NORMAL", "", "", 0, 0),
     ])
-    monkeypatch.setattr(ServiceStatusPage, "_refresh_status_assistant", lambda self: None)
     monkeypatch.setattr(ServiceStatusPage, "_refresh_status_flow", lambda self: None)
     db = SimpleNamespace(cursor=connection.cursor(), get_setting=lambda key, default=None: default)
     page = ServiceStatusPage(db)
@@ -259,54 +258,6 @@ def test_status_metrics_use_real_dates_capacity_and_ignore_deleted_records(monke
     connection.execute("UPDATE devices SET delivered_at='',exit_date='' WHERE status='TESLIM EDILDI'")
     page._update_status_metrics()
     assert page.status_kpi_values[3].text() == "-"
-    page.close()
-    connection.close()
-
-
-def test_status_assistant_uses_real_sources_and_preserves_navigation(monkeypatch):
-    app = QApplication.instance() or QApplication([])
-    connection = sqlite3.connect(":memory:")
-    connection.execute("CREATE TABLE appointments (date TEXT,time TEXT,customer_name TEXT,description TEXT,status TEXT,is_deleted INTEGER)")
-    today = QDate.currentDate().toString("yyyy-MM-dd")
-    connection.executemany("INSERT INTO appointments VALUES (?, ?, ?, ?, ?, ?)", [
-        (today, "10:00", "Actual customer", "Actual visit", "Bekliyor", 0),
-        (today, "11:00", "Completed", "Done", "Tamamland\u0131", 0),
-        (today, "12:00", "Deleted", "Hidden", "Bekliyor", 1),
-        (today, "13:00", "Cancelled", "Hidden", "\u0130PTAL", 0),
-    ])
-    connection.execute("CREATE TABLE parts (name TEXT,stock REAL,min_stock REAL,is_deleted INTEGER)")
-    connection.executemany("INSERT INTO parts VALUES (?, ?, ?, ?)", [("Actual cable", 1, 2, 0), ("Healthy", 10, 5, 0), ("Deleted", 0, 5, 1)])
-    connection.execute("CREATE TABLE personnel (name TEXT,role TEXT,status TEXT,is_deleted INTEGER,is_active INTEGER)")
-    connection.executemany("INSERT INTO personnel VALUES (?, ?, ?, ?, ?)", [
-        ("Actual technician", "TEKN\u0130SYEN", "Gorevde", 0, 1),
-        ("Manager", "Yonetici", "Busy", 0, 1),
-        ("Inactive", "Teknisyen", "Busy", 0, 0),
-        ("Deleted", "Saha", "Busy", 1, 1),
-    ])
-    monkeypatch.setattr(ServiceStatusPage, "load_data", lambda self: None)
-    routes = []
-    page = ServiceStatusPage(SimpleNamespace(cursor=connection.cursor(), get_setting=lambda key, default=None: default),
-                             SimpleNamespace(on_menu_click=routes.append))
-    changes = connection.total_changes
-    page._refresh_status_assistant()
-    assert "1 bekleyen randevu" in page.status_appointment_notice.text()
-    assert "Actual customer" in page.status_appointment_notice.text()
-    assert "Actual cable" in page.status_stock_notice.text()
-    assert "Deleted" not in page.status_stock_notice.text()
-    assert page.status_personnel_layout.count() == 1
-    first_person = page.status_personnel_layout.itemAt(0).widget()
-    assert any("Actual technician" in label.text() for label in first_person.findChildren(QLabel))
-    assert any("Gorevde" in label.text() for label in first_person.findChildren(QLabel))
-    for button in (page.status_appointment_button, page.status_stock_button, page.status_personnel_button):
-        button.click()
-    assert routes == [30, 50, 10]
-    assert connection.total_changes == changes
-    connection.execute("UPDATE appointments SET status='Tamamland\u0131'")
-    connection.execute("UPDATE parts SET stock=10")
-    page._refresh_status_assistant()
-    assert "0 bekleyen randevu" in page.status_appointment_notice.text()
-    assert "bulunmuyor" in page.status_stock_notice.text()
-    assert page.status_personnel_layout.count() == 1
     page.close()
     connection.close()
 

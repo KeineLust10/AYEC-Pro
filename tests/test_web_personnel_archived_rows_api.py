@@ -11,7 +11,7 @@ import Web_Arayuzu.Main as web_main
 def test_personnel_table_can_include_archived_rows(monkeypatch, tmp_path):
     _actor, tenant_path = _setup_tenant(monkeypatch, tmp_path)
     with sqlite3.connect(tenant_path) as conn:
-        conn.execute("ALTER TABLE personnel ADD COLUMN is_deleted INTEGER DEFAULT 0")
+        assert "is_deleted" in {row[1] for row in conn.execute("PRAGMA table_info(personnel)")}
         conn.execute(
             "INSERT INTO personnel(name, role, is_deleted) VALUES(?,?,?)",
             ("Active worker", "Teknisyen", 0),

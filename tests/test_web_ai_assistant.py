@@ -94,9 +94,59 @@ def test_assistant_browser_surface_and_routes_are_connected():
     panel = (root / "Web_Arayuzu" / "web" / "desktop-assistant-panel.js").read_text(encoding="utf-8")
     assert 'src="assistant-reference.js?' in index
     assert 'href="assistant-reference.css?' in index
+    assert 'desktop-assistant-panel.css?v=20261026-assistant-voice-edit-undo-1' in index
+    assert 'desktop-assistant-panel.js?v=20261026-assistant-voice-edit-undo-1' in index
     assert 'apiFetch("/api/desktop/assistant/status")' in script
     assert 'apiFetch("/api/desktop/assistant/query"' in script
     assert 'fetch("/api/desktop/assistant/speech"' in panel
+    assert 'data-assistant-voice' in panel
+    assert 'window.SpeechRecognition || window.webkitSpeechRecognition' in panel
+    assert 'recognition.lang = "tr-TR"' in panel
+    assert 'recognition.abort()' in panel
+    assert 'function resolveNamedPage(text)' in panel
+    assert 'sectorPages[currentSector]?.has(item.id)' in panel
+    assert 'const pageTarget = action ? null : resolveNamedPage(text)' in panel
+    assert 'const readScreenRequested = ["ekrani oku", "sayfayi oku", "read screen"]' in panel
+    assert 'document.querySelector("#content")?.innerText' in panel
+    assert 'const readFieldRequested = ["alani oku", "odaklanan alani oku", "read field"]' in panel
+    assert 'function describeActivePageField()' in panel
+    assert 'function describeFormFeedback()' in panel
+    assert 'function scrollActivePage(forward)' in panel
+    assert 'function appendDictation(text)' in panel
+    assert 'function searchActivePage(query)' in panel
+    assert 'function editFocusedTextControl(operation, value = "")' in panel
+    assert 'function requestFocusedFieldClear()' in panel
+    assert 'function resolveFieldClear(confirmed)' in panel
+    assert 'function moveRecordSelection(forward)' in panel
+    assert 'function activateSelectedRecord()' in panel
+    assert 'function stopReplySpeech()' in panel
+    assert 'function requestFormReset()' in panel
+    assert 'function undoLastFieldChange()' in panel
+    assert 'function requestNamedFieldClear(spokenLabel)' in panel
+    assert 'function navigateAssistantBack()' in panel
+    assert 'function describeFormStatus()' in panel
+    assert 'const stockOcrRequested =' in panel
+    assert 'const repeatSpeechRequested =' in panel
+    assert 'const stopSpeechRequested =' in panel
+    assert 'generation !== speechGeneration' in panel
+    assert 'const clearFieldRequested = ["alani temizle", "metni temizle", "clear field"]' in panel
+    assert 'const screenSearchRequested = ["bu ekranda ara", "sayfada ara", "ekranda ara", "burada ara", "search this screen"]' in panel
+    assert 'const result = searchActivePage(match?.[1] || "")' in panel
+    assert '{ phrases: ["virgul ekle", "virgul koy", "insert comma"], operation: "insert", value: ", " }' in panel
+    assert '{ phrases: ["son kelimeyi sil", "onceki kelimeyi sil", "delete word"], operation: "delete_word" }' in panel
+    assert 'const dictationStartRequested = ["dikte modunu ac", "dikteye basla", "yazmaya basla", "start dictation"]' in panel
+    assert 'if (dictationMode)' in panel
+    assert 'control.value = current + separator + value' in panel
+    assert 'const scrollDirection = ["asagi kaydir", "ekrani asagi kaydir", "scroll down"]' in panel
+    assert 'const result = scrollActivePage(scrollDirection > 0)' in panel
+    assert 'const readFormFeedbackRequested = ["form geri bildirimini oku", "form hatalarini oku", "eksik alanlari oku", "read form feedback"]' in panel
+    assert 'control.validationMessage || "deger dogrulamadan gecmedi."' in panel
+    assert 'describeFormFeedback(), true' in panel
+    assert 'control.value ? "dolu" : "bo\\u015f"' in panel
+    assert 'function activeAssistantContentRoot()' in panel
+    assert 'function movePageFocus(forward)' in panel
+    assert 'const focusDirection = ["sonraki alana gec"' in panel
+    assert 'if (!keepPageFocus) input.focus();' in panel
 
 
 def test_assistant_http_routes_require_login_and_use_active_tenant(monkeypatch, tmp_path):
@@ -159,3 +209,20 @@ def test_assistant_http_routes_require_login_and_use_active_tenant(monkeypatch, 
         server.shutdown()
         server.server_close()
         worker.join(timeout=2)
+
+def test_offscreen_assistant_query_failure_preserves_input_and_allows_retry():
+    root = Path(__file__).resolve().parents[1]
+    audit = (root / "tools" / "quality" / "web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+
+    assert "assistant.failureShown" in audit
+    assert "assistant.inputRetained" in audit
+    assert "assistant.buttonRecovered" in audit
+    assert "assistant.attempts !== 2" in audit
+
+def test_offscreen_route_audit_checks_assistant_on_desktop_viewport():
+    root = Path(__file__).resolve().parents[1]
+    audit = (root / "tools" / "quality" / "web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+
+    assert "result.assistantDesktopWorkflow" in audit
+    assert "assistant.viewport < 1024" in audit
+    assert '"Desktop audit question"' in audit

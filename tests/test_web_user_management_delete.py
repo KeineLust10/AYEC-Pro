@@ -21,17 +21,18 @@ def _delete_db(schema):
     return conn
 
 
-def test_managed_user_delete_prefers_deleted_flag_and_sets_inactive():
+def test_managed_user_delete_prefers_deleted_flag_sets_inactive_and_timestamp():
     conn = _delete_db(
-        "CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT, active INTEGER, is_deleted INTEGER);"
+        "CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT, active INTEGER, is_deleted INTEGER, deleted_at TEXT);"
         "CREATE TABLE audit_logs (id INTEGER PRIMARY KEY, user_id TEXT, table_name TEXT, action TEXT, details TEXT, created_at TEXT);"
-        "INSERT INTO users VALUES (1,'admin',1,0);"
-        "INSERT INTO users VALUES (2,'operator',1,0);"
+        "INSERT INTO users VALUES (1,'admin',1,0,NULL);"
+        "INSERT INTO users VALUES (2,'operator',1,0,NULL);"
     )
     result = web_main.desktop_delete_managed_user(conn, _actor(), 2)
-    row = conn.execute("SELECT active,is_deleted FROM users WHERE id=2").fetchone()
+    row = conn.execute("SELECT active,is_deleted,deleted_at FROM users WHERE id=2").fetchone()
     assert result["mode"] == "is_deleted"
-    assert tuple(row) == (0, 1)
+    assert tuple(row[:2]) == (0, 1)
+    assert row[2]
     assert conn.execute("SELECT action FROM audit_logs").fetchone()[0] == "USER_DELETED"
 
 

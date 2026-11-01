@@ -23,6 +23,14 @@ def test_project_unit_sale_form_matches_desktop_tabs_and_save_actions():
     assert 'data-p9-sale-panel="plan"' in flow
     assert 'data-p9-sale-panel="docs"' in flow
     assert 'data-p9-sale-panel="map"' in flow
+    for tab in ("info", "plan", "docs", "map"):
+        assert f'id="p9SaleTab-{tab}"' in flow
+        assert f'id="p9SalePanel-{tab}"' in flow
+        assert f'aria-labelledby="p9SaleTab-{tab}"' in flow
+    assert 'aria-controls="p9SalePanel-info"' in flow
+    assert 'tabIndex = selected ? 0 : -1' in flow
+    assert 'event.key === "ArrowRight"' in flow and 'event.key === "ArrowLeft"' in flow
+    assert 'event.key === "Home"' in flow and 'event.key === "End"' in flow
     assert 'data-p9-sale-plan-add' in flow
     assert 'data-p9-sale-doc-input' in flow
     assert 'data-p9-sale-map-search' in flow
@@ -30,6 +38,10 @@ def test_project_unit_sale_form_matches_desktop_tabs_and_save_actions():
     assert 'data-p9-sale-submit="print"' in flow
     assert 'data-p9-sale-submit="proforma"' in flow
     assert 'p9OpenProjectUnitSale(Number(button.dataset.p9UnitSale))' in app
+    project_loader = app.split("async function loadPart9Projects()", 1)[1].split("\n}", 1)[0]
+    assert 'names.map(name => loadAllDesktopTableRows(name))' in project_loader
+    assert 'apiFetch(`/api/desktop/table/${name}?limit=1000`)' not in project_loader
+    assert 'salesReps = await loadAllDesktopTableRows("personnel")' in flow
     route = server[server.index('if path == "/api/desktop/projects/unit-sales":'):]
     assert 'if not self.current_user()' in route[:180]
     assert 'desktop_create_project_unit_sale(self.read_json())' in route[:300]

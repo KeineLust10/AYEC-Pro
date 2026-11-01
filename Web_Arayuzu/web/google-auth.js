@@ -16,29 +16,49 @@
   const form=document.getElementById(mode==="register"?"registerForm":"loginForm");
   if(!form || form.dataset.googleAttached)return;
   form.dataset.googleAttached="1";
+  if(mode==="register"&&!form.elements.company_address){
+   const grid=form.querySelector(".auth-form-grid");
+   if(grid){
+    const label=document.createElement("label");label.className="full";
+    label.textContent="Firma adresi";
+    const address=document.createElement("textarea");address.name="company_address";address.required=true;address.minLength=5;address.rows=2;address.autocomplete="street-address";
+    label.append(address);grid.prepend(label);
+   }
+  }
   try{
    const config=await apiFetch("/api/auth/google/config");
-   if(!config.enabled || !form.isConnected)return;
+   if(!form.isConnected)return;
+   if(!config.enabled){
+    const unavailable=document.createElement("div");
+    unavailable.className="auth-google-unavailable";
+    unavailable.setAttribute("role","status");
+    unavailable.style.cssText="margin:14px 0;padding:12px 14px;border:1px solid #d7e1f0;border-radius:12px;background:#f5f8fc;color:#52627a;font-size:12px;line-height:1.5";
+    unavailable.textContent=mode==="register"?"Google ile kayıt şu anda etkin değil. Merkez sunucuda Google OAuth yapılandırıldığında bu seçenek burada görünecek.":"Google ile giriş şu anda etkin değil. Sistem yöneticisi merkez sunucu ayarlarını kontrol etmelidir.";
+    form.after(unavailable);
+    return;
+   }
    await loadSdk();
    if(!form.isConnected)return;
    const box=document.createElement("div");box.className="auth-google";
    box.style.cssText="margin:20px 0;display:grid;justify-items:center;gap:12px";
    const note=document.createElement("small");
-   note.textContent=mode==="register"?"Firma, sekt\u00f6r ve kullan\u0131c\u0131 ad\u0131n\u0131 girip Google ile kaydolun.":"veya Google hesab\u0131n\u0131zla devam edin";
+   note.textContent=mode==="register"?"Firma bilgilerini girin. Google, seçilen hesabın doğrulanmış e-posta ve profil adını paylaşır.":"veya Google hesabınızla devam edin";
    const button=document.createElement("div");box.append(note,button);form.after(box);
    let credential="";
    const submit=async()=>{
     const values=Object.fromEntries(new FormData(form));
     if(mode==="register"){
-     const required=[form.elements.company_name,form.elements.sector,form.elements.username];
+     const required=[form.elements.company_name,form.elements.company_address,form.elements.sector,form.elements.username];
      const invalid=required.find(field=>!field?.checkValidity());
      if(invalid){invalid.reportValidity();return}
     }
     setAuthBusy(form,true,"Google hesab\u0131 do\u011frulan\u0131yor...");
     try{
      const result=await apiFetch("/api/auth/google",{method:"POST",body:JSON.stringify({...values,mode,credential})});
+     const desktopTransaction=new URLSearchParams(location.search).get("desktop_google");
+     if(desktopTransaction)await apiFetch("/api/auth/google/desktop/approve",{method:"POST",body:JSON.stringify({transaction_id:desktopTransaction})});
      updateCurrentUser(result.user);hideAuth();await startApplication();
-     if(result.created && !result.mail_sent)toast(result.mail_message||"Hesap olu\u015fturuldu; e-posta g\u00f6nderilemedi.","warning");
+     if(result.created && (!result.mail_sent||result.location_pending))toast(result.mail_message||"Hesap olu\u015fturuldu; e-posta veya harita konumu ayar\u0131 tamamlanmay\u0131 bekliyor.","warning");
     }catch(error){toast(error.message,"error");box.remove();delete form.dataset.googleAttached;attachGoogle(mode)}
     finally{setAuthBusy(form,false)}
    };

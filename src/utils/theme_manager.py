@@ -87,6 +87,7 @@ class ThemeManager:
     _stylesheet_patch_installed = False
     _original_set_stylesheet = None
     _original_app_set_stylesheet = None
+    _original_app_set_stylesheet_unbound = None
     _app_stylesheet_raw = None
     _app_stylesheet_final = None
     _active_theme_anims = []
@@ -105,7 +106,13 @@ class ThemeManager:
     _runtime_transformed_values = {}
     INTERFACE_SCALE_STEPS = (80, 90, 100, 110, 120, 130, 140)
     INTERFACE_SCALE_SETTING = "interface_scale_percent"
+    TYPOGRAPHY_FAMILY_SETTING = "typography_font_family"
+    TYPOGRAPHY_BODY_SIZE_SETTING = "typography_body_point_size"
+    TYPOGRAPHY_HEADING_SIZE_SETTING = "typography_heading_point_size"
     _interface_scale_percent = 100
+    _typography_font_family = "Inter"
+    _typography_body_point_size = 11
+    _typography_heading_point_size = 14
     _interface_scale_filter = None
     _base_app_font = None
 
@@ -197,6 +204,56 @@ class ThemeManager:
             if next_scale != cls._interface_scale_percent:
                 cls._interface_scale_percent = next_scale
                 cls.invalidate_runtime_cache()
+            next_family = str(db.get_setting(cls.TYPOGRAPHY_FAMILY_SETTING, "Inter") or "Inter").strip()
+            next_family = next_family[:80] or "Inter"
+            try:
+                next_body = max(1, min(24, int(db.get_setting(cls.TYPOGRAPHY_BODY_SIZE_SETTING, "11"))))
+            except (TypeError, ValueError):
+                next_body = 11
+            try:
+                next_heading = max(1, min(32, int(db.get_setting(cls.TYPOGRAPHY_HEADING_SIZE_SETTING, "14"))))
+            except (TypeError, ValueError):
+                next_heading = 14
+            if (next_family, next_body, next_heading) != (
+                cls._typography_font_family, cls._typography_body_point_size, cls._typography_heading_point_size
+            ):
+                cls._typography_font_family = next_family
+                cls._typography_body_point_size = next_body
+                cls._typography_heading_point_size = next_heading
+                cls._base_app_font = QFont(next_family, next_body)
+                cls.invalidate_runtime_cache()
+
+    @classmethod
+    def set_typography(cls, family, body_size, heading_size, app=None, refresh=True):
+        family = str(family or "Inter").strip()[:80] or "Inter"
+        try:
+            body_size = max(1, min(24, int(body_size)))
+        except (TypeError, ValueError):
+            body_size = 11
+        try:
+            heading_size = max(1, min(32, int(heading_size)))
+        except (TypeError, ValueError):
+            heading_size = 14
+        changed = (family, body_size, heading_size) != (
+            cls._typography_font_family, cls._typography_body_point_size, cls._typography_heading_point_size
+        )
+        cls._typography_font_family = family
+        cls._typography_body_point_size = body_size
+        cls._typography_heading_point_size = heading_size
+        if changed:
+            cls._base_app_font = QFont(family, body_size)
+            cls.invalidate_runtime_cache()
+        app = app or QApplication.instance()
+        if app is not None:
+            if changed:
+                for widget in app.allWidgets():
+                    try:
+                        widget_qss = widget.styleSheet()
+                        if widget_qss:
+                            widget.setStyleSheet(cls._sanitize_qss(widget_qss))
+                    except (RuntimeError, TypeError):
+                        continue
+            cls.apply_interface_scale(app=app, refresh=refresh)
 
     @classmethod
     def normalize_interface_scale(cls, value):
@@ -231,7 +288,7 @@ class ThemeManager:
         factor = cls._interface_scale_percent / 100.0
         scaled_font = QFont(cls._base_app_font)
         if scaled_font.pointSizeF() > 0:
-            scaled_font.setPointSizeF(max(6.0, cls._base_app_font.pointSizeF() * factor))
+            scaled_font.setPointSizeF(max(1.0, cls._base_app_font.pointSizeF() * factor))
         elif scaled_font.pixelSize() > 0:
             scaled_font.setPixelSize(max(8, round(cls._base_app_font.pixelSize() * factor)))
         app.setFont(scaled_font)
@@ -261,7 +318,7 @@ class ThemeManager:
                     setattr(widget, "_interface_scale_base_font", base_font)
                 scaled_font = QFont(base_font)
                 if base_font.pointSizeF() > 0:
-                    scaled_font.setPointSizeF(max(6.0, base_font.pointSizeF() * factor))
+                    scaled_font.setPointSizeF(max(1.0, base_font.pointSizeF() * factor))
                 elif base_font.pixelSize() > 0:
                     scaled_font.setPixelSize(max(8, round(base_font.pixelSize() * factor)))
                 widget.setFont(scaled_font)
@@ -305,6 +362,9 @@ class ThemeManager:
             cls._custom_accent_color or "",
             cls._custom_text_color or "",
             cls._interface_scale_percent,
+            cls._typography_font_family,
+            cls._typography_body_point_size,
+            cls._typography_heading_point_size,
             cls._application_font_family(),
         )
 
@@ -1072,6 +1132,18 @@ QFocusFrame {{
         if not qss_text:
             return qss_text
         sanitized = UNSUPPORTED_QSS_DECL_RE.sub("", qss_text)
+        family = cls._typography_font_family.replace("'", "")
+        def replace_family(match):
+            value = match.group(2)
+            if re.search(r"mono|consolas|courier", value, re.IGNORECASE):
+                return match.group(0)
+            return f"{match.group(1)}'{family}'"
+        sanitized = re.sub(r"(font-family\s*:\s*)([^;]+)", replace_family, sanitized, flags=re.IGNORECASE)
+        def replace_size(match):
+            number = float(match.group(2))
+            points = cls._typography_heading_point_size if number >= 14 else cls._typography_body_point_size
+            return f"{match.group(1)}{points}pt"
+        sanitized = re.sub(r"(font-size\s*:\s*)(\d+(?:\.\d+)?)(px|pt)", replace_size, sanitized, flags=re.IGNORECASE)
         return cls._scale_qss_font_sizes(sanitized)
 
     @classmethod
@@ -1082,7 +1154,7 @@ QFocusFrame {{
 
         def replace_size(match):
             number = float(match.group(2))
-            scaled = max(6.0, number * factor)
+            scaled = max(1.0, number * factor)
             value = str(int(round(scaled))) if match.group(3).lower() == "px" else f"{scaled:.1f}"
             return f"{match.group(1)}{value}{match.group(3)}"
 
@@ -1127,7 +1199,22 @@ QFocusFrame {{
             return
 
         cls._original_set_stylesheet = QWidget.setStyleSheet
-        cls._original_app_set_stylesheet = QApplication.setStyleSheet
+        cls._original_app_set_stylesheet_unbound = QApplication.setStyleSheet
+        app = QApplication.instance()
+        cls._original_app_set_stylesheet = (
+            app.setStyleSheet if app is not None else QApplication.setStyleSheet
+        )
+
+        def _call_original_app_set_stylesheet(target, stylesheet):
+            setter = cls._original_app_set_stylesheet
+            if sip.isdeleted(target):
+                return None
+            bound_target = getattr(setter, "__self__", None)
+            if bound_target is target and not sip.isdeleted(bound_target):
+                return setter(stylesheet)
+            if bound_target is not None:
+                return cls._original_app_set_stylesheet_unbound(target, stylesheet)
+            return setter(target, stylesheet)
 
         def _patched(target, qss):
             if qss is None:
@@ -1172,7 +1259,7 @@ QFocusFrame {{
 
             if is_wizard or skip_transform:
                 if isinstance(target, QApplication):
-                    return ThemeManager._original_app_set_stylesheet(target, qss)
+                    return _call_original_app_set_stylesheet(target, qss)
                 return ThemeManager._original_set_stylesheet(target, qss)
 
             if isinstance(target, QApplication):
@@ -1236,7 +1323,7 @@ QFocusFrame {{
                 pass
 
             if isinstance(target, QApplication):
-                return ThemeManager._original_app_set_stylesheet(target, qss)
+                return _call_original_app_set_stylesheet(target, qss)
             return ThemeManager._original_set_stylesheet(target, qss)
 
         QWidget.setStyleSheet = _patched
@@ -1391,6 +1478,9 @@ QFocusFrame {{
             return
         from src.utils.reference_typography import apply_reference_font
         apply_reference_font(app)
+        preferred_font = QFont(cls._typography_font_family, cls._typography_body_point_size)
+        app.setFont(preferred_font)
+        cls._base_app_font = QFont(preferred_font)
         if cls._base_app_font is not None:
             cls._base_app_font.setFamily(app.font().family())
         name = cls.normalize_theme_name(theme_name)

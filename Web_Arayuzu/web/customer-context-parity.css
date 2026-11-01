@@ -3,6 +3,17 @@
   border-top: 1px solid var(--border, #d7dce5);
   margin: 4px 8px;
 }
+#contextMenu:has([data-customer-context-action]) { width: 190px; min-width: 190px; }
+#contextMenu:has([data-customer-context-action]) button { height: 27px; min-height: 27px; }
+#contextMenu:has([data-customer-context-action]) .customer-context-separator {
+  height: 2px;
+  min-height: 2px;
+  margin: 0;
+  border: 0;
+  background: var(--line, #274463);
+}
+.c360-dialog [data-c360-offer-row] { cursor: pointer; }
+.c360-dialog [data-c360-offer-row].is-selected { outline: 2px solid var(--brand); outline-offset: -2px; background: var(--surface-2); }
 
 #customerListPrintArea {
   display: none;

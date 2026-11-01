@@ -15,3 +15,10 @@ def test_appointment_views_normalize_iso_and_localized_dates():
     assert "apDate(d)===apDateKey(a.date)" in app
     assert "apDateKey(a.date)===apDate(d)" in app
     assert 'a.technician_name)===name&&apDateKey(a.date)>=today' in app
+
+
+def test_default_date_uses_the_local_calendar_day():
+    app = (WEB / "app.js").read_text(encoding="utf-8")
+
+    assert "const today = () => ayecLocalDateKey(new Date());" in app
+    assert "function ayecLocalDateKey(date)" in app

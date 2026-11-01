@@ -19,6 +19,8 @@ def test_project_transaction_form_matches_desktop_fields_and_categories():
     assert 'name="category"' in flow
     assert 'name="amount" type="number"' in flow
     assert 'name="bank_account_id"' in flow
+    assert 'loadAllDesktopTableRows("bank_accounts")' in flow
+    assert 'bank_accounts?limit=1000' not in flow
     assert 'name="date" type="date"' in flow
     assert 'name="description"' in flow
     assert r"\u0130\u015f\u00e7ilik" in flow

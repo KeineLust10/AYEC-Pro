@@ -11,7 +11,7 @@ Hizmet Tanımları Sayfası
 import re
 from typing import Dict, List, Optional, Tuple
 
-from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal, QItemSelectionModel
+from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal, QItemSelectionModel, QSize
 from PyQt6.QtGui import QAction, QColor, QFont, QPainter, QTextDocument
 from PyQt6.QtPrintSupport import QPrintDialog, QPrinter
 from PyQt6.QtWidgets import (
@@ -53,7 +53,7 @@ from src.utils.system_config import SystemConfig
 from src.utils.theme_colors import theme_qss, tc
 from src.utils.toast_notification import show_error, show_info, show_success, show_warning
 from src.ui.widgets.loading_overlay import LoadingOverlay
-from src.ui.widgets.navigation_glyph import navigation_icon
+from src.ui.widgets.navigation_glyph import NavigationGlyph, navigation_icon
 # ServiceParseProcessWorker (spawn-process) kaldırıldı; ServiceParseWorker (QThread) kullanılıyor
 
 
@@ -79,7 +79,15 @@ class ServiceParseWorker(QThread):
 class _LaborMetricCard(QFrame):
     def __init__(self, icon_kind, icon_token, parent=None):
         super().__init__(parent)
+        self._icon_kind = icon_kind
+        self._icon_token = icon_token
         self._watermark = navigation_icon(icon_kind, 58, icon_token).pixmap(58, 58)
+
+    def refresh_theme_icon(self):
+        self._watermark = navigation_icon(
+            self._icon_kind, 58, self._icon_token
+        ).pixmap(58, 58)
+        self.update()
 
     def paintEvent(self, event):
         super().paintEvent(event)
@@ -122,6 +130,18 @@ class ServicesPage(QWidget):
         if timer is not None:
             timer.stop()
         super().closeEvent(event)
+
+    def refresh_theme(self):
+        if getattr(self, "_is_auto_mode", True):
+            return
+        self.btn_bulk_price.setIcon(navigation_icon("trending_up", 14, "warning"))
+        self.btn_new_labor.setIcon(
+            navigation_icon("plus_circle", 15, "selection_text")
+        )
+        for button, icon_kind in getattr(self, "labor_toolbar_icon_buttons", []):
+            button.setIcon(navigation_icon(icon_kind, 16, "text_muted"))
+        for card in getattr(self, "labor_metric_cards", []):
+            card.refresh_theme_icon()
 
     def _is_automotive(self) -> bool:
         """Aktif sektörün otomotiv olup olmadığını döner."""
@@ -381,7 +401,7 @@ class ServicesPage(QWidget):
     def _apply_labor_responsive(self, mobile):
         self.labor_root_layout.setContentsMargins(
             12, 12, 12, 10
-        ) if mobile else self.labor_root_layout.setContentsMargins(20, 23, 20, 14)
+        ) if mobile else self.labor_root_layout.setContentsMargins(16, 26, 24, 18)
         self.labor_root_layout.setSpacing(8 if mobile else 14)
         self.labor_header_layout.setDirection(
             QBoxLayout.Direction.TopToBottom if mobile
@@ -437,9 +457,9 @@ class ServicesPage(QWidget):
         self.btn_bulk_price.setToolTip("Toplu Fiyat G\u00fcncelle / Enflasyon Fark\u0131")
         self.btn_new_labor.setToolTip("Yeni Hizmet & \u0130\u015f\u00e7ilik Ekle")
         if compact:
-            self.btn_bulk_price.setText("\u2197")
+            self.btn_bulk_price.setText("")
             self.btn_bulk_price.setFixedWidth(42)
-            self.btn_new_labor.setText("+")
+            self.btn_new_labor.setText("")
             self.btn_new_labor.setFixedWidth(42)
             for column in (7, 8):
                 self.table.setColumnHidden(column, True)
@@ -451,9 +471,9 @@ class ServicesPage(QWidget):
             ])
             self.table.horizontalHeader().setStretchLastSection(True)
         else:
-            self.btn_bulk_price.setText("\u2197  Toplu Fiyat G\u00fcncelle /\nEnflasyon Fark\u0131")
+            self.btn_bulk_price.setText("Toplu Fiyat G\u00fcncelle /\nEnflasyon Fark\u0131")
             self.btn_bulk_price.setFixedWidth(238)
-            self.btn_new_labor.setText("\u2295  Yeni Hizmet &&\n\u0130\u015f\u00e7ilik Ekle")
+            self.btn_new_labor.setText("Yeni Hizmet &&\n\u0130\u015f\u00e7ilik Ekle")
             self.btn_new_labor.setFixedWidth(188)
             for column in (7, 8):
                 self.table.setColumnHidden(column, False)
@@ -528,7 +548,7 @@ class ServicesPage(QWidget):
         root = QVBoxLayout(self)
         self.labor_root_layout = root
         root.setSizeConstraint(QLayout.SizeConstraint.SetNoConstraint)
-        root.setContentsMargins(20, 23, 20, 14)
+        root.setContentsMargins(16, 26, 24, 18)
         root.setSpacing(14)
         header = QHBoxLayout()
         self.labor_header_layout = header
@@ -542,9 +562,10 @@ class ServicesPage(QWidget):
         title_row.addWidget(badge)
         self.labor_title_row = title_row
         heading = QVBoxLayout()
-        title_icon = QLabel("\u2699")
+        title_icon = NavigationGlyph("@icon:settings", active_token="accent")
         title_icon.setFixedSize(32, 40)
         title_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title_icon.set_navigation_state(active=True)
         title_icon.setStyleSheet(theme_qss("QLabel { color: @accent; background: @surface_alt; border: 1px solid @border; border-radius: 9px; font-size: 17px; }"))
         title_content = QWidget()
         title_content.setMinimumWidth(0)
@@ -563,13 +584,17 @@ class ServicesPage(QWidget):
         heading.addLayout(title_group)
         header.addLayout(heading, 1)
         self.labor_heading_layout = heading
-        self.btn_bulk_price = QPushButton("\u2197  Toplu Fiyat G\u00fcncelle /\nEnflasyon Fark\u0131")
+        self.btn_bulk_price = QPushButton("Toplu Fiyat G\u00fcncelle /\nEnflasyon Fark\u0131")
+        self.btn_bulk_price.setIcon(navigation_icon("trending_up", 14, "warning"))
+        self.btn_bulk_price.setIconSize(QSize(14, 14))
         self.btn_bulk_price.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_bulk_price.setFixedWidth(238)
         self.btn_bulk_price.setFixedHeight(56)
         self.btn_bulk_price.setStyleSheet(theme_qss("color: @text; background: @surface; border: 1px solid @border; border-radius: 9px; padding: 10px 12px; font-weight: 600;"))
         self.btn_bulk_price.clicked.connect(self.open_bulk_price_dialog)
-        self.btn_new_labor = QPushButton("\u2295  Yeni Hizmet &&\n\u0130\u015f\u00e7ilik Ekle")
+        self.btn_new_labor = QPushButton("Yeni Hizmet &&\n\u0130\u015f\u00e7ilik Ekle")
+        self.btn_new_labor.setIcon(navigation_icon("plus_circle", 15, "selection_text"))
+        self.btn_new_labor.setIconSize(QSize(15, 15))
         self.btn_new_labor.setFixedWidth(188)
         self.btn_new_labor.setFixedHeight(56)
         self.btn_new_labor.setStyleSheet(theme_qss("QPushButton { color: @selection_text; background: @accent; border: 0; border-radius: 9px; padding: 10px 14px; font-weight: 700; }"))
@@ -579,13 +604,17 @@ class ServicesPage(QWidget):
         action_layout = QHBoxLayout(action_group)
         action_layout.setContentsMargins(2, 2, 2, 2)
         action_layout.setSpacing(0)
-        for glyph, tooltip, callback in (("\u25a6", "Excel Aktar", self.export_to_csv), ("\u25a4", "PDF Fiyat Listesi", self.export_to_pdf), ("\u2399", "Yazd\u0131r", self.print_list)):
-            action = QPushButton(glyph)
+        self.labor_toolbar_icon_buttons = []
+        for icon_kind, tooltip, callback in (("spreadsheet", "Excel Aktar", self.export_to_csv), ("file_text", "PDF Fiyat Listesi", self.export_to_pdf), ("printer", "Yazd\u0131r", self.print_list)):
+            action = QPushButton()
+            action.setIcon(navigation_icon(icon_kind, 16, "text_muted"))
+            action.setIconSize(QSize(16, 16))
             action.setToolTip(tooltip)
             action.setFixedSize(27, 30)
             action.setStyleSheet(theme_qss("QPushButton { color: @text_muted; background: transparent; border: 0; font-size: 15px; } QPushButton:hover { color: @text; background: @surface_alt; border-radius: 6px; }"))
             action.clicked.connect(callback)
             action_layout.addWidget(action)
+            self.labor_toolbar_icon_buttons.append((action, icon_kind))
         self.btn_multi = QPushButton("\u22ef")
         self.btn_multi.setCheckable(True)
         self.btn_multi.setToolTip("\u00c7oklu Se\u00e7im")
@@ -615,7 +644,7 @@ class ServicesPage(QWidget):
         self.labor_header_actions.addWidget(action_group)
         header.addLayout(self.labor_header_actions)
         root.addLayout(header)
-        root.addSpacing(19)
+        root.addSpacing(20)
         self._labor_header_gap = root.itemAt(root.count() - 1).spacerItem()
         summary = QGridLayout()
         self.labor_summary_grid = summary
@@ -623,7 +652,7 @@ class ServicesPage(QWidget):
         self.labor_metric_cards = []
         self.summary_metric_labels = {}
         cards = (("TOPLAM H\u0130ZMET", "0", "@accent"), ("AKT\u0130F F\u0130YAT L\u0130STES\u0130", "0", "@success"), ("ORTALAMA \u0130\u015e\u00c7\u0130L\u0130K \u00dcCRET\u0130", "0,00 \u20ba", "@finance_tertiary"), ("EN \u00c7OK KULLANILAN \u0130\u015e\u00c7\u0130L\u0130K", "Termal Macun & Fan Temizli\u011fi", "@warning"))
-        metric_icons = (("bank", "accent"), ("shield", "finance_action_income"), ("money", "finance_tertiary"), ("tool", "warning"))
+        metric_icons = (("layers", "accent"), ("shield_check", "finance_action_income"), ("banknote", "finance_tertiary"), ("flame", "warning"))
         for i, (caption, value, color) in enumerate(cards):
             summary.setColumnStretch(i, 1)
             card = _LaborMetricCard(*metric_icons[i])
@@ -649,7 +678,7 @@ class ServicesPage(QWidget):
             summary.addWidget(card, 0, i)
             self.labor_metric_cards.append(card)
         root.addLayout(summary)
-        root.addSpacing(19)
+        root.addSpacing(20)
         self._labor_summary_gap = root.itemAt(root.count() - 1).spacerItem()
         tools = QHBoxLayout()
         self.search = QLineEdit()

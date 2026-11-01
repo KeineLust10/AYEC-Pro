@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "AYEC Pro Saha Takip",
-    "slug": "ayec-pro-saha-takip",
-    "version": "2.0.0",
+    "name": "AYEC Pro Teknik Servis",
+    "slug": "ayec-pro-teknik-servis",
+    "version": "2.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "splash": {
@@ -17,12 +17,19 @@
       "bundleIdentifier": "com.ayecpro.sahatakip"
     },
     "android": {
-      "package": "com.ayecpro.sahatakip",
+      "package": "com.ayecpro.teknikservis",
+      "versionCode": 2,
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
         "CAMERA"
-      ]
-    }
+      ],
+      "blockedPermissions": ["android.permission.READ_PHONE_STATE"]
+    },
+    "plugins": [
+      "expo-secure-store",
+      ["expo-camera", {"cameraPermission": "Allow AYEC Pro to scan device codes and capture service photos."}],
+      ["expo-image-picker", {"cameraPermission": "Allow AYEC Pro to capture service evidence photos."}]
+    ]
   }
 }

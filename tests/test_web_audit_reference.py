@@ -42,6 +42,61 @@ def test_desktop_audit_page_filters_search_severity_module_and_offset():
     assert security[0]["id"] == 1
 
 
+def test_http_audit_list_returns_unfiltered_total_for_desktop_metric(monkeypatch, tmp_path):
+    _actor, tenant_path = _setup_tenant(monkeypatch, tmp_path)
+    with sqlite3.connect(tenant_path) as conn:
+        conn.executemany(
+            "INSERT INTO audit_logs(user_id,table_name,action,details,created_at) VALUES(?,?,?,?,?)",
+            [
+                ("2", "service_jobs", "UPDATE", "needle match", "2026-10-27 10:00:00"),
+                ("2", "service_jobs", "UPDATE", "other record", "2026-10-27 09:00:00"),
+                ("2", "stock_movements", "INSERT", "another record", "2026-10-27 08:00:00"),
+            ],
+        )
+        conn.commit()
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), web_main.AYECRequestHandler)
+    worker = threading.Thread(target=server.serve_forever, daemon=True)
+    worker.start()
+    base_url = f"http://127.0.0.1:{server.server_address[1]}"
+    try:
+        session = requests.Session()
+        session.headers["Origin"] = base_url
+        login = session.post(
+            f"{base_url}/api/auth/login",
+            json={
+                "identifier": web_main.VENDOR_EMAIL,
+                "password": "operator-test-pass",
+                "tenant_id": "tenant-1",
+            },
+        )
+        assert login.status_code == 200
+        response = session.get(
+            f"{base_url}/api/desktop/table/audit_logs?limit=25&offset=0&q=needle&hours=all"
+        )
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["count"] == 1
+        assert payload["total_count"] == 3
+        assert len(payload["rows"]) == 1
+    finally:
+        server.shutdown()
+        server.server_close()
+        worker.join(timeout=2)
+
+
+def test_audit_admin_account_lookup_uses_complete_user_catalog():
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    source = (root / "Web_Arayuzu" / "web" / "audit-reference.js").read_text(encoding="utf-8")
+
+    assert 'loadAllDesktopTableData("users")' in source
+    assert 'loadAllDesktopTableData("personnel")' in source
+    assert "_auditPersonnelName" in source
+    assert 'apiFetch("/api/desktop/table/users?limit=1000")' not in source
+
+
 def test_audit_account_suspension_is_admin_only_not_self_and_is_audited():
     conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row
@@ -182,6 +237,25 @@ def test_audit_page_uses_desktop_workflow_controls_and_server_filters():
     assert "data-audit-prev" in page and "data-audit-next" in page
     assert "auditReferenceInspector" in page
     assert "auditReferenceExport" in page
+    assert "function auditReferenceMetadata(row)" in page
+    assert "data.total_count??data.count" in page
+    assert '"total_count": int(scalar(conn, "SELECT COUNT(*) FROM audit_logs", [], 0))' in (root / "Web_Arayuzu" / "Main.py").read_text(encoding="utf-8")
+    assert "function auditReferenceGuideEnabled()" in page
+    assert "function auditReferenceActivateTab(name,focus=false)" in page
+    assert "ArrowLeft" in page and "ArrowRight" in page
+    assert "data-audit-tab=\"guide\"" in page
+    assert "data-audit-panel=\"guide\"" in page
+    assert "data-audit-panel=\"logs\"" in page
+    assert 'id="auditLogsTab"' in page and 'id="auditGuideTab"' in page
+    assert 'aria-labelledby="auditLogsTab"' in page and 'aria-labelledby="auditGuideTab"' in page
+    assert 'tabindex="0" data-audit-tab="logs"' in page
+    assert 'tabindex="-1" data-audit-tab="guide"' in page
+    assert 'tab.tabIndex=active?0:-1' in page
+    assert "audit-reference.js?v=20261028-audit-tabs-roving-keyboard-1" in index
+    assert "feature_usage_guides_active" in page
+    assert 'auditReferenceUserLabel(row.user_id)' in page
+    assert "\\u0130stasyon / IP" in page
+    assert "Payload \\u00d6zeti" in page
     assert "/api/desktop/audit/suspend-user" in page
     assert "/api/desktop/audit/event-pdf?id=" in page
     assert "window.print()" not in page

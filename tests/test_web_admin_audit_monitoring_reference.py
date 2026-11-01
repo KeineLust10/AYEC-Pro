@@ -34,9 +34,21 @@ def test_audit_monitoring_tab_reads_support_audit_and_binds_all_filters():
     capture = (ROOT / "tools" / "quality" / "admin_audit_dom_capture.cjs").read_text(encoding="utf-8")
     assert 'selectOption("dashboard")' in capture
     assert 'selectOption("audit")' in capture
-    assert "geometry.viewport !== geometry.document" in capture
-    assert "geometry.metricsColumns.trim().split(/\\s+/).length !== 2" in capture
+    assert "mobileWidth: geometry.viewport === geometry.document" in capture
+    assert "metricColumns: geometry.metricsColumns.trim().split(/\\s+/).length === 1" in capture
     assert 'integrityWarningShown' in capture
+
+
+def test_control_center_audit_export_filename_uses_the_local_calendar_date():
+    app = APP_SOURCE.read_text(encoding="utf-8")
+    capture = (ROOT / "tools" / "quality" / "admin_audit_dom_capture.cjs").read_text(encoding="utf-8")
+
+    assert 'link.download=`ayec-audit-${today()}.csv`' in app
+    assert 'ayec-audit-${new Date().toISOString().slice(0,10)}.csv' not in app
+    runner = (ROOT / "tools" / "quality" / "admin_audit_dom_capture_runner.cjs").read_text(encoding="utf-8")
+    assert 'timezoneId: "Europe/Istanbul"' in runner
+    assert 'nativeDate.parse("2026-10-20T22:30:00.000Z")' in capture
+    assert 'localDateFilename: downloadFilename === "ayec-audit-2026-10-21.csv"' in capture
 
 
 def test_audit_monitoring_workspace_stacks_and_keeps_event_stream_usable_on_mobile():

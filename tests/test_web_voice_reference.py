@@ -60,6 +60,53 @@ def test_voice_shortcut_migrated_desktop_functions_resolve_to_web_pages():
     assert 'accounting_summary:"finance"' in app
 
 
+def test_voice_shortcut_edits_preserve_metadata_and_respect_disabled_state():
+    app = (WEB / "app.js").read_text(encoding="utf-8")
+
+    assert "return {...entry,id:`voice-${index}-${name}`" in app
+    assert "Object.entries(item).filter(([key])=>!['id','name','phrases','action_type','type','page','action'].includes(key))" in app
+    assert 'item.is_active!==false&&item.is_active!==0' in app
+    assert 'if(shortcut&&(shortcut.is_active===false||shortcut.is_active===0))' in app
+    assert 'data-voice-run="${esc(item.id)}" ${active?"":"disabled"}' in app
+    assert '${shortcuts.filter(item=>item.is_active!==false&&item.is_active!==0).length} aktif komut' in app
+
+
+def test_voice_stock_query_searches_instead_of_reporting_critical_stock():
+    voice = (WEB / "voice-command-reference.js").read_text(encoding="utf-8")
+
+    assert 'if(action==="stok_sorgu")' in voice
+    assert 'document.querySelector("#stockSearch")' in voice
+    assert 'if(action==="list_critical_stock")' in voice
+    assert 'action==="list_critical_stock"||action==="stok_sorgu"' not in voice
+
+
+def test_voice_assistant_help_lists_visible_controls_and_supports_continuation():
+    voice = (WEB / "voice-command-reference.js").read_text(encoding="utf-8")
+    customer_voice = (WEB / "customer-360-voice-reference.js").read_text(encoding="utf-8")
+    desktop = (ROOT / "src" / "services" / "assistant_manager.py").read_text(encoding="utf-8")
+
+    assert '"assistant_help","voice_help_next"' in voice
+    assert '"Sonraki Yetenekler": {' in voice
+    assert '"sonraki komutlar"' in voice
+    assert '"diger komutlari oku"' in voice
+    assert 'const showAssistantHelp = (continueListing = false) =>' in customer_voice
+    assert 'if (action === "assistant_help") return showAssistantHelp(false)' in customer_voice
+    assert 'if (action === "voice_help_next") return showAssistantHelp(true)' in customer_voice
+    assert 'slice(helpState.offset, helpState.offset + 8)' in customer_voice
+    assert '...document.querySelectorAll(`#nav ${selector}`)' in customer_voice
+    assert 'Devam\\u0131 i\\u00e7in sonraki komutlar deyin.' in customer_voice
+    assert 'def _announce_assistant_capabilities(self, continue_listing=False):' in desktop
+    assert 'batch = state.get("entries", [])[start:start + 8]' in desktop
+
+
+def test_voice_page_search_uses_query_after_matched_trigger():
+    voice = (WEB / "voice-command-reference.js").read_text(encoding="utf-8")
+
+    assert 'queryTrigger=String(match.phrase||"").trim()' in voice
+    assert 'if(input.value!==searchQuery){input.value=searchQuery;' in voice
+    assert 'current.value!==searchQuery' in voice
+
+
 def test_voice_shortcut_context_menu_matches_desktop_actions_and_geometry():
     app = (WEB / "app.js").read_text(encoding="utf-8")
     parity = (WEB / "desktop-parity.css").read_text(encoding="utf-8")
@@ -120,8 +167,14 @@ def test_voice_stock_price_action_previews_before_confirmed_update():
 
     assert 'action==="sync_now"' in app
     assert 'hydrateDesktop().then(()=>{render();toast(' in app
+    voice = (WEB / "voice-command-reference.js").read_text(encoding="utf-8")
+    assert "function ayecSpeakVoiceFeedback(message)" in voice
+    assert "ayecSpeakVoiceFeedback(message)" in voice
+    assert 'settings.asistan_voice_enabled??settings.assistant_voice_enabled??"1"' in voice
     assert 'action==="apply_zam"' in app
     assert 'function ayecOpenVoiceStockPriceDialog(transcript="")' in app
+    assert 'categoryRequested=["kategori","grup","marka","yalniz","sadece","secili"]' in app
+    assert 'if(categoryRequested&&!selectedCategory)' in app
     assert 'action:"preview",percentage,category' in app
     assert 'action:"apply",...preview' in app
     assert 'Onayla ve Uygula' in app
@@ -136,6 +189,9 @@ def test_voice_daily_and_closing_routines_present_tenant_schedule_and_stock():
     assert 'apiFetch("/api/desktop/bootstrap")' in app
     assert 'item.date||"").slice(0,10)===dateKey' in app
     assert 'item.min_stock!==null&&item.min_stock!==undefined' in app
+    assert 'String(item.time||item.appointment_time||item.start_time||"").slice(0,5)' in app
+    assert 'settingBool(settings.asistan_voice_enabled??settings.assistant_voice_enabled??"1")' in app
+    assert 'void playScheduledAlertSpeech(speechText)' in app
     assert 'Bug\\u00fcn\\u00fcn randevular\\u0131' in app
 
 
@@ -180,3 +236,14 @@ def test_scheduled_voice_alerts_follow_quiet_hours_and_feature_settings():
     assert 'desktopInternalSettings.feature_voice_alerts_active??"1"' in app
     assert "if(!voiceEnabled||quiet&&!critical)return" in app
     assert 'fetch("/api/desktop/assistant/speech"' in app
+
+
+def test_voice_command_page_uses_shared_scheduled_alert_records():
+    source = (WEB / "voice-command-reference.js").read_text(encoding="utf-8")
+
+    assert '["loan_reminder","Kredi Taksit"' in source
+    assert 'scheduledAlerts.find(item=>item.alert_type===type)' in source
+    assert 'data-voice-alert-time="${item.type}"' in source
+    assert 'data-voice-alert="${item.type}"' in source
+    assert 'if(isTime)saveVoiceReminderTime(target);if(isEnabled)saveVoiceReminder(target);' in source
+    assert 'apiFetch("/api/desktop/table/scheduled_alerts"' in (WEB / "app.js").read_text(encoding="utf-8")

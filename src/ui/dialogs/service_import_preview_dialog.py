@@ -168,12 +168,6 @@ class ServiceImportPreviewDialog(ModernDialog):
         root.setContentsMargins(16, 16, 16, 16)
         root.setSpacing(12)
 
-        # Kaynak bilgisi
-        src_lbl = QLabel(f"Kaynak: {self.parse_result.get('source_path', '-')}")
-        src_lbl.setWordWrap(True)
-        src_lbl.setStyleSheet(theme_qss("font-size: 12px; color: @text_muted;"))
-        root.addWidget(src_lbl)
-
         # Uyarılar
         for w in (self.parse_result.get("warnings") or []):
             lbl = QLabel(f"⚠ {w}")

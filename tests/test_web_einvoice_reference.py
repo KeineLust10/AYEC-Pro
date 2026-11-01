@@ -1,4 +1,5 @@
 import io
+import json
 import os
 import subprocess
 import threading
@@ -20,10 +21,16 @@ def test_invoice_reference_controls_and_mobile_line_cards_are_present():
     app = (WEB / "app.js").read_text(encoding="utf-8")
     styles = (WEB / "styles.css").read_text(encoding="utf-8")
     reference_styles = (WEB / "midnight-reference.css").read_text(encoding="utf-8")
+    route_smoke = (ROOT / "tools" / "quality" / "web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
     assert 'id="invoiceVkn"' in app
     assert 'id="invoiceScenario"' in app
     assert 'id="invoiceDeliveryRef"' in app
     assert 'id="invoiceLinesBody"' in app
+    assert '<select class="control" id="invoiceCustomer" required>' in app
+    assert "invoiceSelectedCustomerName()" in app
+    assert "function invoiceCustomerOptions" in app
+    assert "customer.company||customer.company_name||customer.phone" in app
+    assert 'String(customer?.id??customer?.name??"")===String(value??"")' in app
     assert 'data-invoice-action="send"' in app
     assert 'data-invoice-action="integration"' in app
     assert '/api/desktop/einvoice/settings' in app
@@ -32,6 +39,19 @@ def test_invoice_reference_controls_and_mobile_line_cards_are_present():
     assert 'data-invoice-action="proforma"' in app
     assert "const invoicePreviewText=()=>" in app
     assert 'class="einvoice-preview-text"' in app
+    assert "result.eInvoiceDraftWorkflow" in route_smoke
+    assert "workflow.amount) !== 270" in route_smoke
+    assert "sendCount:sendPayloads.length" in route_smoke
+    assert "sendDraftId:send.draft_id" in route_smoke
+    assert "sendReceiver:send.receiver_name" in route_smoke
+    assert "sendLine:send.invoice?.lines" in route_smoke
+    assert "result.eInvoiceIntegrationWorkflow" in route_smoke
+    assert 'integration.failureStatus !== "error"' in route_smoke
+    assert "!integration.failureDialogOpen" in route_smoke
+    assert 'integration.saveApiKey !== ""' in route_smoke
+    assert "integration.saveClearKey" in route_smoke
+    assert "integration.savedKeyPlaceholder" in route_smoke
+    assert 'integration.testStatus !== "success"' in route_smoke
     assert 'window.print()' not in app[app.index('[data-invoice-action="preview"]'):app.index('[data-invoice-action="send"]')]
     invoice_bind = app[app.index("function bindInvoiceComposer"):app.index("function renderFinance")]
     assert 'if(!confirm(' not in invoice_bind
@@ -238,6 +258,21 @@ def test_einvoice_settings_api_saves_encrypted_value_and_tests_sandbox(monkeypat
     assert replies[0][0]["ok"] is True
     assert FakeDatabase.values["einvoice_api_key"].startswith(SecureSettingStore.PREFIX)
     assert "encrypted-key" not in FakeDatabase.values["einvoice_api_key"]
+    encrypted_key = FakeDatabase.values["einvoice_api_key"]
+
+    handler.read_json = lambda: {
+        "action": "save",
+        "provider": "uyumsoft",
+        "environment": "sandbox",
+        "api_url": "",
+        "api_key": "",
+        "clear_api_key": False,
+    }
+    replies.clear()
+    handler.do_POST()
+    assert replies[0][0]["ok"] is True
+    assert FakeDatabase.values["einvoice_api_key"] == encrypted_key
+    assert SecureSettingStore.get(FakeDatabase(), "einvoice_api_key") == "encrypted-key"
 
     handler.read_json = lambda: {
         "action": "test",
@@ -340,6 +375,96 @@ def test_einvoice_send_maps_desktop_payload_and_persists_provider_response(monke
     assert calls[-1] == ("commit",)
 
 
+def test_einvoice_send_validates_customer_in_active_database_and_links_income(monkeypatch):
+    calls = []
+    provider_calls = []
+
+    class FakeCursor:
+        lastrowid = 31
+
+        def __init__(self, customer_row):
+            self.customer_row = customer_row
+            self.rows = []
+
+        def execute(self, query, values=()):
+            calls.append((query, values))
+            if query == "PRAGMA table_info(customers)":
+                self.rows = [(0, "id"), (1, "name"), (2, "is_deleted")]
+            elif query.startswith("SELECT id, name FROM customers"):
+                self.rows = [self.customer_row] if self.customer_row else []
+            else:
+                self.rows = []
+            return self
+
+        def fetchall(self):
+            return self.rows
+
+        def fetchone(self):
+            return self.rows[0] if self.rows else None
+
+    class FakeDatabase:
+        def __init__(self, customer_row):
+            self.cursor = FakeCursor(customer_row)
+            self.conn = type("Connection", (), {"commit": lambda _self: calls.append(("commit",))})()
+
+        def get_setting(self, key, default=""):
+            return {
+                "einvoice_provider": "custom",
+                "einvoice_environment": "live",
+                "einvoice_api_url": "https://provider.example.test",
+                "einvoice_api_key": "",
+            }.get(key, default)
+
+        def add_transaction_extended(self, **kwargs):
+            calls.append(("finance", kwargs))
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            pass
+
+        def validate_configuration(self):
+            return True, "ok"
+
+        def send_invoice(self, invoice):
+            provider_calls.append(invoice)
+            return True, {"uuid": "ETTN-CUSTOMER", "status": "SENT"}
+
+    monkeypatch.setattr("src.api.einvoice_client.EInvoiceClient", FakeClient)
+    payload = {
+        "customer_id": 42,
+        "receiver_name": "Ada Customer",
+        "invoice_type": "SATIS",
+        "invoice": {
+            "currency": "TRY",
+            "exchange_rate": "1",
+            "auto_reconcile": True,
+            "lines": [{
+                "invoice-line-description": "Repair",
+                "invoice-line-qty": "1",
+                "invoice-line-price": "100",
+                "invoice-line-vat": "0",
+            }],
+        },
+    }
+    web_main.send_einvoice_invoice(FakeDatabase((42, "Ada Customer")), payload)
+    finance = next(call[1] for call in calls if call[0] == "finance")
+    stored = next(call[1] for call in calls if call[0].startswith("INSERT INTO e_invoices"))
+    stored_data = json.loads(stored[6])
+    assert finance["customer_id"] == 42
+    assert finance["customer_name"] == "Ada Customer"
+    assert stored_data["customer_id"] == 42
+    assert any(query.startswith("SELECT id, name FROM customers") and "is_deleted" in query for query, _ in calls)
+
+    calls.clear()
+    try:
+        web_main.send_einvoice_invoice(FakeDatabase(None), payload)
+    except ValueError as error:
+        assert str(error) == "Selected customer was not found in the active tenant"
+    else:
+        raise AssertionError("Customer ID outside the active tenant was accepted")
+    assert len(provider_calls) == 1
+
+
 def test_einvoice_send_rejects_nonfinite_and_empty_invoice_lines():
     base = {
         "receiver_name": "Ada",
@@ -439,6 +564,74 @@ def test_einvoice_live_send_reconciles_the_try_total_only_after_success(monkeypa
     assert finance["category"] == "Resmi Fatura"
     assert result["sandbox"] is False
     assert result["finance_error"] == ""
+
+
+def test_einvoice_client_live_connection_and_send_use_configured_provider(monkeypatch):
+    from src.api.einvoice_client import EInvoiceClient
+
+    calls = []
+
+    class Response:
+        status_code = 201
+        text = ""
+
+        @staticmethod
+        def json():
+            return {"uuid": "ETTN-PROVIDER", "status": "QUEUED"}
+
+    def fake_get(url, **kwargs):
+        calls.append(("get", url, kwargs))
+        return Response()
+
+    def fake_post(url, **kwargs):
+        calls.append(("post", url, kwargs))
+        return Response()
+
+    monkeypatch.setattr("src.api.einvoice_client.requests.get", fake_get)
+    monkeypatch.setattr("src.api.einvoice_client.requests.post", fake_post)
+    client = EInvoiceClient(
+        api_key="qa-provider-secret",
+        is_sandbox=False,
+        base_url="https://provider.example.test/v1/",
+    )
+    invoice = {"receiver": "QA Customer", "lines": [{"description": "Service", "total": 100}]}
+
+    connected, connection = client.test_connection()
+    sent, response = client.send_invoice(invoice)
+
+    assert connected is True
+    assert connection["detail"] == "API sunucusuna ulasildi (HTTP 201)."
+    assert sent is True
+    assert response == {"uuid": "ETTN-PROVIDER", "status": "QUEUED"}
+    assert calls == [
+        ("get", "https://provider.example.test/v1", {
+            "headers": {"Authorization": "Bearer qa-provider-secret"},
+            "timeout": 10,
+        }),
+        ("post", "https://provider.example.test/v1/invoice/send", {
+            "json": invoice,
+            "headers": {
+                "Content-Type": "application/json",
+                "Authorization": "Bearer qa-provider-secret",
+            },
+            "timeout": 10,
+        }),
+    ]
+
+
+def test_einvoice_client_rejects_non_https_live_provider_url():
+    from src.api.einvoice_client import EInvoiceClient
+
+    client = EInvoiceClient(
+        api_key="qa-provider-secret",
+        is_sandbox=False,
+        base_url="http://provider.example.test/v1",
+    )
+
+    valid, detail = client.validate_configuration()
+
+    assert valid is False
+    assert detail == "Canli API adresi HTTPS olmalidir."
 
 
 def test_einvoice_send_route_uses_authenticated_active_database(monkeypatch, tmp_path):

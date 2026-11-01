@@ -451,7 +451,7 @@ class MontagePreparationDialog(ModernDialog):
         source_label = QLabel("Kaynak Konum")
         vehicle_label = QLabel("Servis Araci")
         for label in (source_label, vehicle_label):
-            label.setStyleSheet(theme_qss("font-family: Inter; font-size: 11px; font-weight: bold; color: @text_muted;"))
+            label.setStyleSheet(theme_qss("font-family: Inter; font-size: 10px; font-weight: bold; color: @text_muted;"))
         locations_row.addWidget(source_label)
         locations_row.addWidget(self.source_combo, 1)
         locations_row.addWidget(vehicle_label)
@@ -679,8 +679,8 @@ class _CalendarTextLabel(QLabel):
         super().__init__(text, parent)
         self.setTextFormat(Qt.TextFormat.PlainText)
         self.setToolTip(text)
-        self.setFixedHeight(18)
-        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+        self.setMinimumHeight(18)
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -734,9 +734,9 @@ class CalendarCard(QFrame):
         # Müşteri İsmi
         lbl_name = _CalendarTextLabel(self.data.get('customer_name', ''))
         lbl_name.setTextFormat(Qt.TextFormat.PlainText)
-        lbl_name.setMinimumHeight(18)
         lbl_name.setFont(QFont(DesignTokens.FONT_NAME, 9, QFont.Weight.Bold))
         lbl_name.setStyleSheet(theme_qss("color: @text; border: none; background: transparent;"))
+        lbl_name.setMinimumHeight(lbl_name.fontMetrics().height())
         lbl_name.setWordWrap(False)
         lbl_name.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
         layout.addWidget(lbl_name)
@@ -750,6 +750,7 @@ class CalendarCard(QFrame):
         lbl_type.setFont(QFont(DesignTokens.FONT_NAME))
         lbl_type.setWordWrap(False)
         lbl_type.setStyleSheet(theme_qss(f"color: {color}; font-size: 10px; font-weight: bold; border: none; background: transparent;"))
+        lbl_type.setMinimumHeight(lbl_type.fontMetrics().height())
         layout.addWidget(lbl_type)
 
         personnel_name = str(self.data.get('personnel_name') or '').strip()
@@ -763,6 +764,7 @@ class CalendarCard(QFrame):
             personnel_label.setStyleSheet(theme_qss(
                 'color: @finance_text_muted; font-size: 10px; border: none; background: transparent;'
             ))
+            personnel_label.setMinimumHeight(personnel_label.fontMetrics().height())
             layout.addWidget(personnel_label)
 
     def mousePressEvent(self, event):
@@ -1144,7 +1146,7 @@ class AppointmentsPage(QWidget):
         nav_layout = QHBoxLayout()
         toolbar_layout.addLayout(nav_layout)
         nav_layout.setContentsMargins(0, 0, 0, 0)
-        nav_layout.setSpacing(10)
+        nav_layout.setSpacing(6)
         
         # Navigasyon Grubu
         nav_group = QHBoxLayout()
@@ -1175,7 +1177,7 @@ class AppointmentsPage(QWidget):
         title_stack = QVBoxLayout()
         title_stack.setSpacing(2)
         page_title = QLabel("Randevu Merkezi & Takvim")
-        page_title.setStyleSheet(theme_qss("font-family: Inter; font-size: 16px; font-weight: bold; color: @text;"))
+        page_title.setStyleSheet(theme_qss("font-family: Inter; font-size: 14px; font-weight: bold; color: @text;"))
         self.lbl_week = QLabel("")
         self.lbl_week.setStyleSheet(theme_qss("font-family: Inter; font-size: 11px; font-weight: bold; color: @text_muted;"))
         title_stack.addWidget(page_title)

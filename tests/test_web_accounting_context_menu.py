@@ -36,3 +36,14 @@ def test_accounting_context_menus_match_desktop_actions():
     assert 'if(action==="finance-detail"&&item)financeDetailDialog(item)' in app
     assert '["","maintenance-separator"]' in menus
     assert 'menu.classList.add("open");menu.style.top=`${Math.max(8,Math.min(event.clientY,innerHeight-menu.offsetHeight-8))}px`' in menus
+
+
+def test_finance_pdf_actions_download_pdf_and_keep_print_separate():
+    app = (WEB / "app.js").read_text(encoding="utf-8")
+
+    assert 'async function ayecExportFinanceXlsx(){const response=await fetch("/api/desktop/accounting/ledger/export/xlsx"' in app
+    assert 'link.download=`cari-hareketler-${today()}.xlsx`' in app
+    assert 'async function ayecExportFinancePdf(){const response=await fetch("/api/desktop/accounting/ledger/export/pdf"' in app
+    assert 'link.download=`cari-hareketler-${today()}.pdf`' in app
+    assert 'if(action==="finance-pdf")ayecRunFinancePdf();if(action==="finance-print")window.print()' in app
+    assert 'if(page==="finance")ayecRunFinancePdf();else window.print()' in app

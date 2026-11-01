@@ -1,9 +1,9 @@
 import axios from 'axios';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 
 const API_URL =
     process.env.EXPO_PUBLIC_API_URL ||
-    'http://85.117.239.60/api';
+    'https://panel.ayecpro.com/api';
 
 const client = axios.create({
     baseURL: API_URL,
@@ -17,7 +17,7 @@ const client = axios.create({
 client.interceptors.request.use(
     async (config) => {
         try {
-            const token = await AsyncStorage.getItem('userToken');
+            const token = await SecureStore.getItemAsync('userToken');
             if (token) {
                 config.headers.Authorization = `Bearer ${token}`;
             }
@@ -34,7 +34,7 @@ client.interceptors.response.use(
     (response) => response,
     async (error) => {
         if (error.response && error.response.status === 401) {
-            await AsyncStorage.multiRemove(['userToken', 'userData']);
+            await SecureStore.deleteItemAsync('userToken');
         }
         return Promise.reject(error);
     },

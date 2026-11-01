@@ -1,21 +1,21 @@
-body[data-status-display="wall"] {
+body[data-page="service-status"][data-status-display="wall"] {
   min-width: 980px;
   overflow: auto;
 }
 
-body[data-status-display="wall"] .app-shell {
+body[data-page="service-status"][data-status-display="wall"] .app-shell {
   display: block;
   min-height: 100vh;
 }
 
-body[data-status-display="wall"] .app-shell > .topbar,
-body[data-status-display="wall"] .app-shell > .sidebar,
-body[data-status-display="wall"] .shell-status-bar {
+body[data-page="service-status"][data-status-display="wall"] .app-shell > .topbar,
+body[data-page="service-status"][data-status-display="wall"] .app-shell > .sidebar,
+body[data-page="service-status"][data-status-display="wall"] .shell-status-bar {
   display: none !important;
 }
 
-body[data-status-display="wall"] .app-shell > .main,
-body[data-status-display="wall"] .app-shell .content {
+body[data-page="service-status"][data-status-display="wall"] .app-shell > .main,
+body[data-page="service-status"][data-status-display="wall"] .app-shell .content {
   width: 100%;
   max-width: none;
   min-height: 100vh;
@@ -23,36 +23,36 @@ body[data-status-display="wall"] .app-shell .content {
   padding: 24px 36px;
 }
 
-body[data-status-display="wall"] .page-head > .actions,
-body[data-status-display="wall"] .status-wall-refresh-count,
-body[data-status-display="wall"] .status-wall-list > header nav,
-body[data-status-display="wall"] .status-wall-toolbar,
-body[data-status-display="wall"] .status-wall-pager,
-body[data-status-display="wall"] .status-wall-table th:nth-child(1),
-body[data-status-display="wall"] .status-wall-table td:nth-child(1),
-body[data-status-display="wall"] .status-wall-table th:nth-child(6),
-body[data-status-display="wall"] .status-wall-table td:nth-child(6),
-body[data-status-display="wall"] .status-wall-table th:nth-child(7),
-body[data-status-display="wall"] .status-wall-table td:nth-child(7),
-body[data-status-display="wall"] .status-wall-table th:nth-child(8),
-body[data-status-display="wall"] .status-wall-table td:nth-child(8),
-body[data-status-display="wall"] .status-wall-table th:nth-child(9),
-body[data-status-display="wall"] .status-wall-table td:nth-child(9) {
+body[data-page="service-status"][data-status-display="wall"] .page-head > .actions,
+body[data-page="service-status"][data-status-display="wall"] .status-wall-refresh-count,
+body[data-page="service-status"][data-status-display="wall"] .status-wall-list > header nav,
+body[data-page="service-status"][data-status-display="wall"] .status-wall-toolbar,
+body[data-page="service-status"][data-status-display="wall"] .status-wall-pager,
+body[data-page="service-status"][data-status-display="wall"] .status-wall-table th:nth-child(1),
+body[data-page="service-status"][data-status-display="wall"] .status-wall-table td:nth-child(1),
+body[data-page="service-status"][data-status-display="wall"] .status-wall-table th:nth-child(6),
+body[data-page="service-status"][data-status-display="wall"] .status-wall-table td:nth-child(6),
+body[data-page="service-status"][data-status-display="wall"] .status-wall-table th:nth-child(7),
+body[data-page="service-status"][data-status-display="wall"] .status-wall-table td:nth-child(7),
+body[data-page="service-status"][data-status-display="wall"] .status-wall-table th:nth-child(8),
+body[data-page="service-status"][data-status-display="wall"] .status-wall-table td:nth-child(8),
+body[data-page="service-status"][data-status-display="wall"] .status-wall-table th:nth-child(9),
+body[data-page="service-status"][data-status-display="wall"] .status-wall-table td:nth-child(9) {
   display: none !important;
 }
 
-body[data-status-display="wall"] .status-wall-layout,
-body[data-status-display="wall"] .status-wall-main,
-body[data-status-display="wall"] .status-wall-list {
+body[data-page="service-status"][data-status-display="wall"] .status-wall-layout,
+body[data-page="service-status"][data-status-display="wall"] .status-wall-main,
+body[data-page="service-status"][data-status-display="wall"] .status-wall-list {
   width: 100%;
   max-width: none;
 }
 
-body[data-status-display="wall"] .status-wall-layout {
+body[data-page="service-status"][data-status-display="wall"] .status-wall-layout {
   grid-template-columns: minmax(0, 1fr) !important;
 }
 
-body[data-status-display="wall"] .status-wall-side {
+body[data-page="service-status"][data-status-display="wall"] .status-wall-side {
   display: none !important;
 }
 
@@ -103,29 +103,29 @@ body[data-page="service-status"] .status-wall-personnel-avatar {
 @media (min-width: 761px) {
   body[data-page="service-status"] .status-wall-layout {
     display: grid !important;
-    grid-template-columns: minmax(0, 1fr) 329px !important;
+    grid-template-columns: minmax(0, 1fr) 260px !important;
     gap: 12px !important;
     width: calc(100% - 12px);
     margin-right: 12px;
   }
 }
 
-body[data-status-display="wall"] .status-wall-list > header h3 {
+body[data-page="service-status"][data-status-display="wall"] .status-wall-list > header h3 {
   font-size: 24px;
 }
 
-body[data-status-display="wall"] .status-wall-table th,
-body[data-status-display="wall"] .status-wall-table td {
+body[data-page="service-status"][data-status-display="wall"] .status-wall-table th,
+body[data-page="service-status"][data-status-display="wall"] .status-wall-table td {
   padding: 16px 18px;
   font-size: 19px;
 }
 
-body[data-status-display="wall"] .status-wall-table td > small {
+body[data-page="service-status"][data-status-display="wall"] .status-wall-table td > small {
   display: block;
   margin-top: 5px;
 }
 
-body[data-status-display="wall"] .status-wall-metrics > article {
+body[data-page="service-status"][data-status-display="wall"] .status-wall-metrics > article {
   min-height: 116px;
 }
 

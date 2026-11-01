@@ -94,18 +94,23 @@ class OfferService:
     def offer_summary(self):
         row = self.db.cursor.execute(
             """
+            WITH normalized_offers AS (
+                SELECT replace(lower(trim(status)), char(305), 'i') AS status,
+                       total_try
+                FROM offers
+            )
             SELECT COUNT(*),
-                   SUM(CASE WHEN LOWER(status) IN (
+                   SUM(CASE WHEN status IN (
                        'draft', 'pending', 'waiting', 'beklemede'
                    ) THEN 1 ELSE 0 END),
-                   SUM(CASE WHEN LOWER(status) IN (
+                   SUM(CASE WHEN status IN (
                        'accepted', 'approved', 'onaylandi'
                    ) THEN 1 ELSE 0 END),
-                   SUM(CASE WHEN LOWER(status) IN (
+                   SUM(CASE WHEN status IN (
                        'rejected', 'declined', 'reddedildi'
                    ) THEN 1 ELSE 0 END),
                    COALESCE(SUM(total_try), 0)
-            FROM offers
+            FROM normalized_offers
             """
         ).fetchone()
         return tuple(row or (0, 0, 0, 0, 0))

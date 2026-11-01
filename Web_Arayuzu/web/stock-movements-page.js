@@ -133,6 +133,39 @@
     loadPage();
   }
 
+  function openMovementPrintPreview() {
+    var popup = window.open("about:blank", "_blank");
+    if (!popup) {
+      toast("Allow pop-ups to open the filtered print preview.", "error");
+      return;
+    }
+    try { popup.opener = null; } catch (_) {}
+    var params = new URLSearchParams({ page: String(pageState.page), search: pageState.search, type: pageState.type });
+    fetch("/api/desktop/stock/movements/export/pdf?" + params.toString(), { credentials: "same-origin" })
+      .then(async function (response) {
+        if (!response.ok) {
+          var body = {};
+          try { body = await response.json(); } catch (_) {}
+          if (response.status === 401 && window.handleUnauthorized) window.handleUnauthorized();
+          throw new Error(body.error || "PDF export failed.");
+        }
+        var blob = await response.blob();
+        if (blob.type !== "application/pdf") throw new Error("The server did not return a PDF print preview.");
+        return blob;
+      })
+      .then(function (blob) {
+        var url = URL.createObjectURL(blob);
+        popup.location = url;
+        popup.focus();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
+        toast("Filtered stock movement report opened. Use the PDF viewer print control.", "success");
+      })
+      .catch(function (error) {
+        popup.close();
+        toast(error.message || "Stock movement print failed.", "error");
+      });
+  }
+
   renderMovements = pageMarkup;
   render = function () {
     var result = baseRender.apply(this, arguments);
@@ -142,7 +175,7 @@
 
   contextAction = function (kind, id, action, row) {
     if (kind === "movement" && action === "movement-print") {
-      window.print();
+      openMovementPrintPreview();
       return;
     }
     if (kind === "movement" && action === "movement-pdf") {
@@ -226,11 +259,25 @@
     }).join("");
     menu.setAttribute("role", "menu");
     menu.classList.add("open");
-    menu.style.left = Math.max(8, Math.min(event.clientX, innerWidth - menu.offsetWidth - 8)) + "px";
-    menu.style.top = Math.max(8, Math.min(event.clientY, innerHeight - menu.offsetHeight - 8)) + "px";
+    var menuRect = menu.getBoundingClientRect();
+    var menuWidth = Math.max(menu.offsetWidth, menuRect.width);
+    var menuHeight = Math.max(menu.offsetHeight, menuRect.height);
+    menu.style.left = Math.max(8, Math.min(event.clientX, innerWidth - menuWidth - 16)) + "px";
+    menu.style.top = Math.max(8, Math.min(event.clientY, innerHeight - menuHeight - 8)) + "px";
+    var placeMenu = function () {
+      if (!menu.isConnected || !menu.classList.contains("open")) return;
+      var finalRect = menu.getBoundingClientRect();
+      menu.style.left = Math.max(8, Math.min(parseFloat(menu.style.left) || 8, innerWidth - finalRect.width - 8)) + "px";
+      menu.style.top = Math.max(8, Math.min(parseFloat(menu.style.top) || 8, innerHeight - finalRect.height - 8)) + "px";
+    };
+    requestAnimationFrame(placeMenu);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(placeMenu);
+    var menuPositionObserver = window.ResizeObserver ? new ResizeObserver(placeMenu) : null;
+    if (menuPositionObserver) menuPositionObserver.observe(menu);
     var closeMenu = function (outsideEvent) {
       if (outsideEvent && menu.contains(outsideEvent.target)) return;
       menu.classList.remove("open");
+      if (menuPositionObserver) menuPositionObserver.disconnect();
       document.removeEventListener("pointerdown", closeMenu, true);
       document.removeEventListener("keydown", closeOnEscape, true);
     };

@@ -21,6 +21,139 @@ html[data-theme="light"] {
   --shadow-card: 0 8px 24px rgba(28, 48, 78, 0.12);
 }
 
+html[data-theme="terra"] {
+  color-scheme: light;
+  --bg: #f2ebe2;
+  --surface: #fffaf4;
+  --surface-2: #eee3d6;
+  --ink: #30251e;
+  --muted: #786554;
+  --line: #d9c8b5;
+  --brand: #96644a;
+  --brand-2: #bd805b;
+  --success: #287a58;
+  --warn: #a15b18;
+  --danger: #ad3444;
+  --input-bg: #fffdf9;
+  --topbar-bg: #09111e;
+  --sidebar-bg: #f2ebe2;
+  --sidebar-panel: #fffaf4;
+  --hover: #e8dccd;
+}
+
+html[data-theme="sunset"] {
+  color-scheme: light;
+  --bg: #fff2e3;
+  --surface: #fffaf5;
+  --surface-2: #f6e5d2;
+  --ink: #38271f;
+  --muted: #80675b;
+  --line: #e3c6af;
+  --brand: #e35d30;
+  --brand-2: #f09a52;
+  --success: #247553;
+  --warn: #ac6415;
+  --danger: #bd3545;
+  --input-bg: #fffdf9;
+  --topbar-bg: #09111e;
+  --sidebar-bg: #fff2e3;
+  --sidebar-panel: #fffaf5;
+  --hover: #f8e6d4;
+}
+
+html[data-theme="sakura"] {
+  color-scheme: light;
+  --bg: #fff2f7;
+  --surface: #fffafd;
+  --surface-2: #f8e3ed;
+  --ink: #35202b;
+  --muted: #805d70;
+  --line: #e6c4d4;
+  --brand: #d94f86;
+  --brand-2: #f08ab5;
+  --success: #247553;
+  --warn: #a96114;
+  --danger: #bd3545;
+  --input-bg: #fffdfd;
+  --topbar-bg: #09111e;
+  --sidebar-bg: #fff2f7;
+  --sidebar-panel: #fffafd;
+  --hover: #f7dfeb;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+html[data-theme="midnight"] {
+  color-scheme: dark;
+}
+
+html[data-theme="neon"] {
+  color-scheme: dark;
+  --bg: #090a14;
+  --surface: #111323;
+  --surface-2: #191c31;
+  --ink: #f2f1ff;
+  --muted: #aaa8c8;
+  --line: #30324d;
+  --brand: #8b5cf6;
+  --brand-2: #22d3ee;
+  --success: #4ade80;
+  --warn: #fbbf24;
+  --danger: #fb7185;
+  --input-bg: #101222;
+  --sidebar-bg: #090a14;
+  --sidebar-panel: #111323;
+  --hover: #1a1d35;
+}
+
+html[data-theme="light"] .content,
+html[data-theme="terra"] .content,
+html[data-theme="sakura"] .content,
+html[data-theme="sunset"] .content {
+  color: var(--ink);
+}
+
+html[data-theme="light"] .content :is(.card, .metric, .panel, .table-wrap, .dashboard-panel, .finance-panel),
+html[data-theme="terra"] .content :is(.card, .metric, .panel, .table-wrap, .dashboard-panel, .finance-panel),
+html[data-theme="sakura"] .content :is(.card, .metric, .panel, .table-wrap, .dashboard-panel, .finance-panel),
+html[data-theme="sunset"] .content :is(.card, .metric, .panel, .table-wrap, .dashboard-panel, .finance-panel) {
+  color: var(--ink);
+  background-color: var(--surface);
+  border-color: var(--line);
+}
+
+html[data-theme="light"] .content :is(table, th, td, tbody tr, .muted, small),
+html[data-theme="terra"] .content :is(table, th, td, tbody tr, .muted, small),
+html[data-theme="sakura"] .content :is(table, th, td, tbody tr, .muted, small),
+html[data-theme="sunset"] .content :is(table, th, td, tbody tr, .muted, small) {
+  color: var(--ink);
+}
+
+html[data-theme="light"] .content tbody tr,
+html[data-theme="terra"] .content tbody tr,
+html[data-theme="sakura"] .content tbody tr,
+html[data-theme="sunset"] .content tbody tr {
+  background-color: var(--surface);
+  border-color: var(--line);
+}
+
+html[data-theme="light"] .content tbody tr:nth-child(even),
+html[data-theme="terra"] .content tbody tr:nth-child(even),
+html[data-theme="sakura"] .content tbody tr:nth-child(even),
+html[data-theme="sunset"] .content tbody tr:nth-child(even) {
+  background-color: var(--surface-2);
+}
+
+html[data-theme="light"] .content thead th,
+html[data-theme="terra"] .content thead th,
+html[data-theme="sakura"] .content thead th,
+html[data-theme="sunset"] .content thead th {
+  color: var(--ink);
+  background-color: var(--surface-2);
+}
+
 html[data-theme="light"] body {
   color: var(--ink);
   background: var(--bg);
@@ -134,4 +267,87 @@ html[data-theme="light"] .shell-status-bar {
   color: var(--muted);
   background: #f5f8fc;
   border-color: var(--line);
+}
+
+/* Keep shell navigation readable when content uses a light palette. */
+html[data-theme="light"],
+html[data-theme="terra"],
+html[data-theme="sakura"],
+html[data-theme="sunset"] {
+  --sidebar-bg: var(--bg);
+  --sidebar-panel: var(--surface);
+}
+
+html[data-theme="light"] .app-shell > .topbar,
+html[data-theme="terra"] .app-shell > .topbar,
+html[data-theme="sakura"] .app-shell > .topbar,
+html[data-theme="sunset"] .app-shell > .topbar {
+  color: #e8eef8;
+  background: #09111e;
+  border-color: #26364b;
+}
+
+html[data-theme="light"] .app-shell > .topbar :is(.header-back, .header-app-name, #breadcrumb, #pageTitle, .topbar-tool, .icon-btn),
+html[data-theme="terra"] .app-shell > .topbar :is(.header-back, .header-app-name, #breadcrumb, #pageTitle, .topbar-tool, .icon-btn),
+html[data-theme="sakura"] .app-shell > .topbar :is(.header-back, .header-app-name, #breadcrumb, #pageTitle, .topbar-tool, .icon-btn),
+html[data-theme="sunset"] .app-shell > .topbar :is(.header-back, .header-app-name, #breadcrumb, #pageTitle, .topbar-tool, .icon-btn) {
+  color: #e8eef8;
+}
+
+html[data-theme="light"] .app-shell > .topbar .header-back:disabled,
+html[data-theme="terra"] .app-shell > .topbar .header-back:disabled,
+html[data-theme="sakura"] .app-shell > .topbar .header-back:disabled,
+html[data-theme="sunset"] .app-shell > .topbar .header-back:disabled {
+  opacity: .85;
+}
+
+html[data-theme="light"] .sidebar,
+html[data-theme="light"] .sidebar .brand,
+html[data-theme="light"] .sidebar .sidebar-bottom,
+html[data-theme="terra"] .sidebar,
+html[data-theme="terra"] .sidebar .brand,
+html[data-theme="terra"] .sidebar .sidebar-bottom,
+html[data-theme="sakura"] .sidebar,
+html[data-theme="sakura"] .sidebar .brand,
+html[data-theme="sakura"] .sidebar .sidebar-bottom,
+html[data-theme="sunset"] .sidebar,
+html[data-theme="sunset"] .sidebar .brand,
+html[data-theme="sunset"] .sidebar .sidebar-bottom {
+  color: var(--ink);
+  background: var(--sidebar-bg);
+  border-color: var(--line);
+}
+
+html[data-theme="light"] .sidebar .nav-group-title,
+html[data-theme="terra"] .sidebar .nav-group-title {
+  color: var(--muted);
+}
+
+html[data-theme="light"] .sidebar .nav-parent,
+html[data-theme="light"] .sidebar .nav-parent.open,
+html[data-theme="light"] .sidebar #nav > .nav-parent.open,
+html[data-theme="terra"] .sidebar .nav-parent,
+html[data-theme="terra"] .sidebar .nav-parent.open,
+html[data-theme="terra"] .sidebar #nav > .nav-parent.open,
+html[data-theme="sakura"] .sidebar .nav-parent,
+html[data-theme="sakura"] .sidebar .nav-parent.open,
+html[data-theme="sakura"] .sidebar #nav > .nav-parent.open,
+html[data-theme="sunset"] .sidebar .nav-parent,
+html[data-theme="sunset"] .sidebar .nav-parent.open,
+html[data-theme="sunset"] .sidebar #nav > .nav-parent.open {
+  color: var(--ink);
+  background: var(--sidebar-panel);
+  border-color: var(--line);
+}
+
+html[data-theme="light"] .sidebar .nav-button:hover,
+html[data-theme="light"] .sidebar .nav-button.active,
+html[data-theme="terra"] .sidebar .nav-button:hover,
+html[data-theme="terra"] .sidebar .nav-button.active,
+html[data-theme="sakura"] .sidebar .nav-button:hover,
+html[data-theme="sakura"] .sidebar .nav-button.active,
+html[data-theme="sunset"] .sidebar .nav-button:hover,
+html[data-theme="sunset"] .sidebar .nav-button.active {
+  color: var(--ink);
+  background: var(--hover);
 }

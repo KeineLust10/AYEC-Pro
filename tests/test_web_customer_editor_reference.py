@@ -44,12 +44,39 @@ def test_customer_editor_covers_reference_fields_and_persists_schema_fields():
 
 def test_customer_editor_has_wide_desktop_and_stacked_mobile_layout():
     styles = (WEB / "midnight-reference.css").read_text(encoding="utf-8")
+    app = (WEB / "app.js").read_text(encoding="utf-8")
     assert '#appDialog.customer-editor-dialog{width:min(980px' in styles
     assert '.customer-editor{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))' in styles
+    assert 'customerEditor.replaceChildren(...columns)' in app
     assert '.customer-type-switch label.active' in styles
     assert '.customer-editor input[data-customer-type-field][readonly]' in styles
     assert '@media(max-width:700px){#appDialog.customer-editor-dialog' in styles
+    assert '#appDialog.customer-editor-dialog>form{display:flex;width:100%;height:100%;min-height:0;flex-direction:column}' in styles
+    assert '#appDialog.customer-editor-dialog #dialogBody{flex:1 1 auto;min-height:0;max-height:none;overflow:auto}' in styles
+    assert '#appDialog.customer-editor-dialog #dialogFooter{flex:0 0 auto}' in styles
     assert '@media(max-width:420px){.customer-editor-section .form-grid{grid-template-columns:minmax(0,1fr)}' in styles
+
+
+def test_customer_editor_columns_and_map_do_not_leave_oversized_gaps():
+    styles = (WEB / "typography-layout-fixes.css").read_text(encoding="utf-8")
+    assert "#appDialog.customer-editor-dialog #dialogBody {" in styles
+    assert "flex: 1 1 auto;" in styles
+    assert "#appDialog.customer-editor-dialog .customer-editor-section {" in styles
+    assert "padding: 12px;" in styles
+    assert "height: 190px;" in styles
+    assert "min-height: 160px;" in styles
+
+
+def test_customer_directory_uses_more_viewport_height_and_rows_by_default():
+    app = (WEB / "app.js").read_text(encoding="utf-8")
+    styles = (WEB / "typography-layout-fixes.css").read_text(encoding="utf-8")
+    assert 'pageSize=15' in app
+    assert '<option selected>15</option>' in app
+    assert 'body[data-page="customers"] .customer-management' in styles
+    assert 'body[data-page="customers"] .customer-card .table-wrap' in styles
+    assert "body[data-page=\"customers\"] .customer-data-table td" in styles
+    assert "height: 50px;" in styles
+    assert "body[data-page=\"customers\"] .customer-data-table.comfortable td" in styles
 
 
 def test_customer_editor_renders_one_sector_field_set():

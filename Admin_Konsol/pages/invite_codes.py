@@ -1,5 +1,7 @@
 """Provisioning invitation code management page."""
 
+import re
+
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
@@ -194,9 +196,10 @@ class InviteCodesPage(QWidget):
         cancel_button = dialog.add_button("Cancel", "secondary", dialog.reject)
         create_button = dialog.add_button("Generate Invite Code", "primary", lambda: self._submit_create_dialog(dialog))
         for button in (cancel_button, create_button):
-            button.setFont(QFont("Segoe UI", 10))
-            button.setStyleSheet(button.styleSheet() + " QPushButton { font-family: 'Segoe UI', Arial; }")
+            button_qss = re.sub(r"font-family\s*:[^;]+;", "", button.styleSheet(), flags=re.IGNORECASE)
+            button.setStyleSheet(button_qss)
             button.ensurePolished()
+            button.setFont(QFont("Segoe UI", 10))
         dialog.exec()
 
     def _submit_create_dialog(self, dialog):

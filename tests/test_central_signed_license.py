@@ -87,3 +87,106 @@ def test_missing_server_signer_does_not_emit_unsigned_license(license_device, mo
         web.license_status_from_device(payload)
     with closing(web.registry_connect()) as conn:
         assert conn.execute("SELECT COUNT(*) FROM license_device_bindings").fetchone()[0] == 0
+
+
+def test_central_admin_can_grant_catalog_license_directly_to_hwid(license_device):
+    payload, verifier = license_device
+    actor = {"id": 2, "_tenant_id": "tenant-1", "role": "Admin"}
+    hardware_id = "center-granted-device-1234"
+
+    result = web.admin_grant_hwid_license({
+        "tenant_id": "tenant-1",
+        "product_code": "elek",
+        "hardware_id": hardware_id,
+        "plan_code": "monthly",
+    }, actor)
+
+    assert result["order"]["status"] == "active"
+    assert result["order"]["hardware_id"] == hardware_id
+    assert result["order"]["plan_code"] == "monthly"
+    assert result["order"]["payment_reported_at"] == ""
+    access = web.license_status_from_device(dict(payload, hardware_id=hardware_id, license_key=""))
+    assert verifier(access["access"])
+    assert access["access"]["allowed"] is True
+
+
+def test_direct_hwid_grant_requires_control_admin_and_tenant_product(license_device):
+    _payload, _verifier = license_device
+    with pytest.raises(PermissionError):
+        web.admin_grant_hwid_license({
+            "tenant_id": "tenant-1", "hardware_id": "center-granted-device-1234",
+            "plan_code": "monthly",
+        }, {"id": 1, "_tenant_id": "tenant-1", "role": "Admin"})
+    with pytest.raises(ValueError, match="Urun firmayla eslesmiyor"):
+        web.admin_grant_hwid_license({
+            "tenant_id": "tenant-1", "product_code": "ciro",
+            "hardware_id": "center-granted-device-1234", "plan_code": "monthly",
+        }, {"id": 2, "_tenant_id": "tenant-1", "role": "Admin"})
+
+
+def test_admin_license_push_notifies_only_selected_tenant_and_requires_control_admin(license_device, monkeypatch):
+    _payload, _verifier = license_device
+    actor = {"id": 2, "_tenant_id": "tenant-1", "role": "Admin"}
+    events = []
+
+    def publish(tenant_id, payload, source_device_id=""):
+        events.append((tenant_id, payload, source_device_id))
+        return 2
+
+    monkeypatch.setattr(web.SYNC_EVENT_HUB, "publish", publish)
+    result = web.admin_push_license("tenant-1", actor)
+
+    assert result["ok"] is True
+    assert result["delivered_sessions"] == 2
+    assert result["license"]["license_code"] == "fixture-central-key"
+    assert len(events) == 1
+    assert events[0][0] == "tenant-1"
+    assert events[0][1]["type"] == "license_updated"
+    assert events[0][1]["license"] == result["license"]
+    assert events[0][2] == ""
+
+    with pytest.raises(PermissionError):
+        web.admin_push_license("tenant-1", {"id": 1, "_tenant_id": "tenant-1", "role": "Admin"})
+    with pytest.raises(LookupError):
+        web.admin_push_license("missing-tenant", actor)
+    assert len(events) == 1
+
+
+def test_license_approval_starts_catalog_term_on_approval_date(license_device, monkeypatch):
+    old_expiry = web.utc_now() + timedelta(days=365)
+    now = web.utc_now().isoformat(timespec="seconds")
+    with closing(web.registry_connect()) as conn:
+        conn.execute("UPDATE tenants SET license_end=? WHERE id='tenant-1'",
+                     (old_expiry.isoformat(timespec="seconds"),))
+        conn.execute(
+            "INSERT INTO license_orders "
+            "(request_no,tenant_id,requester_name,requester_email,hardware_id,plan_code,plan_label,"
+            "duration_months,amount_try,currency,payment_reference,status,created_at,updated_at,product_code) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            ("REQ-APPROVAL-START", "tenant-1", "Test Customer", "customer@example.com",
+             "approval-device-1234", "monthly", "Monthly", 1, 790, "TRY",
+             "PAY-APPROVAL-START", "payment_reported", now, now, "elek"),
+        )
+        conn.commit()
+    monkeypatch.setattr(web, "send_license_email", lambda *_args: (True, "sent"))
+
+    lower_bound = web.utc_now().replace(microsecond=0)
+    result = web.approve_license_order(
+        1, {"plan_code": "monthly"}, {"id": 2, "_tenant_id": "tenant-1", "role": "Admin"}
+    )
+    approved_at = web.datetime.fromisoformat(result["order"]["approved_at"])
+    license_start = web.datetime.fromisoformat(result["order"]["license_start"])
+    license_end = web.datetime.fromisoformat(result["order"]["license_end"])
+    upper_bound = web.utc_now()
+
+    assert result["order"]["status"] == "active"
+    assert license_start == approved_at
+    assert lower_bound <= license_start <= upper_bound
+    assert license_end == web._license_add_months(license_start, 1)
+    assert license_end < old_expiry
+    with closing(web.registry_connect()) as conn:
+        tenant = dict(conn.execute(
+            "SELECT license_start,license_end FROM tenants WHERE id='tenant-1'"
+        ).fetchone())
+    assert tenant["license_start"] == result["order"]["license_start"]
+    assert tenant["license_end"] == result["order"]["license_end"]

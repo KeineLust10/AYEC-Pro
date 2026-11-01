@@ -1,6 +1,7 @@
 """Reference settings navigation behavior without a visible desktop."""
 
 import os
+from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -315,3 +316,30 @@ def test_settings_icons_refresh_with_theme_without_changing_routes():
         sidebar.deleteLater()
         app.processEvents()
 
+
+
+def test_company_bank_mappings_load_complete_catalogs():
+    source = (Path(__file__).resolve().parents[1] / "Web_Arayuzu" / "web" / "settings-theme-reference.js").read_text(encoding="utf-8")
+    start = source.index("async function loadCompanyBankMappings(")
+    end = source.index("async function saveCompanyBankMappings(", start)
+    block = source[start:end]
+    for table in ("product_bank_mappings", "bank_accounts", "parts", "service_definitions"):
+        assert f'loadAllDesktopTableData("{table}")' in block
+    assert "limit=500" not in block
+
+
+def test_company_settings_tabs_support_keyboard_and_aria_relationships():
+    source = (Path(__file__).resolve().parents[1] / "Web_Arayuzu" / "web" / "settings-theme-reference.js").read_text(encoding="utf-8")
+    start = source.index('const body = `<div class="company-settings-editor"')
+    end = source.index('openDialog("Firma Ayarlar', start)
+    block = source[start:end]
+    assert 'aria-controls="company-editor-panel-${tab.id}"' in block
+    assert 'aria-labelledby="company-editor-tab-${tab.id}"' in block
+    assert 'tabindex="${index === 0 ? 0 : -1}"' in block
+    keyboard_start = source.index('dialog.querySelectorAll("[data-company-editor-tab]").forEach(button => button.addEventListener("keydown"')
+    keyboard_end = source.index("      }));", keyboard_start)
+    keyboard_block = source[keyboard_start:keyboard_end]
+    assert 'event.key === "ArrowRight"' in keyboard_block
+    assert 'event.key === "ArrowLeft"' in keyboard_block
+    assert 'event.key === "Home"' in keyboard_block
+    assert 'event.key === "End"' in keyboard_block

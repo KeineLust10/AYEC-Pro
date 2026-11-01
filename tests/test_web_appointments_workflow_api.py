@@ -30,11 +30,14 @@ def test_appointment_desktop_fields_and_installation_plan_persist_in_active_tena
         )
         assert login.status_code == 200
         with sqlite3.connect(tenant_path) as conn:
-            assert "workflow" not in {row[1] for row in conn.execute("PRAGMA table_info(appointments)")}
+            initial_columns = {row[1] for row in conn.execute("PRAGMA table_info(appointments)")}
+            assert {"workflow", "offer_id", "offer_no"} <= initial_columns
+            for column in ("workflow", "offer_id", "offer_no", "device", "notes", "personnel", "personnel_name", "type", "color"):
+                conn.execute(f'ALTER TABLE appointments DROP COLUMN "{column}"')
         bootstrap = session.post(bootstrap_url, json={})
         assert bootstrap.status_code == 200, bootstrap.text
         with sqlite3.connect(tenant_path) as conn:
-            assert {"workflow", "offer_id", "offer_no"} <= {
+            assert {"workflow", "offer_id", "offer_no", "device", "notes", "personnel", "personnel_name", "type", "color"} <= {
                 row[1] for row in conn.execute("PRAGMA table_info(appointments)")
             }
 
@@ -43,7 +46,11 @@ def test_appointment_desktop_fields_and_installation_plan_persist_in_active_tena
             json={
                 "customer_id": 12,
                 "customer_name": "Audit customer",
+                "personnel": "Audit technician",
                 "personnel_name": "Audit technician",
+                "device": "Notebook",
+                "notes": "Replace fan",
+                "type": "Montaj",
                 "date": "2026-10-14",
                 "time": "16:00",
                 "description": "Verilen Teklif / Montaj - Notebook - Replace fan",
@@ -76,11 +83,15 @@ def test_appointment_desktop_fields_and_installation_plan_persist_in_active_tena
 
         with sqlite3.connect(tenant_path) as conn:
             row = conn.execute(
-                "SELECT personnel_name,color,workflow,offer_id,offer_no,description,status,completed_at FROM appointments WHERE id=?",
+                "SELECT personnel,personnel_name,device,notes,type,color,workflow,offer_id,offer_no,description,status,completed_at FROM appointments WHERE id=?",
                 (appointment_id,),
             ).fetchone()
             assert row == (
+                "Audit technician",
                 "Second technician",
+                "Notebook",
+                "Replace fan",
+                "Montaj",
                 "#10b981",
                 "teklif_montaj",
                 8,
@@ -89,6 +100,10 @@ def test_appointment_desktop_fields_and_installation_plan_persist_in_active_tena
                 "Tamamlandı",
                 completed_at,
             )
+        removed = session.post(table_url, json={"id": appointment_id, "_action": "delete"})
+        assert removed.status_code == 200, removed.text
+        remaining = session.get(table_url).json()["rows"]
+        assert all(int(item["id"]) != appointment_id for item in remaining)
     finally:
         server.shutdown()
         server.server_close()

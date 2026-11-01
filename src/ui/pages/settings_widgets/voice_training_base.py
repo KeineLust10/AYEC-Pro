@@ -145,6 +145,14 @@ class VoiceTrainingWidget(QWidget):
                 ],
                 "action": {"type": "builtin", "name": "assistant_help"},
             },
+            "Sonraki Yetenekler": {
+                "triggers": [
+                    "sonraki komutlar",
+                    "diger komutlari oku",
+                    "yetenege devam et",
+                ],
+                "action": {"type": "builtin", "name": "voice_help_next"},
+            },
             "Genel Bakış": {
                 "triggers": ["genel bak\u0131\u015f a\xe7", "genel dashboard a\xe7", "ana ekran\u0131 a\xe7"],
                 "action": {"type": "page", "index": 40},
@@ -649,7 +657,21 @@ class VoiceTrainingWidget(QWidget):
             legacy = os.path.join(os.getcwd(), "asistan_ayarlari.json")
             if os.path.exists(legacy):
                 path = legacy
-        if os.path.exists(path):
+        shared_voice_data = {}
+        try:
+            shared_setting = self.db.get_setting("voice_command_settings", "")
+            if isinstance(shared_setting, str) and shared_setting.strip():
+                shared_state = json.loads(shared_setting)
+            else:
+                shared_state = shared_setting
+            if isinstance(shared_state, dict):
+                shared_voice_data = shared_state.get("scenarios") if isinstance(shared_state.get("scenarios"), dict) else shared_state
+        except Exception as exc:
+            logger.warning("Shared voice scenario setting could not be loaded: %s", exc)
+        loaded_from_shared = isinstance(shared_voice_data, dict) and bool(shared_voice_data)
+        if loaded_from_shared:
+            self.data = shared_voice_data
+        elif os.path.exists(path):
             try:
                 with open(path, 'r', encoding='utf-8') as f:
                     self.data = json.load(f)
@@ -664,7 +686,7 @@ class VoiceTrainingWidget(QWidget):
         if not self.data:
             self.data = self._normalize_data(self._default_scenarios())
             self._persist_voice_data()
-        elif json.dumps(self.data, ensure_ascii=False, sort_keys=True) != original_snapshot:
+        elif loaded_from_shared or json.dumps(self.data, ensure_ascii=False, sort_keys=True) != original_snapshot:
             self._persist_voice_data()
         self._sync_active_scenario()
 
@@ -1019,6 +1041,23 @@ class VoiceTrainingWidget(QWidget):
         os.makedirs(os.path.dirname(self.config_path), exist_ok=True)
         with open(self.config_path, 'w', encoding='utf-8') as f:
             json.dump(self.data, f, ensure_ascii=False, indent=4)
+        try:
+            shared_setting = self.db.get_setting("voice_command_settings", "")
+            if isinstance(shared_setting, str) and shared_setting.strip():
+                shared_state = json.loads(shared_setting)
+            else:
+                shared_state = shared_setting
+            if not isinstance(shared_state, dict):
+                shared_state = {}
+            if "scenarios" not in shared_state and shared_state:
+                shared_state = {"scenarios": shared_state}
+            shared_state["scenarios"] = self.data
+            self.db.set_setting(
+                "voice_command_settings",
+                json.dumps(shared_state, ensure_ascii=False, separators=(",", ":")),
+            )
+        except Exception as exc:
+            logger.warning("Shared voice scenarios could not be saved for web sync: %s", exc)
 
     def load_default_scenarios(self):
         defaults = self._default_scenarios()

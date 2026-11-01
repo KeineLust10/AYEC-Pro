@@ -3,7 +3,7 @@ const { chromium } = require("playwright");
 
 async function run(baseUrl) {
   const browser = await chromium.launch({ headless: true, executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH });
-  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1 });
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1, timezoneId: "Europe/Istanbul" });
   try {
     await page.goto(baseUrl, { waitUntil: "networkidle" });
     const source = fs.readFileSync("tools/quality/admin_audit_dom_capture.cjs", "utf8");

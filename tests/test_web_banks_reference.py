@@ -14,7 +14,23 @@ def test_bank_reference_keeps_account_movements_linked_to_real_bank_ids():
     assert "row.bank_account_id&&ids.has(Number(row.bank_account_id))" in code
     assert "Number(row.bank_account_id)===selected" in code
     assert "financeTryValue(row)" in code
-    assert 'apiFetch("/api/desktop/table/bank_accounts?limit=500")' in source
+    assert 'loadAllDesktopTableData("bank_accounts")' in source
+
+
+def test_offscreen_route_audit_covers_bank_account_creation_payload():
+    route_smoke = (ROOT / "tools" / "quality" / "web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+    assert "result.bankAccountCreateWorkflow" in route_smoke
+    assert 'workflow.bankName !== "QA New Bank"' in route_smoke
+    assert 'workflow.currency !== "USD"' in route_smoke
+
+
+def test_offscreen_route_audit_covers_bank_transfer_source_and_target():
+    route_smoke = (ROOT / "tools" / "quality" / "web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+
+    assert "result.bankTransferWorkflow" in route_smoke
+    assert 'transfer.path !== "/api/desktop/bank-transfer"' in route_smoke
+    assert 'transfer.sourceId !== "8831"' in route_smoke
+    assert 'transfer.targetId !== "8832"' in route_smoke
 
 
 def test_actual_bank_and_loan_routes_honor_desktop_bank_context_setting():
@@ -45,11 +61,26 @@ def test_bank_account_reference_has_responsive_treasury_composition():
     assert '@media print{body[data-page="banks"]' in css
 
 
+def test_bank_account_detail_exports_transactions_as_xlsx_and_pdf():
+    source = APP.read_text(encoding="utf-8")
+    assert 'button.dataset.bankTxExport=format' in source
+    assert '/api/desktop/bank-accounts/${encodeURIComponent(account.id)}/transactions/export/${format}' in source
+    assert 'format==="xlsx"?"Excel":"PDF"' in source
+    assert 'search:txSearch?.value||""' in source
+    assert 'filter_date:txDate?.checked===true' in source
+    assert 'maximum:txMax?.value||""' in source
+    route_smoke = (ROOT / "tools" / "quality" / "web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+    assert "bankTransactionExportWorkflow" in route_smoke
+    assert 'bank-accounts/7101/transactions/export/xlsx' in route_smoke
+
+
 def test_bank_transfer_matches_desktop_source_balance_and_target_rules():
     source = APP.read_text(encoding="utf-8")
-    start = source.index("function ayecOpenBankTransfer(){")
+    start = source.index("async function ayecOpenBankTransfer(){")
     end = source.index("async function ayecPreviewBankStatement()", start)
     code = source[start:end]
+    assert 'userAdminRole(currentAuthUser?.role)' in code
+    assert 'loadAllDesktopTableData("bank_accounts")' in code
     assert 'Number(row.id)===sourceId?"selected":""' in code
     assert 'row.iban||row.account_number||""' in code
     assert 'Number(row.id)!==Number(source.id)' in code
@@ -57,6 +88,7 @@ def test_bank_transfer_matches_desktop_source_balance_and_target_rules():
     assert 'amountInput.max=Number(source.current_balance)>0?String(Number(source.current_balance))' in code
     assert 'values.from_account_id===values.to_account_id' in code
     assert 'apiFetch("/api/desktop/bank-transfer"' in code
+    assert 'if(action==="transfer-finance"){ayecOpenBankTransfer();return}' in source
 
 
 def test_bank_transfer_dialog_stacks_fields_like_desktop_form():
@@ -120,6 +152,14 @@ def test_bank_account_details_mirror_desktop_tabs_and_scoped_workflows():
     for tab in ("general", "loans", "transactions", "analytics", "extra"):
         assert f'data-bank-tab="{tab}"' in code
         assert f'data-bank-panel="{tab}"' in code
+        assert f'id="bank-detail-tab-{tab}"' in code
+        assert f'id="bank-detail-panel-{tab}"' in code
+        assert f'aria-labelledby="bank-detail-tab-{tab}"' in code
+    assert 'tabindex="0" data-bank-tab="general"' in code
+    assert 'tabindex="-1" data-bank-tab="loans"' in code
+    assert 'tab.tabIndex=selected?0:-1' in code
+    assert 'event.key==="ArrowRight"' in code and 'event.key==="ArrowLeft"' in code
+    assert 'event.key==="Home"' in code and 'event.key==="End"' in code
     for control in ("data-bank-tx-search", "data-bank-tx-type", "data-bank-tx-date", "data-bank-tx-from", "data-bank-tx-to", "data-bank-tx-min", "data-bank-tx-max", "data-bank-tx-size", "data-bank-tx-prev", "data-bank-tx-next", "data-bank-tx-reset"):
         assert control in code
     assert 'ayecFetchAllDesktopTableRows("loans")' in code
@@ -148,3 +188,43 @@ def test_bank_context_menu_supports_selection_bulk_actions_and_status_reactivati
     assert ".context-menu button{height:24px;min-height:24px;" in menu_css
     assert "#contextMenu hr.context-menu-separator{height:2px;margin:0;" in menu_css
     assert 'html[data-theme="midnight"] .context-menu{background:#0F1428!important;' in menu_css
+
+
+def test_bank_bulk_delete_retains_failed_accounts_for_retry():
+    source = APP.read_text(encoding="utf-8")
+    start = source.index('if(action==="bank-delete"||action==="bank-bulk-delete"){')
+    end = source.index("function ayecFetchAllDesktopTableRows", start)
+    block = source[start:end]
+
+    assert 'failedIds=results.flatMap((result,index)=>result.status==="rejected"?[String(ids[index])]:[])' in block
+    assert "ayecBankSelectedIds=new Set(failedIds)" in block
+    assert 'failed?"error":"warning"' in block
+
+
+def test_offscreen_audit_covers_bank_context_permission_and_confirmation_workflow():
+    route_smoke = (ROOT / "tools" / "quality" / "web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+
+    assert "result.bankAccountContextWorkflow" in route_smoke
+    assert 'bankContext.editPayload._action !== "update"' in route_smoke
+    assert 'bankContext.editPayload.bank_name !== "QA Updated Bank"' in route_smoke
+    assert 'bankContext.togglePayload._action !== "update"' in route_smoke
+    assert 'bankContext.deletePayload._action !== "delete"' in route_smoke
+    assert 'bankContext.confirmText.includes("QA Updated Bank")' in route_smoke
+    assert 'bankContext.managerActions["bank-detail"].disabled' in route_smoke
+    assert '["bank-edit","bank-transfer","bank-toggle","bank-delete"].some(action =>' in route_smoke
+    assert "bankContext.bulkTogglePayloads.length !== 2" in route_smoke
+    assert 'bankContext.bulkTogglePayloads.map(payload => String(payload.id)).sort().join(",") !== "8841,8842"' in route_smoke
+    assert "bankDelete.deleteCancelPreserved" in route_smoke
+    assert "bankContext.bulkDeletePayloads.length !== 2" in route_smoke
+    assert "!bankContext.bulkDeleted" in route_smoke
+    assert 'bankContext.partialDeleteSelected.join(",") !== "8841"' in route_smoke
+    assert 'partialDeleteToast.includes("1 hesap silindi, 1 hesap silinemedi")' in route_smoke
+
+
+def test_bank_bulk_delete_reports_partial_failures():
+    source = APP.read_text(encoding="utf-8")
+
+    assert 'failedIds=results.flatMap((result,index)=>result.status==="rejected"?[String(ids[index])]:[])' in source
+    assert 'count=results.length-failedIds.length,failed=failedIds.length' in source
+    assert 'toast(failed?`${count} hesap silindi, ${failed} hesap silinemedi.`:`${count} hesap silindi`,failed?"error":"warning")' in source
+    assert "ayecBankSelectedIds=new Set(failedIds)" in source

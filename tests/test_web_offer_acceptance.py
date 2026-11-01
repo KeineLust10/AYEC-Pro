@@ -1,6 +1,7 @@
 import inspect
 import threading
 from http.server import ThreadingHTTPServer
+from pathlib import Path
 
 import pytest
 import requests
@@ -243,3 +244,13 @@ def test_offer_reversal_http_route_requires_auth_and_uses_the_session_actor(
         server.shutdown()
         server.server_close()
         worker.join(timeout=2)
+def test_offscreen_route_audit_covers_offer_acceptance_payment_details():
+    route_smoke = (Path(__file__).parents[1] / "tools/quality/web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+
+    assert "result.offerAcceptanceWorkflow" in route_smoke
+    assert "result.offerReversalWorkflow" in route_smoke
+    assert 'workflow.path.endsWith("/api/desktop/offers/8801/accept")' in route_smoke
+    assert 'Number(workflow.paymentAmount) !== 25' in route_smoke
+    assert 'workflow.paymentMethod !== "Banka"' in route_smoke
+    assert 'reversal.path.endsWith("/api/desktop/offers/8801/reverse")' in route_smoke
+    assert 'reversal.reason !== "Customer requested a quote revision"' in route_smoke

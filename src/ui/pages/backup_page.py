@@ -373,16 +373,16 @@ class BackupPage(QWidget):
 
         # Main Button
         btn = QPushButton(btn_text)
-        btn.setFixedHeight(26)
+        btn.setFixedHeight(32)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
         btn.setStyleSheet(theme_qss(f"""
             QPushButton {{
                 background-color: {btn_color};
                 color: white;
                 font-weight: bold;
-                padding: 5px 8px;
+                padding: 3px 8px;
                 border-radius: 6px;
-                font-size: 14px;
+                font-size: 12px;
                 border: none;
             }}
             QPushButton:hover {{ opacity: 0.9; }}
@@ -394,7 +394,7 @@ class BackupPage(QWidget):
         if extra_btns:
             for b_text, b_slot, b_col in extra_btns:
                 eb = QPushButton(b_text)
-                eb.setFixedHeight(22)
+                eb.setFixedHeight(26)
                 eb.setCursor(Qt.CursorShape.PointingHandCursor)
                 eb.setStyleSheet(theme_qss(f"""
                     QPushButton {{
@@ -403,7 +403,7 @@ class BackupPage(QWidget):
                         font-weight: bold;
                         padding: 3px 6px;
                         border-radius: 6px;
-                        font-size: 11px;
+                        font-size: 10px;
                         border: none;
                         margin-top: 0px;
                     }}
@@ -478,7 +478,13 @@ class BackupPage(QWidget):
                     shutil.copy2(current_db, backup_path)
                     show_info(self, f"Mevcut veritabanı yedeklendi: {os.path.basename(backup_path)}")
                 except Exception as e:
-                    show_warning(self, f"Yerel yedek alınamadı: {e}")
+                    try:
+                        if os.path.exists(temp_file):
+                            os.remove(temp_file)
+                    except OSError:
+                        pass
+                    show_error(self, f"Yerel yedek al\u0131namad\u0131; sunucu geri y\u00fcklemesi iptal edildi: {e}")
+                    return
 
                 # Replace with downloaded database
                 try:
@@ -499,7 +505,20 @@ class BackupPage(QWidget):
                         os.execl(sys.executable, sys.executable, *sys.argv)
 
                 except Exception as e:
-                    show_error(self, f"Veritabanı güncellenirken hata: {e}")
+                    rollback_error = None
+                    try:
+                        shutil.copy2(backup_path, current_db)
+                    except Exception as rollback_exc:
+                        rollback_error = rollback_exc
+                    try:
+                        if os.path.exists(temp_file):
+                            os.remove(temp_file)
+                    except OSError:
+                        pass
+                    if rollback_error is None:
+                        show_error(self, f"Sunucu geri y\u00fcklemesi ba\u015far\u0131s\u0131z; yerel yedek geri y\u00fcklendi: {e}")
+                    else:
+                        show_error(self, f"Veritaban\u0131 g\u00fcncellenirken hata: {e}; yerel geri y\u00fckleme de ba\u015far\u0131s\u0131z: {rollback_error}")
             else:
                 show_error(self, "Sunucudan indirme başarısız. Sunucu bağlantısını ve ayarlarını kontrol edin.")
 

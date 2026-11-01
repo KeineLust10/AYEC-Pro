@@ -1,7 +1,7 @@
 (function () {
   let showingGuide = false;
   let lastPage = "";
-  let purchasePricesVisible = false;
+  let purchasePricesVisible = true;
   const revealedPurchasePriceIds = new Set();
   const originalStockTable = stockTable;
   const originalStockTabs = stockTabs;
@@ -41,7 +41,7 @@
   const originalRender = render;
   document.addEventListener("click", event => {
     if (currentSector !== "otomotiv" || page !== "automotive-stock") return;
-    const allButton = event.target.closest("[data-automotive-price-all]");
+    const allButton = event.target.closest("[data-automotive-price-all], [data-automotive-price-all-mobile]");
     const priceButton = event.target.closest("[data-automotive-price-toggle]");
     if (!allButton && !priceButton) return;
     event.preventDefault();
@@ -59,12 +59,12 @@
       button.textContent = shown ? button.dataset.purchasePrice : "***";
       button.setAttribute("aria-label", `Al\u0131\u015f fiyat\u0131n\u0131 ${shown ? "gizle" : "g\u00f6ster"}`);
     });
-    const button = $('[data-automotive-price-all]');
-    if (button) {
-      const label = `Al\u0131\u015f fiyatlar\u0131n\u0131 ${purchasePricesVisible ? "gizle" : "g\u00f6ster"}`;
+    const label = `Al\u0131\u015f fiyatlar\u0131n\u0131 ${purchasePricesVisible ? "gizle" : "g\u00f6ster"}`;
+    $$('[data-automotive-price-all], [data-automotive-price-all-mobile]').forEach(button => {
       button.setAttribute("aria-label", label);
       button.title = label;
-    }
+      button.textContent = label;
+    });
   }, true);
   render = function (...args) {
     if (lastPage !== page) showingGuide = false;
@@ -77,6 +77,17 @@
       if (heading) heading.textContent = "Yedek Par\u00e7a Y\u00f6netimi";
       if (description) description.textContent = "Otomotiv yedek par\u00e7a, stok hareketleri ve al\u0131m kay\u0131tlar\u0131n\u0131 bu alandan y\u00f6netin.";
       $("#content .page-head [data-action='add-product']")?.replaceChildren(document.createTextNode("Yeni Par\u00e7a Ekle"));
+      const actions = $("#content .page-head .actions");
+      if (actions && !actions.querySelector("[data-automotive-price-all-mobile]")) {
+        const toggle = document.createElement("button");
+        toggle.type = "button";
+        toggle.className = "secondary automotive-mobile-price-toggle";
+        toggle.dataset.automotivePriceAllMobile = "";
+        toggle.textContent = `Al\u0131\u015f fiyatlar\u0131n\u0131 ${purchasePricesVisible ? "gizle" : "g\u00f6ster"}`;
+        toggle.setAttribute("aria-label", toggle.textContent);
+        toggle.title = toggle.textContent;
+        actions.insertBefore(toggle, actions.querySelector("[data-action='add-product']") || null);
+      }
       const search = $("#stockSearch");
       if (search) search.placeholder = "Par\u00e7a ad\u0131, OEM kodu veya stok kodu ile ara...";
     } else if (heading) heading.textContent = "Par\u00e7a Hareketleri";

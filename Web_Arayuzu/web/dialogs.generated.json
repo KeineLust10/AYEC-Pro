@@ -1029,7 +1029,12 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 512
+          "line": 512,
+          "options": [
+            "Nakit",
+            "Kredi Kart\u0131",
+            "Havale/EFT"
+          ]
         },
         {
           "name": "self.cmb_bank",
@@ -1037,7 +1042,13 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 524
+          "line": 524,
+          "options": [
+            {
+              "label": "Ana Kasa (Varsay\u0131lan)",
+              "value": -1
+            }
+          ]
         }
       ],
       "connections": [
@@ -1388,7 +1399,8 @@
           "widget": "QTextEdit",
           "kind": "textarea",
           "default": null,
-          "line": 472
+          "line": 472,
+          "placeholder": "Bina, daire, di\u011fer adres detaylar\u0131..."
         },
         {
           "name": "self.lbl_location_status",
@@ -1404,7 +1416,8 @@
           "widget": "QTextEdit",
           "kind": "textarea",
           "default": null,
-          "line": 489
+          "line": 489,
+          "placeholder": "M\u00fc\u015fteri hakk\u0131nda \u00f6zel notlar, al\u0131\u015fkanl\u0131klar, teknik bilgiler..."
         }
       ],
       "connections": [
@@ -1517,13 +1530,13 @@
           "name": "btn_find",
           "label": "\ud83d\udd0d Kay\u0131tl\u0131 M\u00fc\u015fteri Se\u00e7",
           "widget": "QPushButton",
-          "line": 194,
+          "line": 198,
           "connections": [
             {
               "owner": "btn_find",
               "signal": "clicked",
               "callback": "self.open_customer_select",
-              "line": 197
+              "line": 201
             }
           ]
         },
@@ -1531,13 +1544,13 @@
           "name": "self.btn_mic",
           "label": "\ud83c\udf99\ufe0f",
           "widget": "QPushButton",
-          "line": 292,
+          "line": 296,
           "connections": [
             {
               "owner": "self.btn_mic",
               "signal": "clicked",
               "callback": "self.start_voice_note",
-              "line": 308
+              "line": 312
             }
           ]
         },
@@ -1545,13 +1558,13 @@
           "name": "btn_pattern",
           "label": "Desen Kilidi",
           "widget": "QPushButton",
-          "line": 419,
+          "line": 423,
           "connections": [
             {
               "owner": "btn_pattern",
               "signal": "clicked",
               "callback": "self.open_pattern_lock_dialog",
-              "line": 423
+              "line": 427
             }
           ]
         },
@@ -1559,13 +1572,13 @@
           "name": "self.btn_photo",
           "label": "\ud83d\udcc1 Foto\u011fraf Y\u00fckle",
           "widget": "QPushButton",
-          "line": 433,
+          "line": 437,
           "connections": [
             {
               "owner": "self.btn_photo",
               "signal": "clicked",
               "callback": "self.select_photo",
-              "line": 436
+              "line": 440
             }
           ]
         },
@@ -1573,13 +1586,13 @@
           "name": "cancel_button",
           "label": "Iptal",
           "widget": "QPushButton",
-          "line": 489,
+          "line": 493,
           "connections": [
             {
               "owner": "cancel_button",
               "signal": "clicked",
               "callback": "dialog.reject",
-              "line": 491
+              "line": 495
             }
           ]
         },
@@ -1587,13 +1600,13 @@
           "name": "save_button",
           "label": "Kaydet",
           "widget": "QPushButton",
-          "line": 492,
+          "line": 496,
           "connections": [
             {
               "owner": "save_button",
               "signal": "clicked",
               "callback": "dialog.accept",
-              "line": 494
+              "line": 498
             }
           ]
         }
@@ -1605,7 +1618,7 @@
           "widget": "QLabel",
           "kind": "label",
           "default": null,
-          "line": 66
+          "line": 70
         },
         {
           "name": "lt",
@@ -1613,7 +1626,7 @@
           "widget": "QLabel",
           "kind": "label",
           "default": "\u25cf  M\u00dc\u015eTER\u0130 B\u0130LG\u0130LER\u0130",
-          "line": 186
+          "line": 190
         },
         {
           "name": "self.lbl_selected_customer",
@@ -1621,7 +1634,7 @@
           "widget": "QLabel",
           "kind": "label",
           "default": "Durum: Yeni M\u00fc\u015fteri Kayd\u0131",
-          "line": 189
+          "line": 193
         },
         {
           "name": "dt",
@@ -1629,7 +1642,7 @@
           "widget": "QLabel",
           "kind": "label",
           "default": "\ud83d\udcf1 C\u0130HAZ B\u0130LG\u0130LER\u0130",
-          "line": 235
+          "line": 239
         },
         {
           "name": "ft",
@@ -1637,7 +1650,7 @@
           "widget": "QLabel",
           "kind": "label",
           "default": "\u26a0  ARIZA & SERV\u0130S DETAYLARI",
-          "line": 278
+          "line": 282
         },
         {
           "name": "ai_hint",
@@ -1645,7 +1658,7 @@
           "widget": "QLabel",
           "kind": "label",
           "default": "\u2728 AI Destekli",
-          "line": 282
+          "line": 286
         },
         {
           "name": "self.txt_desc",
@@ -1653,7 +1666,8 @@
           "widget": "QTextEdit",
           "kind": "textarea",
           "default": null,
-          "line": 287
+          "line": 291,
+          "placeholder": "Jarvis notunuzu d\u00fczenliyor..."
         },
         {
           "name": "desc_label",
@@ -1661,7 +1675,7 @@
           "widget": "QLabel",
           "kind": "label",
           "default": "Ar\u0131za Tan\u0131m\u0131 ve M\u00fc\u015fteri \u015eikayeti *",
-          "line": 316
+          "line": 320
         },
         {
           "name": "dictation_label",
@@ -1669,7 +1683,7 @@
           "widget": "QLabel",
           "kind": "label",
           "default": "Sesle yazd\u0131r\u0131labilir",
-          "line": 320
+          "line": 324
         },
         {
           "name": "self.spin_cost",
@@ -1677,7 +1691,7 @@
           "widget": "QDoubleSpinBox",
           "kind": "decimal",
           "default": null,
-          "line": 329
+          "line": 333
         },
         {
           "name": "self.cost_btn_try",
@@ -1685,7 +1699,10 @@
           "widget": "QRadioButton",
           "kind": "radio",
           "default": null,
-          "line": 359
+          "line": 363,
+          "group": "self.cost_btn_grp",
+          "group_value": 1,
+          "group_checked": true
         },
         {
           "name": "self.cost_btn_usd",
@@ -1693,7 +1710,10 @@
           "widget": "QRadioButton",
           "kind": "radio",
           "default": "$",
-          "line": 360
+          "line": 364,
+          "group": "self.cost_btn_grp",
+          "group_value": 2,
+          "group_checked": false
         },
         {
           "name": "self.cost_btn_eur",
@@ -1701,7 +1721,10 @@
           "widget": "QRadioButton",
           "kind": "radio",
           "default": "\u20ac",
-          "line": 361
+          "line": 365,
+          "group": "self.cost_btn_grp",
+          "group_value": 3,
+          "group_checked": false
         },
         {
           "name": "amount_label",
@@ -1709,7 +1732,7 @@
           "widget": "QLabel",
           "kind": "label",
           "default": "Tahmini Tutar (KDV Dahil)",
-          "line": 394
+          "line": 398
         },
         {
           "name": "self.lbl_photo",
@@ -1717,7 +1740,7 @@
           "widget": "QLabel",
           "kind": "label",
           "default": "Hen\u00fcz g\u00f6rsel se\u00e7ilmedi",
-          "line": 439
+          "line": 443
         },
         {
           "name": "title",
@@ -1725,7 +1748,7 @@
           "widget": "QLabel",
           "kind": "label",
           "default": "Desen Kilidi",
-          "line": 479
+          "line": 483
         }
       ],
       "connections": [
@@ -1733,67 +1756,67 @@
           "owner": "btn_find",
           "signal": "clicked",
           "callback": "self.open_customer_select",
-          "line": 197
+          "line": 201
         },
         {
           "owner": "self.combo_type",
           "signal": "currentTextChanged",
           "callback": "lambda value: self._load_catalog_brands(value, preserve_current=False)",
-          "line": 253
+          "line": 257
         },
         {
           "owner": "self.inp_brand",
           "signal": "currentTextChanged",
           "callback": "lambda value: self._load_catalog_models(self.combo_type.currentText(), value, preserve_current=False)",
-          "line": 256
+          "line": 260
         },
         {
           "owner": "self.btn_mic",
           "signal": "clicked",
           "callback": "self.start_voice_note",
-          "line": 308
+          "line": 312
         },
         {
           "owner": "self.cost_btn_try",
           "signal": "toggled",
           "callback": "_dc_suffix",
-          "line": 373
+          "line": 377
         },
         {
           "owner": "self.cost_btn_usd",
           "signal": "toggled",
           "callback": "_dc_suffix",
-          "line": 374
+          "line": 378
         },
         {
           "owner": "self.cost_btn_eur",
           "signal": "toggled",
           "callback": "_dc_suffix",
-          "line": 375
+          "line": 379
         },
         {
           "owner": "btn_pattern",
           "signal": "clicked",
           "callback": "self.open_pattern_lock_dialog",
-          "line": 423
+          "line": 427
         },
         {
           "owner": "self.btn_photo",
           "signal": "clicked",
           "callback": "self.select_photo",
-          "line": 436
+          "line": 440
         },
         {
           "owner": "cancel_button",
           "signal": "clicked",
           "callback": "dialog.reject",
-          "line": 491
+          "line": 495
         },
         {
           "owner": "save_button",
           "signal": "clicked",
           "callback": "dialog.accept",
-          "line": 494
+          "line": 498
         }
       ],
       "counts": {
@@ -1860,7 +1883,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 39
+          "line": 39,
+          "placeholder": "Makale ba\u015fl\u0131\u011f\u0131n\u0131 giriniz..."
         },
         {
           "name": "self.inp_tags",
@@ -1868,7 +1892,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 43
+          "line": 43,
+          "placeholder": "anahtar, kelimeler, virg\u00fclle, ay\u0131r\u0131n"
         },
         {
           "name": "self.txt_content",
@@ -1928,7 +1953,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 51
+          "line": 51,
+          "placeholder": "\u00d6rn: Yaz\u0131c\u0131 Bak\u0131m ve Temizlik"
         },
         {
           "name": "self.inp_desc",
@@ -1936,7 +1962,8 @@
           "widget": "QPlainTextEdit",
           "kind": "textarea",
           "default": null,
-          "line": 55
+          "line": 55,
+          "placeholder": "\u0130\u015f\u00e7ilik a\u00e7\u0131klamas\u0131"
         },
         {
           "name": "self.inp_barcode",
@@ -1944,7 +1971,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 64
+          "line": 64,
+          "placeholder": "\u00d6rn: ISC001"
         },
         {
           "name": "self.chk_active",
@@ -1960,7 +1988,13 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 75
+          "line": 75,
+          "options": [
+            "Donan\u0131m & Lehim",
+            "Yaz\u0131l\u0131m & Kurulum",
+            "Periyodik Bak\u0131m",
+            "Saha & Montaj"
+          ]
         },
         {
           "name": "self.inp_duration",
@@ -2141,7 +2175,8 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 699
+          "line": 699,
+          "editable": true
         },
         {
           "name": "self.inp_oem_code",
@@ -2149,7 +2184,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 721
+          "line": 721,
+          "placeholder": "Orijinal par\u00e7a kodu"
         },
         {
           "name": "self.inp_equivalent_code",
@@ -2157,7 +2193,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 726
+          "line": 726,
+          "placeholder": "Muadil / alternatif kod"
         },
         {
           "name": "self.inp_shelf",
@@ -2165,7 +2202,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 744
+          "line": 744,
+          "placeholder": "Raf / g\u00f6z"
         },
         {
           "name": "self.inp_stock",
@@ -2181,7 +2219,15 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 769
+          "line": 769,
+          "options": [
+            "Adet",
+            "Metre",
+            "Kg",
+            "Lt",
+            "Paket",
+            "Kutu"
+          ]
         },
         {
           "name": "self.inp_min_stock",
@@ -2197,7 +2243,10 @@
           "widget": "QRadioButton",
           "kind": "radio",
           "default": null,
-          "line": 807
+          "line": 807,
+          "group": "self.btn_grp_curr",
+          "group_value": 1,
+          "group_checked": true
         },
         {
           "name": "self.btn_usd",
@@ -2205,7 +2254,10 @@
           "widget": "QRadioButton",
           "kind": "radio",
           "default": "$",
-          "line": 808
+          "line": 808,
+          "group": "self.btn_grp_curr",
+          "group_value": 2,
+          "group_checked": false
         },
         {
           "name": "self.btn_eur",
@@ -2213,7 +2265,10 @@
           "widget": "QRadioButton",
           "kind": "radio",
           "default": "\u20ac",
-          "line": 809
+          "line": 809,
+          "group": "self.btn_grp_curr",
+          "group_value": 3,
+          "group_checked": false
         },
         {
           "name": "self.inp_purchase_price",
@@ -2253,7 +2308,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 915
+          "line": 915,
+          "placeholder": "Orn: Ford, Fiat, Renault"
         },
         {
           "name": "self.inp_vehicle_model",
@@ -2261,7 +2317,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 924
+          "line": 924,
+          "placeholder": "Orn: Courier, Doblo, Clio"
         },
         {
           "name": "self.cmb_position",
@@ -2269,7 +2326,24 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 933
+          "line": 933,
+          "options": [
+            "",
+            "On Sol",
+            "On Sag",
+            "Arka Sol",
+            "Arka Sag",
+            "Sag",
+            "Sol",
+            "On",
+            "Arka",
+            "Motor",
+            "Sanziman",
+            "Ic Mekan",
+            "Dis Trim",
+            "Genel"
+          ],
+          "editable": true
         },
         {
           "name": "self.inp_supplier",
@@ -2277,7 +2351,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 944
+          "line": 944,
+          "placeholder": "Orn: oto yedek parca tedarikcisi"
         },
         {
           "name": "self.lbl_photo_preview",
@@ -2301,7 +2376,13 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 1005
+          "line": 1005,
+          "options": [
+            {
+              "label": "Se\u00e7iniz...",
+              "value": -1
+            }
+          ]
         }
       ],
       "connections": [
@@ -2446,7 +2527,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 66
+          "line": 66,
+          "placeholder": "Hatal\u0131 \u015fifre!"
         }
       ],
       "connections": [
@@ -2529,7 +2611,16 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 24
+          "line": 24,
+          "options": [
+            "T\u00fcm\u00fc",
+            "Ekran K\u0131r\u0131k",
+            "\u015earj Alm\u0131yor",
+            "Yaz\u0131l\u0131m Hatas\u0131",
+            "S\u0131v\u0131 Temas\u0131",
+            "Genel Bak\u0131m",
+            "Di\u011fer"
+          ]
         },
         {
           "name": "self.inp_status",
@@ -2537,7 +2628,15 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 29
+          "line": 29,
+          "options": [
+            "Hepsi",
+            "Bekliyor",
+            "Tamirde",
+            "Tamir Edildi",
+            "Teslim Edildi",
+            "\u0130ptal \u0130ade"
+          ]
         },
         {
           "name": "self.date_start",
@@ -2636,7 +2735,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 50
+          "line": 50,
+          "placeholder": "Giris sifresi"
         }
       ],
       "connections": [
@@ -2841,7 +2941,12 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 59
+          "line": 59,
+          "options": [
+            "Tamam",
+            "Degismeli",
+            "Incelenmeli"
+          ]
         },
         {
           "name": "txt",
@@ -2849,7 +2954,8 @@
           "widget": "QTextEdit",
           "kind": "textarea",
           "default": null,
-          "line": 62
+          "line": 62,
+          "placeholder": "Opsiyonel not"
         }
       ],
       "connections": [],
@@ -2948,7 +3054,14 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 79
+          "line": 79,
+          "options": [
+            "Yok",
+            "Cizik",
+            "Gocuk",
+            "Boya Hasari",
+            "Kirildi"
+          ]
         },
         {
           "name": "note",
@@ -2956,7 +3069,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 87
+          "line": 87,
+          "placeholder": "Opsiyonel not"
         },
         {
           "name": "extra_title",
@@ -2972,7 +3086,8 @@
           "widget": "QTextEdit",
           "kind": "textarea",
           "default": null,
-          "line": 110
+          "line": 110,
+          "placeholder": "Teslim alindiginda gorulen genel cizik, gocuk veya aciklama"
         },
         {
           "name": "preview_title",
@@ -3076,7 +3191,7 @@
             "BankDetailTransactionsMixin",
             "BaseModernDialog"
           ],
-          "line": 41
+          "line": 42
         }
       ],
       "buttons": [
@@ -3084,13 +3199,13 @@
           "name": "btn_edit",
           "label": "D\u00fczenle",
           "widget": "QPushButton",
-          "line": 284,
+          "line": 292,
           "connections": [
             {
               "owner": "btn_edit",
               "signal": "clicked",
               "callback": "self.on_edit",
-              "line": 288
+              "line": 296
             }
           ]
         },
@@ -3098,13 +3213,13 @@
           "name": "btn_close",
           "label": "Kapat",
           "widget": "QPushButton",
-          "line": 290,
+          "line": 298,
           "connections": [
             {
               "owner": "btn_close",
               "signal": "clicked",
               "callback": "self.accept",
-              "line": 294
+              "line": 302
             }
           ]
         },
@@ -3112,13 +3227,13 @@
           "name": "btn_apply",
           "label": "Filtrele",
           "widget": "QPushButton",
-          "line": 574,
+          "line": 582,
           "connections": [
             {
               "owner": "btn_apply",
               "signal": "clicked",
               "callback": "self._apply_filters",
-              "line": 577
+              "line": 585
             }
           ]
         },
@@ -3126,13 +3241,13 @@
           "name": "btn_clear",
           "label": "Temizle",
           "widget": "QPushButton",
-          "line": 579,
+          "line": 587,
           "connections": [
             {
               "owner": "btn_clear",
               "signal": "clicked",
               "callback": "self._reset_filters",
-              "line": 582
+              "line": 590
             }
           ]
         },
@@ -3140,13 +3255,13 @@
           "name": "btn_excel",
           "label": "Excel",
           "widget": "QPushButton",
-          "line": 584,
+          "line": 592,
           "connections": [
             {
               "owner": "btn_excel",
               "signal": "clicked",
               "callback": "lambda: self._export_transactions('excel')",
-              "line": 587
+              "line": 595
             }
           ]
         },
@@ -3154,13 +3269,13 @@
           "name": "btn_pdf",
           "label": "PDF",
           "widget": "QPushButton",
-          "line": 589,
+          "line": 597,
           "connections": [
             {
               "owner": "btn_pdf",
               "signal": "clicked",
               "callback": "lambda: self._export_transactions('pdf')",
-              "line": 592
+              "line": 600
             }
           ]
         },
@@ -3168,13 +3283,13 @@
           "name": "self.btn_prev",
           "label": "\u00d6nceki",
           "widget": "QPushButton",
-          "line": 636,
+          "line": 644,
           "connections": [
             {
               "owner": "self.btn_prev",
               "signal": "clicked",
               "callback": "lambda: self._change_page(-1)",
-              "line": 638
+              "line": 646
             }
           ]
         },
@@ -3182,13 +3297,13 @@
           "name": "self.btn_next",
           "label": "Sonraki",
           "widget": "QPushButton",
-          "line": 640,
+          "line": 648,
           "connections": [
             {
               "owner": "self.btn_next",
               "signal": "clicked",
               "callback": "lambda: self._change_page(1)",
-              "line": 642
+              "line": 650
             }
           ]
         },
@@ -3196,13 +3311,13 @@
           "name": "btn_add_card",
           "label": "Kart Ekle",
           "widget": "QPushButton",
-          "line": 803,
+          "line": 811,
           "connections": [
             {
               "owner": "btn_add_card",
               "signal": "clicked",
               "callback": "self._open_add_card_dialog",
-              "line": 806
+              "line": 814
             }
           ]
         }
@@ -3214,7 +3329,7 @@
           "widget": "QLabel",
           "kind": "label",
           "default": null,
-          "line": 313
+          "line": 321
         },
         {
           "name": "lbl_acc",
@@ -3222,7 +3337,7 @@
           "widget": "QLabel",
           "kind": "label",
           "default": null,
-          "line": 316
+          "line": 324
         },
         {
           "name": "lbl_status",
@@ -3230,7 +3345,7 @@
           "widget": "QLabel",
           "kind": "label",
           "default": null,
-          "line": 325
+          "line": 333
         },
         {
           "name": "title",
@@ -3238,7 +3353,7 @@
           "widget": "QLabel",
           "kind": "label",
           "default": "Hesap Genel Bilgileri",
-          "line": 347
+          "line": 355
         },
         {
           "name": "lbl",
@@ -3246,7 +3361,7 @@
           "widget": "QLabel",
           "kind": "label",
           "default": null,
-          "line": 357
+          "line": 365
         },
         {
           "name": "val",
@@ -3254,7 +3369,7 @@
           "widget": "QLabel",
           "kind": "label",
           "default": null,
-          "line": 359
+          "line": 367
         },
         {
           "name": "empty",
@@ -3262,7 +3377,7 @@
           "widget": "QLabel",
           "kind": "label",
           "default": "Bu hesaba ba\u011fl\u0131 kredi bulunamad\u0131.",
-          "line": 408
+          "line": 416
         },
         {
           "name": "s_title",
@@ -3270,7 +3385,7 @@
           "widget": "QLabel",
           "kind": "label",
           "default": "Kredi \u00d6zeti",
-          "line": 432
+          "line": 440
         },
         {
           "name": "lbl",
@@ -3278,7 +3393,7 @@
           "widget": "QLabel",
           "kind": "label",
           "default": null,
-          "line": 442
+          "line": 450
         },
         {
           "name": "val",
@@ -3286,7 +3401,7 @@
           "widget": "QLabel",
           "kind": "label",
           "default": null,
-          "line": 444
+          "line": 452
         },
         {
           "name": "p_title",
@@ -3294,7 +3409,7 @@
           "widget": "QLabel",
           "kind": "label",
           "default": "Taksit Plan\u0131",
-          "line": 470
+          "line": 478
         },
         {
           "name": "table",
@@ -3302,7 +3417,7 @@
           "widget": "QTableWidget",
           "kind": "table",
           "default": null,
-          "line": 475
+          "line": 483
         },
         {
           "name": "self.txt_search",
@@ -3310,7 +3425,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 523
+          "line": 531,
+          "placeholder": "A\u00e7\u0131klama veya referans aray\u0131n"
         },
         {
           "name": "self.cmb_tx_type",
@@ -3318,7 +3434,18 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 527
+          "line": 535,
+          "options": [
+            "T\u00fcm\u00fc",
+            "Gelir",
+            "Gider",
+            "Transfer",
+            "Havale",
+            "EFT",
+            "Otomatik \u00d6deme",
+            "Faiz",
+            "Masraf"
+          ]
         },
         {
           "name": "self.chk_tx_date",
@@ -3326,7 +3453,7 @@
           "widget": "QCheckBox",
           "kind": "checkbox",
           "default": "Tarih Filtrele",
-          "line": 531
+          "line": 539
         },
         {
           "name": "self.tx_date_from",
@@ -3334,7 +3461,7 @@
           "widget": "QDateEdit",
           "kind": "date",
           "default": null,
-          "line": 553
+          "line": 561
         },
         {
           "name": "self.tx_date_to",
@@ -3342,7 +3469,7 @@
           "widget": "QDateEdit",
           "kind": "date",
           "default": null,
-          "line": 557
+          "line": 565
         },
         {
           "name": "self.spin_amount_min",
@@ -3350,7 +3477,7 @@
           "widget": "QDoubleSpinBox",
           "kind": "decimal",
           "default": null,
-          "line": 562
+          "line": 570
         },
         {
           "name": "self.spin_amount_max",
@@ -3358,7 +3485,7 @@
           "widget": "QDoubleSpinBox",
           "kind": "decimal",
           "default": null,
-          "line": 568
+          "line": 576
         },
         {
           "name": "self.table_tx",
@@ -3366,7 +3493,7 @@
           "widget": "QTableWidget",
           "kind": "table",
           "default": null,
-          "line": 610
+          "line": 618
         },
         {
           "name": "self.lbl_tx_count",
@@ -3374,7 +3501,7 @@
           "widget": "QLabel",
           "kind": "label",
           "default": "0 kay\u0131t",
-          "line": 633
+          "line": 641
         },
         {
           "name": "self.lbl_page",
@@ -3382,7 +3509,7 @@
           "widget": "QLabel",
           "kind": "label",
           "default": "1 / 1",
-          "line": 644
+          "line": 652
         },
         {
           "name": "self.cmb_page_size",
@@ -3390,7 +3517,12 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 647
+          "line": 655,
+          "options": [
+            "25",
+            "50",
+            "100"
+          ]
         },
         {
           "name": "trend_title",
@@ -3398,7 +3530,7 @@
           "widget": "QLabel",
           "kind": "label",
           "default": "Haftal\u0131k / Ayl\u0131k Analiz",
-          "line": 687
+          "line": 695
         },
         {
           "name": "l",
@@ -3406,7 +3538,7 @@
           "widget": "QLabel",
           "kind": "label",
           "default": null,
-          "line": 697
+          "line": 705
         },
         {
           "name": "v",
@@ -3414,7 +3546,7 @@
           "widget": "QLabel",
           "kind": "label",
           "default": null,
-          "line": 699
+          "line": 707
         },
         {
           "name": "cat_title",
@@ -3422,7 +3554,7 @@
           "widget": "QLabel",
           "kind": "label",
           "default": "Kategorilere G\u00f6re Harcama Da\u011f\u0131l\u0131m\u0131",
-          "line": 716
+          "line": 724
         },
         {
           "name": "cat_table",
@@ -3430,7 +3562,7 @@
           "widget": "QTableWidget",
           "kind": "table",
           "default": null,
-          "line": 721
+          "line": 729
         },
         {
           "name": "alerts_title",
@@ -3438,7 +3570,7 @@
           "widget": "QLabel",
           "kind": "label",
           "default": "Yakla\u015fan Otomatik \u00d6demeler ve Bildirimler",
-          "line": 766
+          "line": 774
         },
         {
           "name": "self.alert_table",
@@ -3446,7 +3578,7 @@
           "widget": "QTableWidget",
           "kind": "table",
           "default": null,
-          "line": 771
+          "line": 779
         },
         {
           "name": "cards_title",
@@ -3454,7 +3586,7 @@
           "widget": "QLabel",
           "kind": "label",
           "default": "Hesapla \u0130li\u015fkili Kredi Kartlar\u0131",
-          "line": 798
+          "line": 806
         },
         {
           "name": "self.cards_table",
@@ -3462,7 +3594,7 @@
           "widget": "QTableWidget",
           "kind": "table",
           "default": null,
-          "line": 810
+          "line": 818
         },
         {
           "name": "lbl_title",
@@ -3470,7 +3602,7 @@
           "widget": "QLabel",
           "kind": "label",
           "default": null,
-          "line": 842
+          "line": 850
         },
         {
           "name": "lbl_value",
@@ -3478,7 +3610,7 @@
           "widget": "QLabel",
           "kind": "label",
           "default": null,
-          "line": 844
+          "line": 852
         }
       ],
       "connections": [
@@ -3486,67 +3618,67 @@
           "owner": "btn_edit",
           "signal": "clicked",
           "callback": "self.on_edit",
-          "line": 288
+          "line": 296
         },
         {
           "owner": "btn_close",
           "signal": "clicked",
           "callback": "self.accept",
-          "line": 294
+          "line": 302
         },
         {
           "owner": "self.chk_tx_date",
           "signal": "stateChanged",
           "callback": "self._on_ui_widget_changed",
-          "line": 302
+          "line": 310
         },
         {
           "owner": "btn_apply",
           "signal": "clicked",
           "callback": "self._apply_filters",
-          "line": 577
+          "line": 585
         },
         {
           "owner": "btn_clear",
           "signal": "clicked",
           "callback": "self._reset_filters",
-          "line": 582
+          "line": 590
         },
         {
           "owner": "btn_excel",
           "signal": "clicked",
           "callback": "lambda: self._export_transactions('excel')",
-          "line": 587
+          "line": 595
         },
         {
           "owner": "btn_pdf",
           "signal": "clicked",
           "callback": "lambda: self._export_transactions('pdf')",
-          "line": 592
+          "line": 600
         },
         {
           "owner": "self.btn_prev",
           "signal": "clicked",
           "callback": "lambda: self._change_page(-1)",
-          "line": 638
+          "line": 646
         },
         {
           "owner": "self.btn_next",
           "signal": "clicked",
           "callback": "lambda: self._change_page(1)",
-          "line": 642
+          "line": 650
         },
         {
           "owner": "self.cmb_page_size",
           "signal": "currentTextChanged",
           "callback": "self._change_page_size",
-          "line": 651
+          "line": 659
         },
         {
           "owner": "btn_add_card",
           "signal": "clicked",
           "callback": "self._open_add_card_dialog",
-          "line": 806
+          "line": 814
         }
       ],
       "counts": {
@@ -3913,7 +4045,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 80
+          "line": 80,
+          "placeholder": "Telefon, Laptop, Tablet..."
         },
         {
           "name": "self.inp_brand",
@@ -3921,7 +4054,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 82
+          "line": 82,
+          "placeholder": "Apple, Samsung, Xiaomi..."
         }
       ],
       "connections": [],
@@ -3983,7 +4117,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 53
+          "line": 53,
+          "placeholder": "En az 10 karakter"
         },
         {
           "name": "self.selection_label",
@@ -4353,7 +4488,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 248
+          "line": 248,
+          "placeholder": "\u00dcr\u00fcn ad\u0131, barkod veya stok kodu ile ara... (Ctrl + F)"
         },
         {
           "name": "self.search_icon",
@@ -4377,7 +4513,21 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 276
+          "line": 276,
+          "options": [
+            {
+              "label": "Durum: Yaln\u0131zca Stokta Olanlar",
+              "value": "available"
+            },
+            {
+              "label": "Durum: T\u00fcm\u00fcn\u00fc G\u00f6ster (Kritik Dahil)",
+              "value": "all"
+            },
+            {
+              "label": "Durum: Yaln\u0131zca Kritik Stok (<10)",
+              "value": "critical"
+            }
+          ]
         },
         {
           "name": "self.sort_filter",
@@ -4385,7 +4535,25 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 284
+          "line": 284,
+          "options": [
+            {
+              "label": "S\u0131ralama: Fiyata G\u00f6re Artan",
+              "value": "price_asc"
+            },
+            {
+              "label": "S\u0131ralama: Fiyata G\u00f6re Azalan",
+              "value": "price_desc"
+            },
+            {
+              "label": "S\u0131ralama: En \u00c7ok Satanlar",
+              "value": "best_selling"
+            },
+            {
+              "label": "S\u0131ralama: Stok Miktar\u0131na G\u00f6re",
+              "value": "stock"
+            }
+          ]
         },
         {
           "name": "self.select_visible",
@@ -5846,7 +6014,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 485
+          "line": 485,
+          "placeholder": "Notlarda ara..."
         },
         {
           "name": "history_title",
@@ -5894,7 +6063,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 553
+          "line": 553,
+          "placeholder": "Not ba\u015fl\u0131\u011f\u0131"
         },
         {
           "name": "self.txt_note",
@@ -5902,7 +6072,8 @@
           "widget": "QTextEdit",
           "kind": "textarea",
           "default": null,
-          "line": 572
+          "line": 572,
+          "placeholder": "\u0130\u00e7eri\u011fi buraya yaz\u0131n\u0131z..."
         },
         {
           "name": "self.note_character_label",
@@ -5934,7 +6105,14 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 629
+          "line": 629,
+          "options": [
+            "Genel Not",
+            "WhatsApp Mesaj\u0131",
+            "SMS",
+            "Telefon G\u00f6r\u00fc\u015fmesi",
+            "E-Posta"
+          ]
         },
         {
           "name": "self.last_updated_label",
@@ -6227,7 +6405,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 40
+          "line": 40,
+          "placeholder": "\u0130sim, telefon veya e-posta ile h\u0131zl\u0131 ara..."
         },
         {
           "name": "self.list_widget",
@@ -6325,7 +6504,16 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 45
+          "line": 45,
+          "options": [
+            "Binek",
+            "Hafif Ticari",
+            "SUV",
+            "Minivan",
+            "Kamyonet",
+            "Motosiklet",
+            "Diger"
+          ]
         },
         {
           "name": "self.cmb_engine_type",
@@ -6333,7 +6521,16 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 47
+          "line": 47,
+          "options": [
+            "Benzinli",
+            "Dizel",
+            "Hibrit",
+            "Elektrikli",
+            "LPG",
+            "Turbo Dizel",
+            "Diger"
+          ]
         },
         {
           "name": "self.cmb_fuel_type",
@@ -6341,7 +6538,15 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 49
+          "line": 49,
+          "options": [
+            "Benzin",
+            "Dizel",
+            "LPG",
+            "Elektrik",
+            "Hibrit",
+            "Diger"
+          ]
         },
         {
           "name": "self.inp_odometer",
@@ -6487,7 +6692,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 47
+          "line": 47,
+          "placeholder": "Takip No, Musteri Adi veya Seri No ile hizli arama..."
         },
         {
           "name": "self.table",
@@ -6723,7 +6929,29 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 56
+          "line": 56,
+          "options": [
+            {
+              "label": "Diger / Ozel Entegrator",
+              "value": "custom"
+            },
+            {
+              "label": "Uyumsoft",
+              "value": "uyumsoft"
+            },
+            {
+              "label": "Logo",
+              "value": "logo"
+            },
+            {
+              "label": "eFinans",
+              "value": "efinans"
+            },
+            {
+              "label": "Foriba",
+              "value": "foriba"
+            }
+          ]
         },
         {
           "name": "self.environment",
@@ -6731,7 +6959,17 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 59
+          "line": 59,
+          "options": [
+            {
+              "label": "Sandbox / Test",
+              "value": "sandbox"
+            },
+            {
+              "label": "Canli",
+              "value": "live"
+            }
+          ]
         },
         {
           "name": "self.api_url",
@@ -6739,7 +6977,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 62
+          "line": 62,
+          "placeholder": "https://api.entegratoriniz.com/v1"
         },
         {
           "name": "self.api_key",
@@ -6747,7 +6986,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 64
+          "line": 64,
+          "placeholder": "API anahtari"
         },
         {
           "name": "self.status",
@@ -6906,7 +7146,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 42
+          "line": 42,
+          "placeholder": "Gitmek istediginiz yer, musteri veya islem... (Menu, Musteri, Stok)"
         },
         {
           "name": "self.result_list",
@@ -7151,7 +7392,10 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 47
+          "line": 47,
+          "options": [
+            "Tumu"
+          ]
         },
         {
           "name": "self.txt_search",
@@ -7159,7 +7403,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 55
+          "line": 55,
+          "placeholder": "Ara..."
         },
         {
           "name": "self.table",
@@ -7290,7 +7535,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 44
+          "line": 44,
+          "placeholder": "HWID girin"
         },
         {
           "name": "lbl_key",
@@ -7472,7 +7718,17 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 543
+          "line": 543,
+          "options": [
+            {
+              "label": "Lisans Anahtari",
+              "value": "license"
+            },
+            {
+              "label": "Davet Kodu",
+              "value": "invite"
+            }
+          ]
         },
         {
           "name": "self.hwid_val",
@@ -7496,7 +7752,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 585
+          "line": 585,
+          "placeholder": "XXXXX-XXXXX-XXXXX-XXXXX-XXXXX"
         },
         {
           "name": "self.inp_invite",
@@ -7504,7 +7761,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 596
+          "line": 596,
+          "placeholder": "Davet kodu"
         },
         {
           "name": "self.inp_username",
@@ -7512,7 +7770,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 598
+          "line": 598,
+          "placeholder": "Sunucu kullanici adi veya e-posta"
         },
         {
           "name": "self.inp_password",
@@ -7520,7 +7779,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 600
+          "line": 600,
+          "placeholder": "Sunucu sifresi"
         }
       ],
       "connections": [
@@ -7859,7 +8119,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 53
+          "line": 53,
+          "placeholder": "\u00d6rn: Garanti BBVA"
         },
         {
           "name": "self.txt_description",
@@ -7867,7 +8128,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 58
+          "line": 58,
+          "placeholder": "\u00d6rn: \u0130htiya\u00e7 Kredisi"
         },
         {
           "name": "self.spin_principal",
@@ -8011,7 +8273,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 86
+          "line": 86,
+          "placeholder": "Adres ara (Otomatik tamamlama)..."
         },
         {
           "name": "self.list_results",
@@ -8126,7 +8389,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 75
+          "line": 75,
+          "placeholder": "Kullan\u0131c\u0131 ad\u0131n\u0131z\u0131 girin"
         },
         {
           "name": "password_label",
@@ -8142,7 +8406,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 96
+          "line": 96,
+          "placeholder": "\u015eifrenizi girin"
         },
         {
           "name": "info_label",
@@ -8225,7 +8490,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 21
+          "line": 21,
+          "placeholder": "Hatali sifre"
         }
       ],
       "connections": [
@@ -8518,13 +8784,13 @@
           "name": "btn_edit_sc",
           "label": "\u2699\ufe0f D\u00fczenle",
           "widget": "QPushButton",
-          "line": 691,
+          "line": 693,
           "connections": [
             {
               "owner": "btn_edit_sc",
               "signal": "clicked",
               "callback": "self.open_quick_notes_editor",
-              "line": 698
+              "line": 700
             }
           ]
         },
@@ -8532,13 +8798,13 @@
           "name": "issue_button",
           "label": "issue_button",
           "widget": "QPushButton",
-          "line": 738,
+          "line": 740,
           "connections": [
             {
               "owner": "issue_button",
               "signal": "clicked",
               "callback": "lambda checked=False, value=issue_text: self._append_quick_issue(value)",
-              "line": 746
+              "line": 748
             }
           ]
         },
@@ -8546,20 +8812,20 @@
           "name": "self.btn_fault_advanced",
           "label": "+ Daha fazla ar\u0131za se\u00e7ene\u011fi",
           "widget": "QPushButton",
-          "line": 765,
+          "line": 767,
           "connections": []
         },
         {
           "name": "self.btn_photo",
           "label": "Cihaz G\u00f6rseli Ekle",
           "widget": "QPushButton",
-          "line": 813,
+          "line": 815,
           "connections": [
             {
               "owner": "self.btn_photo",
               "signal": "clicked",
               "callback": "self.upload_photo",
-              "line": 824
+              "line": 826
             }
           ]
         },
@@ -8567,13 +8833,13 @@
           "name": "self.btn_photo_count",
           "label": "Se\u00e7ilen Foto\u011fraflar",
           "widget": "QPushButton",
-          "line": 825,
+          "line": 827,
           "connections": [
             {
               "owner": "self.btn_photo_count",
               "signal": "clicked",
               "callback": "self._open_photo_gallery",
-              "line": 833
+              "line": 835
             }
           ]
         },
@@ -8581,13 +8847,13 @@
           "name": "self.btn_pattern_lock",
           "label": "Desen Kilidi",
           "widget": "QPushButton",
-          "line": 836,
+          "line": 838,
           "connections": [
             {
               "owner": "self.btn_pattern_lock",
               "signal": "clicked",
               "callback": "self.open_pattern_lock_dialog",
-              "line": 843
+              "line": 845
             }
           ]
         },
@@ -8595,20 +8861,20 @@
           "name": "self.btn_service_notes",
           "label": "+ Notlar ve ek bilgiler",
           "widget": "QPushButton",
-          "line": 910,
+          "line": 912,
           "connections": []
         },
         {
           "name": "self.btn_edit_checklist",
           "label": "Kontrol Formu",
           "widget": "QPushButton",
-          "line": 973,
+          "line": 975,
           "connections": [
             {
               "owner": "self.btn_edit_checklist",
               "signal": "clicked",
               "callback": "self.open_automotive_checklist_dialog",
-              "line": 976
+              "line": 978
             }
           ]
         },
@@ -8616,13 +8882,13 @@
           "name": "self.btn_edit_damage",
           "label": "Hasar Tespiti",
           "widget": "QPushButton",
-          "line": 977,
+          "line": 979,
           "connections": [
             {
               "owner": "self.btn_edit_damage",
               "signal": "clicked",
               "callback": "self.open_automotive_damage_dialog",
-              "line": 980
+              "line": 982
             }
           ]
         },
@@ -8630,13 +8896,13 @@
           "name": "btn_cancel",
           "label": "\u0130ptal",
           "widget": "QPushButton",
-          "line": 1122,
+          "line": 1124,
           "connections": [
             {
               "owner": "btn_cancel",
               "signal": "clicked",
               "callback": "self.reject",
-              "line": 1130
+              "line": 1132
             }
           ]
         },
@@ -8644,13 +8910,13 @@
           "name": "self.btn_save_and_form",
           "label": "Kayd\u0131 Tamamla ve Fi\u015f Olu\u015ftur",
           "widget": "QPushButton",
-          "line": 1131,
+          "line": 1133,
           "connections": [
             {
               "owner": "self.btn_save_and_form",
               "signal": "clicked",
               "callback": "lambda: self.save(open_service_form_after=True)",
-              "line": 1139
+              "line": 1141
             }
           ]
         },
@@ -8658,13 +8924,13 @@
           "name": "self.btn_action",
           "label": "self.btn_action",
           "widget": "QPushButton",
-          "line": 1141,
+          "line": 1143,
           "connections": [
             {
               "owner": "self.btn_action",
               "signal": "clicked",
               "callback": "self.save",
-              "line": 1149
+              "line": 1151
             }
           ]
         },
@@ -8672,13 +8938,13 @@
           "name": "self.btn_reset_form",
           "label": "self.btn_reset_form",
           "widget": "QPushButton",
-          "line": 1153,
+          "line": 1155,
           "connections": [
             {
               "owner": "self.btn_reset_form",
               "signal": "clicked",
               "callback": "self._reset_reference_form",
-              "line": 1161
+              "line": 1163
             }
           ]
         }
@@ -8730,7 +8996,7 @@
           "widget": "QLabel",
           "kind": "label",
           "default": "Servis ve teslim bilgileri",
-          "line": 610
+          "line": 612
         },
         {
           "name": "self.lbl_fault_selected",
@@ -8738,7 +9004,7 @@
           "widget": "QLabel",
           "kind": "label",
           "default": "K\u0131sayol se\u00e7imi yok",
-          "line": 659
+          "line": 661
         },
         {
           "name": "self.txt_fault",
@@ -8746,7 +9012,8 @@
           "widget": "QTextEdit",
           "kind": "textarea",
           "default": null,
-          "line": 666
+          "line": 668,
+          "placeholder": "Dinleniyor... Ar\u0131zay\u0131 anlat\u0131n."
         },
         {
           "name": "lbl_sc",
@@ -8754,7 +9021,7 @@
           "widget": "QLabel",
           "kind": "label",
           "default": "Servis Profili Ar\u0131zalar\u0131:",
-          "line": 689
+          "line": 691
         },
         {
           "name": "self.lbl_reference_fault_description",
@@ -8762,7 +9029,7 @@
           "widget": "QLabel",
           "kind": "label",
           "default": "Ar\u0131za Tan\u0131m\u0131 ve M\u00fc\u015fteri \u015eikayeti *",
-          "line": 718
+          "line": 720
         },
         {
           "name": "self.lbl_reference_fault_hint",
@@ -8770,7 +9037,7 @@
           "widget": "QLabel",
           "kind": "label",
           "default": "Sesle yazd\u0131r\u0131labilir",
-          "line": 720
+          "line": 722
         },
         {
           "name": "pattern_title",
@@ -8778,7 +9045,7 @@
           "widget": "QLabel",
           "kind": "label",
           "default": "Desen Kilidi",
-          "line": 868
+          "line": 870
         },
         {
           "name": "self.lbl_photo_list",
@@ -8786,7 +9053,7 @@
           "widget": "QLabel",
           "kind": "label",
           "default": null,
-          "line": 895
+          "line": 897
         },
         {
           "name": "self.table_photos",
@@ -8794,7 +9061,7 @@
           "widget": "QTableWidget",
           "kind": "table",
           "default": null,
-          "line": 897
+          "line": 899
         },
         {
           "name": "self.txt_public_note",
@@ -8802,7 +9069,8 @@
           "widget": "QTextEdit",
           "kind": "textarea",
           "default": null,
-          "line": 922
+          "line": 924,
+          "placeholder": "M\u00fc\u015fteri fi\u015fi notu..."
         },
         {
           "name": "self.txt_tech_note",
@@ -8810,7 +9078,8 @@
           "widget": "QTextEdit",
           "kind": "textarea",
           "default": null,
-          "line": 926
+          "line": 928,
+          "placeholder": "Gizli teknik not..."
         },
         {
           "name": "self.chk_customer_approval",
@@ -8818,7 +9087,7 @@
           "widget": "QCheckBox",
           "kind": "checkbox",
           "default": "M\u00fc\u015fteri onay\u0131 al\u0131nd\u0131",
-          "line": 953
+          "line": 955
         },
         {
           "name": "self.chk_kvkk_approval",
@@ -8826,7 +9095,7 @@
           "widget": "QCheckBox",
           "kind": "checkbox",
           "default": "KVKK bilgilendirmesi yap\u0131ld\u0131",
-          "line": 954
+          "line": 956
         },
         {
           "name": "self.txt_approval_text",
@@ -8834,7 +9103,8 @@
           "widget": "QTextEdit",
           "kind": "textarea",
           "default": null,
-          "line": 957
+          "line": 959,
+          "placeholder": "M\u00fc\u015fteri onay metni"
         },
         {
           "name": "self.txt_kvkk_text",
@@ -8842,7 +9112,8 @@
           "widget": "QTextEdit",
           "kind": "textarea",
           "default": null,
-          "line": 960
+          "line": 962,
+          "placeholder": "KVKK / yasal metin"
         },
         {
           "name": "self.lbl_automotive_form_summary",
@@ -8850,7 +9121,7 @@
           "widget": "QLabel",
           "kind": "label",
           "default": "Kontrol formu ve hasar tespiti hen\u00fcz doldurulmad\u0131.",
-          "line": 985
+          "line": 987
         },
         {
           "name": "checkbox",
@@ -8858,7 +9129,7 @@
           "widget": "QCheckBox",
           "kind": "checkbox",
           "default": null,
-          "line": 1023
+          "line": 1025
         },
         {
           "name": "label",
@@ -8866,7 +9137,7 @@
           "widget": "QLabel",
           "kind": "label",
           "default": null,
-          "line": 1031
+          "line": 1033
         },
         {
           "name": "self.lbl_service_accept_status",
@@ -8874,7 +9145,7 @@
           "widget": "QLabel",
           "kind": "label",
           "default": "ERP Core v2.0.4 Online   \u00b7   USD Kuru: 49.20 TL   \u00b7   Servis Kayd\u0131",
-          "line": 1113
+          "line": 1115
         },
         {
           "name": "lbl",
@@ -8882,7 +9153,7 @@
           "widget": "QLabel",
           "kind": "label",
           "default": null,
-          "line": 1326
+          "line": 1328
         },
         {
           "name": "title",
@@ -8890,7 +9161,7 @@
           "widget": "QLabel",
           "kind": "label",
           "default": "Desen Kilidi",
-          "line": 1870
+          "line": 1872
         }
       ],
       "connections": [
@@ -8928,151 +9199,151 @@
           "owner": "self.btn_delivery_details",
           "signal": "toggled",
           "callback": "self.delivery_details_panel.setVisible",
-          "line": 618
+          "line": 620
         },
         {
           "owner": "self.btn_delivery_details",
           "signal": "toggled",
           "callback": "lambda checked: self.btn_delivery_details.setText('Ek Servis Bilgilerini Gizle' if checked else 'Ek Servis Bilgileri')",
-          "line": 621
+          "line": 623
         },
         {
           "owner": "self.cmb_service_profile",
           "signal": "currentTextChanged",
           "callback": "self._on_service_area_changed",
-          "line": 653
+          "line": 655
         },
         {
           "owner": "self.txt_fault",
           "signal": "textChanged",
           "callback": "self._on_fault_manual_changed",
-          "line": 674
+          "line": 676
         },
         {
           "owner": "self.btn_fault_voice",
           "signal": "clicked",
           "callback": "self._start_fault_dictation",
-          "line": 684
+          "line": 686
         },
         {
           "owner": "btn_edit_sc",
           "signal": "clicked",
           "callback": "self.open_quick_notes_editor",
-          "line": 698
+          "line": 700
         },
         {
           "owner": "issue_button",
           "signal": "clicked",
           "callback": "lambda checked=False, value=issue_text: self._append_quick_issue(value)",
-          "line": 746
+          "line": 748
         },
         {
           "owner": "self.btn_fault_advanced",
           "signal": "toggled",
           "callback": "shortcuts_card.setVisible",
-          "line": 772
+          "line": 774
         },
         {
           "owner": "self.btn_fault_advanced",
           "signal": "toggled",
           "callback": "quick_issue_row.setVisible",
-          "line": 773
+          "line": 775
         },
         {
           "owner": "self.btn_fault_advanced",
           "signal": "toggled",
           "callback": "lambda checked: self.btn_fault_advanced.setText('- Daha fazla ar\u0131za se\u00e7ene\u011fi' if checked else '+ Daha fazla ar\u0131za se\u00e7ene\u011fi')",
-          "line": 774
+          "line": 776
         },
         {
           "owner": "self.btn_photo",
           "signal": "clicked",
           "callback": "self.upload_photo",
-          "line": 824
+          "line": 826
         },
         {
           "owner": "self.btn_photo_count",
           "signal": "clicked",
           "callback": "self._open_photo_gallery",
-          "line": 833
+          "line": 835
         },
         {
           "owner": "self.btn_pattern_lock",
           "signal": "clicked",
           "callback": "self.open_pattern_lock_dialog",
-          "line": 843
+          "line": 845
         },
         {
           "owner": "self.btn_service_notes",
           "signal": "toggled",
           "callback": "lambda checked: notes_panel.setMaximumHeight(16777215 if checked else 0)",
-          "line": 932
+          "line": 934
         },
         {
           "owner": "self.btn_service_notes",
           "signal": "toggled",
           "callback": "lambda checked: self.btn_service_notes.setText('- Notlar ve ek bilgiler' if checked else '+ Notlar ve ek bilgiler')",
-          "line": 935
+          "line": 937
         },
         {
           "owner": "self.btn_edit_checklist",
           "signal": "clicked",
           "callback": "self.open_automotive_checklist_dialog",
-          "line": 976
+          "line": 978
         },
         {
           "owner": "self.btn_edit_damage",
           "signal": "clicked",
           "callback": "self.open_automotive_damage_dialog",
-          "line": 980
+          "line": 982
         },
         {
           "owner": "checkbox",
           "signal": "toggled",
           "callback": "self._handle_accessory_toggle_changed",
-          "line": 1042
+          "line": 1044
         },
         {
           "owner": "btn_cancel",
           "signal": "clicked",
           "callback": "self.reject",
-          "line": 1130
+          "line": 1132
         },
         {
           "owner": "self.btn_save_and_form",
           "signal": "clicked",
           "callback": "lambda: self.save(open_service_form_after=True)",
-          "line": 1139
+          "line": 1141
         },
         {
           "owner": "self.btn_action",
           "signal": "clicked",
           "callback": "self.save",
-          "line": 1149
+          "line": 1151
         },
         {
           "owner": "self.btn_reset_form",
           "signal": "clicked",
           "callback": "self._reset_reference_form",
-          "line": 1161
+          "line": 1163
         },
         {
           "owner": "tgl",
           "signal": "toggled",
           "callback": "self._handle_accessory_toggle_changed",
-          "line": 1343
+          "line": 1345
         },
         {
           "owner": "self.chk_customer_approval",
           "signal": "stateChanged",
           "callback": "self._on_ui_widget_changed",
-          "line": 2339
+          "line": 2341
         },
         {
           "owner": "self.chk_kvkk_approval",
           "signal": "stateChanged",
           "callback": "self._on_ui_widget_changed",
-          "line": 2340
+          "line": 2342
         }
       ],
       "counts": {
@@ -9236,7 +9507,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 263
+          "line": 263,
+          "placeholder": "Etiket (\u00f6rn: Ekran K\u0131r\u0131\u011f\u0131)"
         },
         {
           "name": "img",
@@ -9372,7 +9644,15 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 77
+          "line": 77,
+          "options": [
+            "Cari Hesap",
+            "Nakit",
+            "Banka",
+            "Kredi Kart\u0131",
+            "Havale / EFT",
+            "Di\u011fer"
+          ]
         },
         {
           "name": "self.lbl_remaining",
@@ -9622,7 +9902,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 209
+          "line": 209,
+          "placeholder": "Partner odeme aciklamasi"
         },
         {
           "name": "self.inp_invoice_no",
@@ -9630,7 +9911,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 214
+          "line": 214,
+          "placeholder": "Partner fatura no"
         },
         {
           "name": "self.date_invoice",
@@ -9646,7 +9928,13 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 225
+          "line": 225,
+          "options": [
+            {
+              "label": "Genel Partner Odemesi",
+              "value": null
+            }
+          ]
         },
         {
           "name": "label",
@@ -9700,7 +9988,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 48
+          "line": 48,
+          "placeholder": "Ortak adi / Unvan"
         },
         {
           "name": "self.inp_phone",
@@ -9708,7 +9997,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 53
+          "line": 53,
+          "placeholder": "05xx ..."
         },
         {
           "name": "self.inp_email",
@@ -9716,7 +10006,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 58
+          "line": 58,
+          "placeholder": "email@example.com"
         },
         {
           "name": "self.spin_commission",
@@ -9732,7 +10023,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 76
+          "line": 76,
+          "placeholder": "Sehir"
         }
       ],
       "connections": [],
@@ -9779,7 +10071,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 216
+          "line": 216,
+          "placeholder": "Musteri adi"
         },
         {
           "name": "self.inp_product",
@@ -9787,7 +10080,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 221
+          "line": 221,
+          "placeholder": "Cihaz / Urun / Model"
         },
         {
           "name": "self.inp_serial",
@@ -9795,7 +10089,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 226
+          "line": 226,
+          "placeholder": "Seri no / Barkod"
         },
         {
           "name": "self.inp_issue",
@@ -9803,7 +10098,8 @@
           "widget": "QTextEdit",
           "kind": "textarea",
           "default": null,
-          "line": 231
+          "line": 231,
+          "placeholder": "Ariza veya gonderim konusu"
         },
         {
           "name": "self.inp_reason",
@@ -9811,7 +10107,8 @@
           "widget": "QTextEdit",
           "kind": "textarea",
           "default": null,
-          "line": 236
+          "line": 236,
+          "placeholder": "Partnere neden gonderiliyor?"
         },
         {
           "name": "self.inp_external_ref",
@@ -9819,7 +10116,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 241
+          "line": 241,
+          "placeholder": "Partner kayit / servis no"
         },
         {
           "name": "self.inp_outbound",
@@ -9827,7 +10125,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 246
+          "line": 246,
+          "placeholder": "Gidis kargo no"
         },
         {
           "name": "self.inp_return",
@@ -9835,7 +10134,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 251
+          "line": 251,
+          "placeholder": "Donus kargo no"
         },
         {
           "name": "self.inp_status",
@@ -9907,7 +10207,8 @@
           "widget": "QTextEdit",
           "kind": "textarea",
           "default": null,
-          "line": 299
+          "line": 299,
+          "placeholder": "Gonderilen aksesuarlar / paket icerigi"
         },
         {
           "name": "self.inp_return_qc",
@@ -9963,7 +10264,8 @@
           "widget": "QTextEdit",
           "kind": "textarea",
           "default": null,
-          "line": 332
+          "line": 332,
+          "placeholder": "Ic notlar, teslim detaylari, paket icerigi"
         }
       ],
       "connections": [],
@@ -10025,7 +10327,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 62
+          "line": 62,
+          "placeholder": "Sifrenizi girin"
         }
       ],
       "connections": [
@@ -10120,7 +10423,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 63
+          "line": 63,
+          "placeholder": "Kullanici Adi"
         },
         {
           "name": "lbl_info",
@@ -10152,7 +10456,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 118
+          "line": 118,
+          "placeholder": "Cevabiniz..."
         },
         {
           "name": "self.lbl_attempts",
@@ -10176,7 +10481,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 167
+          "line": 167,
+          "placeholder": "Yeni Sifre"
         },
         {
           "name": "self.inp_p2",
@@ -10184,7 +10490,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 171
+          "line": 171,
+          "placeholder": "Yeni Sifre (Tekrar)"
         }
       ],
       "connections": [
@@ -10381,7 +10688,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 278
+          "line": 278,
+          "placeholder": "0,00"
         },
         {
           "name": "self.lbl_amount_currency",
@@ -10437,7 +10745,8 @@
           "widget": "QTextEdit",
           "kind": "textarea",
           "default": null,
-          "line": 395
+          "line": 395,
+          "placeholder": "\u0130\u015flemle ilgili notunuzu buraya ekleyebilirsiniz..."
         },
         {
           "name": "debt_section_title",
@@ -10469,7 +10778,16 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 512
+          "line": 512,
+          "options": [
+            "%0",
+            "%10",
+            "%20",
+            "%18",
+            "%8",
+            "%1",
+            "KDV Hari\u00e7"
+          ]
         },
         {
           "name": "self.lbl_net_amount",
@@ -10533,7 +10851,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 616
+          "line": 616,
+          "placeholder": "0,00"
         },
         {
           "name": "self.spin_installment",
@@ -10873,7 +11192,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 54
+          "line": 54,
+          "placeholder": "Bo\u015f b\u0131rak\u0131rsan\u0131z de\u011fi\u015fmez"
         }
       ],
       "connections": [],
@@ -11063,7 +11383,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 50
+          "line": 50,
+          "placeholder": "Sifreniz"
         }
       ],
       "connections": [],
@@ -11131,7 +11452,12 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 46
+          "line": 46,
+          "options": [
+            "Daire Sat\u0131\u015f\u0131",
+            "Proje Hakedi\u015fi",
+            "Di\u011fer"
+          ]
         },
         {
           "name": "lbl_amt",
@@ -11163,7 +11489,13 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 75
+          "line": 75,
+          "options": [
+            {
+              "label": "Nakit",
+              "value": null
+            }
+          ]
         },
         {
           "name": "lbl_date",
@@ -11195,7 +11527,9 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 103
+          "line": 103,
+          "editable": true,
+          "placeholder": "\u0130\u015flem detay\u0131..."
         }
       ],
       "connections": [
@@ -11394,7 +11728,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 132
+          "line": 132,
+          "placeholder": "Ad Soyad"
         },
         {
           "name": "self.txt_tc",
@@ -11402,7 +11737,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 135
+          "line": 135,
+          "placeholder": "TC Kimlik No"
         },
         {
           "name": "self.txt_phone",
@@ -11410,7 +11746,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 140
+          "line": 140,
+          "placeholder": "Telefon"
         },
         {
           "name": "self.txt_email",
@@ -11418,7 +11755,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 148
+          "line": 148,
+          "placeholder": "Email"
         },
         {
           "name": "self.txt_address",
@@ -11426,7 +11764,8 @@
           "widget": "QTextEdit",
           "kind": "textarea",
           "default": null,
-          "line": 151
+          "line": 151,
+          "placeholder": "Adres"
         },
         {
           "name": "label_sale",
@@ -11490,7 +11829,10 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 212
+          "line": 212,
+          "options": [
+            "Atanmad"
+          ]
         },
         {
           "name": "self.txt_notes",
@@ -11498,7 +11840,8 @@
           "widget": "QTextEdit",
           "kind": "textarea",
           "default": null,
-          "line": 215
+          "line": 215,
+          "placeholder": "Notlar"
         },
         {
           "name": "self.tbl_plan",
@@ -11522,7 +11865,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 293
+          "line": 293,
+          "placeholder": "Adres veya koordinat"
         },
         {
           "name": "self.txt_map_fallback",
@@ -11554,7 +11898,11 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 366
+          "line": 366,
+          "options": [
+            "Bekliyor",
+            "\u00d6dendi"
+          ]
         }
       ],
       "connections": [
@@ -11872,7 +12220,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 65
+          "line": 65,
+          "placeholder": "\ud83d\udd0d \u00dcr\u00fcn Ara veya Barkod Okut"
         },
         {
           "name": "self.table_products",
@@ -11936,7 +12285,12 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 144
+          "line": 144,
+          "options": [
+            "Nakit",
+            "Kredi Kart\u0131",
+            "Havale/EFT"
+          ]
         },
         {
           "name": "self.cmb_bank",
@@ -11944,7 +12298,13 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 151
+          "line": 151,
+          "options": [
+            {
+              "label": "Se\u00e7iniz...",
+              "value": -1
+            }
+          ]
         }
       ],
       "connections": [
@@ -12159,7 +12519,13 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 258
+          "line": 258,
+          "options": [
+            "Teknik Servis",
+            "Ma\u011faza Sat\u0131\u015f",
+            "Kurumsal Takip",
+            "Di\u011fer"
+          ]
         },
         {
           "name": "lbl_link",
@@ -12330,7 +12696,10 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 124
+          "line": 124,
+          "options": [
+            "Teknisyen Se\u00e7iniz"
+          ]
         },
         {
           "name": "self.test_table",
@@ -12346,7 +12715,12 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 178
+          "line": 178,
+          "options": [
+            "Test Edilmedi",
+            "Ge\u00e7ti",
+            "Kald\u0131"
+          ]
         },
         {
           "name": "self.txt_repair_details",
@@ -12354,7 +12728,8 @@
           "widget": "QTextEdit",
           "kind": "textarea",
           "default": null,
-          "line": 209
+          "line": 209,
+          "placeholder": "Ar\u0131za tespiti, uygulanan i\u015flemler..."
         },
         {
           "name": "self.lbl_parts_total",
@@ -12488,7 +12863,14 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 81
+          "line": 81,
+          "options": [
+            "Nakit",
+            "Banka",
+            "Kredi Kart\u0131",
+            "Havale / EFT",
+            "Di\u011fer"
+          ]
         },
         {
           "name": "self.txt_note",
@@ -12496,7 +12878,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 92
+          "line": 92,
+          "placeholder": "\u00d6deme notu (iste\u011fe ba\u011fl\u0131)"
         },
         {
           "name": "self.lbl_remaining",
@@ -12573,7 +12956,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 87
+          "line": 87,
+          "placeholder": "Sifrenizi girin"
         }
       ],
       "connections": [
@@ -12656,7 +13040,33 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 69
+          "line": 69,
+          "options": [
+            {
+              "label": "\u00d6zel Mesaj Yaz",
+              "value": ""
+            },
+            {
+              "label": "Cihaz Al\u0131nd\u0131",
+              "value": "Cihaz\u0131n\u0131z servisimize kabul edilmi\u015ftir. Takip No: {tracking_no}"
+            },
+            {
+              "label": "Fiyat Onay\u0131 Bekleniyor",
+              "value": "Cihaz\u0131n\u0131z i\u00e7in fiyat onay\u0131 gerekmektedir. L\u00fctfen ileti\u015fime ge\u00e7iniz."
+            },
+            {
+              "label": "Onar\u0131m Tamamland\u0131",
+              "value": "Cihaz\u0131n\u0131z\u0131n onar\u0131m\u0131 tamamlanm\u0131\u015ft\u0131r. Teslim alabilirsiniz."
+            },
+            {
+              "label": "Yedek Par\u00e7a Bekleniyor",
+              "value": "Cihaz\u0131n\u0131z i\u00e7in yedek par\u00e7a sipari\u015fi verilmi\u015ftir."
+            },
+            {
+              "label": "Cihaz \u0130ade/\u0130ptal",
+              "value": "Cihaz\u0131n\u0131z iade/iptal edilmi\u015ftir."
+            }
+          ]
         },
         {
           "name": "self.txt_message",
@@ -12664,7 +13074,8 @@
           "widget": "QTextEdit",
           "kind": "textarea",
           "default": null,
-          "line": 82
+          "line": 82,
+          "placeholder": "Mesaj\u0131n\u0131z\u0131 buraya yaz\u0131n\u0131z..."
         },
         {
           "name": "self.lbl_chars",
@@ -13001,7 +13412,12 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 103
+          "line": 103,
+          "options": [
+            "modern",
+            "corporate",
+            "minimal"
+          ]
         },
         {
           "name": "lbl_t",
@@ -13095,7 +13511,13 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 28
+          "line": 28,
+          "options": [
+            {
+              "label": "Windows varsay\u0131lan yaz\u0131c\u0131s\u0131",
+              "value": ""
+            }
+          ]
         },
         {
           "name": "self.paper_combo",
@@ -13103,7 +13525,12 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 37
+          "line": 37,
+          "options": [
+            "A4",
+            "A3",
+            "A5"
+          ]
         },
         {
           "name": "self.orientation_combo",
@@ -13111,7 +13538,17 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 39
+          "line": 39,
+          "options": [
+            {
+              "label": "Dikey",
+              "value": "portrait"
+            },
+            {
+              "label": "Yatay",
+              "value": "landscape"
+            }
+          ]
         },
         {
           "name": "receipt_text",
@@ -13297,7 +13734,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 66
+          "line": 66,
+          "placeholder": "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
         },
         {
           "name": "self.inp_auth_token",
@@ -13305,7 +13743,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 69
+          "line": 69,
+          "placeholder": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
         },
         {
           "name": "self.inp_from_number",
@@ -13313,7 +13752,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 72
+          "line": 72,
+          "placeholder": "+905XXXXXXXXX"
         },
         {
           "name": "self.test_result",
@@ -13321,7 +13761,8 @@
           "widget": "QTextEdit",
           "kind": "textarea",
           "default": null,
-          "line": 81
+          "line": 81,
+          "placeholder": "Test sonuclari burada gorunecek..."
         }
       ],
       "connections": [
@@ -13650,7 +14091,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 29
+          "line": 29,
+          "placeholder": "Lutfen ID Giriniz!"
         }
       ],
       "connections": [
@@ -14150,7 +14592,8 @@
           "widget": "QPlainTextEdit",
           "kind": "textarea",
           "default": null,
-          "line": 318
+          "line": 318,
+          "placeholder": "Ar\u0131za tan\u0131m\u0131..."
         },
         {
           "name": "r_label",
@@ -14174,7 +14617,8 @@
           "widget": "QPlainTextEdit",
           "kind": "textarea",
           "default": null,
-          "line": 381
+          "line": 381,
+          "placeholder": "M\u00fc\u015fteri i\u00e7in not..."
         },
         {
           "name": "r_label",
@@ -14692,7 +15136,14 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 110
+          "line": 110,
+          "options": [
+            "Maa\u015f",
+            "Prim",
+            "Avans",
+            "Yol/Yemek",
+            "Kesinti"
+          ]
         },
         {
           "name": "lbl_a",
@@ -14708,7 +15159,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 118
+          "line": 118,
+          "placeholder": "0.00"
         },
         {
           "name": "lbl_d",
@@ -14740,7 +15192,8 @@
           "widget": "QLineEdit",
           "kind": "text",
           "default": null,
-          "line": 135
+          "line": 135,
+          "placeholder": "\u0130ste\u011fe ba\u011fl\u0131 a\u00e7\u0131klama..."
         }
       ],
       "connections": [
@@ -15140,7 +15593,13 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 89
+          "line": 89,
+          "options": [
+            {
+              "label": "Musteri secin",
+              "value": null
+            }
+          ]
         },
         {
           "name": "self.cmb_vehicle",
@@ -15148,7 +15607,13 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 121
+          "line": 121,
+          "options": [
+            {
+              "label": "Musteriye ait arac secin",
+              "value": null
+            }
+          ]
         },
         {
           "name": "self.inp_plate",
@@ -15164,7 +15629,11 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 148
+          "line": 148,
+          "editable": true,
+          "options": [
+            "Marka secin"
+          ]
         },
         {
           "name": "self.cmb_model",
@@ -15172,7 +15641,11 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 154
+          "line": 154,
+          "editable": true,
+          "options": [
+            "Model secin"
+          ]
         },
         {
           "name": "self.cmb_year",
@@ -15180,7 +15653,10 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 158
+          "line": 158,
+          "options": [
+            "Yil secin"
+          ]
         },
         {
           "name": "self.cmb_vehicle_type",
@@ -15188,7 +15664,16 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 163
+          "line": 163,
+          "options": [
+            "Binek",
+            "Hafif Ticari",
+            "SUV",
+            "Minivan",
+            "Kamyonet",
+            "Motosiklet",
+            "Diger"
+          ]
         },
         {
           "name": "self.cmb_engine_type",
@@ -15196,7 +15681,16 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 165
+          "line": 165,
+          "options": [
+            "Benzinli",
+            "Dizel",
+            "Hibrit",
+            "Elektrikli",
+            "LPG",
+            "Turbo Dizel",
+            "Diger"
+          ]
         },
         {
           "name": "self.cmb_fuel_type",
@@ -15204,7 +15698,15 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 167
+          "line": 167,
+          "options": [
+            "Benzin",
+            "Dizel",
+            "LPG",
+            "Elektrik",
+            "Hibrit",
+            "Diger"
+          ]
         },
         {
           "name": "self.inp_odometer",
@@ -15531,7 +16033,14 @@
           "widget": "QComboBox",
           "kind": "select",
           "default": null,
-          "line": 61
+          "line": 61,
+          "options": [
+            "Yag Filtresi",
+            "Hava Filtresi",
+            "Eski Parca",
+            "Yeni Parca",
+            "Genel Gorunum"
+          ]
         },
         {
           "name": "self.display_frame",

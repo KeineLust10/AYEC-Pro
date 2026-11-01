@@ -131,7 +131,7 @@
         if (!confirmation) {
           var notice = document.createElement("div");
           notice.className = "field full announcement-delete-confirm";
-          notice.innerHTML = `<label><input type="checkbox" data-announcement-delete-confirm> "${esc(row.title || "")}" duyurusu silinecek. Bu islem geri al\u0131namaz. Onayl\u0131yorum.</label>`;
+          notice.innerHTML = `<label><input type="checkbox" data-announcement-delete-confirm> "${esc(row.title || "")}" duyurusu listeden kald\u0131r\u0131lacak. Onayl\u0131yorum.</label>`;
           dialogBody.append(notice);
           removeButton.textContent = "Evet, Sil";
           return;

@@ -8,7 +8,7 @@ WEB = ROOT / "Web_Arayuzu" / "web"
 def test_product_group_metrics_and_toolbar_match_desktop_density():
     styles = (WEB / "desktop-parity.css").read_text(encoding="utf-8")
     assert 'body[data-page="product-groups"] .group-metrics article {\n    position: relative;\n    height: 82px;\n    min-height: 82px;' in styles
-    assert 'body[data-page="product-groups"] .group-toolbar {\n    min-height: 50px;' in styles
+    assert 'body[data-page="product-groups"] .group-toolbar {\n    min-height: 42px;' in styles
 
 
 def test_product_group_table_uses_compact_reference_rows():
@@ -40,8 +40,8 @@ def test_product_group_table_columns_follow_desktop_proportions():
     styles = (WEB / "desktop-parity.css").read_text(encoding="utf-8")
 
     assert 'body[data-page="product-groups"] #groupTable {\n    table-layout: fixed;' in styles
-    for column, width in enumerate(("4%", "26%", "26%", "26%", "8%", "10%"), start=1):
-        selector = f'#groupTable th:nth-child({column}),'
+    for column, width in enumerate(("5%", "24%", "25%", "24%", "9%", "13%"), start=1):
+        selector = f'#groupTable td:nth-child({column})'
         assert selector in styles
         assert f"width: {width};" in styles
 

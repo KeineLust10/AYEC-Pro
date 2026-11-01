@@ -12,14 +12,14 @@
     return '<div class="page-head reminders-page-head"><div><h2>Hat\u0131rlat\u0131c\u0131 Y\u00f6netimi</h2></div><div class="actions"></div></div>'
       + '<section class="card reminders-reference">'
       + '<nav class="reminder-tabs" role="tablist">'
-      + '<button type="button" role="tab" class="active" aria-selected="true" data-reminder-tab="add">Hat\u0131rlat\u0131c\u0131 Ekle</button>'
-      + '<button type="button" role="tab" aria-selected="false" data-reminder-tab="list">Liste ve D\u00fczenleme</button>'
+      + '<button type="button" role="tab" class="active" aria-selected="true" tabindex="0" data-reminder-tab="add">Hat\u0131rlat\u0131c\u0131 Ekle</button>'
+      + '<button type="button" role="tab" aria-selected="false" tabindex="-1" data-reminder-tab="list">Liste ve D\u00fczenleme</button>'
       + '</nav>'
       + '<section class="reminder-pane" data-reminder-pane="add" role="tabpanel">'
       + '<form id="reminderCreateForm" class="reminder-form">'
       + '<fieldset><legend>Yeni Hat\u0131rlatma Detaylar\u0131</legend>'
       + '<div class="reminder-fields">'
-      + '<label class="field reminder-title-field"><span>Ba\u015fl\u0131k</span><input name="title" required placeholder="\u00d6rn: M\u00fc\u015fteri Aramas\u0131"></label>'
+      + '<label class="field reminder-title-field"><span>Ba\u015fl\u0131k</span><input name="title" aria-required="true" placeholder="\u00d6rn: M\u00fc\u015fteri Aramas\u0131"></label>'
       + '<label class="field"><span>\u0130lgili Personel</span><select name="personnel"></select></label>'
       + '<label class="field"><span>Tarih</span><input name="date" type="date" value="' + localDateInputValue() + '" required></label>'
       + '</div>'
@@ -94,15 +94,18 @@
     if (button) button.disabled = false;
   }
 
-  function setReminderTab(tab) {
-    document.querySelectorAll("[data-reminder-tab]").forEach(function (button) {
+  function setReminderTab(tab, focus) {
+    var tabs = Array.from(document.querySelectorAll("[data-reminder-tab]"));
+    tabs.forEach(function (button) {
       var active = button.dataset.reminderTab === tab;
       button.classList.toggle("active", active);
       button.setAttribute("aria-selected", String(active));
+      button.setAttribute("tabindex", active ? "0" : "-1");
     });
     document.querySelectorAll("[data-reminder-pane]").forEach(function (pane) {
       pane.hidden = pane.dataset.reminderPane !== tab;
     });
+    if (focus) tabs.find(function (button) { return button.dataset.reminderTab === tab; })?.focus();
   }
 
   function setPersonnelOptions(personnel) {
@@ -118,11 +121,13 @@
     if (meta.table !== "reminders") return loadGenericModuleBeforeReminders(meta, query);
     var listHost = document.querySelector("#reminderListHost");
     if (!listHost) return;
+    selectedReminderId = null;
+    updateDeleteButton();
     listHost.innerHTML = empty("Y\u00fckleniyor", "Hat\u0131rlat\u0131c\u0131lar veritaban\u0131ndan okunuyor.");
     try {
       var result = await Promise.all([
-        apiFetch("/api/desktop/table/reminders?limit=500&q=" + encodeURIComponent(query || "")),
-        apiFetch("/api/desktop/table/personnel?limit=500&include_deleted=1")
+        loadAllDesktopTableData("reminders", { q: query || "" }),
+        loadAllDesktopTableData("personnel", { include_deleted: 1 })
       ]);
       window.currentGenericData = result[0];
       window.currentGenericMeta = meta;
@@ -155,6 +160,19 @@
   });
 
   document.addEventListener("keydown", function (event) {
+    var tab = event.target.closest && event.target.closest("[data-reminder-tab]");
+    if (tab) {
+      var tabs = Array.from(document.querySelectorAll("[data-reminder-tab]"));
+      var index = tabs.indexOf(tab);
+      var next = event.key === "ArrowRight" ? (index + 1) % tabs.length
+        : event.key === "ArrowLeft" ? (index - 1 + tabs.length) % tabs.length
+          : event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : index;
+      if (next !== index && next >= 0) {
+        event.preventDefault();
+        setReminderTab(tabs[next].dataset.reminderTab, true);
+      }
+      return;
+    }
     var row = event.target.closest && event.target.closest("[data-reminder-id]");
     if (!row) return;
     if (event.key === "Enter" || event.key === " ") {

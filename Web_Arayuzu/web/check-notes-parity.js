@@ -17,9 +17,12 @@
     menu.innerHTML = '<button type="button" role="menuitem" data-check-context-action="detail">Detay G\u00f6r\u00fcnt\u00fcle</button>'
       + '<hr><div class="check-note-context-submenu"><button type="button" role="menuitem" aria-haspopup="menu" aria-expanded="false" data-check-status-toggle>Durum De\u011fi\u015ftir <span aria-hidden="true">\u203a</span></button>'
       + '<div class="check-note-context-submenu-panel" role="menu" hidden>' + statusButtons + '</div></div>';
-    menu.style.left = Math.max(8, Math.min(event.clientX, innerWidth - 210)) + "px";
-    menu.style.top = Math.max(8, Math.min(event.clientY, innerHeight - statuses.length * 40 - 80)) + "px";
+    menu.setAttribute("role", "menu");
+    menu.style.left = Math.max(8, event.clientX) + "px";
+    menu.style.top = Math.max(8, event.clientY) + "px";
     menu.classList.add("open");
+    menu.style.left = Math.max(8, Math.min(event.clientX, innerWidth - menu.offsetWidth - 8)) + "px";
+    menu.style.top = Math.max(8, Math.min(event.clientY, innerHeight - menu.offsetHeight - 8)) + "px";
     var statusToggle = menu.querySelector("[data-check-status-toggle]");
     var statusPanel = menu.querySelector(".check-note-context-submenu-panel");
     var statusSubmenu = menu.querySelector(".check-note-context-submenu");
@@ -28,6 +31,41 @@
       statusToggle.setAttribute("aria-expanded", String(open));
       menu.classList.toggle("check-context-opens-left", menu.getBoundingClientRect().right + 200 > innerWidth);
     }
+    function closeMenu() {
+      menu.classList.remove("open");
+      setStatusMenuOpen(false);
+      menu.onkeydown = null;
+      if (menu.contains(document.activeElement)) document.activeElement.blur();
+    }
+    menu.onkeydown = function (keyEvent) {
+      if (keyEvent.key === "Escape") {
+        keyEvent.preventDefault();
+        keyEvent.stopPropagation();
+        closeMenu();
+        return;
+      }
+      if (keyEvent.key === "ArrowRight" && document.activeElement === statusToggle) {
+        keyEvent.preventDefault();
+        setStatusMenuOpen(true);
+        statusPanel.querySelector('[data-check-context-action]')?.focus();
+        return;
+      }
+      if (keyEvent.key === "ArrowLeft" && statusPanel.contains(document.activeElement)) {
+        keyEvent.preventDefault();
+        setStatusMenuOpen(false);
+        statusToggle.focus();
+        return;
+      }
+      var actions = statusPanel.contains(document.activeElement)
+        ? Array.from(statusPanel.querySelectorAll('[data-check-context-action]:not([hidden])'))
+        : [menu.querySelector('[data-check-context-action="detail"]'), statusToggle];
+      var index = actions.indexOf(document.activeElement);
+      if (!actions.length || !["ArrowDown", "ArrowUp", "Home", "End"].includes(keyEvent.key)) return;
+      keyEvent.preventDefault();
+      var next = keyEvent.key === "Home" ? 0 : keyEvent.key === "End" ? actions.length - 1 : keyEvent.key === "ArrowDown" ? (index + 1 + actions.length) % actions.length : (index - 1 + actions.length) % actions.length;
+      actions[next]?.focus();
+    };
+    menu.querySelector('[data-check-context-action="detail"]')?.focus();
     statusToggle.onclick = function (clickEvent) {
       clickEvent.stopPropagation();
       setStatusMenuOpen(true);
@@ -36,7 +74,7 @@
     statusSubmenu.onmouseleave = function () { setStatusMenuOpen(false); };
     menu.querySelectorAll("[data-check-context-action]").forEach(function (button) {
       button.onclick = function () {
-        menu.classList.remove("open");
+        closeMenu();
         var action = button.dataset.checkContextAction;
         var record = (window.currentGenericData && window.currentGenericData.rows || []).find(function (item) {
           return String(item.id) === String(id);

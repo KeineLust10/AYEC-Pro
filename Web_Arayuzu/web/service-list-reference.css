@@ -42,10 +42,12 @@
 .service-list-empty{height:90px;text-align:center;color:var(--sl-muted)}
 .service-list-pagination{display:flex;justify-content:space-between;align-items:center;gap:10px;color:var(--sl-muted);font-size:11px}
 .service-list-pagination>div{display:flex;align-items:center;gap:6px}.service-list-pagination label{display:flex;align-items:center;gap:6px;padding:6px 8px;border:1px solid var(--sl-line);border-radius:6px;font-size:10px}.service-list-pagination select,.service-list-pagination button{height:28px;border:1px solid var(--sl-line);border-radius:5px;background:#111827;color:var(--sl-ink)}.service-list-pagination button{width:30px;cursor:pointer}.service-list-pagination button:disabled{opacity:.45;cursor:default}
+.service-list-pagination button[aria-current="page"]{background:var(--sl-blue);border-color:var(--sl-blue);color:#fff;font-weight:700}.service-list-page-ellipsis{width:18px;text-align:center;color:var(--sl-muted)}
 body[data-page="service-list"] #content{background:var(--sl-bg)}
 @media(max-width:1120px){.service-list-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}.service-list-table{min-width:930px}}
 @media(max-width:760px){.service-list-ref{gap:9px}.service-list-heading{align-items:flex-start;flex-direction:column}.service-list-heading-actions{justify-content:flex-start;width:100%}.service-list-metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.service-list-metric{height:102px;padding:9px}.service-list-metric strong{font-size:16px}.service-list-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.service-list-filters input{grid-column:1/-1}.service-list-filters button{width:100%}.service-list-table-wrap{overflow:visible;border:0;background:transparent}.service-list-table,.service-list-table tbody{display:block;width:100%;min-width:0}.service-list-table thead{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}.service-list-table tr{display:grid;grid-template-columns:30px minmax(0,1fr) minmax(0,1fr);gap:5px;padding:9px;margin-bottom:8px;border:1px solid var(--sl-line);border-radius:8px;background:var(--sl-panel)!important}.service-list-table td{display:block;min-width:0;height:auto;min-height:34px;padding:4px;border:0;font-size:11px}.service-list-table td:first-child{grid-row:1/3}.service-list-table td:first-child::before{content:""}.service-list-table td::before{content:attr(data-label);display:block;margin-bottom:3px;color:var(--sl-muted);font:8px "JetBrains Mono",monospace;text-transform:uppercase}.service-list-table td:last-child{grid-column:2/-1}.service-list-actions{flex-wrap:wrap}.service-list-pagination{align-items:flex-start;flex-direction:column}.service-list-pagination>div{width:100%;justify-content:flex-end}.service-list-quick-actions{flex-wrap:nowrap;overflow:auto}.service-list-quick-actions button{white-space:nowrap}}
 
+@media(max-width:760px){.service-list-pagination>div{justify-content:flex-start;flex-wrap:wrap}}
 # Shared Slate treatment for the technical service acceptance form.
 # The same dialog is used from the desktop service list and dashboard actions.
 #appDialog:has(#dialogBody select[name="customerId"]){width:min(1256px,calc(100vw - 24px));max-width:calc(100vw - 24px);max-height:calc(100vh - 24px);padding:0;border:1px solid #263449;border-radius:8px;background:#111827;color:#e6edf8;color-scheme:dark;box-shadow:0 24px 70px rgba(0,0,0,.58)}
@@ -127,7 +129,7 @@ body[data-page="service-list"] #content{background:var(--sl-bg)}
 .service-list-bulk-menu button:hover{background:var(--sl-panel-2)}
 .service-list-bulk-menu hr{border:0;border-top:1px solid var(--sl-line)}
 @media print{.service-list-table tbody tr:not(.is-selected){display:none!important}}
-.service-bulk-print{display:grid;gap:12px;color:#111827;font:10.67px Arial,sans-serif}
+.service-bulk-print{display:grid;gap:12px;color:#000;font:10.67px Arial,sans-serif}
 .service-bulk-slip{break-after:page;page-break-after:always;padding:12px;border:1px solid #94a3b8;background:#fff}
 .service-bulk-slip:last-child{break-after:auto;page-break-after:auto}
 .service-bulk-slip header{display:grid;grid-template-columns:36.5% 63.5%;align-items:center;gap:8px;padding:14px 0 5px;border-bottom:1px solid #111827;font-size:10px}
@@ -139,7 +141,9 @@ body[data-page="service-list"] #content{background:var(--sl-bg)}
 .service-bulk-slip dl div:nth-child(2n){border-left:0}.service-bulk-slip dl div:nth-last-child(-n+2){border-bottom:1px solid #d5dfe7}
 .service-bulk-slip dt{font-weight:700}.service-bulk-slip dd{margin:0;overflow-wrap:anywhere}.service-bulk-slip ul{margin:5px 0;padding-left:20px}
 .service-bulk-slip .service-receipt-info div{grid-template-columns:27mm 1fr}
+.service-bulk-slip .service-receipt-info div:nth-child(odd){grid-template-columns:14mm 1fr}
 .service-bulk-slip .service-receipt-parties div{grid-template-columns:32mm 1fr}
+.service-bulk-slip .service-receipt-info,.service-bulk-slip .service-receipt-parties{gap:0}
 .service-bulk-slip .service-receipt-info dt,.service-bulk-slip .service-receipt-parties dt{font-size:11.33px;font-weight:700}
 .service-bulk-slip .service-receipt-info dd,.service-bulk-slip .service-receipt-parties dd{font-size:10.67px}
 .service-receipt-notes p{min-height:22px;margin:0;padding:4px 0;border:0;white-space:pre-wrap;overflow-wrap:anywhere}
@@ -155,7 +159,7 @@ body[data-page="service-list"] #content{background:var(--sl-bg)}
 .service-receipt-qr{display:flex;align-items:center;gap:8px;margin-top:7px;padding:4px;border:1px solid #111}
 .service-receipt-qr img{width:16mm;height:16mm;object-fit:contain}.service-receipt-qr p{margin:0;font-size:9.33px}
 .service-receipt-terms{margin-top:7px}.service-receipt-terms p{margin:2px 0;font-size:9.33px}
-.service-bulk-slip footer{display:flex;justify-content:space-between;margin-top:10mm;font-size:11.33px}
+.service-bulk-slip footer{display:flex;justify-content:space-between;margin-top:10mm;font-size:11.33px;font-weight:700}
 .service-print-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .service-print-choice{min-height:40px;padding:8px;border:1px solid var(--sl-line,#263449);border-radius:6px;background:var(--sl-panel-2,#192236);color:var(--sl-ink,#e6edf8);font-weight:600;cursor:pointer}
 .service-print-choice:hover{border-color:var(--sl-blue,#3b82f6);background:#203451}
@@ -185,9 +189,13 @@ body[data-page="service-list"] #content{background:var(--sl-bg)}
 :root[data-theme="midnight"]{--service-context-background:#0D1829;--service-context-ink:#E2E8F0;--service-context-border:#1B2A42;--service-context-separator:#101A2B;--service-context-hover:#1E40AF;--service-context-selected:#F8FBFF}
 :root[data-theme="light"]{--service-context-background:#F1F5F9;--service-context-ink:#172033;--service-context-border:#C6D3E2;--service-context-separator:#E3EBF5;--service-context-hover:#BFDBFE;--service-context-selected:#0F172A}
 :root[data-theme="forest"]{--service-context-background:#122019;--service-context-ink:#ECFDF5;--service-context-border:#355847;--service-context-separator:#1B2D24;--service-context-hover:#065F46;--service-context-selected:#F0FDF4}
-@media print{html body .service-bulk-slip{font-family:Arial,sans-serif!important}.service-bulk-slip h2{margin-top:14.6px!important}.service-bulk-slip .service-receipt-info{margin-bottom:3.1px!important}.service-bulk-slip .service-receipt-info dt,.service-bulk-slip .service-receipt-info dd,.service-bulk-slip .service-receipt-parties dt,.service-bulk-slip .service-receipt-parties dd{padding:3.5px 3px 3.6px 3.8px!important}.service-bulk-slip footer{width:60.1%!important;margin:7.5mm 0 0 40px!important}html body .service-bulk-slip .service-receipt-parts th{line-height:14px!important}html body .service-bulk-slip .service-receipt-terms{margin-top:11px!important}}
+@media print{html body .service-bulk-slip{font-family:Arial,sans-serif!important}.service-bulk-slip h2{margin-top:14.6px!important}.service-bulk-slip h2 span,.service-bulk-slip h2 time{position:relative;top:1.3px}.service-bulk-slip .service-receipt-info{margin-bottom:3.1px!important}.service-bulk-slip .service-receipt-info dt,.service-bulk-slip .service-receipt-info dd,.service-bulk-slip .service-receipt-parties dt,.service-bulk-slip .service-receipt-parties dd{padding:4.5px 3px 2.6px 3.8px!important}.service-bulk-slip footer{width:60.1%!important;margin:7.5mm 0 0 40px!important}html body .service-bulk-slip .service-receipt-parts th{line-height:14px!important}html body .service-bulk-slip .service-receipt-terms{margin-top:11px!important}}
 @media print{html body .service-bulk-slip .service-receipt-qr{gap:18.25px!important}.service-bulk-slip .service-receipt-qr p{position:relative;top:-2.8px}.service-bulk-slip .service-receipt-qr p b{position:relative;top:1.35px}.service-bulk-slip .service-receipt-fault h3{margin-bottom:1.5px!important}html body .service-bulk-slip .service-receipt-notes:not(.service-receipt-fault) h3{margin-bottom:2.45px!important}html body .service-bulk-slip>h3{margin-top:6.3px!important;margin-bottom:.5px!important}}
-@media print{html body .service-bulk-slip .service-receipt-info,html body .service-bulk-slip .service-receipt-parties{border:.8px solid #a9bac8!important}html body .service-bulk-slip .service-receipt-info dt,html body .service-bulk-slip .service-receipt-info dd,html body .service-bulk-slip .service-receipt-parties dt,html body .service-bulk-slip .service-receipt-parties dd{border:.4px solid #d5dfe7!important}html body .service-bulk-slip .service-receipt-parts td,html body .service-bulk-slip .service-receipt-parts th{border:.47px solid #b6c8d6!important}html body .service-bulk-slip .service-receipt-total{border:.67px solid #111827!important}html body .service-bulk-slip .service-receipt-qr{border:.53px solid #111827!important}}
+@media print{html body .service-bulk-slip .service-receipt-info,html body .service-bulk-slip .service-receipt-parties{border:.67px solid #a9bac8!important}html body .service-bulk-slip .service-receipt-info dt,html body .service-bulk-slip .service-receipt-info dd,html body .service-bulk-slip .service-receipt-parties dt,html body .service-bulk-slip .service-receipt-parties dd{border:.33px solid #d5dfe7!important}html body .service-bulk-slip .service-receipt-parts td,html body .service-bulk-slip .service-receipt-parts th{border:.47px solid #b6c8d6!important}html body .service-bulk-slip .service-receipt-total{border:.67px solid #111827!important}html body .service-bulk-slip .service-receipt-total b{font-weight:400!important}html body .service-bulk-slip .service-receipt-qr{border:.53px solid #111827!important}}
+@media print{html body .service-bulk-slip .service-receipt-total{margin-top:3px!important;padding:6px 5px!important}}
+@media print{html body .service-bulk-slip .service-receipt-info dt,html body .service-bulk-slip .service-receipt-info dd,html body .service-bulk-slip .service-receipt-parties dt,html body .service-bulk-slip .service-receipt-parties dd{text-indent:3.5px!important}html body .service-bulk-slip .service-receipt-qr,html body .service-bulk-slip .service-receipt-parts{width:var(--service-receipt-base-table-width)!important;margin-left:var(--service-receipt-base-table-offset)!important}}
+@media print{html body .service-bulk-slip .service-receipt-qr p{font-size:8px!important}}
+@media print{html body .service-bulk-slip .service-receipt-qr{margin-top:6px!important;padding-bottom:5px!important}}
 
 .service-list-table .service-list-actions button:focus-visible{outline:2px solid var(--sl-blue,#3b82f6);outline-offset:2px}
 
@@ -195,4 +203,8 @@ body[data-page="service-list"] #content{background:var(--sl-bg)}
 :root[data-theme="midnight"] .service-list-table tbody tr.is-current td{background-color:#1e304d;color:var(--ink,#e2e8f0)}
 :root[data-theme="light"] .service-list-table tbody tr.is-current td{background-color:#dbeafe;color:var(--ink,#172033)}
 
-@media print{html body .service-bulk-slip header{position:relative;border-bottom:0!important}html body .service-bulk-slip header::after{content:"";position:absolute;left:29px;right:6px;bottom:0;border-bottom:1px solid #111827}}
+@media print{html body .service-bulk-slip header{position:relative;border-bottom:0!important}html body .service-bulk-slip header::after{content:"";position:absolute;left:29px;right:6px;bottom:-3px;border-bottom:1px solid #111827}}
+@media print{html body .service-bulk-slip h3{position:relative;top:1.2px}}
+
+@media(min-width:1121px){.service-list-table td{height:108px}}
+@media(max-width:760px){.service-list-table td{height:auto}}

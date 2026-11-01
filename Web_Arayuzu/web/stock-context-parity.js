@@ -57,7 +57,7 @@
 
   function confirmStockDelete(item) {
     openDialog("Stok Silme Onay\u0131", "STOK KARTI", '<p><strong>' + esc(item.name || item.code || "Stok") + '</strong> kayd\u0131n\u0131 silmek i\u00e7in giri\u015f parolan\u0131z\u0131 do\u011frulay\u0131n.</p><div class="field"><label for="stockDeletePassword">Giri\u015f Parolas\u0131</label><input id="stockDeletePassword" name="password" type="password" autocomplete="current-password" required></div>', async form => {
-      const password = String(form.get("password") || "").trim();
+      const password = String(form.get("password") || "");
       if (!password) throw new Error("Giri\u015f parolas\u0131n\u0131z\u0131 girin.");
       const response = await fetch("/api/desktop/stock/delete", {
         method: "POST",
@@ -116,6 +116,7 @@
     if (!ayecContextMenuEnabled()) return;
     event.preventDefault();
     const menu = document.querySelector("#contextMenu");
+    const opener = event.currentTarget?.nodeType === 1 ? event.currentTarget : null;
     const items = [
       ["\uD83D\uDCE6 Stok Ekle/\u00c7\u0131kar", "movement"],
       ["\u270F\uFE0F D\u00fczenle", "edit-product"],
@@ -130,14 +131,46 @@
     menu.innerHTML = items.map(([label, action]) => action === "maintenance-separator"
       ? '<hr class="context-menu-separator">'
       : '<button type="button" role="menuitem" data-context-action="' + action + '">' + label + "</button>").join("");
+    menu.setAttribute("role", "menu");
+    menu.id = menu.id || "contextMenu";
+    opener?.setAttribute("aria-haspopup", "menu");
+    opener?.setAttribute("aria-controls", menu.id);
+    opener?.setAttribute("aria-expanded", "true");
+    menu.querySelectorAll('[role="menuitem"]').forEach((button, index) => { button.tabIndex = index === 0 ? 0 : -1; });
+    menu.onkeydown = keyEvent => {
+      if (keyEvent.key === "Escape") {
+        keyEvent.preventDefault();
+        keyEvent.stopPropagation();
+        menu.classList.remove("open");
+        opener?.setAttribute("aria-expanded", "false");
+        if (opener?.isConnected) {
+          if (!opener.hasAttribute("tabindex") && !opener.matches("button,a,input,[tabindex]")) opener.tabIndex = -1;
+          opener.focus();
+        } else if (menu.contains(document.activeElement)) {
+          document.activeElement.blur();
+        }
+        return;
+      }
+      const buttons = [...menu.querySelectorAll('[role="menuitem"]')];
+      const index = buttons.indexOf(document.activeElement);
+      if (!buttons.length || !["ArrowDown", "ArrowUp", "Home", "End"].includes(keyEvent.key)) return;
+      keyEvent.preventDefault();
+      const next = keyEvent.key === "Home" ? 0 : keyEvent.key === "End" ? buttons.length - 1
+        : keyEvent.key === "ArrowDown" ? (index + 1 + buttons.length) % buttons.length
+          : (index - 1 + buttons.length) % buttons.length;
+      buttons.forEach((button, position) => { button.tabIndex = position === next ? 0 : -1; });
+      buttons[next]?.focus();
+    };
     menu.classList.add("open");
     menu.style.left = Math.max(8, Math.min(event.clientX, innerWidth - menu.offsetWidth - 8)) + "px";
     menu.style.top = Math.max(8, Math.min(event.clientY, innerHeight - menu.offsetHeight - 8)) + "px";
     menu.querySelectorAll("[data-context-action]").forEach(button => {
       button.onclick = () => {
         menu.classList.remove("open");
+        opener?.setAttribute("aria-expanded", "false");
         contextAction(kind, id, button.dataset.contextAction);
       };
     });
+    menu.querySelector('[role="menuitem"]')?.focus();
   };
 })();

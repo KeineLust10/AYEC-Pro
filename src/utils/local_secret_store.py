@@ -19,7 +19,14 @@ def save_secret(name, value):
     encrypted = win32crypt.CryptProtectData(
         str(value).encode("utf-8"), "AYEC Pro local secret", None, None, None, 0
     )
-    _secret_path(name).write_bytes(encrypted)
+    target = _secret_path(name)
+    temporary = target.with_suffix(target.suffix + ".tmp")
+    try:
+        temporary.write_bytes(encrypted)
+        temporary.replace(target)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
 
 
 def load_secret(name):

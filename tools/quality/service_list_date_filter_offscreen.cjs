@@ -23,7 +23,7 @@ async function run() {
     const evaluate = async expression => { const result = await send("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true }); if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text); return result.result?.value; };
     await send("Page.enable"); await send("Runtime.enable");
     let ready = false;
-    for (let attempt = 0; attempt < 60; attempt += 1) { ready = await evaluate("document.readyState === 'complete' && typeof render === 'function'"); if (ready) break; await new Promise(resolve => setTimeout(resolve, 200)); }
+    for (let attempt = 0; attempt < 60; attempt += 1) { ready = await evaluate("document.readyState === 'complete' && typeof render === 'function' && (document.querySelector('#authRoot')?.hidden === false || window.ayecApplicationReady === true)"); if (ready) break; await new Promise(resolve => setTimeout(resolve, 200)); }
     if (!ready) throw new Error("Web app did not finish loading.");
     const result = await evaluate(`(async()=>{
       document.querySelector('#authRoot')?.remove();document.body.classList.remove('auth-active');

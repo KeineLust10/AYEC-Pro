@@ -151,7 +151,7 @@ class MainWindowNavMixin:
         if hasattr(self, "assistant_fab"):
             self.assistant_fab.setVisible(
                 bool(getattr(self, "_assistant_fab_enabled", True))
-                and int(index) not in {21, 146, 147, int(PageIds.FIELD_MAP)}
+                and int(index) not in {21, 106, 145, 146, 147, 180, 201, 261, 313, int(PageIds.FIELD_MAP)}
             )
             self.reposition_fab()
         self._sync_back_button()

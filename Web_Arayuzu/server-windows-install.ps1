@@ -1,6 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$PublicIp = "85.117.239.60",
+    [string]$IisHostName = "panel.ayecpro.com",
+    [string]$IisSiteName,
     [int]$BackendPort = 8501,
     [string]$Python,
     [ValidateSet("requirements.txt", "requirements-ocr.txt", "requirements-paddle.txt")]
@@ -18,6 +20,34 @@ function Assert-Administrator {
     $principal = [Security.Principal.WindowsPrincipal]::new($identity)
     if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
         throw "Bu betiği Yönetici olarak açılmış PowerShell penceresinde çalıştırın."
+    }
+}
+
+function Invoke-IisLocalGet {
+    param(
+        [string]$Uri,
+        [string]$HostName,
+        [string]$Accept
+    )
+    $request = [System.Net.HttpWebRequest]::Create($Uri)
+    $request.Method = "GET"
+    $request.Host = $HostName
+    $request.Accept = $Accept
+    $request.Headers["Cache-Control"] = "no-cache"
+    $response = $null
+    $reader = $null
+    try {
+        $response = [System.Net.HttpWebResponse]$request.GetResponse()
+        $reader = New-Object System.IO.StreamReader($response.GetResponseStream())
+        return [pscustomobject]@{
+            StatusCode = [int]$response.StatusCode
+            ContentType = [string]$response.ContentType
+            Content = $reader.ReadToEnd()
+        }
+    }
+    finally {
+        if ($reader) { $reader.Dispose() }
+        if ($response) { $response.Close() }
     }
 }
 
@@ -150,15 +180,41 @@ if (-not $healthy) {
 & $AppCmd set config /section:system.webServer/proxy /enabled:"True" /preserveHostHeader:"True" /reverseRewriteHostInResponseHeaders:"False" /commit:apphost | Out-Null
 
 Import-Module WebAdministration
-$site = Get-Website -Name "Default Web Site" -ErrorAction SilentlyContinue
+$site = $null
+if ($IisSiteName) {
+    $site = Get-Website -Name $IisSiteName -ErrorAction SilentlyContinue
+    if (-not $site) { throw "IIS site was not found: $IisSiteName" }
+}
+else {
+    $bindingPattern = ":80:" + [regex]::Escape($IisHostName) + "$"
+    $matchingSites = @(Get-Website | Where-Object {
+        $bindingInformation = @($_.Bindings.Collection | ForEach-Object { [string]$_.bindingInformation })
+        @($bindingInformation | Where-Object { $_ -match $bindingPattern }).Count -gt 0
+    })
+    if ($matchingSites.Count -gt 1) {
+        throw "More than one IIS site is bound to $IisHostName on port 80. Specify -IisSiteName."
+    }
+    if ($matchingSites.Count -eq 1) { $site = $matchingSites[0] }
+    else { $site = Get-Website -Name "Default Web Site" -ErrorAction SilentlyContinue }
+}
 if (-not $site) {
     $iisRoot = Join-Path $env:SystemDrive "inetpub\wwwroot"
     New-Item -ItemType Directory -Path $iisRoot -Force | Out-Null
     New-Website -Name "Default Web Site" -Port 80 -IPAddress "*" -PhysicalPath $iisRoot | Out-Null
     $site = Get-Website -Name "Default Web Site"
 }
+$targetSiteName = [string]$site.Name
 $siteRoot = [Environment]::ExpandEnvironmentVariables($site.physicalPath)
 New-Item -ItemType Directory -Path $siteRoot -Force | Out-Null
+$sourceWebRoot = Join-Path $ProjectPath "web"
+$sourceIndexPath = Join-Path $sourceWebRoot "index.html"
+if (-not (Test-Path -LiteralPath $sourceIndexPath -PathType Leaf)) {
+    throw "AYEC web assets were not found under $sourceWebRoot. Extract the full server bundle before running the installer."
+}
+$webBackupRoot = Join-Path $env:ProgramData ("AYEC Pro\backups\iis-web-" + (Get-Date -Format yyyyMMddHHmmss))
+$assetPublisher = Join-Path $ProjectPath "tools\publish_iis_web_assets.ps1"
+$publishedFileCount = & $assetPublisher -SourceRoot $sourceWebRoot -SiteRoot $siteRoot -BackupRoot $webBackupRoot
+Write-Host "Published $publishedFileCount web files to $siteRoot. Existing files are backed up under $webBackupRoot; web/uploads is preserved." -ForegroundColor Cyan
 $webConfig = Join-Path $siteRoot "web.config"
 if (Test-Path -LiteralPath $webConfig) {
     Copy-Item -LiteralPath $webConfig -Destination "$webConfig.before-ayec-$(Get-Date -Format yyyyMMddHHmmss).bak" -Force
@@ -166,14 +222,68 @@ if (Test-Path -LiteralPath $webConfig) {
 $template = Get-Content -LiteralPath (Join-Path $ProjectPath "iis\web.config") -Raw
 $template.Replace("__AYEC_BACKEND_PORT__", "$BackendPort") | Set-Content -LiteralPath $webConfig -Encoding UTF8
 
-& $AppCmd set config "Default Web Site" /section:system.webServer/security/authentication/anonymousAuthentication /enabled:"True" /commit:apphost | Out-Null
-& $AppCmd set config "Default Web Site" /section:system.webServer/security/authentication/windowsAuthentication /enabled:"False" /commit:apphost | Out-Null
+& $AppCmd set config "$targetSiteName" /section:system.webServer/security/authentication/anonymousAuthentication /enabled:"True" /commit:apphost | Out-Null
+& $AppCmd set config "$targetSiteName" /section:system.webServer/security/authentication/windowsAuthentication /enabled:"False" /commit:apphost | Out-Null
 
 if (-not (Get-NetFirewallRule -DisplayName "AYEC Pro Web HTTP" -ErrorAction SilentlyContinue)) {
     New-NetFirewallRule -DisplayName "AYEC Pro Web HTTP" -Direction Inbound -Protocol TCP -LocalPort 80 -Action Allow | Out-Null
 }
-Start-Website -Name "Default Web Site"
+Start-Website -Name $targetSiteName
 & iisreset.exe /restart | Out-Null
+
+$sourceIndex = Get-Content -LiteralPath $sourceIndexPath -Raw
+$appScriptMatch = [regex]::Match($sourceIndex, 'app\.js\?v=([A-Za-z0-9._-]+)')
+if (-not $appScriptMatch.Success) {
+    throw "AYEC frontend cache-busted app.js reference was not found in $sourceIndexPath."
+}
+$expectedAppScript = "app.js?v=$($appScriptMatch.Groups[1].Value)"
+$publicSiteUrl = "http://127.0.0.1/"
+$frontendHealthy = $false
+for ($attempt = 0; $attempt -lt 15; $attempt++) {
+    try {
+        $indexResponse = Invoke-IisLocalGet -Uri $publicSiteUrl -HostName $IisHostName -Accept "text/html"
+        if ($indexResponse.StatusCode -eq 200 -and $indexResponse.Content.Contains($expectedAppScript)) {
+            $appResponse = Invoke-IisLocalGet -Uri ($publicSiteUrl + $expectedAppScript) -HostName $IisHostName -Accept "application/javascript"
+            if ($appResponse.StatusCode -eq 200 -and $appResponse.ContentType -match "javascript" -and $appResponse.Content.Contains("allowHtmlRetry")) {
+                $frontendHealthy = $true
+                break
+            }
+        }
+    }
+    catch { }
+    Start-Sleep -Seconds 2
+}
+if (-not $frontendHealthy) {
+    throw "IIS frontend smoke check failed: the deployed index or app.js is missing or stale. Publish web/index.html and web/app.js from this build, then retry."
+}
+
+$publicApiUrl = "http://127.0.0.1/api/auth/status"
+$apiHealthy = $false
+for ($attempt = 0; $attempt -lt 15; $attempt++) {
+    try {
+        $apiResponse = Invoke-IisLocalGet -Uri $publicApiUrl -HostName $IisHostName -Accept "application/json"
+        if ($apiResponse.StatusCode -eq 200 -and $apiResponse.ContentType -match "application/json") {
+            $apiPayload = $apiResponse.Content | ConvertFrom-Json -ErrorAction Stop
+            if ($apiPayload -is [pscustomobject] -and $null -ne $apiPayload.PSObject.Properties["authenticated"]) {
+                $apiHealthy = $true
+                break
+            }
+        }
+    }
+    catch { }
+    Start-Sleep -Seconds 2
+}
+if (-not $apiHealthy) {
+    throw "IIS API smoke check failed: $publicApiUrl did not return the expected JSON auth status. Check IIS rewrite rules and backend routing."
+}
+
+$deploymentProbe = Join-Path $ProjectPath "check_public_deployment.py"
+$probeOutput = & $Python $deploymentProbe --base-url "http://127.0.0.1" --expected-app-key $appScriptMatch.Groups[1].Value --host-header $IisHostName --check-login-post
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "IIS deployment probe diagnostics:" -ForegroundColor Yellow
+    Write-Host $probeOutput -ForegroundColor Yellow
+    throw "IIS deployment probe failed. Review the frontend cache key, API content types, and unauthenticated profile/login results above."
+}
 
 Write-Host ""
 Write-Host "AYEC Pro Web sunucu kurulumu tamamlandı." -ForegroundColor Green

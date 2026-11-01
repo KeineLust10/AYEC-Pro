@@ -42,6 +42,26 @@ def test_2026_wage_boundaries_use_wage_specific_threshold(tmp_path):
     assert service.calculate(5300000, 2026, "wage")["tax"] == 1697500
 
 
+def test_income_tax_calculation_rejects_unknown_income_type(tmp_path):
+    service = IncomeTaxTariffService(cache_path=str(tmp_path / "tariffs.json"))
+
+    try:
+        service.calculate(100000, 2026, "wga")
+    except ValueError as error:
+        assert "Income type" in str(error)
+    else:
+        raise AssertionError("Unknown income type must not use the non-wage tariff")
+
+
+def test_income_tax_calculation_defaults_to_non_wage_when_type_is_omitted(tmp_path):
+    service = IncomeTaxTariffService(cache_path=str(tmp_path / "tariffs.json"))
+
+    result = service.calculate(190000, 2026)
+
+    assert result["income_type"] == "non_wage"
+    assert result["tax"] == 28500
+
+
 def test_daily_refresh_is_due_only_on_a_new_day(tmp_path):
     cache_path = tmp_path / "tariffs.json"
     cache_path.write_text(

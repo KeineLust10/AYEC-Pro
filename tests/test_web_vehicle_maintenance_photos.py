@@ -2,6 +2,7 @@ import base64
 import binascii
 import os
 import sqlite3
+import socket
 import struct
 import subprocess
 import threading
@@ -15,6 +16,12 @@ import requests
 import src.database as database_module
 from Web_Arayuzu import Main as web_main
 from tests.test_vendor_management_center import _setup_tenant
+
+
+def _free_cdp_port():
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        return listener.getsockname()[1]
 
 
 def test_vehicle_photo_upload_is_stored_under_active_tenant_and_validated(monkeypatch, tmp_path):
@@ -223,7 +230,7 @@ def test_hidden_edge_serves_migrated_legacy_vehicle_photo_from_active_tenant(mon
         env = os.environ.copy()
         env["AYEC_AUDIT_URL"] = f"{base_url}/"
         env["AYEC_MAINTENANCE_SESSION_COOKIE"] = session.cookies.get("ayec_session")
-        env["AYEC_AUDIT_CDP_PORT"] = "9266"
+        env["AYEC_AUDIT_CDP_PORT"] = str(_free_cdp_port())
         audit = subprocess.run(
             ["node", "tools/quality/maintenance_photo_legacy_offscreen.cjs"],
             cwd=Path(__file__).resolve().parents[1],
@@ -249,6 +256,21 @@ def test_hidden_edge_serves_migrated_legacy_vehicle_photo_from_active_tenant(mon
         server.shutdown()
         server.server_close()
         worker.join(timeout=2)
+
+
+def test_handler_error_logging_creates_missing_application_root(monkeypatch, tmp_path):
+    app_root = tmp_path / "application" / "Web_Arayuzu"
+    monkeypatch.setattr(web_main, "ROOT", app_root)
+    handler = object.__new__(web_main.AYECRequestHandler)
+
+    try:
+        raise RuntimeError("Audit handler failure")
+    except RuntimeError:
+        handler._write_handler_error_log()
+
+    log_path = app_root / ".ayec-handler-error.log"
+    assert log_path.is_file()
+    assert "RuntimeError: Audit handler failure" in log_path.read_text(encoding="utf-8")
 
 
 def test_vehicle_photo_api_routes_authenticate_and_scope_photo_fetch(monkeypatch):

@@ -5,6 +5,8 @@ import sqlite3
 import sys
 from pathlib import Path
 
+import pytest
+
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -501,6 +503,57 @@ def test_web_maintenance_save_creates_full_automotive_workflow(tmp_path, monkeyp
     web_main.clear_tenant_context()
 
 
+def test_web_maintenance_save_rejects_vehicle_owned_by_another_customer(tmp_path, monkeypatch):
+    database_path = tmp_path / "web-maintenance-customer-isolation.db"
+    db = Database(str(database_path))
+    owner_id = db.add_customer({"name": "Vehicle Owner"})
+    other_customer_id = db.add_customer({"name": "Other Customer"})
+    cursor = db.conn.cursor()
+    cursor.execute(
+        "INSERT INTO customer_vehicles(customer_id, plate, brand, model) VALUES (?, ?, ?, ?)",
+        (owner_id, "34ISO34", "Ford", "Focus"),
+    )
+    vehicle_id = int(cursor.lastrowid)
+    cursor.execute(
+        "INSERT INTO customer_vehicles(customer_id, plate, brand, model) VALUES (?, ?, ?, ?)",
+        (owner_id, "06ISO06", "Honda", "Civic"),
+    )
+    other_vehicle_id = int(cursor.lastrowid)
+    db.conn.commit()
+    db.close()
+
+    web_main.clear_tenant_context()
+    monkeypatch.setattr(web_main, "DB_PATH", database_path)
+    payload = {
+        "customer_id": other_customer_id,
+        "vehicle_id": vehicle_id,
+        "vehicle_plate": "34ISO34",
+        "items": [{"item_type": "oil_change", "item_label": "Oil change", "performed": True}],
+    }
+
+    with pytest.raises(ValueError):
+        web_main.save_vehicle_maintenance_web(payload)
+
+    with pytest.raises(ValueError):
+        web_main.save_vehicle_maintenance_web({key: value for key, value in payload.items() if key != "vehicle_id"})
+
+    conflicting_vehicle = {**payload, "customer_id": owner_id, "vehicle_id": other_vehicle_id}
+    with pytest.raises(ValueError):
+        web_main.save_vehicle_maintenance_web(conflicting_vehicle)
+
+    db = Database(str(database_path))
+    vehicle = db.conn.execute(
+        "SELECT customer_id, plate FROM customer_vehicles WHERE id=?", (vehicle_id,)
+    ).fetchone()
+    assert int(vehicle["customer_id"]) == owner_id
+    assert vehicle["plate"] == "34ISO34"
+    assert db.conn.execute("SELECT COUNT(*) FROM vehicle_maintenance_cards").fetchone()[0] == 0
+    assert db.conn.execute("SELECT COUNT(*) FROM devices").fetchone()[0] == 0
+    assert db.conn.execute("SELECT COUNT(*) FROM customer_vehicles").fetchone()[0] == 2
+    db.close()
+    web_main.clear_tenant_context()
+
+
 def test_web_automotive_navigation_and_sector_choice_contract():
     root = Path(__file__).resolve().parents[1]
     index_text = (root / "Web_Arayuzu" / "web" / "index.html").read_text(
@@ -788,6 +841,61 @@ def test_web_technician_update_saves_automotive_form(tmp_path, monkeypatch):
         (device_id,),
     ).fetchone()[0]
     assert json.loads(stored_checklist) == list_checklist
+    db.close()
+    web_main.clear_tenant_context()
+
+
+def test_technician_update_rejects_foreign_vehicle_links(tmp_path, monkeypatch):
+    database_path = tmp_path / "web-technician-customer-isolation.db"
+    db = Database(str(database_path))
+    service_customer_id = db.add_customer({"name": "Service Customer"})
+    vehicle_customer_id = db.add_customer({"name": "Vehicle Customer"})
+    device_id = db.add_device(
+        {
+            "tracking_no": "AUTO-WEB-ISOLATION-1",
+            "customer_id": service_customer_id,
+            "customer_name": "Service Customer",
+            "device_type": "Vehicle",
+            "vehicle_plate": "34SERVICE34",
+            "status": "Waiting",
+        }
+    )
+    db.cursor.execute(
+        "INSERT INTO customer_vehicles(customer_id, plate, last_known_odometer) VALUES (?, ?, ?)",
+        (vehicle_customer_id, "34FOREIGN34", 65000),
+    )
+    foreign_vehicle_id = int(db.cursor.lastrowid)
+    db.conn.commit()
+    db.close()
+
+    web_main.clear_tenant_context()
+    monkeypatch.setattr(web_main, "DB_PATH", database_path)
+    base_payload = {
+        "device_id": device_id,
+        "tracking_no": "AUTO-WEB-ISOLATION-1",
+        "status": "Testing",
+        "automotive_form": {
+            "vehicle_plate": "34FOREIGN34",
+            "exit_odometer": 66000,
+        },
+    }
+    with pytest.raises(ValueError):
+        web_main.update_technician_job(
+            {**base_payload, "automotive_form": {**base_payload["automotive_form"], "vehicle_id": foreign_vehicle_id}}
+        )
+    with pytest.raises(ValueError):
+        web_main.update_technician_job(base_payload)
+
+    db = Database(str(database_path))
+    vehicle = db.conn.execute(
+        "SELECT customer_id, last_known_odometer FROM customer_vehicles WHERE id=?",
+        (foreign_vehicle_id,),
+    ).fetchone()
+    device = db.conn.execute("SELECT status FROM devices WHERE id=?", (device_id,)).fetchone()
+    assert int(vehicle["customer_id"]) == vehicle_customer_id
+    assert int(vehicle["last_known_odometer"]) == 65000
+    assert device["status"] == "Waiting"
+    assert db.conn.execute("SELECT COUNT(*) FROM automotive_service_forms").fetchone()[0] == 0
     db.close()
     web_main.clear_tenant_context()
 

@@ -17,6 +17,7 @@ const captureTop = Number(process.env.AYEC_AUDIT_TOP || 0);
 const captureHeight = Number(process.env.AYEC_AUDIT_CAPTURE_HEIGHT || viewportHeight);
 const outputSuffix = process.env.AYEC_AUDIT_OUTPUT_SUFFIX || "";
 const unselectedNavigation = process.env.AYEC_AUDIT_UNSELECTED === "1";
+// Native PAGE_KINDS omits page 210, so parity keeps its navigation glyph empty.
 
 function delay(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
@@ -45,10 +46,16 @@ async function run() {
     let nextId = 0;
     const pending = new Map();
     const runtimeExceptions = [];
+    const networkFailures = [];
+    const scriptResponses = [];
+    const requestUrls = new Map();
     socket.addEventListener("message", event => {
       const message = JSON.parse(event.data);
       if (!message.id) {
-        if (message.method === "Runtime.exceptionThrown") runtimeExceptions.push(message.params.exceptionDetails?.exception?.description || message.params.exceptionDetails?.text || "Unknown browser exception");
+        if (message.method === "Runtime.exceptionThrown") runtimeExceptions.push({ text: message.params.exceptionDetails?.exception?.description || message.params.exceptionDetails?.text || "Unknown browser exception", url: message.params.exceptionDetails?.url || "", line: message.params.exceptionDetails?.lineNumber ?? null });
+        if (message.method === "Network.requestWillBeSent") requestUrls.set(message.params.requestId, message.params.request.url);
+        if (message.method === "Network.loadingFailed") networkFailures.push({ url: requestUrls.get(message.params.requestId) || message.params.requestId || "", error: message.params.errorText || "" });
+        if (message.method === "Network.responseReceived" && /\.(?:js|css)(?:\?|$)/i.test(message.params.response.url)) scriptResponses.push({ url: message.params.response.url, status: message.params.response.status });
         return;
       }
       const entry = pending.get(message.id);
@@ -68,6 +75,7 @@ async function run() {
     };
     await send("Page.enable");
     await send("Runtime.enable");
+    await send("Network.enable");
     await send("Emulation.setDeviceMetricsOverride", { width: viewportWidth, height: viewportHeight, deviceScaleFactor: 1, mobile: false });
     await send("Page.navigate", { url: baseUrl });
     for (let attempt = 0; attempt < 50; attempt += 1) {
@@ -86,7 +94,8 @@ async function run() {
       if (await evaluate("document.readyState === 'complete' && document.querySelector('.app-shell') && document.querySelector('#nav') && document.querySelector('#authRoot')?.innerHTML.trim() && typeof renderNav === 'function' && typeof window.ayecOpenGlobalSearch === 'function' && String(renderNav).includes('OTOMOTIV MODU')")) { appReady = true; break; }
       await delay(200);
     }
-    if (!appReady) throw new Error(`The parity menu runtime did not initialize: ${JSON.stringify(runtimeExceptions)}`);
+    if (!appReady) throw new Error(`The parity menu runtime did not initialize: ${JSON.stringify({ runtimeExceptions, networkFailures, scriptResponses })}`);
+    await evaluate("document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))");
     const state = await evaluate(`(() => {
       document.querySelector("#authRoot")?.remove();
       document.body.classList.remove("auth-active");
@@ -123,7 +132,8 @@ async function run() {
       const sidebarStyle = sidebar ? getComputedStyle(sidebar) : null;
       const brandMark = sidebar?.querySelector(".brand-mark");
       const bottom = sidebar?.querySelector(".sidebar-bottom");
-      return { badgeTestCounts, navPageIds: Array.from(nav?.querySelectorAll("[data-page]") || [], button => button.dataset.page), navBadges, navItems: navButtons.length, groups: nav?.querySelectorAll(".nav-group-title").length || 0, sidebarWidth: Math.round(sidebar?.getBoundingClientRect().width || 0), sidebarBackground: sidebarStyle?.backgroundImage || null, sidebarBackgroundColor: sidebarStyle?.backgroundColor || null, shell: bounds(shell), sidebar: bounds(sidebar), brand: bounds(brand), brandStyle: brandStyle ? { height: brandStyle.height, padding: brandStyle.padding, margin: brandStyle.margin, boxSizing: brandStyle.boxSizing } : null, brandMark: bounds(brandMark), sidebarBottom: bounds(bottom), sidebarBottomStyle: bottom ? { height: getComputedStyle(bottom).height, paddingTop: getComputedStyle(bottom).paddingTop, paddingBottom: getComputedStyle(bottom).paddingBottom, borderTopWidth: getComputedStyle(bottom).borderTopWidth } : null, footerChildren: Array.from(bottom?.children || [], element => ({ className: element.className, text: element.textContent.trim().slice(0, 48), bounds: bounds(element), parts: Array.from(element.querySelectorAll("*"), child => { const style = getComputedStyle(child); return { className: child.className, text: child.textContent.trim().slice(0, 28), bounds: bounds(child), color: style.color, background: style.backgroundColor, border: style.borderColor, font: style.font, padding: style.padding }; }) })), sidebarBottomDisplay: bottom ? getComputedStyle(bottom).display : null, navDisplay: nav ? getComputedStyle(nav).display : null, brandMarkStyle: brandMark ? { background: getComputedStyle(brandMark).backgroundColor, borderColor: getComputedStyle(brandMark).borderColor } : null, sectorBadge: sectorBadge ? { text: sectorBadge.textContent, className: sectorBadge.className, title: sectorBadge.title } : null, runtime: { menuModel: typeof ayecSectorMenu, navSource: String(renderNav).slice(0, 90) }, nav: bounds(nav), navTypography: { parent: parentButton ? { size: getComputedStyle(parentButton).fontSize, weight: getComputedStyle(parentButton).fontWeight, open: parentButton.classList.contains("open"), height: bounds(parentButton).height, y: bounds(parentButton).y, active: parentButton.classList.contains("active"), background: getComputedStyle(parentButton).backgroundColor, color: getComputedStyle(parentButton).color, parentId: parentButton.dataset.parent, submenuId: parentSubmenu?.id, activeChildren: Array.from(parentSubmenu?.querySelectorAll("[data-page].active") || [], button => button.dataset.page) } : null, child: childButton ? { size: getComputedStyle(childButton).fontSize, height: bounds(childButton).height, y: bounds(childButton).y } : null }, activePages: Array.from(nav?.querySelectorAll("[data-page].active") || [], button => button.dataset.page), topText };
+      const shellStyle = shell ? getComputedStyle(shell) : null;
+      const brandTitle=brand?.querySelector("#brandCompanyName"),brandSubtitle=brand?.querySelector("#brandProductName"),brandTitleStyle=brandTitle?getComputedStyle(brandTitle):null,brandSubtitleStyle=brandSubtitle?getComputedStyle(brandSubtitle):null; return { badgeTestCounts, brandTitleTypography: brandTitleStyle ? {fontSize:brandTitleStyle.fontSize,fontWeight:brandTitleStyle.fontWeight} : null, brandSubtitleTypography: brandSubtitleStyle ? {fontSize:brandSubtitleStyle.fontSize,fontWeight:brandSubtitleStyle.fontWeight} : null, navPageIds: Array.from(nav?.querySelectorAll("[data-page]") || [], button => button.dataset.page), navBadges, navBadgeBackground: nav?.querySelector(".nav-count-badge") ? getComputedStyle(nav.querySelector(".nav-count-badge")).backgroundColor : "", navBadgeFontWeight: nav?.querySelector(".nav-count-badge") ? getComputedStyle(nav.querySelector(".nav-count-badge")).fontWeight : "", navBadgeRadius: nav?.querySelector(".nav-count-badge") ? getComputedStyle(nav.querySelector(".nav-count-badge")).borderRadius : "", navBadgeMarginRight: nav?.querySelector(".nav-count-badge") ? getComputedStyle(nav.querySelector(".nav-count-badge")).marginRight : "", navItems: navButtons.length, groups: nav?.querySelectorAll(".nav-group-title").length || 0, sidebarWidth: Math.round(sidebar?.getBoundingClientRect().width || 0), sidebarBackground: sidebarStyle?.backgroundImage || null, sidebarBackgroundColor: sidebarStyle?.backgroundColor || null, sidebarComputed: sidebarStyle ? { width: sidebarStyle.width, minWidth: sidebarStyle.minWidth, display: sidebarStyle.display, position: sidebarStyle.position, gridArea: sidebarStyle.gridArea, flex: sidebarStyle.flex, transform: sidebarStyle.transform } : null, shellComputed: shellStyle ? { display: shellStyle.display, gridTemplateColumns: shellStyle.gridTemplateColumns, gridTemplateAreas: shellStyle.gridTemplateAreas, direction: shellStyle.direction, sidebarVariable: getComputedStyle(document.documentElement).getPropertyValue("--sidebar") } : null, viewport: { innerWidth, innerHeight, outerWidth, outerHeight }, shell: bounds(shell), sidebar: bounds(sidebar), brand: bounds(brand), brandStyle: brandStyle ? { height: brandStyle.height, padding: brandStyle.padding, margin: brandStyle.margin, boxSizing: brandStyle.boxSizing } : null, brandMark: bounds(brandMark), sidebarBottom: bounds(bottom), sidebarBottomStyle: bottom ? { height: getComputedStyle(bottom).height, paddingTop: getComputedStyle(bottom).paddingTop, paddingBottom: getComputedStyle(bottom).paddingBottom, borderTopWidth: getComputedStyle(bottom).borderTopWidth } : null, footerChildren: Array.from(bottom?.children || [], element => ({ className: element.className, text: element.textContent.trim().slice(0, 48), bounds: bounds(element), parts: Array.from(element.querySelectorAll("*"), child => { const style = getComputedStyle(child); return { className: child.className, text: child.textContent.trim().slice(0, 28), bounds: bounds(child), color: style.color, background: style.backgroundColor, border: style.borderColor, font: style.font, padding: style.padding }; }) })), sidebarBottomDisplay: bottom ? getComputedStyle(bottom).display : null, navDisplay: nav ? getComputedStyle(nav).display : null, brandMarkStyle: brandMark ? { background: getComputedStyle(brandMark).backgroundColor, borderColor: getComputedStyle(brandMark).borderColor } : null, sectorBadge: sectorBadge ? { text: sectorBadge.textContent, className: sectorBadge.className, title: sectorBadge.title } : null, runtime: { menuModel: typeof ayecSectorMenu, navSource: String(renderNav).slice(0, 90) }, nav: bounds(nav), navTypography: { parent: parentButton ? { size: getComputedStyle(parentButton).fontSize, weight: getComputedStyle(parentButton).fontWeight, open: parentButton.classList.contains("open"), height: bounds(parentButton).height, y: bounds(parentButton).y, active: parentButton.classList.contains("active"), background: getComputedStyle(parentButton).backgroundColor, color: getComputedStyle(parentButton).color, parentId: parentButton.dataset.parent, submenuId: parentSubmenu?.id, activeChildren: Array.from(parentSubmenu?.querySelectorAll("[data-page].active") || [], button => button.dataset.page) } : null, child: childButton ? { size: getComputedStyle(childButton).fontSize, height: bounds(childButton).height, y: bounds(childButton).y } : null }, activePages: Array.from(nav?.querySelectorAll("[data-page].active") || [], button => button.dataset.page), topText };
     })()`);
     const headerLayout = await evaluate(`Array.from(document.querySelectorAll(".app-shell > .topbar > *")).map(element => { const box=element.getBoundingClientRect(); const style=getComputedStyle(element); return {tag:element.tagName,id:element.id,className:element.className,x:Math.round(box.x),y:Math.round(box.y),width:Math.round(box.width),display:style.display,visibility:style.visibility,opacity:style.opacity,children:element.classList.contains("top-actions")?Array.from(element.children).map(child=>{const r=child.getBoundingClientRect();const cs=getComputedStyle(child);return{id:child.id,className:child.className,x:Math.round(r.x),y:Math.round(r.y),width:Math.round(r.width),height:Math.round(r.height),display:cs.display,color:cs.color,visibility:cs.visibility,opacity:cs.opacity};}):undefined}; })`);
     const menuPageIconAudit = await evaluate(`(async () => {
@@ -142,7 +152,7 @@ async function run() {
         results[sector] = {
           total: pages.length,
           missingDesktopPageIds: pages.map(button => button.dataset.page).filter(id => !ayecDesktopPageIds[id]),
-          missingSvgIcons: pages.filter(button => ayecDesktopPageIds[button.dataset.page] && !button.querySelector(".nav-icon svg")).map(button => button.dataset.page),
+        missingSvgIcons: pages.filter(button => ayecDesktopPageIds[button.dataset.page] && ![210].includes(Number(ayecDesktopPageIds[button.dataset.page])) && !button.querySelector(".nav-icon svg")).map(button => button.dataset.page),
           missingGearParentIcons: gearParents.filter(id => { const parent = Array.from(document.querySelectorAll("#nav .nav-parent")).find(button => button.dataset.parent === "nav-" + sector + "-" + id); return !parent?.querySelector(".nav-icon svg"); })
         };
       }
@@ -153,10 +163,11 @@ async function run() {
     if (Object.values(menuPageIconAudit).some(item => item.missingSvgIcons.length || item.missingGearParentIcons.length)) throw new Error(`Mapped desktop sidebar pages or menu icons are missing SVG icons: ${JSON.stringify(menuPageIconAudit)}`);
     if (!state.sidebarWidth) throw new Error(`Sidebar is not visible: ${JSON.stringify(state)}`);
     const expectedSidebarWidth = collapsedVisual ? 64 : Math.min(320, Math.max(240, Math.round(viewportWidth * 0.2)));
-    if (state.sidebarWidth !== expectedSidebarWidth) throw new Error(`Desktop sidebar width differs from the 20vw desktop rule: ${JSON.stringify({ actual: state.sidebarWidth, expected: expectedSidebarWidth })}`);
+    if (state.sidebarWidth !== expectedSidebarWidth) throw new Error(`Desktop sidebar width differs from the 20vw desktop rule: ${JSON.stringify({ actual: state.sidebarWidth, expected: expectedSidebarWidth, sidebar: state.sidebar, viewportWidth, viewport: state.viewport, shell: state.shell, shellComputed: state.shellComputed, sidebarComputed: state.sidebarComputed, sidebarStyle: state.sidebarBackgroundColor, runtimeExceptions, networkFailures, assetResponses: scriptResponses })}`);
     if (collapsedVisual && (state.brand?.height !== 60 || state.brandMark?.width !== 42 || state.brandMark?.height !== 42 || state.sidebarBottomDisplay !== "none" || state.navDisplay !== "none")) throw new Error(`Collapsed sidebar does not match the desktop collapsed header/menu/footer geometry: ${JSON.stringify(state)}`);
-    const expectedSidebarBackground = "linear-gradient(rgb(13, 24, 41) 0px, rgb(13, 24, 41) 104px, rgba(0, 0, 0, 0) 104px), linear-gradient(rgb(8, 14, 26) 0%, rgb(8, 14, 26) 28%, rgb(13, 24, 41) 72%, rgb(13, 24, 41) 100%)";
+    const expectedSidebarBackground = "linear-gradient(rgb(8, 14, 26) 0%, rgb(8, 14, 26) 28%, rgb(13, 24, 41) 72%, rgb(13, 24, 41) 100%)";
     if (state.sidebarBackground !== expectedSidebarBackground) throw new Error(`Midnight sidebar palette differs from the desktop Koyu Mavi gradient: ${JSON.stringify({ actual: state.sidebarBackground, expected: expectedSidebarBackground })}`);
+    if (state.brandTitleTypography?.fontSize !== "13px" || state.brandTitleTypography?.fontWeight !== "600" || state.brandSubtitleTypography?.fontSize !== "10px" || state.brandSubtitleTypography?.fontWeight !== "400") throw new Error(`Sidebar brand typography differs from the desktop: ${JSON.stringify({ title: state.brandTitleTypography, subtitle: state.brandSubtitleTypography })}`);
     if (!state.navTypography.parent?.active || !state.activePages.includes("dashboard")) throw new Error(`Selected dashboard navigation state is not visible: ${JSON.stringify(state.navTypography)}`);
     const expectedSectorBadge = auditSector === "otomotiv" ? "OTOMOTIV MODU" : "ERP";
     const badgeMatches = state.sectorBadge?.text === expectedSectorBadge && (auditSector !== "otomotiv" || state.sectorBadge.className.includes("automotive-sector"));
@@ -176,7 +187,7 @@ async function run() {
     fs.writeFileSync(filename, Buffer.from(screenshot.data, "base64"));
     if (process.env.AYEC_AUDIT_CAPTURE_ONLY === "1") {
       const expectedBadgeCounts = auditSector === "otomotiv" ? { services: "", "service-status": "9", appointments: "1", customers: "2" } : { services: "9", "service-status": "9", appointments: "1", customers: "2" };
-      if (JSON.stringify(state.badgeTestCounts) !== JSON.stringify(expectedBadgeCounts)) throw new Error(`Sidebar count badge parity failed: ${JSON.stringify({ counts: state.badgeTestCounts, pages: state.navPageIds })}`);
+      if (JSON.stringify(state.badgeTestCounts) !== JSON.stringify(expectedBadgeCounts) || state.navBadgeRadius !== "0px" || state.navBadgeBackground !== "rgba(0, 0, 0, 0)" || state.navBadgeFontWeight !== "500") throw new Error(`Sidebar inline count styling differs from the desktop: ${JSON.stringify({ counts: state.badgeTestCounts, background: state.navBadgeBackground, radius: state.navBadgeRadius, weight: state.navBadgeFontWeight })}`);
       if (!collapsedVisual) {
         const pageRows = renderedNavRows.filter(item => item.page);
         const serviceParent = renderedNavRows.find(item => item.parent === (auditSector === "otomotiv" ? "nav-otomotiv-automotive-service-parent" : "nav-teknik_servis-service-parent"));

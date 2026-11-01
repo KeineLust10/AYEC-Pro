@@ -715,7 +715,7 @@ class MainWindow(QMainWindow, MainWindowBaseMixin, MainWindowNavMixin, MainWindo
             self._assistant_fab_enabled = enabled
             if assistant_fab is not None:
                 assistant_fab.setVisible(
-                    enabled and int(getattr(self, "_current_page_index", -1)) not in {146, 147}
+                    enabled and int(getattr(self, "_current_page_index", -1)) not in {106, 145, 146, 147, 180, 201, 261, 313}
                 )
                 if enabled:
                     self.reposition_fab()
@@ -842,7 +842,34 @@ class MainWindow(QMainWindow, MainWindowBaseMixin, MainWindowNavMixin, MainWindo
         worker.start()
 
     def apply_display_profile(self):
-        profile = self.db.get_setting("display_profile", "auto")
-        # Simplified logic for mixin
-        if profile == "laptop": self.setMinimumSize(1080, 700)
-        else: self.setMinimumSize(1280, 800)
+        """Apply a visible density and window-size policy for the selected screen profile."""
+        try:
+            profile = str(self.db.get_setting("display_profile", "auto") or "auto").lower()
+        except Exception:
+            profile = "auto"
+
+        screen = self.screen() or QApplication.primaryScreen()
+        available = screen.availableGeometry() if screen else self.geometry()
+        screen_width = max(1, available.width())
+        screen_height = max(1, available.height())
+        if profile not in {"laptop", "desktop"}:
+            profile = "laptop" if screen_width <= 1500 or screen_height <= 850 else "desktop"
+
+        # Keep the user's scale preference as the base, then apply the profile density.
+        try:
+            base_scale = ThemeManager.normalize_interface_scale(
+                self.db.get_setting(ThemeManager.INTERFACE_SCALE_SETTING, "100")
+            )
+        except Exception:
+            base_scale = 100
+        scale_factor = 0.9 if profile == "laptop" else 1.1
+        profile_scale = round(base_scale * scale_factor)
+        ThemeManager.set_interface_scale(profile_scale, QApplication.instance())
+
+        target_width, target_height = (1080, 700) if profile == "laptop" else (1280, 800)
+        self.setMinimumSize(min(target_width, screen_width), min(target_height, screen_height))
+        if not (self.isMaximized() or self.isFullScreen()):
+            max_width = max(800, screen_width - 32)
+            max_height = max(600, screen_height - 48)
+            if self.width() > max_width or self.height() > max_height:
+                self.resize(min(self.width(), max_width), min(self.height(), max_height))

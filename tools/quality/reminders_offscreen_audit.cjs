@@ -62,18 +62,24 @@ async function run() {
       hideAuth();
       currentAuthUser = { username: "QA Admin", role: "Admin", permissions: JSON.stringify({ mode: "all" }) };
       updateCurrentUser(currentAuthUser);
+      renderWizard = () => hideAuth();
+      renderLogin = () => hideAuth();
+      window.handleUnauthorized = () => hideAuth();
       applicationStarted = true;
       page = "reminders";
       const originalApiFetch = apiFetch;
       window.__reminderAudit = {
         records: [{ id: 910, tracking_no: "LEGACY-1", message: "Legacy reminder title", due_date: "2026-10-21", is_read: 1, created_at: "2026-10-15 09:00:00", title: null, personnel: null, date: null, description: null, status: null }],
-        writes: [], requests: [], originalApiFetch: originalApiFetch
+        writes: [], requests: [], originalApiFetch: originalApiFetch, failNextRead: false
       };
       apiFetch = async (url, options = {}) => {
         const text = String(url);
         window.__reminderAudit.requests.push(text);
         if (text.includes("/table/personnel")) return { rows: [{ id: 8, name: "QA Tech" }, { id: 9, name: "Archived QA Tech", is_deleted: 1 }], count: 2 };
-        if (text.includes("/table/reminders") && !options.method) return { rows: window.__reminderAudit.records.slice(), count: window.__reminderAudit.records.length };
+        if (text.includes("/table/reminders") && !options.method) {
+          if (window.__reminderAudit.failNextRead) { window.__reminderAudit.failNextRead = false; throw new Error("QA reminder refresh unavailable"); }
+          return { rows: window.__reminderAudit.records.slice(), count: window.__reminderAudit.records.length };
+        }
         if (text.includes("/table/reminders") && options.method === "POST") {
           const body = JSON.parse(options.body || "{}");
           window.__reminderAudit.writes.push(body);
@@ -93,6 +99,18 @@ async function run() {
       await new Promise(resolve => setTimeout(resolve, 50));
       const rect = selector => { const node = document.querySelector(selector); if (!node) return null; const box = node.getBoundingClientRect(); return { x: box.x, y: box.y, width: box.width, height: box.height }; };
       const layout = { pageHead: rect("#content .page-head"), subtitle: rect("#content .page-head p"), card: rect("#content .reminders-reference"), tabs: rect("#content .reminder-tabs"), actions: rect("#content .reminder-list-actions"), host: rect("#reminderListHost"), wrap: rect("#reminderListHost .table-wrap"), table: rect("#content .reminder-table") };
+      const reminderTabKeyboard = (() => {
+        const tabs = Array.from(document.querySelectorAll("[data-reminder-tab]"));
+        const add = tabs.find(tab => tab.dataset.reminderTab === "add"), list = tabs.find(tab => tab.dataset.reminderTab === "list");
+        const press = (tab, key) => { tab.focus(); const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }); tab.dispatchEvent(event); return event.defaultPrevented; };
+        const initialRoving = add?.tabIndex === 0 && list?.tabIndex === -1;
+        const right = press(add, "ArrowRight") && document.activeElement === list && list?.getAttribute("aria-selected") === "true";
+        const rightWrap = press(list, "ArrowRight") && document.activeElement === add && add?.getAttribute("aria-selected") === "true";
+        const leftWrap = press(add, "ArrowLeft") && document.activeElement === list && list?.getAttribute("aria-selected") === "true";
+        const home = press(list, "Home") && document.activeElement === add && add?.getAttribute("aria-selected") === "true";
+        const end = press(add, "End") && document.activeElement === list && list?.getAttribute("aria-selected") === "true";
+        return { initialRoving, right, rightWrap, leftWrap, home, end, finalRoving: add?.tabIndex === -1 && list?.tabIndex === 0 };
+      })();
       const personnelOptions = Array.from(document.querySelectorAll('#reminderCreateForm [name="personnel"] option'), option => option.textContent.trim());
       const legacyCells = Array.from(document.querySelectorAll('[data-reminder-id="910"] td'), cell => cell.textContent.trim());
       await loadGenericModule(genericModules.reminders, "");
@@ -131,11 +149,11 @@ async function run() {
         const upEvent = new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true, cancelable: true });
         createdRow?.dispatchEvent(upEvent);
         const upRow = document.activeElement;
-        const up = { id: upRow?.dataset.reminderId || "", selected: upRow?.getAttribute("aria-selected") === "true" };
+        const up = { id: upRow?.dataset.reminderId || "", selected: upRow?.getAttribute("aria-selected") === "true", tag: upRow?.tagName || "", tabIndex: upRow?.tabIndex ?? null, connected: upRow?.isConnected ?? false, className: upRow?.className || "" };
         const downEvent = new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true, cancelable: true });
         upRow?.dispatchEvent(downEvent);
         const downRow = document.activeElement;
-        const down = { id: downRow?.dataset.reminderId || "", selected: downRow?.getAttribute("aria-selected") === "true" };
+        const down = { id: downRow?.dataset.reminderId || "", selected: downRow?.getAttribute("aria-selected") === "true", tag: downRow?.tagName || "", tabIndex: downRow?.tabIndex ?? null, connected: downRow?.isConnected ?? false, className: downRow?.className || "" };
         const archivedCell = document.querySelector('[data-reminder-id="911"]')?.children[2];
         const archivedStyle = archivedCell ? getComputedStyle(archivedCell) : null;
         const archivedAssignment = { rowHeight: document.querySelector('[data-reminder-id="911"]')?.getBoundingClientRect().height || 0, title: archivedCell?.title || "", whiteSpace: archivedStyle?.whiteSpace || "", textOverflow: archivedStyle?.textOverflow || "" };
@@ -145,8 +163,14 @@ async function run() {
         window.__reminderAudit.records = [{ id: 911, title: "QA Reminder", personnel: "QA Tech", date: "2026-10-20", description: "QA reminder details", status: "Aktif", is_read: 0 }];
         return { up, down, rowIds, eventPrevented: upEvent.defaultPrevented, observed, archivedAssignment };
       })();
+      document.querySelector('[data-reminder-id="911"]')?.click();
+      window.__reminderAudit.failNextRead = true;
       await loadGenericModule(genericModules.reminders, "");
-      return { layout, listLayout, personnelOptions, legacyCells, createWrite, requests: window.__reminderAudit.requests.slice(), createdRowVisible: Boolean(document.querySelector('[data-reminder-id="911"]')), activeTab, deleteEnabledWithoutSelection, emptySelectionNotice, deleteEnabled, keyboardNavigation };
+      const refreshFailureRetained = document.querySelector("#reminderListHost")?.textContent.includes("QA reminder refresh unavailable") && !document.querySelector("[data-reminder-id]");
+      document.querySelector("[data-reminder-delete]")?.click();
+      const staleDeletePrevented = !window.__reminderAudit.writes.some(body => body._action === "delete") && document.querySelector("#toastRoot")?.textContent.toLowerCase().includes("silinecek");
+      await loadGenericModule(genericModules.reminders, "");
+      return { layout, listLayout, reminderTabKeyboard, personnelOptions, legacyCells, createWrite, requests: window.__reminderAudit.requests.slice(), createdRowVisible: Boolean(document.querySelector('[data-reminder-id="911"]')), activeTab, deleteEnabledWithoutSelection, emptySelectionNotice, deleteEnabled, keyboardNavigation, refreshFailureRetained, staleDeletePrevented };
     })()`);
     const screenshot = await send("Page.captureScreenshot", { format: "png", captureBeyondViewport: true });
     const screenshotPath = path.join(outputDir, "reminders-list-headless.png");
@@ -179,26 +203,35 @@ async function run() {
     const deleted = await evaluate(`(async () => {
       document.querySelector('[data-reminder-id="911"]')?.click();
       document.querySelector("[data-reminder-delete]")?.click();
-      const confirmDialog = Boolean(document.querySelector("#appDialog")?.open)
+      const firstDialog = document.querySelector("#appDialog");
+      const confirmDialog = Boolean(firstDialog?.open)
         && document.querySelector("#dialogTitle")?.textContent.includes("Hatırlatıcıyı Sil")
         && document.querySelector("#dialogCancel")?.textContent === "Hayır";
+      document.querySelector("#dialogCancel")?.click();
+      await new Promise(resolve => setTimeout(resolve, 30));
+      const cancelNoWrite = !firstDialog?.open
+        && !window.__reminderAudit.writes.some(body => body._action === "delete")
+        && Boolean(document.querySelector('[data-reminder-id="911"]'));
+      document.querySelector("[data-reminder-delete]")?.click();
+      const confirmRetry = Boolean(document.querySelector("#appDialog")?.open);
       document.querySelector("#dialogSubmit")?.click();
       await new Promise(resolve => setTimeout(resolve, 100));
       const deleteWrite = window.__reminderAudit.writes.find(body => body._action === "delete") || null;
       const deletedRowMissing = !document.querySelector('[data-reminder-id="911"]');
       apiFetch = window.__reminderAudit.originalApiFetch;
       delete window.__reminderAudit;
-      return { confirmDialog, deleteWrite, deletedRowMissing };
+      return { confirmDialog, cancelNoWrite, confirmRetry, deleteWrite, deletedRowMissing };
     })()`);
     const result = { ...created, ...deleted, screenshot: screenshotPath };
     const expectedLegacyCells = ["910", "Legacy reminder title", "Genel (Herkes)", "2026-10-21", "Legacy reminder title", "Okundu"];
-    if (!result.personnelOptions.includes("QA Tech") || !result.personnelOptions.includes("Archived QA Tech") || !result.requests.some(url => url.includes("/table/personnel?limit=500&include_deleted=1")) || JSON.stringify(result.legacyCells) !== JSON.stringify(expectedLegacyCells) || result.createWrite?.personnel_id !== 9 || result.createWrite?.personnel !== "Archived QA Tech" || !result.createdRowVisible || result.keyboardNavigation.up.id !== "910" || !result.keyboardNavigation.up.selected || result.keyboardNavigation.down.id !== "911" || !result.keyboardNavigation.down.selected || result.activeTab !== "true" || !result.deleteEnabledWithoutSelection || !result.emptySelectionNotice || !result.deleteEnabled || !result.confirmDialog || Math.abs(result.keyboardNavigation.archivedAssignment.rowHeight - 30) > 1 || result.keyboardNavigation.archivedAssignment.title !== "Archived QA Tech" || result.keyboardNavigation.archivedAssignment.whiteSpace !== "nowrap" || result.keyboardNavigation.archivedAssignment.textOverflow !== "ellipsis" || result.deleteWrite?.id !== 911 || result.deleteWrite?._action !== "delete" || !result.deletedRowMissing || exceptions.length) {
+    if (!result.personnelOptions.includes("QA Tech") || !result.personnelOptions.includes("Archived QA Tech") || !result.requests.some(url => url.includes("/table/personnel?limit=1000&offset=0&include_deleted=1")) || JSON.stringify(result.legacyCells) !== JSON.stringify(expectedLegacyCells) || result.createWrite?.personnel_id !== 9 || result.createWrite?.personnel !== "Archived QA Tech" || !result.createdRowVisible || !result.reminderTabKeyboard.initialRoving || !result.reminderTabKeyboard.right || !result.reminderTabKeyboard.rightWrap || !result.reminderTabKeyboard.leftWrap || !result.reminderTabKeyboard.home || !result.reminderTabKeyboard.end || !result.reminderTabKeyboard.finalRoving || result.keyboardNavigation.up.id !== "910" || !result.keyboardNavigation.up.selected || result.keyboardNavigation.down.id !== "911" || !result.keyboardNavigation.down.selected || result.activeTab !== "true" || !result.deleteEnabledWithoutSelection || !result.emptySelectionNotice || !result.deleteEnabled || !result.confirmDialog || !result.cancelNoWrite || !result.confirmRetry || !result.refreshFailureRetained || !result.staleDeletePrevented || Math.abs(result.keyboardNavigation.archivedAssignment.rowHeight - 30) > 1 || result.keyboardNavigation.archivedAssignment.title !== "Archived QA Tech" || result.keyboardNavigation.archivedAssignment.whiteSpace !== "nowrap" || result.keyboardNavigation.archivedAssignment.textOverflow !== "ellipsis" || result.deleteWrite?.id !== 911 || result.deleteWrite?._action !== "delete" || !result.deletedRowMissing || exceptions.length) {
       throw new Error(`Reminder workflow mismatch: ${JSON.stringify({ result, exceptions })}`);
     }
     process.stdout.write(`${JSON.stringify({ ...result, addMetrics, isolatedMetrics, exceptions, screenshot: screenshotPath })}\n`);
   } finally {
     if (socket) socket.close();
     try { execFileSync("taskkill", ["/PID", String(browser.pid), "/T", "/F"], { stdio: "ignore" }); } catch (_) {}
+    try { fs.rmSync(profile, { recursive: true, force: true }); } catch (_) {}
   }
 }
 

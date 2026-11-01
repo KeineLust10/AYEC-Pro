@@ -540,23 +540,10 @@ class FieldServicePage(QWidget):
             self.overview.map_mode_button.setText("3D Vektor")
             return
 
-        from src.utils.local_secret_store import load_secret
-        try:
-            api_key = load_secret("tomtom_traffic_api_key")
-        except Exception as error:
-            self.notify("TomTom anahtari okunamadi: {}".format(error), "error")
-            return
+        api_key = self._get_tomtom_api_key()
         if not api_key:
-            api_key = self._prompt_tomtom_api_key()
-            if not api_key:
-                self.notify("3D harita icin TomTom Maps SDK erisimi olan bir API anahtari gerekli.", "warning")
-                return
-            from src.utils.local_secret_store import save_secret
-            try:
-                save_secret("tomtom_traffic_api_key", api_key)
-            except (OSError, RuntimeError) as error:
-                self.notify("TomTom anahtari guvenli kaydedilemedi: {}".format(error), "error")
-                return
+            self.notify("3D harita icin TomTom Maps SDK erisimi olan bir API anahtari gerekli.", "warning")
+            return
 
         if self.vector_map_view is None:
             try:
@@ -621,7 +608,34 @@ class FieldServicePage(QWidget):
             return
         self.open_live_traffic()
 
-    def _prompt_tomtom_api_key(self):
+    def _get_tomtom_api_key(self, force_prompt=False):
+        from src.utils.local_secret_store import load_secret, save_secret
+
+        recovery_required = False
+        should_save = False
+        try:
+            api_key = load_secret("tomtom_traffic_api_key")
+        except Exception:
+            api_key = ""
+            recovery_required = True
+            should_save = True
+
+        if force_prompt or not api_key:
+            api_key = self._prompt_tomtom_api_key(recovery_required=recovery_required)
+            should_save = True
+        api_key = str(api_key or "").strip()
+        if not api_key:
+            return ""
+
+        if should_save:
+            try:
+                save_secret("tomtom_traffic_api_key", api_key)
+            except (OSError, RuntimeError) as error:
+                self.notify("TomTom anahtari guvenli kaydedilemedi: {}".format(error), "error")
+                return ""
+        return api_key
+
+    def _prompt_tomtom_api_key(self, recovery_required=False):
         from src.ui.widgets.modern_dialog import ModernDialog
         from PyQt6.QtGui import QDesktopServices
 
@@ -633,6 +647,12 @@ class FieldServicePage(QWidget):
             "Masaustu uygulamasinda anahtarin domain whitelist (Referer) kisiti kapali olmalidir. "
             "Kullanim limitleri ve olasi ucretleri TomTom gelistirici portalinda kontrol edin."
         )
+        if recovery_required:
+            description.setText(
+                "Kayitli sifreli anahtar dosyasi mevcut ancak Windows bu profilde cozemedigi icin "
+                "TomTom anahtarini bir kez yeniden girmeniz gerekiyor. Girilen anahtar guvenli kaydedilir "
+                "ve hemen kullanilir.\n\n" + description.text()
+            )
         description.setWordWrap(True)
         dialog.add_widget(description)
 
@@ -663,21 +683,9 @@ class FieldServicePage(QWidget):
             self.live_traffic_active = False
             self.live_traffic_button.setText("Canli Trafik")
             return
-        from src.utils.local_secret_store import load_secret, save_secret
-        try:
-            api_key = load_secret("tomtom_traffic_api_key")
-        except Exception as exc:
-            self.notify("Kayitli harita API anahtari okunamadi: {}".format(exc), "error")
-            return
+        api_key = self._get_tomtom_api_key()
         if not api_key:
-            api_key = self._prompt_tomtom_api_key()
-            if not api_key:
-                return
-            try:
-                save_secret("tomtom_traffic_api_key", api_key.strip())
-            except (OSError, RuntimeError) as exc:
-                self.notify("API anahtari guvenli kaydedilemedi: {}".format(exc), "error")
-                return
+            return
         self.live_traffic_button.setEnabled(False)
         self.live_traffic_button.setText("Baglaniyor...")
         self.map_view.enable_tomtom_traffic(api_key)
@@ -694,8 +702,11 @@ class FieldServicePage(QWidget):
         self.live_traffic_button.setEnabled(True)
         self.live_traffic_button.setText("Canli Trafik")
         if self.map_view._traffic_auth_failed:
-            from src.utils.local_secret_store import delete_secret
-            delete_secret("tomtom_traffic_api_key")
+            self.notify("TomTom anahtari reddedildi. Gecerli bir anahtarla degistirebilirsiniz.", "error")
+            api_key = self._get_tomtom_api_key(force_prompt=True)
+            if api_key:
+                self.open_live_traffic()
+            return
         self.notify(message, "error")
 
     @staticmethod
@@ -712,11 +723,7 @@ class FieldServicePage(QWidget):
     def _request_road_route(self, points):
         if self.vector_map_view and self.map_stack.currentWidget() is self.vector_map_view:
             self.vector_map_view.set_route(points)
-        try:
-            from src.utils.local_secret_store import load_secret
-            api_key = load_secret("tomtom_traffic_api_key")
-        except Exception:
-            api_key = ""
+        api_key = self._get_tomtom_api_key()
         self.map_view.calculate_tomtom_route(api_key, points)
 
     def _route_calculated(self, geometry, distance_meters, duration_seconds):

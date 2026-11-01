@@ -9,6 +9,7 @@
   let personnelMarkers = new Map();
   let routeLine = null;
   let fieldLocationMarker = null;
+  let selectedFieldCoordinates = null;
   let trafficLayer = null;
   let trafficActive = false;
   let trafficErrorReported = false;
@@ -25,24 +26,42 @@
   let fieldRadarCategory = "all";
   let routeDrawing = false;
   let routePoints = [];
+  let routeRequestController = null;
 
   function ensureFieldLocationTools(actionHost, mapHeader) {
     if (!actionHost || !mapHeader || mapHeader.parentElement.querySelector(".field-location-tools")) return;
+    const mapFooter = document.querySelector(".field-map-canvas>footer");
+    if (mapFooter && !mapFooter.querySelector("[data-field-map-refresh]")) {
+      const refresh = document.createElement("button");
+      refresh.type = "button";
+      refresh.className = "secondary";
+      refresh.dataset.fieldMapRefresh = "";
+      refresh.textContent = "Haritay\u0131 Yenile";
+      refresh.addEventListener("click", refreshFieldMapTiles);
+      mapFooter.insertBefore(refresh, mapFooter.lastElementChild || null);
+    }
     const toggle = document.createElement("button");
     toggle.type = "button";
     toggle.className = "secondary field-location-tools-toggle";
     toggle.textContent = "Konum Islemleri +";
     toggle.setAttribute("aria-expanded", "false");
+    const drawRoute = document.createElement("button");
+    drawRoute.type = "button";
+    drawRoute.className = "primary field-route-start";
+    drawRoute.dataset.fieldMapAction = "draw-route";
+    drawRoute.textContent = "Rota Ciz";
+    drawRoute.addEventListener("click", () => runFieldMapAction("draw-route"));
     const tools = document.createElement("section");
     tools.className = "field-location-tools";
     tools.hidden = true;
     tools.setAttribute("aria-label", "Konum islemleri");
     const actions = [
-      ["draw-route", "Yeni Rota Ciz"], ["manual-location", "Manuel Koordinat Gir"],
-      ["home", "Eve Don (Merkez)"], ["whatsapp-paste", "WhatsApp Konumu Yapistir"],
-      ["share-location", "Konum Baglantisini Paylas"], ["assign-location", "Secili Konumu Personele Ata"]
+      ["manual-location", "Manuel Koordinat Gir"],
+      ["home", "Eve Don (Merkez)"], ["gps", "Canl\u0131 GPS Takip"], ["whatsapp-paste", "WhatsApp Konumu Yapistir"],
+      ["redraw-route", "Rotayi Yeniden Ciz"], ["clear-route", "Rotayi Sil"],
+      ["share-location", "Konum Baglantisini Paylas"],
+      ["copy-map-link", "Harita Linkini Kopyala"], ["assign-location", "Secili Konumu Personele Ata"]
     ];
-    if (window.ayecIsAdmin?.()) actions.push(["tomtom-key", "TomTom API Anahtari"]);
     actions.forEach(([action, label]) => {
       const button = document.createElement("button");
       button.type = "button";
@@ -59,7 +78,7 @@
     finish.textContent = "Rotayi Bitir";
     finish.hidden = true;
     finish.addEventListener("click", finishFieldRouteDrawing);
-    tools.append(finish);
+    actionHost.append(finish);
     const shareRoute = document.createElement("button");
     shareRoute.type = "button";
     shareRoute.className = "secondary";
@@ -67,31 +86,49 @@
     shareRoute.textContent = "Rotayi WhatsApp ile Paylas";
     shareRoute.hidden = true;
     shareRoute.addEventListener("click", shareFieldRoute);
-    tools.append(shareRoute);
+    actionHost.append(shareRoute);
     toggle.addEventListener("click", () => {
       tools.hidden = !tools.hidden;
       toggle.setAttribute("aria-expanded", String(!tools.hidden));
       toggle.textContent = tools.hidden ? "Konum Islemleri +" : "Konum Islemleri -";
     });
-    actionHost.append(toggle);
+    actionHost.append(drawRoute, toggle);
     mapHeader.after(tools);
   }
 
   function currentFieldCoordinates() {
     const selected = fieldLocationMarker?.getLatLng?.();
-    return selected ? { lat: selected.lat, lng: selected.lng } : fieldMapCenter;
+    return selectedFieldCoordinates || (selected ? { lat: selected.lat, lng: selected.lng } : fieldMapCenter);
+  }
+
+  function updateFieldRouteControls() {
+    const finish = document.querySelector("[data-field-route-finish]");
+    if (finish) {
+      finish.hidden = !routeDrawing;
+      finish.disabled = routePoints.length < 2;
+      finish.textContent = `Rotayi Bitir (${routePoints.length}/2)`;
+    }
+    const start = document.querySelector('.field-map-actions [data-field-map-action="draw-route"]');
+    if (start) {
+      start.textContent = routeDrawing ? "Durak Seciliyor" : "Rota Ciz";
+      start.setAttribute("aria-pressed", String(routeDrawing));
+    }
   }
 
   async function runFieldMapAction(action) {
     if (action === "tomtom-key") return openFieldTomTomKeyDialog();
     if (action === "manual-location") return openManualFieldLocation();
+    if (action === "gps") return refreshFieldServiceData();
     if (action === "home") {
       await ensureFieldMap();
-      focusFieldLocation({ lat: fieldMapCenter.lat, lon: fieldMapCenter.lng, display_name: "" }, 13);
+      focusFieldLocation({ lat: fieldMapCenter.lat, lon: fieldMapCenter.lng, display_name: "" }, fieldMap?.getZoom?.() ?? 13);
       return;
     }
     if (action === "whatsapp-paste") return openWhatsAppLocationPaste();
     if (action === "share-location") return shareFieldLocation();
+    if (action === "copy-map-link") return copyFieldLocationLink();
+    if (action === "redraw-route") return finishFieldRouteDrawing();
+    if (action === "clear-route") return clearFieldRoute();
     if (action === "assign-location") return openFieldLocationAssignment();
     if (action === "draw-route") {
       await ensureFieldMap();
@@ -101,8 +138,7 @@
       if (routeLine) fieldMap.removeLayer(routeLine);
       routeLine = null;
       fieldMap.getContainer().style.cursor = "crosshair";
-      const finish = document.querySelector("[data-field-route-finish]");
-      if (finish) finish.hidden = false;
+      updateFieldRouteControls();
       const share = document.querySelector("[data-field-route-share]");
       if (share) share.hidden = true;
       const footer = document.querySelector(".field-map-canvas>footer span");
@@ -110,7 +146,7 @@
     }
   }
 
-  async function openFieldTomTomKeyDialog() {
+  async function openFieldTomTomKeyDialog(onSaved = null) {
     if (!window.isSecureContext) return toast("API anahtari guvenli baglanti olmadan ayarlanamaz.", "error");
     let status = "missing";
     try {
@@ -119,11 +155,53 @@
       return toast(error.message || "API anahtari durumu alinamadi.", "error");
     }
     const statusText = status === "configured" ? "Bu firma icin anahtar kayitli." : status === "unavailable" ? "Kayitli anahtar okunamiyor; yeni anahtar kaydedebilirsiniz." : "Bu firma icin anahtar kaydi bulunamadi.";
-    openDialog("TomTom API Anahtari", "SAHA SERVISI", `<div class="field-tomtom-key"><p>${statusText} Anahtar Windows DPAPI ile bu firmaya ozel saklanir.</p><label>TomTom API Anahtari<input name="api_key" type="password" autocomplete="new-password" required maxlength="2048"></label></div>`, async form => {
+    const testSavedKey = async () => {
+      try {
+        return await apiFetch("/api/desktop/field-service/tomtom-test", { method: "POST", body: JSON.stringify({}) });
+      } catch (_) {
+        return { status: "unavailable" };
+      }
+    };
+    const showTestResult = (testResult, saved = false) => {
+      if (testResult.status === "connected") {
+        toast(saved ? "TomTom API anahtari kaydedildi; canli harita erisimi dogrulandi." : "Kayitli TomTom anahtariyla canli harita erisimi dogrulandi.");
+        return;
+      }
+      const testMessage = {
+        missing_key: "Bu firma icin anahtar bulunamadi.",
+        rejected: "Anahtar veya harita API yetkisi reddedildi.",
+        traffic_rejected: "Harita anahtari gecerli; TomTom Traffic Flow urun yetkisi bu anahtarda etkin degil.",
+        traffic_unavailable: "Harita anahtari gecerli; TomTom Traffic Flow servisine su anda ulasilamadi.",
+        rate_limited: "TomTom hiz siniri uyguladi.",
+        invalid_response: "TomTom beklenmeyen bir yanit verdi.",
+        unavailable: "TomTom servisine su anda ulasilamadi."
+      }[testResult.status] || "TomTom baglantisi dogrulanamadi.";
+      toast(saved ? `Anahtar kaydedildi. ${testMessage}` : testMessage, "warning");
+    };
+    openDialog("TomTom API Anahtari", "SAHA SERVISI", `<div class="field-tomtom-key"><p>${statusText} Anahtar bu firmanin web sunucusunda sifreli saklanir ve tarayiciya gonderilmez.</p><label>TomTom API Anahtari<input name="api_key" type="password" autocomplete="new-password" required maxlength="2048"></label></div>`, async form => {
       await apiFetch("/api/desktop/field-service/tomtom-key", { method: "POST", body: JSON.stringify({ api_key: form.get("api_key") }) });
-      toast("TomTom API anahtari guvenli olarak kaydedildi.");
+      showTestResult(await testSavedKey(), true);
+      if (typeof onSaved === "function") await onSaved();
       return true;
     }, "Guvenli Kaydet");
+    const footer = document.querySelector("#dialogFooter");
+    const submitButton = footer?.querySelector("#dialogSubmit");
+    if (footer && submitButton) {
+      const testButton = document.createElement("button");
+      testButton.type = "button";
+      testButton.id = "fieldTomTomSavedKeyTest";
+      testButton.className = "secondary";
+      testButton.textContent = "Kayitli Anahtari Test Et";
+      testButton.disabled = status !== "configured";
+      testButton.addEventListener("click", async () => {
+        testButton.disabled = true;
+        testButton.textContent = "Dogrulaniyor...";
+        showTestResult(await testSavedKey());
+        testButton.textContent = "Kayitli Anahtari Test Et";
+        testButton.disabled = false;
+      });
+      footer.insertBefore(testButton, submitButton);
+    }
   }
 
   async function openManualFieldLocation() {
@@ -186,6 +264,32 @@
     await shareWhatsAppText(`\uD83D\uDCCD Konumum: ${mapsUrl}`);
   }
 
+  async function copyFieldLocationLink() {
+    const { lat, lng } = currentFieldCoordinates();
+    const mapsUrl = `https://www.google.com/maps?q=${lat.toFixed(6)},${lng.toFixed(6)}`;
+    let copied = false;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(mapsUrl);
+        copied = true;
+      }
+    } catch (_error) {
+      copied = false;
+    }
+    if (!copied) {
+      const field = document.createElement("textarea");
+      field.value = mapsUrl;
+      field.setAttribute("readonly", "");
+      field.style.position = "fixed";
+      field.style.opacity = "0";
+      document.body.append(field);
+      field.select();
+      try { copied = Boolean(document.execCommand?.("copy")); } catch (_error) { copied = false; }
+      field.remove();
+    }
+    toast(copied ? "Harita konum baglantisi panoya kopyalandi." : "Konum baglantisi kopyalanamadi. Linki paylasim secenegini kullanin.", copied ? "success" : "warning");
+  }
+
   async function openFieldLocationAssignment() {
     const { lat, lng } = currentFieldCoordinates();
     const options = fieldPersonnel.map(person => `<option value="${esc(person.id)}">${esc(person.name || "Personel")} (${esc(person.job || person.role || "Personel")})</option>`).join("");
@@ -203,6 +307,9 @@
 
   async function finishFieldRouteDrawing() {
     if (routePoints.length < 2) return toast("Guzergah icin haritada en az iki durak secin.", "warning");
+    routeRequestController?.abort();
+    const requestController = new AbortController();
+    routeRequestController = requestController;
     routeDrawing = false;
     fieldMap?.getContainer().style && (fieldMap.getContainer().style.cursor = "");
     if (routeLine) fieldMap.removeLayer(routeLine);
@@ -210,8 +317,7 @@
       color: "#4edea3", weight: 4, opacity: 0.9, dashArray: "8 6"
     }).addTo(fieldMap);
     fieldMap.fitBounds(routeLine.getBounds(), { padding: [32, 32], maxZoom: 14 });
-    const finish = document.querySelector("[data-field-route-finish]");
-    if (finish) finish.hidden = true;
+    updateFieldRouteControls();
     const share = document.querySelector("[data-field-route-share]");
     if (share) share.hidden = false;
     const footer = document.querySelector(".field-map-canvas>footer span");
@@ -219,8 +325,9 @@
     syncVectorMap();
     try {
       const result = await apiFetch("/api/desktop/field-service/route", {
-        method: "POST", body: JSON.stringify({ points: routePoints })
+        method: "POST", body: JSON.stringify({ points: routePoints }), signal: requestController.signal
       });
+      if (routeRequestController !== requestController) return;
       if (result.ok && Array.isArray(result.geometry)) {
         routeLine.setLatLngs(result.geometry);
         routeLine.setStyle({ dashArray: null, opacity: 1 });
@@ -235,9 +342,29 @@
         toast(message, "warning");
       }
     } catch (error) {
+      if (routeRequestController !== requestController) return;
       if (footer) footer.textContent = error.message || "Taslak rota haritada gosteriliyor.";
+    } finally {
+      if (routeRequestController === requestController) routeRequestController = null;
     }
     syncVectorMap();
+  }
+
+  function clearFieldRoute() {
+    routeRequestController?.abort();
+    routeRequestController = null;
+    routeDrawing = false;
+    routePoints = [];
+    if (fieldMap && routeLine) fieldMap.removeLayer(routeLine);
+    routeLine = null;
+    if (fieldMap) fieldMap.getContainer().style.cursor = "";
+    updateFieldRouteControls();
+    const share = document.querySelector("[data-field-route-share]");
+    if (share) share.hidden = true;
+    const footer = document.querySelector(".field-map-canvas>footer span");
+    if (footer) footer.textContent = "Rota silindi.";
+    syncVectorMap();
+    toast("Rota silindi.", "success");
   }
 
   function shareFieldRoute() {
@@ -291,7 +418,11 @@
       button.type = "button";
       button.dataset.fieldPanelMode = mode;
       button.textContent = label;
-      button.addEventListener("click", () => setFieldPanelMode(mode));
+      button.addEventListener("click", event => {
+        event.preventDefault();
+        event.stopPropagation();
+        setFieldPanelMode(mode);
+      });
       tabs.append(button);
     });
     const header = queue.querySelector(":scope > header");
@@ -462,6 +593,48 @@
     trafficLayer.addTo(fieldMap);
   }
 
+  function refreshFieldMapTiles() {
+    if (!fieldMap || !window.L) return;
+    let refreshed = 0;
+    if (typeof fieldMap.eachLayer !== "function") return;
+    fieldMap.eachLayer(layer => {
+      if (typeof layer.redraw !== "function") return;
+      layer.redraw();
+      refreshed += 1;
+    });
+    const status = document.querySelector(".field-map-canvas>footer span");
+    if (status) status.textContent = refreshed ? "Harita katmanlar\u0131 yenileme iste\u011fi g\u00f6nderildi." : "Harita katman\u0131 bulunamad\u0131.";
+  }
+
+  async function refreshFieldServiceData() {
+    const button = document.querySelector('[data-field-map-action="gps"]');
+    const originalLabel = button?.textContent || "Canl\u0131 GPS Takip";
+    const status = document.querySelector(".field-map-canvas>footer span");
+    if (button) {
+      button.disabled = true;
+      button.textContent = "G\u00fcncelleniyor...";
+    }
+    if (status) status.textContent = "GPS verileri yenileniyor...";
+    try {
+      await loadFieldPersonnel();
+      if (typeof window.ayecFieldRefreshJobs !== "function" || await window.ayecFieldRefreshJobs() !== true) throw new Error("Saha g\u00f6revleri yenilenemedi.");
+      const map = await ensureFieldMap();
+      if (map && window.L) drawPersonnelMarkers(window.L);
+      syncVectorMap();
+      if (status) status.textContent = "GPS personel ve g\u00f6rev verileri g\u00fcncellendi.";
+      return true;
+    } catch (error) {
+      if (status) status.textContent = error.message || "GPS verileri yenilenemedi.";
+      toast(error.message || "GPS verileri yenilenemedi.", "error");
+      return false;
+    } finally {
+      if (button) {
+        button.disabled = false;
+        button.textContent = originalLabel;
+      }
+    }
+  }
+
   function setTrafficActive(active) {
     trafficActive = Boolean(active);
     if (!trafficActive && fieldMap && trafficLayer) fieldMap.removeLayer(trafficLayer);
@@ -469,6 +642,22 @@
     updateTrafficControl();
     if (trafficActive) addTrafficLayer();
     syncVectorMap();
+  }
+
+  async function requestFieldTraffic() {
+    if (trafficActive) return setTrafficActive(false);
+    if (!window.ayecIsAdmin?.()) return setTrafficActive(true);
+    try {
+      const result = await apiFetch("/api/desktop/field-service/tomtom-key");
+      if (result.status === "configured") return setTrafficActive(true);
+      if (result.status === "missing" || result.status === "unavailable") {
+        await openFieldTomTomKeyDialog(() => setTrafficActive(true));
+        return;
+      }
+      toast("TomTom API anahtar durumu okunamadi.", "warning");
+    } catch (error) {
+      toast(error.message || "TomTom API anahtar durumu alinamadi.", "error");
+    }
   }
 
   function syncVectorMap() {
@@ -485,6 +674,57 @@
     }
     const selected = fieldLocationMarker?.getLatLng?.();
     if (selected) map.select(selected.lat, selected.lng);
+  }
+
+  function handleVectorMapClick(latitude, longitude) {
+    const point = coordinate({ lat: latitude, lng: longitude });
+    if (!point) return;
+    selectedFieldCoordinates = point;
+    fieldLocationAddress = "";
+    renderFieldCustomerLocationCard();
+    const map = vectorMapFrame?.contentWindow?.ayecTomTomMap;
+    if (routeDrawing) {
+      routePoints.push(point);
+      updateFieldRouteControls();
+      if (fieldMap && routeLine) fieldMap.removeLayer(routeLine);
+      if (fieldMap && window.L) {
+        routeLine = window.L.polyline(routePoints.map(item => [item.lat, item.lng]), {
+          color: "#4edea3", weight: 4, opacity: 0.9, dashArray: "8 6"
+        }).addTo(fieldMap);
+      }
+      map?.setRoute(routePoints.map(item => [item.lat, item.lng]));
+      const footer = document.querySelector(".field-map-canvas>footer span");
+      if (footer) footer.textContent = `${routePoints.length} durak secildi`;
+      return;
+    }
+    if (fieldMap && window.L) {
+      if (fieldLocationMarker) fieldMap.removeLayer(fieldLocationMarker);
+      fieldLocationMarker = window.L.marker([point.lat, point.lng]).addTo(fieldMap).bindPopup("Konum");
+    }
+    map?.select(point.lat, point.lng);
+  }
+
+  async function requestFieldVectorMap() {
+    const button = document.querySelector("[data-field-vector-toggle]");
+    if (vectorMapFrame) return toggleFieldVectorMap();
+    if (button?.disabled) return;
+    if (button) button.disabled = true;
+    try {
+      const keyStatus = await apiFetch("/api/desktop/field-service/tomtom-key");
+      const status = String(keyStatus.status || "missing");
+      if (status === "configured") return toggleFieldVectorMap();
+      if (window.ayecIsAdmin?.()) {
+        await openFieldTomTomKeyDialog(() => toggleFieldVectorMap());
+        return;
+      }
+      toast(status === "unavailable"
+        ? "TomTom anahtari okunamiyor. Firma yoneticisinden anahtari yenilemesini isteyin."
+        : "3D harita icin firma yoneticisinin TomTom anahtari ayarlamasi gerekiyor.", "warning");
+    } catch (error) {
+      toast(error.message || "TomTom anahtar durumu alinamadi.", "error");
+    } finally {
+      if (button?.isConnected) button.disabled = false;
+    }
   }
 
   function toggleFieldVectorMap() {
@@ -518,6 +758,7 @@
         if (vectorMapFrame !== frame) return;
         vectorMapReady = true;
         syncVectorMap();
+        mapWindow.ayecTomTomMap.onClick?.(handleVectorMapClick);
         mapWindow.ayecTomTomMap.flyTo(fieldMapCenter.lat, fieldMapCenter.lng, 14);
       }, { once: true });
       mapWindow?.addEventListener("ayec-map-error", event => {
@@ -525,16 +766,30 @@
         const footer = document.querySelector(".field-map-canvas>footer span");
         if (footer) footer.textContent = "3D harita kullanilamadi; 2D haritaya donuluyor.";
         if (event.detail) console.warn("TomTom vector map failed", event.detail);
+        toast("3D harita kullanilamadi. 2D harita acik.", "warning");
         toggleFieldVectorMap();
       }, { once: true });
       if (typeof mapWindow?.initAyecTomTomMap !== "function") {
         frame.title = "3D harita yuklenemedi. Tekrar deneyin veya 2D haritaya donun.";
+        const footer = document.querySelector(".field-map-canvas>footer span");
+        if (footer) footer.textContent = "3D harita yuklenemedi; 2D haritaya donuluyor.";
+        toast("3D harita yuklenemedi. 2D harita acik.", "warning");
+        toggleFieldVectorMap();
         return;
       }
       const started = mapWindow.initAyecTomTomMap("ayec-server-proxy", fieldMapCenter.lat, fieldMapCenter.lng);
-      if (!started && vectorMapFrame === frame) toggleFieldVectorMap();
+      if (!started && vectorMapFrame === frame) {
+        const footer = document.querySelector(".field-map-canvas>footer span");
+        if (footer) footer.textContent = "3D harita baslatilamadi; 2D haritaya donuluyor.";
+        toast("3D harita baslatilamadi. 2D harita acik.", "warning");
+        toggleFieldVectorMap();
+      }
       window.setTimeout(() => {
-        if (vectorMapFrame === frame && !vectorMapReady) toggleFieldVectorMap();
+        if (vectorMapFrame !== frame || vectorMapReady) return;
+        const footer = document.querySelector(".field-map-canvas>footer span");
+        if (footer) footer.textContent = "3D harita gecikti; 2D haritaya donuluyor.";
+        toast("3D harita zamaninda yuklenemedi. 2D harita acik.", "warning");
+        toggleFieldVectorMap();
       }, 10000);
     }, { once: true });
   }
@@ -559,12 +814,15 @@
     const initialization = (async () => {
       const L = await loadLeaflet();
       if (!root.isConnected) return null;
-      fieldMap = L.map(root, { zoomControl: false }).setView([fieldMapCenter.lat, fieldMapCenter.lng], 13);
+      fieldMap = L.map(root, {
+        zoomControl: false, zoomSnap: 0.25, zoomDelta: 0.25, minZoom: 10, maxZoom: 19
+      }).setView([fieldMapCenter.lat, fieldMapCenter.lng], 17);
       fieldMapElement = root;
       fieldMap.on("click", event => {
         const point = { lat: event.latlng.lat, lng: event.latlng.lng };
         if (routeDrawing) {
           routePoints.push(point);
+          updateFieldRouteControls();
           if (routeLine) fieldMap.removeLayer(routeLine);
           routeLine = L.polyline(routePoints.map(item => [item.lat, item.lng]), {
             color: "#4edea3", weight: 4, opacity: 0.9, dashArray: "8 6"
@@ -587,7 +845,7 @@
           L.DomEvent.disableClickPropagation(button);
           L.DomEvent.on(button, "click", event => {
             L.DomEvent.preventDefault(event);
-            fieldMap.setView([fieldMapCenter.lat, fieldMapCenter.lng], 13);
+            fieldMap.setView([fieldMapCenter.lat, fieldMapCenter.lng], fieldMap.getZoom());
           });
           return button;
         };
@@ -595,7 +853,8 @@
       }
       ensureFieldMapDarkFilter();
       L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 19,
+        maxZoom: 20,
+        maxNativeZoom: 19,
         className: "field-map-base-tiles",
         referrerPolicy: "strict-origin-when-cross-origin",
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors'
@@ -640,18 +899,10 @@
       const details = [person.job || person.role || "Personel", person.status || "", person.last_seen || ""]
         .filter(Boolean).map(value => esc(value)).join("<br>");
       marker.bindPopup(`<strong>${esc(person.name || "Personel")}</strong><br>${details}`);
-      marker.on("click", () => selectPersonnelCard(person.id));
+      marker.on("click", () => selectPersonnelMarker(person, point));
       personnelMarkers.set(String(person.id), marker);
     });
-    if (located.length > 1) {
-      const bounds = L.latLngBounds(located.map(item => [item.point.lat, item.point.lng]));
-      fieldMap.fitBounds(bounds, { padding: [32, 32], maxZoom: 14 });
-    } else if (located.length === 1) {
-      const point = located[0].point;
-      fieldMap.setView([point.lat, point.lng], 14);
-    } else {
-      fieldMap.setView([fieldMapCenter.lat, fieldMapCenter.lng], 13);
-    }
+    fieldMap.setView([fieldMapCenter.lat, fieldMapCenter.lng], 17);
     if (officeMarker) officeMarker.setLatLng([fieldMapCenter.lat, fieldMapCenter.lng]);
     setTimeout(() => fieldMap?.invalidateSize(), 100);
   }
@@ -725,6 +976,7 @@
   function focusFieldLocation(result, zoom = 15) {
     const point = coordinate({ lat: result.lat, lng: result.lon });
     if (!point || !fieldMap || !window.L) return;
+    selectedFieldCoordinates = { lat: point.lat, lng: point.lng };
     if (fieldLocationMarker) fieldMap.removeLayer(fieldLocationMarker);
     fieldLocationMarker = window.L.marker([point.lat, point.lng]).addTo(fieldMap)
       .bindPopup(esc(result.display_name || "Konum"));
@@ -806,6 +1058,22 @@
       fieldMap.flyTo([point.lat, point.lng], 16);
       if (marker) marker.openPopup();
     }
+  }
+
+  function selectPersonnelMarker(person, point) {
+    if (!fieldMap || !point) return;
+    if (fieldLocationMarker) fieldMap.removeLayer(fieldLocationMarker);
+    fieldLocationMarker = null;
+    selectedFieldCoordinates = { lat: point.lat, lng: point.lng };
+    fieldLocationAddress = "";
+    renderFieldCustomerLocationCard();
+    const footer = document.querySelector(".field-map-canvas>footer span");
+    if (footer) footer.textContent = `${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}`;
+    document.querySelector("[data-field-panel-mode='teams']")?.click();
+    selectPersonnelCard(person.id);
+    const search = document.querySelector("#genericSearch");
+    search?.focus();
+    search?.select();
   }
 
   function updateLocationShareControl() {
@@ -969,7 +1237,7 @@
       button.type = "button";
       button.className = "secondary field-traffic-toggle";
       button.dataset.fieldTrafficToggle = "";
-      button.addEventListener("click", () => setTrafficActive(!trafficActive));
+      button.addEventListener("click", requestFieldTraffic);
       actionHost.append(button);
       updateTrafficControl();
     }
@@ -980,13 +1248,27 @@
       button.dataset.fieldVectorToggle = "";
       button.textContent = vectorMapFrame ? "2D Haritaya Don" : "3D Vektor";
       button.setAttribute("aria-pressed", String(Boolean(vectorMapFrame)));
-      button.addEventListener("click", toggleFieldVectorMap);
+      button.addEventListener("click", requestFieldVectorMap);
+      actionHost.append(button);
+    }
+    if (window.ayecIsAdmin?.() && mapHeader && !mapHeader.querySelector("[data-field-tomtom-settings]")) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "secondary field-tomtom-settings";
+      button.dataset.fieldTomtomSettings = "";
+      button.textContent = "TomTom API";
+      button.title = "TomTom anahtarini bu firma icin guvenli kaydet ve baglantiyi test et";
+      button.addEventListener("click", event => {
+        event.preventDefault();
+        event.stopPropagation();
+        openFieldTomTomKeyDialog();
+      });
       actionHost.append(button);
     }
     if (mapHeader && !mapHeader.querySelector(".field-location-search")) {
       const search = document.createElement("div");
       search.className = "field-location-search";
-      search.innerHTML = '<input id="fieldLocationSearch" class="control" type="search" maxlength="250" placeholder="Adres veya koordinat ara"><button type="button" class="secondary" data-field-location-search>Ara</button><div id="fieldLocationResults" role="listbox"></div>';
+      search.innerHTML = '<input id="fieldLocationSearch" class="control" type="search" maxlength="250" placeholder="Adres veya koordinat ara"><button type="button" class="secondary" data-field-location-search>Haritada Bul</button><div id="fieldLocationResults" role="listbox"></div>';
       actionHost.append(search);
       search.querySelector("[data-field-location-search]").addEventListener("click", searchFieldLocation);
       search.querySelector("input").addEventListener("keydown", event => {
@@ -1046,6 +1328,7 @@
 
   const showContextBeforeFieldPersonnel = showContext;
   showContext = function(event, kind, id) {
+    if (kind === "service" && page === "dashboard" && window.ayecServiceContextHandler) return window.ayecServiceContextHandler(event, kind, id);
     if (kind !== "field-personnel") return showContextBeforeFieldPersonnel(event, kind, id);
     if (!ayecContextMenuEnabled()) return;
     event.preventDefault();

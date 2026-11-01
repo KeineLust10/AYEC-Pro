@@ -209,14 +209,14 @@ class ServiceStatusPage(QWidget):
         self.is_broadcasting = False
         self.cards = {}
         self.status_page = 0
-        self.status_page_size = 7
+        self.status_page_size = 1000
         self.setup_ui()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
         if not hasattr(self, "table"):
             return
-        page_size = 7
+        page_size = 1000
         if self.status_page_size != page_size:
             self.status_page_size = page_size
             self.status_page = 0
@@ -247,7 +247,7 @@ class ServiceStatusPage(QWidget):
         lbl_head.setStyleSheet(theme_qss("font-size: 20px; font-weight: 800; color: @text;"))
         lbl_sub = QLabel(
             "At\u00f6lye ve saha servis operasyonlar\u0131n\u0131n anl\u0131k hareket ak\u0131\u015f\u0131, "
-            "cihaz teslimat durumlar\u0131 ve AI asistan bildirimleri"
+            "cihaz teslimat durumlar\u0131 ve g\u00fcnl\u00fck servis ak\u0131\u015flar\u0131"
         )
         lbl_sub.setStyleSheet(theme_qss("font-size: 13px; color: @text_muted;"))
         lbl_sub.setWordWrap(True)
@@ -486,9 +486,10 @@ class ServiceStatusPage(QWidget):
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         for column, width in {
-            0: 100, 1: 82, 3: 76, 4: 72, 5: 86, 6: 60, 7: 72,
+            0: 112, 1: 156, 3: 104, 4: 100, 5: 104, 6: 88, 7: 116,
         }.items():
             self.table.setColumnWidth(column, width)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         header.moveSection(header.visualIndex(8), 5)
         self.table.setColumnWidth(8, 68)
@@ -530,6 +531,9 @@ class ServiceStatusPage(QWidget):
         pager.addWidget(self.status_previous)
         pager.addWidget(self.status_page_label)
         pager.addWidget(self.status_next)
+        self.status_previous.hide()
+        self.status_page_label.hide()
+        self.status_next.hide()
         tl.addLayout(pager)
         flow_frame = QFrame()
         flow_frame.setObjectName("StatusFlowFrame")
@@ -548,110 +552,10 @@ class ServiceStatusPage(QWidget):
         left_workspace.setSpacing(8)
         table_frame.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         table_frame.setMinimumHeight(430)
-        table_frame.setMaximumHeight(min(510, max(460, int(self.height() * 0.53))))
         left_workspace.addWidget(table_frame, 3)
         left_workspace.addWidget(flow_frame, 0)
-        left_workspace.addStretch(1)
-        workspace = QHBoxLayout()
-        workspace.setSpacing(0)
-        workspace.addLayout(left_workspace, 2)
+        content_layout.addLayout(left_workspace, 1)
 
-        side_panel = QFrame()
-        side_panel.setMinimumWidth(320)
-        side_panel.setObjectName("StatusAssistant")
-        side_panel.setStyleSheet(theme_qss("QFrame#StatusAssistant { background:@background;border:none;border-radius:4px; } QLabel { border:none; }"))
-        side_groups = QVBoxLayout(side_panel)
-        side_groups.setContentsMargins(0, 0, 0, 0)
-        side_groups.setSpacing(8)
-        assistant_group = QFrame()
-        assistant_group.setObjectName("StatusAssistantGroup")
-        assistant_group.setStyleSheet(theme_qss("QFrame#StatusAssistantGroup{background:@finance_surface;border:none;border-top:3px solid @finance_tertiary;border-radius:4px;}"))
-        # Keep live alerts beside the service movement table.
-        side_groups.addWidget(assistant_group)
-        side_layout = QVBoxLayout(assistant_group)
-        side_layout.setContentsMargins(10, 8, 10, 8)
-        side_layout.setSpacing(8)
-        assistant_header = QHBoxLayout()
-        assistant_title = QVBoxLayout()
-        side_title = QLabel("AYEC Servis Asistani")
-        side_title.setStyleSheet(theme_qss("color: @text; font-size: 15px; font-weight: 800;"))
-        assistant_title.addWidget(side_title)
-        assistant_subtitle = QLabel("Yapay Zeka Operasyon Botu")
-        assistant_subtitle.setStyleSheet(theme_qss("color:@accent;font-size:10px;font-weight:700;"))
-        assistant_title.addWidget(assistant_subtitle)
-        assistant_header.addLayout(assistant_title, 1)
-        assistant_state = QLabel("AKTIF")
-        assistant_state.setStyleSheet(theme_qss("color:@finance_text_muted;background:@finance_surface_alt;padding:3px 6px;border-radius:3px;font-size:9px;font-weight:800;"))
-        assistant_header.addWidget(assistant_state, 0, Qt.AlignmentFlag.AlignTop)
-        side_layout.addLayout(assistant_header)
-        appointment_title = QLabel("Iyi gunler! Randevu Bildirimi")
-        appointment_title.setStyleSheet(theme_qss("color:@accent;font-size:11px;font-weight:800;"))
-        side_layout.addWidget(appointment_title)
-        notice = QLabel("Randevu kay\u0131tlar\u0131 okunuyor...")
-        self.status_appointment_notice = notice
-        notice.setTextFormat(Qt.TextFormat.PlainText)
-        notice.setWordWrap(True)
-        notice.setStyleSheet(theme_qss("color:@finance_text;background:@finance_surface_alt;padding:10px;border:1px solid @finance_outline;border-radius:6px;font-size:11px;"))
-        side_layout.addWidget(notice)
-        self.status_appointment_button = QPushButton("Randevuya Git")
-        self.status_appointment_button.clicked.connect(lambda: self._navigate_status_page(30))
-        side_layout.addWidget(self.status_appointment_button)
-        stock_title = QLabel("Kritik Stok Uyarisi")
-        stock_title.setStyleSheet(theme_qss("color:@warning;font-size:11px;font-weight:800;"))
-        side_layout.addWidget(stock_title)
-        stock_notice = QLabel("Stok kay\u0131tlar\u0131 okunuyor...")
-        self.status_stock_notice = stock_notice
-        stock_notice.setTextFormat(Qt.TextFormat.PlainText)
-        stock_notice.setWordWrap(True)
-        stock_notice.setStyleSheet(theme_qss("color:@warning;background:@finance_surface_alt;padding:10px;border:1px solid @finance_outline;border-radius:6px;font-size:11px;"))
-        side_layout.addWidget(stock_notice)
-        self.status_stock_button = QPushButton("Stok Listesini A\u00e7")
-        self.status_stock_button.clicked.connect(lambda: self._navigate_status_page(50))
-        side_layout.addWidget(self.status_stock_button)
-        technician_group = QFrame()
-        technician_group.setObjectName("StatusTechnicianGroup")
-        technician_group.setStyleSheet(theme_qss("QFrame#StatusTechnicianGroup{background:@finance_surface;border:none;border-radius:4px;}"))
-        side_groups.addWidget(technician_group)
-        side_layout = QVBoxLayout(technician_group)
-        side_layout.setContentsMargins(10, 8, 10, 8)
-        side_layout.setSpacing(8)
-        tech_header = QHBoxLayout()
-        tech_title = QLabel("Teknisyen & Saha Durumu")
-        tech_title.setStyleSheet(theme_qss("color: @text; font-weight: 800;"))
-        tech_header.addWidget(tech_title, 1)
-        self.status_personnel_count = QLabel("0 Aktif")
-        self.status_personnel_count.setStyleSheet(theme_qss("color:@accent;font-size:10px;font-weight:800;"))
-        tech_header.addWidget(self.status_personnel_count)
-        side_layout.addLayout(tech_header)
-        self.status_personnel_layout = QVBoxLayout()
-        self.status_personnel_layout.setContentsMargins(0, 0, 0, 0)
-        side_layout.addLayout(self.status_personnel_layout)
-        self.status_personnel_button = QPushButton("T\u00fcm Teknisyenleri G\u00f6r")
-        self.status_personnel_button.clicked.connect(lambda: self._navigate_status_page(10))
-        side_layout.addWidget(self.status_personnel_button)
-        for button in (self.status_appointment_button, self.status_stock_button, self.status_personnel_button):
-            button.setEnabled(callable(getattr(self.main_window, "on_menu_click", None)))
-            button.setFixedHeight(28)
-            button.setStyleSheet(theme_qss("QPushButton{background:@finance_surface_alt;color:@finance_text;border:1px solid @finance_outline;border-radius:4px;padding:0 6px;min-height:24px;font-size:11px;font-weight:700;}QPushButton:disabled{color:@disabled_text;}QPushButton:hover{border-color:@accent;}"))
-        camera_group = QFrame()
-        camera_group.setObjectName("StatusCameraGroup")
-        camera_group.setStyleSheet(theme_qss("QFrame#StatusCameraGroup{background:@finance_surface;border:none;border-radius:4px;}"))
-        side_groups.addWidget(camera_group)
-        side_layout = QVBoxLayout(camera_group)
-        side_layout.setContentsMargins(10, 8, 10, 8)
-        side_layout.setSpacing(8)
-        camera_title = QLabel("At\u00f6lye Canl\u0131 Kamera 01  \u2022  BA\u011eLI DE\u011e\u0130L")
-        camera_title.setStyleSheet(theme_qss("color: @text; font-weight: 800;"))
-        side_layout.addWidget(camera_title)
-        camera_preview = QLabel("Kamera kayna\u011f\u0131 yap\u0131land\u0131r\u0131lmam\u0131\u015f.\nCanl\u0131 g\u00f6r\u00fcnt\u00fc mevcut de\u011fil.")
-        camera_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        camera_preview.setMinimumHeight(112)
-        camera_preview.setStyleSheet(theme_qss("color:@text_muted;background:@finance_surface_alt;border:1px solid @finance_outline;border-radius:4px;font-size:11px;font-weight:700;"))
-        side_layout.addWidget(camera_preview)
-        side_groups.addStretch()
-        side_panel.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
-        workspace.addWidget(side_panel, 1)
-        content_layout.addLayout(workspace, 1)
 
         self.root_layout.addWidget(content, 1)
 
@@ -710,7 +614,6 @@ class ServiceStatusPage(QWidget):
     def load_data(self):
         self._last_load_at = time.monotonic()
         self.timer_counter = 30
-        self._refresh_status_assistant()
         self._refresh_status_flow()
         # Update Table
         self.table.setRowCount(0)
@@ -811,96 +714,7 @@ class ServiceStatusPage(QWidget):
             self.status_flow_note.setText("Ak\u0131\u015f kay\u0131tlar\u0131 okunamad\u0131")
             self.status_flow_note.setToolTip(str(error))
         self.status_flow_chart.set_counts(counts)
-        self.status_flow_chart.setVisible(True)
-
-    def _navigate_status_page(self, page_id):
-        navigator = getattr(self.main_window, "on_menu_click", None)
-        if callable(navigator):
-            navigator(page_id)
-
-    def _status_table_columns(self, table):
-        if table not in ("appointments", "parts", "personnel"):
-            raise ValueError("Unsupported status data source")
-        return {record[1] for record in self.db.cursor.execute("PRAGMA table_info({})".format(table)).fetchall()}
-
-    def _refresh_status_assistant(self):
-        try:
-            columns = self._status_table_columns("appointments")
-            if not {"date", "time", "customer_name", "description", "status"}.issubset(columns):
-                raise ValueError("Randevu veri alanlar\u0131 mevcut de\u011fil.")
-            deleted = " AND COALESCE(is_deleted,0)=0" if "is_deleted" in columns else ""
-            records = self.db.cursor.execute(
-                "SELECT time,customer_name,description,status FROM appointments WHERE SUBSTR(date,1,10)=?"
-                + deleted + " ORDER BY time", (QDate.currentDate().toString("yyyy-MM-dd"),)).fetchall()
-            pending = [row for row in records if str(row[3] or "").upper().replace("\u0130", "I") not in
-                       ("TAMAMLANDI", "IPTAL", "COMPLETED", "CANCELLED", "CANCELED")]
-            text = "Bug\u00fcn {} bekleyen randevu var.".format(len(pending))
-            if pending:
-                text += "\n{} | {}\n{}".format(pending[0][0] or "-", pending[0][1] or "-", pending[0][2] or "")
-            self.status_appointment_notice.setText(text)
-        except Exception as error:
-            self.status_appointment_notice.setText("Randevu kay\u0131tlar\u0131 okunamad\u0131.")
-            self.status_appointment_notice.setToolTip(str(error))
-        try:
-            columns = self._status_table_columns("parts")
-            name = "name" if "name" in columns else "part_name"
-            if not {name, "stock", "min_stock"}.issubset(columns):
-                raise ValueError("Stok veri alanlar\u0131 mevcut de\u011fil.")
-            deleted = " AND COALESCE(is_deleted,0)=0" if "is_deleted" in columns else ""
-            rows = self.db.cursor.execute(
-                "SELECT {},stock,min_stock FROM parts WHERE COALESCE(min_stock,0)>0 "
-                "AND COALESCE(stock,0)<=min_stock".format(name) + deleted + " ORDER BY stock").fetchall()
-            lines = ["{} | Stok: {} / E\u015fik: {}".format(*row) for row in rows]
-            self.status_stock_notice.setText("Kritik stok: {} \u00fcr\u00fcn\n{}".format(len(rows), "\n".join(lines[:2]))
-                                            if rows else "Kritik stok uyar\u0131s\u0131 bulunmuyor.")
-            self.status_stock_notice.setToolTip("\n".join(lines))
-        except Exception as error:
-            self.status_stock_notice.setText("Stok kay\u0131tlar\u0131 okunamad\u0131.")
-            self.status_stock_notice.setToolTip(str(error))
-        while self.status_personnel_layout.count():
-            item = self.status_personnel_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-        personnel = []
-        try:
-            columns = self._status_table_columns("personnel")
-            if not {"name", "role"}.issubset(columns):
-                raise ValueError("Personel veri alanlar\u0131 mevcut de\u011fil.")
-            state = "COALESCE(status,'')" if "status" in columns else "''"
-            where = " WHERE COALESCE(is_deleted,0)=0" if "is_deleted" in columns else " WHERE 1=1"
-            if "is_active" in columns:
-                where += " AND COALESCE(is_active,1)=1"
-            rows = self.db.cursor.execute("SELECT name,role," + state + " FROM personnel" + where + " ORDER BY name").fetchall()
-            personnel = [row for row in rows if any(word in str(row[1] or "").casefold().replace("\u0131", "i").replace("\u0307", "")
-                                                    for word in ("teknisyen", "saha", "destek", "personel"))]
-        except Exception as error:
-            logger.warning("Status personnel source could not be read: %s", error)
-        self.status_personnel_count.setText("{} Aktif".format(len(personnel)))
-        for index, (name, role, state) in enumerate(personnel[:3]):
-            row = QFrame()
-            row.setStyleSheet(theme_qss("QFrame{background:@finance_surface_alt;border:none;border-radius:4px;}"))
-            row_layout = QHBoxLayout(row)
-            row_layout.setContentsMargins(8, 6, 8, 6)
-            row_layout.setSpacing(8)
-            initials = "".join(part[:1] for part in str(name).split()[:2]).upper() or "--"
-            avatar = QLabel(initials)
-            avatar.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            avatar.setFixedSize(28, 28)
-            avatar_color = ("@accent", "@finance_tertiary", "@finance_text") [index % 3]
-            avatar.setStyleSheet(theme_qss("color:{};background:@finance_surface;border-radius:14px;font-size:10px;font-weight:800;".format(avatar_color)))
-            row_layout.addWidget(avatar)
-            person_text = QVBoxLayout()
-            person_name = QLabel(str(name))
-            person_name.setStyleSheet(theme_qss("color:@finance_text;font-size:11px;font-weight:700;"))
-            person_role = QLabel("{} | {}".format(role, state or "Durum bildirilmemi\u015f"))
-            person_role.setWordWrap(True)
-            person_role.setStyleSheet(theme_qss("color:@finance_text_muted;font-size:10px;"))
-            person_text.addWidget(person_name)
-            person_text.addWidget(person_role)
-            row_layout.addLayout(person_text, 1)
-            self.status_personnel_layout.addWidget(row)
-        if not personnel:
-            self.status_personnel_layout.addWidget(QLabel("Teknisyen kayd\u0131 bulunmuyor veya okunamad\u0131."))
+        self.status_flow_chart.setVisible(any(counts))
 
     @staticmethod
     def _status_record_date(value):

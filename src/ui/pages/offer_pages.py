@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
+    QSizePolicy,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -220,7 +221,45 @@ class OffersPage(_ListPageBase):
         self._search_refresh_timer.setInterval(180)
         self._search_refresh_timer.timeout.connect(self.refresh_data)
         self._build_ui()
+        self._fit_offer_table()
         self.refresh_data()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._fit_offer_table()
+
+    def _fit_offer_table(self):
+        table = getattr(self, "table", None)
+        if table is None:
+            return
+        header = table.horizontalHeader()
+        compact = table.viewport().width() < 900
+        table.setColumnHidden(5, compact)
+        table.setColumnHidden(7, compact)
+        header.setFixedHeight(46 if compact else 40)
+        if compact:
+            header.setStretchLastSection(True)
+            widths = {0: 70, 1: 56, 2: 94, 3: 74, 4: 118, 6: 68, 8: 48, 9: 80}
+            for column in range(table.columnCount()):
+                if column in (5, 7):
+                    continue
+                header.setSectionResizeMode(column, QHeaderView.ResizeMode.Fixed)
+                table.setColumnWidth(column, widths[column])
+            table.setTextElideMode(Qt.TextElideMode.ElideRight)
+            for column, text in ((0, "No"), (1, "Tarih"), (2, "M\u00fc\u015fteri"), (3, "Firma"), (4, "Tutar"), (6, "Durum"), (8, "A\u00e7"), (9, "D\u00fczenle")):
+                table.horizontalHeaderItem(column).setText(text)
+        else:
+            header.setStretchLastSection(False)
+            for column in range(table.columnCount()):
+                table.horizontalHeader().setSectionResizeMode(
+                    column,
+                    QHeaderView.ResizeMode.Fixed if column in (0, 8, 9)
+                    else QHeaderView.ResizeMode.Stretch,
+                )
+                table.setColumnHidden(column, False)
+            for column, text in ((0, "Teklif No"), (1, "Tarih"), (2, "M\u00fc\u015fteri"), (3, "Firma"), (4, "TOPLAM\nTUTAR"), (5, "G\u00d6NDEREN\nPERSONEL"), (6, "ONAY\nDURUMU"), (7, "NOT /\nEVRAK"), (8, "A\u00e7"), (9, "D\u00fczenle")):
+                table.horizontalHeaderItem(column).setText(text)
+            table.setTextElideMode(Qt.TextElideMode.ElideNone)
 
     def _schedule_refresh_data(self, *_args):
         self._search_refresh_timer.start()
@@ -381,7 +420,9 @@ class OffersPage(_ListPageBase):
         content.setSpacing(12)
         self.reference_list_column = QVBoxLayout()
         self.reference_list_column.setSpacing(4)
-        self.reference_list_column.addWidget(self.table)
+        self.table.setMinimumHeight(220)
+        self.table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.reference_list_column.addWidget(self.table, 1)
         content.addLayout(self.reference_list_column, 2)
         content.addWidget(self._build_preview_panel(), 1)
         root.addLayout(content, 1)
@@ -413,7 +454,6 @@ class OffersPage(_ListPageBase):
                 "border-radius: 4px; padding: 0 6px; font-size: 11px;"
             ))
         self.reference_list_column.addLayout(footer)
-        self.reference_list_column.addStretch(1)
 
     @staticmethod
     def _offer_card(title, accent, glyph="excel"):
@@ -450,15 +490,15 @@ class OffersPage(_ListPageBase):
             "QFrame#OfferPreviewPanel { background: @surface_alt; border: 1px solid @border; border-radius: 6px; }"
         ))
         layout = QVBoxLayout(panel)
-        layout.setContentsMargins(14, 14, 14, 14)
-        layout.setSpacing(10)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(6)
 
         title = QLabel("M\u00fc\u015fteri ve \u0130\u015flem")
         title.setStyleSheet(theme_qss("font-size: 15px; font-weight: 800; color: @text;"))
         layout.addWidget(title)
         hint = QLabel("Bir teklif sat\u0131r\u0131n\u0131 a\u00e7\u0131n veya yeni teklif olu\u015fturun.")
         hint.setWordWrap(True)
-        hint.setStyleSheet(theme_qss("color: @text_muted; font-size: 11px;"))
+        hint.setStyleSheet(theme_qss("color: @text_muted; font-size: 10px;"))
         layout.addWidget(hint)
 
         self.preview_fields = {}
@@ -474,10 +514,10 @@ class OffersPage(_ListPageBase):
                 "QFrame#OfferPreviewField { background: @surface; border: 1px solid @border; border-radius: 4px; }"
             ))
             row_layout = QVBoxLayout(row)
-            row_layout.setContentsMargins(10, 7, 10, 7)
+            row_layout.setContentsMargins(8, 4, 8, 4)
             row_layout.setSpacing(2)
             key = QLabel(label)
-            key.setStyleSheet(theme_qss("color: @text_muted; font-size: 10px; font-weight: 700;"))
+            key.setStyleSheet(theme_qss("color: @text_muted; font-size: 9px; font-weight: 700;"))
             val = QLabel(value)
             val.setStyleSheet(theme_qss("color: @text; font-weight: 750;"))
             self.preview_fields[key_name] = val
@@ -497,10 +537,12 @@ class OffersPage(_ListPageBase):
 
         summary = QFrame()
         summary.setObjectName("OfferPreviewSummary")
+        summary.setMinimumHeight(92)
         summary.setStyleSheet(theme_qss("QFrame#OfferPreviewSummary { background: @surface; border: 1px solid @border; border-radius: 4px; }"))
         summary_layout = QGridLayout(summary)
-        summary_layout.setContentsMargins(10, 8, 10, 8)
-        summary_layout.setHorizontalSpacing(12)
+        summary_layout.setContentsMargins(8, 5, 8, 5)
+        summary_layout.setHorizontalSpacing(8)
+        summary_layout.setVerticalSpacing(2)
         self.preview_amounts = {}
         for row_index, (amount_key, caption, color) in enumerate((
             ("subtotal", "Ara Toplam", "@text"),
@@ -511,16 +553,12 @@ class OffersPage(_ListPageBase):
             caption_label = QLabel(caption)
             caption_label.setStyleSheet(theme_qss("color: @text_muted; font-size: 9px; font-weight: 700;"))
             value_label = QLabel("-")
-            value_label.setStyleSheet(theme_qss(f"color: {color}; font-size: 12px; font-weight: 850;"))
+            value_label.setStyleSheet(theme_qss(f"color: {color}; font-size: 10px; font-weight: 850;"))
             self.preview_amounts[amount_key] = value_label
             summary_layout.addWidget(caption_label, row_index, 0)
             summary_layout.addWidget(value_label, row_index, 1)
         layout.addWidget(summary)
 
-        layout.addStretch()
-        self.preview_total = QLabel("Teklif hacmi\n0")
-        self.preview_total.setStyleSheet(theme_qss("color: @success; font-size: 18px; font-weight: 850;"))
-        layout.addWidget(self.preview_total)
         approve = QPushButton("Teklif Aninda Onaylansin")
         approve.setCheckable(True)
         approve.setStyleSheet(theme_qss("QPushButton{background:@surface;color:@text;border:1px solid @border;border-radius:6px;padding:6px;} QPushButton:checked{background:@success_bg;color:@success;}"))
@@ -532,10 +570,12 @@ class OffersPage(_ListPageBase):
             "Servis Kayd\u0131na D\u00f6n\u00fc\u015ft\u00fcr",
         ):
             action_button = _button(action_label, "primary" if action_label.startswith("Proforma") else "secondary")
+            action_button.setFixedHeight(32)
             action_button.clicked.connect(self._edit_selected_offer)
             layout.addWidget(action_button)
             self.preview_action_buttons.append(action_button)
         create_offer = _button("Teklif Olu\u015ftur", "success")
+        create_offer.setFixedHeight(32)
         create_offer.clicked.connect(self._open_sales)
         layout.addWidget(create_offer)
         return panel
@@ -566,7 +606,6 @@ class OffersPage(_ListPageBase):
                 field.setText("-")
             for value_label in self.preview_amounts.values():
                 value_label.setText("-")
-            self.preview_total.setText("Teklif Toplam\n-")
             for button in [self.btn_add_to_basket, *self.preview_action_buttons]:
                 button.setEnabled(False)
             return
@@ -613,7 +652,6 @@ class OffersPage(_ListPageBase):
                 "color: @success; font-size: 12px; font-weight: 850;"
             ))
             total_label.setToolTip("")
-        self.preview_total.setText("Teklif Toplam\n{}".format(_money(amounts["total"], currency)))
         offer_id = int(_row_value(offer, "id", default=0) or 0)
         for button in [self.btn_add_to_basket, *self.preview_action_buttons]:
             button.setEnabled(offer_id > 0)
@@ -767,7 +805,7 @@ class OffersPage(_ListPageBase):
                     "border: none; border-radius: 4px; padding: 0 4px; font-size: 10px; font-weight: 600; }"
                     "QPushButton:hover { background: @finance_active_bg; }"
                 ))
-        self.table.setFixedHeight(34 + max(1, len(page_rows)) * 46)
+        self.table.setMinimumHeight(max(220, 34 + max(1, len(page_rows)) * 46))
         shown_start = start + 1 if page_rows else 0
         shown_end = start + len(page_rows)
         self.page_info.setText(

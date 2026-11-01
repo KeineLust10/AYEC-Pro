@@ -1,7 +1,10 @@
 import base64
 import json
+import os
+import subprocess
 import threading
 from http.server import ThreadingHTTPServer
+from pathlib import Path
 from urllib.parse import parse_qs
 from urllib.request import Request
 
@@ -133,6 +136,95 @@ def test_service_sms_uses_active_tenant_record_and_logs_provider_sid(monkeypatch
         worker.join(timeout=2)
 
 
+@pytest.mark.parametrize("viewport_width", [1280, 390])
+def test_authenticated_status_board_sms_action_sends_and_logs(monkeypatch, tmp_path, viewport_width):
+    _actor, tenant_path = _setup_tenant(monkeypatch, tmp_path)
+    _service_database(tenant_path)
+    with web_main._raw_connect(tenant_path) as conn:
+        customer_ids = []
+        for name, phone in (
+            ("SMS Customer A", "05321234567"),
+            ("SMS Customer B", "05329876543"),
+            ("SMS Customer Without Phone", ""),
+        ):
+            cursor = conn.execute("INSERT INTO customers(name,phone) VALUES(?,?)", (name, phone))
+            customer_ids.append(int(cursor.lastrowid))
+
+    def fake_urlopen(request, timeout):
+        assert timeout == 20
+        if request.data is None:
+            return FakeResponse({"friendly_name": "Demo AYEC"})
+        return FakeResponse()
+
+    send_service_sms = web_main.desktop_send_service_sms
+    monkeypatch.setattr(
+        web_main,
+        "desktop_send_service_sms",
+        lambda conn, payload, urlopen_fn=None, target_override=None: send_service_sms(
+            conn,
+            payload,
+            urlopen_fn=urlopen_fn or fake_urlopen,
+            target_override=target_override,
+        ),
+    )
+    send_customer_sms = web_main.desktop_send_customer_sms
+    monkeypatch.setattr(
+        web_main,
+        "desktop_send_customer_sms",
+        lambda conn, payload: send_customer_sms(conn, payload, urlopen_fn=fake_urlopen),
+    )
+    server = ThreadingHTTPServer(("127.0.0.1", 0), web_main.AYECRequestHandler)
+    worker = threading.Thread(target=server.serve_forever, daemon=True)
+    worker.start()
+    base_url = f"http://127.0.0.1:{server.server_address[1]}/"
+    try:
+        session = requests.Session()
+        session.headers["Origin"] = base_url.rstrip("/")
+        login = session.post(
+            f"{base_url.rstrip('/')}/api/auth/login",
+            json={"identifier": web_main.VENDOR_EMAIL, "password": "operator-test-pass", "tenant_id": "tenant-1"},
+        )
+        assert login.status_code == 200, login.text
+        env = os.environ.copy()
+        env["AYEC_SERVICE_SMS_SESSION_COOKIE"] = session.cookies.get("ayec_session", "")
+        env["AYEC_CUSTOMER_SMS_IDS"] = json.dumps(customer_ids)
+        env["AYEC_SMS_VIEWPORT_WIDTH"] = str(viewport_width)
+        env["AYEC_SMS_VIEWPORT_HEIGHT"] = "844"
+        audit = subprocess.run(
+            ["node", "tools/quality/service_sms_dialog_offscreen.cjs", base_url],
+            cwd=Path(__file__).resolve().parents[1],
+            env=env,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=45,
+            check=False,
+        )
+        assert audit.returncode == 0, audit.stderr or audit.stdout
+        result = json.loads(audit.stdout.strip().splitlines()[-1])
+        assert result["page"] == "service-status"
+        assert result["customer"] == "Test Customer"
+        assert result["closed"] is True
+        assert result["customerSmsPosts"] == 2
+        assert result["viewportWidth"] == viewport_width
+        assert result["dialogViewport"]["documentWidth"] <= viewport_width + 1
+        assert result["browserExceptions"] == 0
+        with web_main._raw_connect(tenant_path) as conn:
+            rows = conn.execute(
+                "SELECT tracking_no,phone,message,twilio_sid FROM sms_log ORDER BY id"
+            ).fetchall()
+        assert tuple(rows[0]) == ("SRV-API-1", "05321234567", "Authenticated browser SMS QA", "SM" + "a" * 32)
+        assert [tuple(row) for row in rows[1:]] == [
+            (f"customer:{customer_ids[1]}", "05329876543", "Bulk browser SMS QA 1", "SM" + "a" * 32),
+            (f"customer:{customer_ids[0]}", "05321234567", "Bulk browser SMS QA 2", "SM" + "a" * 32),
+        ]
+    finally:
+        server.shutdown()
+        server.server_close()
+        worker.join(timeout=2)
+
+
 def test_service_sms_rejects_invalid_phone_or_missing_configuration(tmp_path):
     path = tmp_path / "sms.db"
     conn = web_main._raw_connect(path)
@@ -216,3 +308,13 @@ def test_customer_sms_rejects_missing_customer_and_ui_is_manifest_wired(tmp_path
     assert "send_sms_dialog:()=>openCustomerSMSManifestDialog()" in source
     assert "/api/desktop/customer-sms" in source
     assert "customerSmsTemplate" in source
+
+
+def test_web_sms_template_lists_load_all_tenant_templates():
+    source = Path("Web_Arayuzu/web/app.js").read_text(encoding="utf-8")
+    list_start = source.index("async function loadPart9SmsTemplateRows")
+    list_end = source.index("\n", list_start)
+    provider_start = source.index("async function loadPart9SmsProviderTemplates")
+    provider_end = source.index("\n", provider_start)
+    assert 'loadAllDesktopTableRows("whatsapp_templates")' in source[list_start:list_end]
+    assert 'loadAllDesktopTableRows("whatsapp_templates")' in source[provider_start:provider_end]

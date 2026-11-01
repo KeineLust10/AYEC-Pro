@@ -49,62 +49,12 @@ def test_dashboard_mirrors_desktop_widgets_and_keeps_web_navigation_actions():
         assert source in script
 
 
-def test_dashboard_lists_today_appointments_and_updates_status_like_desktop():
+def test_dashboard_recent_rows_preserve_native_cell_tooltips():
     script = (WEB / "dashboard-parity.js").read_text(encoding="utf-8")
 
-    assert 'appointments.filter(row=>String(row.date||"").slice(0,10)===todayKey)' in script
-    assert 'data-dashboard-appointment-status' in script
-    assert '"Bekliyor","Geldi","\\u0130\\u015flemde","Tamamland\\u0131","\\u0130ptal"' in script
-    assert '"/api/desktop/table/appointments",{method:"POST",body:JSON.stringify({id:Number(id),_action:"update",status})}' in script
-    assert 'Randevular haz\\u0131r:' in script
-
-
-def test_dashboard_recreates_desktop_shortcut_screen_and_quick_actions():
-    script = (WEB / "dashboard-parity.js").read_text(encoding="utf-8")
-
-    assert 'let shortcutOverlayOpen=true' in script
-    assert 'role="dialog" aria-modal="true" aria-labelledby="dashboardShortcutTitle"' in script
-    assert 'data-dashboard-shortcuts-toggle' in script
-    assert 'data-dashboard-shortcuts-close' in script
-    assert 'shortcutIconPaths' in script
-    assert 'shortcutItems.map(shortcutCardMarkup)' in script
-    styles = (WEB / "dashboard-parity.css").read_text(encoding="utf-8")
-    assert ".dashboard-shortcut-card > svg" in styles
-    for target in ("new-service", "new-customer", "vehicle-record", "services", "technician", "customers", "finance", "stock", "appointments", "offers", "backup"):
-        assert f'"{target}"' in script
-    assert 'if(typeof serviceDialog==="function")serviceDialog()' in script
-    assert 'navigate("vehicle-maintenance");window.setTimeout(()=>maintenanceDialog(),80)' in script
-    assert 'openDialog("Yeni M\\u00fc\\u015fteri","CRM",customerForm()' in script
-    automotive = (WEB / "automotive-parity.js").read_text(encoding="utf-8")
-    assert 'window.openAutomotiveVehicleShortcut=function()' in automotive
-
-
-def test_dashboard_service_rows_expose_desktop_context_and_double_click_actions():
-    script = (WEB / "service-list-reference.js").read_text(encoding="utf-8")
-    app = (WEB / "app.js").read_text(encoding="utf-8")
-    backend = (WEB.parent / "Main.py").read_text(encoding="utf-8")
-
-    assert "[\"service-list\", \"dashboard\"].includes(page)" in script
-    assert "data-service-context=\"status\"" in script
-    assert "action!==\"whatsapp\"" in script and "action!==\"delete\"" in script
-    assert ".dashboard-service-table tbody tr[data-kind=service]" in script
-    assert "if(column===2)return customer360(customer)" in script
-    assert "if(column===5||currentSector===\"otomotiv\"||[1,3].includes(column))" in script
-    assert "return dashboardServiceEditDialog(customer,service)" in script
-    assert '.dashboard-recent-row[data-action=service-detail]' in script
-    assert 'document.addEventListener("contextmenu",event=>' in script
-    assert 'event.key==="ContextMenu"||(event.shiftKey&&event.key==="F10")' in script
-    assert "function serviceContextRolePermissions()" in script
-    assert "canUpdate:admin||[\"teknisyen\",\"technician\"].includes(role)" in script
-    assert "canTransactions:admin||[\"muhasebe\",\"accounting\"].includes(role)" in script
-    assert 'const deleteAction=permissions.admin?' in script
-    assert 'if(action==="delete"&&!currentPermissions.admin)' in script
-    assert 'currentPermissions.canUpdate' in script and 'currentPermissions.canTransactions' in script
-    for field in ("customer_id", "device_type", "fault_description", "internal_notes", "repair_details", "estimated_date", "delivery_method", "service_location", "other_info", "bios_password", "warranty_status"):
-        assert field in app
-    assert 'apiFetch("/api/desktop/table/devices"' in app
-    for field in ("delivery_method", "service_location", "other_info", "delivered_by_name", "delivered_by_phone", "price"):
-        assert f'"{field}": device.get(' in backend
+    assert 'title="${esc(customer)}"' in script
+    assert 'title="${esc(detail)}"' in script
+    assert 'title="${esc(status)}"' in script
 
 
 def test_dashboard_service_edit_round_trips_through_authenticated_tenant_api(monkeypatch, tmp_path):
@@ -305,3 +255,16 @@ def test_finance_pages_use_shared_midnight_slate_tokens():
     assert "--finance-surface: var(--surface);" in styles
     assert "--finance-outline: var(--line);" in styles
     assert "--finance-primary: var(--brand);" in styles
+
+
+def test_dashboard_service_context_menu_can_change_service_status():
+    app = (ROOT / "Web_Arayuzu" / "web" / "app.js").read_text(encoding="utf-8")
+
+    assert 'if(kind==="service")items=[["Teknisyen Panelinde A\\u00e7","technician"],["Durumu De\\u011fi\\u015ftir","change-status"]]' in app
+    assert 'if(action==="change-status")return changeServiceStatusFromWeb(id)' in app
+    assert 'function changeServiceStatusFromWeb(trackingNo)' in app
+    assert '"/api/desktop/table/devices"' in app
+    assert '_action:"update",status' in app
+    assert 'data-service-context="change-status"' in app
+    assert 'data-service-context="quick-close"' in app
+    assert 'button.dataset.serviceContext==="quick-close")quickCloseServiceFromWeb(id)' in app

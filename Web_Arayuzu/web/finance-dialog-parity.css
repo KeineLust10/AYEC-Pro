@@ -1,1 +1,15 @@
 .bank-transfer-form{grid-template-columns:minmax(0,1fr)!important}
+.tax-analysis-dialog{display:grid;gap:14px;max-height:min(68vh,620px);overflow:auto;padding:2px 4px 4px}
+.tax-analysis-intro{margin:0;color:var(--muted,#8290a4);font-size:12px;line-height:1.55}
+.tax-analysis-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.tax-analysis-fields .field{min-width:0}
+.tax-analysis-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.tax-analysis-summary article{display:grid;gap:6px;min-width:0;padding:11px;border:1px solid var(--line,#263448);border-radius:10px;background:var(--surface-2,#101b2a)}
+.tax-analysis-summary small{color:var(--muted,#8290a4);font-size:11px}
+.tax-analysis-summary strong{overflow-wrap:anywhere;font-size:14px}
+.tax-analysis-table-wrap{max-height:210px;overflow:auto}
+.tax-analysis-table-wrap table{min-width:620px}
+.tax-analysis-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;color:var(--muted,#8290a4);font-size:11px}
+.tax-analysis-footer [data-tax-source]{overflow-wrap:anywhere}
+.tax-analysis-status{margin:0;color:var(--danger,#e15a65);font-size:12px}
+@media(max-width:620px){.tax-analysis-fields{grid-template-columns:1fr}.tax-analysis-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.tax-analysis-footer{align-items:flex-start;flex-direction:column}}

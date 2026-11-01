@@ -1,5 +1,6 @@
 from pathlib import Path
 import os
+import socket
 import subprocess
 import threading
 from http.server import ThreadingHTTPServer
@@ -13,6 +14,12 @@ ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "Web_Arayuzu" / "web"
 
 
+def _free_cdp_port():
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        return listener.getsockname()[1]
+
+
 def test_loaner_workspace_matches_reference_and_supports_mobile_layout():
     app = (WEB / "app.js").read_text(encoding="utf-8")
     styles = (WEB / "midnight-reference.css").read_text(encoding="utf-8")
@@ -21,7 +28,8 @@ def test_loaner_workspace_matches_reference_and_supports_mobile_layout():
     assert 'let ayecLoanerDevices = [];' in app
     assert 'data-loaner-view="depot"' in app
     assert 'data-loaner-view="overdue"' in app
-    assert 'loaner_transactions?limit=500' in app
+    assert 'ayecLoanerDevices = await loadAllDesktopTableRows("loaner_devices")' in app
+    assert 'loadAllDesktopTableRows("loaner_transactions")' in app
     assert 'id="loanerMetricAvailable"' in app
     assert 'id="loanerSmsEnabled"' in app
     assert "const buttons = $$('.loaner-ref-tabs [data-loaner-view]')" in app
@@ -40,6 +48,43 @@ def test_loaner_workspace_matches_reference_and_supports_mobile_layout():
     assert "@media(max-width:420px){.loaner-ref-metrics" in styles
 
 
+def test_loaner_export_uses_active_filters_and_explicit_columns():
+    app = (WEB / "app.js").read_text(encoding="utf-8")
+
+    assert "function ayecLoanerExportCsv(rows, view)" in app
+    assert 'ayecLoanerFilteredRows(ayecLoanerCurrentMeta, ayecLoanerCurrentData, $("#genericSearch")?.value || "")' in app
+    assert 'ayecLoanerExportCsv(rows, ayecLoanerView)' in app
+    assert 'download("emanet-cihazlar-" + today() + ".csv", rows)' not in app
+    export = app[app.index("function ayecLoanerExportCsv(rows, view)"):app.index('document.addEventListener("click", event => {', app.index("function ayecLoanerExportCsv(rows, view)"))]
+    assert '"internal_notes"' not in export
+    assert '"G\\u00fcnl\\u00fck Ceza"' in export
+
+
+def test_loaner_depot_supports_keyboard_row_selection():
+    app = (WEB / "app.js").read_text(encoding="utf-8")
+    styles = (WEB / "midnight-reference.css").read_text(encoding="utf-8")
+    audit = (ROOT / "tools" / "quality" / "web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+    index = (WEB / "index.html").read_text(encoding="utf-8")
+
+    assert "function ayecLoanerSetCurrentRow(row)" in app
+    assert 'event.key === "ArrowDown" ? Math.min(rows.length - 1, index + 1)' in app
+    assert 'event.key === "ArrowUp" ? Math.max(0, index - 1)' in app
+    assert '.loaner-ref-table tbody tr.is-current td' in styles
+    assert "loanerKeyboardWorkflow" in audit
+    assert 'app.js?v=' in index
+
+
+def test_offscreen_route_audit_covers_loaner_return_payload_and_dialog_close():
+    audit = (ROOT / "tools" / "quality" / "web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+    assert 'if (entry.id === "loaners")' in audit
+    assert "result.loanerReturnWorkflow" in audit
+    assert 'loaner.request?.path !== "/api/desktop/loaners/return"' in audit
+    assert 'loaner.request?.payload?.transaction_id !== 99102' in audit
+    assert 'loaner.request?.payload?.condition_in !== "QA returned intact"' in audit
+    assert 'Number(loaner.request?.payload?.penalty_applied) !== 125.5' in audit
+    assert "!loaner.closed" in audit
+
+
 def test_loaner_context_menu_supports_touch_long_press_and_movement_cancel():
     app = (WEB / "app.js").read_text(encoding="utf-8")
     start = app.index('document.addEventListener("pointerdown", event => {', app.index('document.addEventListener("contextmenu", event => {'))
@@ -52,6 +97,16 @@ def test_loaner_context_menu_supports_touch_long_press_and_movement_cancel():
     assert 'Math.hypot(event.clientX - ayecLoanerContextPressOrigin.x, event.clientY - ayecLoanerContextPressOrigin.y) <= 10' in block
     assert 'document.addEventListener("pointerup", cancelAyecLoanerContextPress);' in block
     assert 'document.addEventListener("pointercancel", cancelAyecLoanerContextPress);' in block
+
+
+def test_loaner_context_menu_positions_against_rendered_height():
+    app = (WEB / "app.js").read_text(encoding="utf-8")
+    start = app.index('document.addEventListener("contextmenu", event => {', app.index("function ayecLoanerReturnDialog"))
+    end = app.index('document.addEventListener("keydown", event => {', start)
+    block = app[start:end]
+
+    assert 'innerHeight - menu.offsetHeight - 8' in block
+    assert 'actions.length * 40' not in block
 
 
 def test_loaner_desktop_metrics_and_full_width_workspace_match_desktop_density():
@@ -102,7 +157,11 @@ def test_logistics_print_actions_build_row_or_filtered_manifest():
     assert "window.print()" not in manifest
     assert 'const records = ayecLogisticsFilteredRows();' in app
     assert 'if (!records.length) { toast("Dis aktarilacak kayit bulunamadi.", "warning"); return; }' in app
-    assert 'download("lojistik-takip-" + today() + ".csv", records)' in app
+    assert 'download("lojistik-takip-" + today() + ".csv", ayecLogisticsExportCsv(records))' in app
+    assert 'function ayecLogisticsExportCsv(records)' in app
+    export = app[app.index("function ayecLogisticsExportCsv(records)"):app.index("function ayecLogisticsRender")]
+    assert '"Notlar": row.notes || ""' in export
+    assert '"internal_notes"' not in export
 
 
 def test_loaner_actions_and_category_filters_are_wired():
@@ -111,6 +170,23 @@ def test_loaner_actions_and_category_filters_are_wired():
     assert 'data-loaner-type="Switch"' in app
     assert 'data-loaner-select-all' in app
     assert 'loanerMetricOverdueDetail' in app
+
+
+def test_selected_loaner_return_uses_atomic_return_dialog():
+    app = (WEB / "app.js").read_text(encoding="utf-8")
+    start = app.index("const button = event.target.closest('[data-loaner-action=\"return-selected\"]')")
+    end = app.index("\n});", start)
+    handler = app[start:end]
+    assert "ayecLoanerReturnDialog(row)" in handler
+    assert "/api/desktop/table/loaner_transactions?limit=1" not in handler
+
+
+def test_offscreen_route_audit_covers_loaner_assignment_payload():
+    route_smoke = (ROOT / "tools" / "quality" / "web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+    assert "result.loanerAssignmentWorkflow = await auditLoanerAssignment(evaluate)" in route_smoke
+    assert 'assignment.payload.customer_name !== "Audit Loaner Customer"' in route_smoke
+    assert 'assignment.payload.condition_out !== "Screen intact with charger"' in route_smoke
+    assert 'assignment.payload.expected_return !== "2026-10-23T12:00"' in route_smoke
 
 
 def test_loaner_context_menu_and_atomic_return_match_desktop_workflow():
@@ -197,7 +273,8 @@ def test_loaner_device_forms_and_new_loan_selector_match_desktop_fields():
     assert 'payload._action = "update"' in web_device
     assert '"/api/desktop/table/loaner_devices"' in web_device
     assert 'data-generic-add' in app and 'ayecLoanerStartNewLoan();' in app
-    assert 'loaner_transactions?limit=1000' in app
+    assert 'loadAllDesktopTableRows("loaner_devices")' in app
+    assert 'loadAllDesktopTableRows("loaner_transactions")' in app
     assert 'item.status || ""' in app and 'item.status || "Depoda"' in app
     assert '"Teslim Bilgileri"' in app
 
@@ -224,7 +301,7 @@ def test_authenticated_offscreen_loaner_search_shortcut_matches_desktop(monkeypa
         env = os.environ.copy()
         env["AYEC_AUDIT_URL"] = f"{base_url}/"
         env["AYEC_LOANER_SESSION_COOKIE"] = session.cookies.get("ayec_session")
-        env["AYEC_AUDIT_CDP_PORT"] = "9262"
+        env["AYEC_AUDIT_CDP_PORT"] = str(_free_cdp_port())
         audit = subprocess.run(
             ["node", "tools/quality/loaner_keyboard_offscreen.cjs"],
             cwd=ROOT,
@@ -271,7 +348,7 @@ def test_contract_ctrl_k_targets_page_search_before_global_search(monkeypatch, t
         env["AYEC_LOANER_SESSION_COOKIE"] = session.cookies.get("ayec_session")
         env["AYEC_KEYBOARD_PAGE"] = "contracts"
         env["AYEC_KEYBOARD_KEY"] = "k"
-        env["AYEC_AUDIT_CDP_PORT"] = "9263"
+        env["AYEC_AUDIT_CDP_PORT"] = str(_free_cdp_port())
         audit = subprocess.run(
             ["node", "tools/quality/loaner_keyboard_offscreen.cjs"],
             cwd=ROOT,
@@ -317,7 +394,7 @@ def test_report_templates_ctrl_f_focuses_its_search_in_hidden_edge(monkeypatch, 
         env["AYEC_LOANER_SESSION_COOKIE"] = session.cookies.get("ayec_session")
         env["AYEC_KEYBOARD_PAGE"] = "report-templates"
         env["AYEC_KEYBOARD_KEY"] = "f"
-        env["AYEC_AUDIT_CDP_PORT"] = "9264"
+        env["AYEC_AUDIT_CDP_PORT"] = str(_free_cdp_port())
         audit = subprocess.run(
             ["node", "tools/quality/loaner_keyboard_offscreen.cjs"],
             cwd=ROOT,
@@ -366,7 +443,7 @@ def test_customer_ctrl_k_focuses_customer_filter_before_global_search(monkeypatc
         env["AYEC_KEYBOARD_PAGE"] = "customers"
         env["AYEC_KEYBOARD_KEY"] = "k"
         env["AYEC_KEYBOARD_INPUT"] = "customerSearch"
-        env["AYEC_AUDIT_CDP_PORT"] = "9265"
+        env["AYEC_AUDIT_CDP_PORT"] = str(_free_cdp_port())
         audit = subprocess.run(
             ["node", "tools/quality/loaner_keyboard_offscreen.cjs"],
             cwd=ROOT,

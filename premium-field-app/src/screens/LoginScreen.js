@@ -4,6 +4,7 @@ import {
     KeyboardAvoidingView, Platform, Image, Alert, ActivityIndicator
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import client from '../api/client';
 import { User, Lock, ChevronRight } from 'lucide-react-native';
 
@@ -45,7 +46,7 @@ export default function LoginScreen({ route, navigation }) {
                 // Allow Admin login for testing too
             }
 
-            await AsyncStorage.setItem('userToken', token);
+            await SecureStore.setItemAsync('userToken', token);
             await AsyncStorage.setItem('userData', JSON.stringify(user));
 
             onLogin(token);
@@ -76,8 +77,8 @@ export default function LoginScreen({ route, navigation }) {
                         <Text style={styles.logoText}>PB</Text>
                     </View>
                 </View>
-                <Text style={styles.welcomeText}>Saha Takip</Text>
-                <Text style={styles.subText}>Premium Bulut Teknik Servis</Text>
+                <Text style={styles.welcomeText}>AYEC Pro</Text>
+                <Text style={styles.subText}>Teknik Servis Y\u00f6netimi</Text>
             </View>
 
             <View style={styles.formSection}>
@@ -135,7 +136,7 @@ export default function LoginScreen({ route, navigation }) {
                 </TouchableOpacity>
             </View>
 
-            <Text style={styles.footerText}>© 2026 BulutTech Bilişim</Text>
+            <Text style={styles.footerText}>© 2026 AYEC Pro</Text>
         </KeyboardAvoidingView>
     );
 }

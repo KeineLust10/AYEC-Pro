@@ -129,7 +129,15 @@ class IncomeTaxTariffService:
     def available_years(self):
         return sorted((int(year) for year in self.load()["years"]), reverse=True)
 
+    @staticmethod
+    def _normalize_income_type(income_type):
+        normalized = str(income_type or "non_wage").strip()
+        if normalized not in {"wage", "non_wage"}:
+            raise ValueError("Income type must be 'wage' or 'non_wage'")
+        return normalized
+
     def get_tariff(self, year=None, income_type="non_wage"):
+        income_type = self._normalize_income_type(income_type)
         payload = self.load()
         years = payload["years"]
         selected_year = str(year or date.today().year)
@@ -138,10 +146,10 @@ class IncomeTaxTariffService:
             if not available:
                 raise ValueError("No income tax tariff is available")
             selected_year = str(available[0])
-        kind = "wage" if income_type == "wage" else "non_wage"
-        return int(selected_year), years[selected_year][kind], payload
+        return int(selected_year), years[selected_year][income_type], payload
 
     def calculate(self, tax_base, year=None, income_type="non_wage"):
+        income_type = self._normalize_income_type(income_type)
         selected_year, brackets, payload = self.get_tariff(year, income_type)
         remaining = max(0.0, float(tax_base or 0.0))
         previous_limit = 0.0

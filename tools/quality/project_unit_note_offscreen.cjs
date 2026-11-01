@@ -36,9 +36,14 @@ async function run() {
     let nextId = 0;
     const pending = new Map();
     const exceptions = [];
+    const appResponses = [];
+    const appRequests = new Map();
     socket.addEventListener("message", event => {
       const message = JSON.parse(event.data);
       if (message.method === "Runtime.exceptionThrown") exceptions.push(message.params.exceptionDetails.exception?.description || message.params.exceptionDetails.text);
+      if (message.method === "Network.requestWillBeSent" && message.params.request.url.includes("/app.js")) appRequests.set(message.params.requestId, message.params.request.url);
+      if (message.method === "Network.responseReceived" && message.params.response.url.includes("/app.js")) appResponses.push({url:message.params.response.url,status:message.params.response.status});
+      if (message.method === "Network.loadingFailed" && appRequests.has(message.params.requestId)) appResponses.push({url:appRequests.get(message.params.requestId),error:message.params.errorText});
       if (!message.id) return;
       const entry = pending.get(message.id);
       if (!entry) return;
@@ -62,18 +67,28 @@ async function run() {
     };
     await send("Page.enable");
     await send("Runtime.enable");
+    await send("Network.enable");
     await send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
     await send("Page.navigate", { url: baseUrl });
     let ready = false;
-    for (let attempt = 0; attempt < 100; attempt += 1) {
+    for (let attempt = 0; attempt < 300; attempt += 1) {
       ready = await evaluate("document.readyState === 'complete' && typeof p9EditUnitProductNote === 'function'");
       if (ready) break;
       await delay(100);
     }
-    if (!ready) throw new Error("Project note editor code did not load.");
+    if (!ready) {
+      const diagnostic = await evaluate("({readyState:document.readyState,editor:typeof p9EditUnitProductNote,appScripts:[...document.scripts].map(script=>script.src).filter(src=>src.includes('app.js'))})");
+      throw new Error("Project note editor code did not load: " + JSON.stringify({...diagnostic,appResponses,runtimeExceptions:exceptions}));
+    }
+    let authSettled = false;
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      authSettled = await evaluate("Boolean(document.querySelector('#authRoot') && (document.body.classList.contains('auth-active') || applicationStarted))");
+      if (authSettled) break;
+      await delay(100);
+    }
+    if (!authSettled) throw new Error("Authentication initialization did not settle before the project-unit fixture.");
     const result = await evaluate(`(async () => {
-      document.querySelector("#authRoot")?.remove();
-      document.body.classList.remove("auth-active");
+      hideAuth();
       const originalApiFetch = apiFetch;
       const button = document.createElement("button");
       button.className = "p9-note-edit";
@@ -93,14 +108,40 @@ async function run() {
       const state = { request: window.__projectNoteRequest, closed: !dialog.isConnected, open: dialog.open, updatedNote: button.dataset.note, buttonText: button.textContent };
       apiFetch = originalApiFetch;
       button.remove();
-      return { initial, state };
+      const host = document.querySelector("#dialogBody");
+      const savedHTML = host.innerHTML;
+      const savedParent = host.parentNode;
+      const savedNextSibling = host.nextSibling;
+      const savedStyle = host.getAttribute("style");
+      document.body.append(host);
+      host.style.cssText = "position:fixed;left:0;top:0;display:block;visibility:visible";
+      host.innerHTML = '<section class="p9-unit-products"><table><tbody><tr><td>One</td></tr><tr><td>Two</td></tr><tr><td>Three</td></tr></tbody></table></section>';
+      p9SyncInstalledProductRows();
+      const rows = [...host.querySelectorAll(".p9-unit-products tbody tr")];
+      rows[0].focus();
+      rows[0].dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+      const down = { focused: document.activeElement === rows[1], selected: rows.map(row => row.getAttribute("aria-selected")), tabStops: rows.filter(row => row.tabIndex === 0).length };
+      rows[1].dispatchEvent(new KeyboardEvent("keydown", { key: "End", bubbles: true }));
+      const end = document.activeElement === rows[2] && rows.map(row => row.getAttribute("aria-selected")).join(",") === "false,false,true";
+      rows[2].dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }));
+      const up = document.activeElement === rows[1] && rows[1].getAttribute("aria-selected") === "true";
+      rows[1].dispatchEvent(new KeyboardEvent("keydown", { key: "Home", bubbles: true }));
+      const home = document.activeElement === rows[0] && rows[0].getAttribute("aria-selected") === "true";
+      host.innerHTML = savedHTML;
+      if (savedNextSibling && savedNextSibling.parentNode === savedParent) savedParent.insertBefore(host, savedNextSibling);
+      else savedParent.append(host);
+      if (savedStyle === null) host.removeAttribute("style");
+      else host.setAttribute("style", savedStyle);
+      return { initial, state, keyboard: { down, end, up, home } };
     })()`);
     const expected = result.state.request?.url === "/api/desktop/table/project_unit_products"
       && result.state.request.payload.id === 953
       && result.state.request.payload.notes === "Updated fixture note"
       && result.state.request.payload._action === "update"
       && result.state.closed && !result.state.open
-      && result.state.updatedNote === "Updated fixture note";
+      && result.state.updatedNote === "Updated fixture note"
+      && result.keyboard.down.focused && result.keyboard.down.selected.join(",") === "false,true,false"
+      && result.keyboard.down.tabStops === 1 && result.keyboard.end && result.keyboard.up && result.keyboard.home;
     if (!result.initial.open || result.initial.title !== "Teknik Not" || result.initial.note !== "Original note" || !expected || exceptions.length) {
       throw new Error(`Project note editor mismatch: ${JSON.stringify({ result, browserExceptions: exceptions })}`);
     }
@@ -113,6 +154,8 @@ async function run() {
       apiFetch=async(url,options={})=>{window.__p9UnitContextWrites.push({url,body:JSON.parse(options.body||"{}")});return{ok:true,rows:[],columns:[]}};
       db.settings.contextMenu=true;
       desktopSettings.rc_projects="1";
+      document.querySelector("#appShell")?.removeAttribute("inert");
+      document.querySelector("#appShell")?.removeAttribute("aria-hidden");
       p9ProjectState.projects=[{id:42,name:"Audit Project"}];
       p9ProjectState.selectedId=42;
       p9ProjectState.units=[{id:954,project_id:42,status:"Bekliyor"}];
@@ -120,15 +163,34 @@ async function run() {
       document.querySelector("#toastRoot")?.replaceChildren();
       page="projects";
       document.body.dataset.page="projects";
-      document.querySelector("#content").innerHTML='<div class="page-head"><div><h2>Project Detail</h2></div></div><section class="p9-project-screen"><div class="p9-unit-grid"><article class="p9-unit-card" data-p9-unit-card="954"><header><strong>Block A - Unit 101</strong><span>Bekliyor</span></header><small>Floor 1 | Apartment</small><div class="p9-unit-meta"><span>Installed devices</span><b>0</b></div></article></div></section>';
+      document.querySelector("#content").innerHTML='<div class="page-head"><div><h2>Project Detail</h2></div></div><section class="p9-project-screen"><div class="p9-unit-grid"><article class="p9-unit-card" data-p9-unit-card="954"><header><strong>Block A - Unit 101</strong><span>Bekliyor</span></header><small>Floor 1 | Apartment</small><div class="p9-unit-meta"><span>Installed devices</span><b>0</b></div></article></div><button id="outsideContextTarget" type="button">Other action</button></section>';
       const card=document.querySelector('[data-p9-unit-card="954"]');
       card.innerHTML+='<button type="button" data-p9-unit-products>Products</button>';
       card.querySelector("[data-p9-unit-products]").addEventListener("click",()=>{window.__p9ProductAction=true});
       const openEvent=new MouseEvent("contextmenu",{bubbles:true,cancelable:true,clientX:1270,clientY:890});
       card.dispatchEvent(openEvent);
       const menu=document.querySelector("#contextMenu");
+      const menuItems=Array.from(menu.querySelectorAll('[role^="menuitem"]'));
+      const keyboard={role:menu.getAttribute("role"),label:menu.getAttribute("aria-label"),opener:card.getAttribute("aria-haspopup")==="menu"&&card.getAttribute("aria-expanded")==="true",firstFocused:document.activeElement===menuItems[0],roving:menuItems[0]?.tabIndex===0&&menuItems.slice(1).every(item=>item.tabIndex===-1)};
+      menu.dispatchEvent(new KeyboardEvent("keydown",{key:"ArrowDown",bubbles:true,cancelable:true}));
+      keyboard.arrowDown=document.activeElement===menuItems[1];
+      menu.dispatchEvent(new KeyboardEvent("keydown",{key:"End",bubbles:true,cancelable:true}));
+      keyboard.end=document.activeElement===menuItems[menuItems.length-1];
+      menu.dispatchEvent(new KeyboardEvent("keydown",{key:"Home",bubbles:true,cancelable:true}));
+      keyboard.home=document.activeElement===menuItems[0];
+      const escapeEvent=new KeyboardEvent("keydown",{key:"Escape",bubbles:true,cancelable:true});
+      menu.dispatchEvent(escapeEvent);
+      keyboard.escapeClosed=!menu.classList.contains("open")&&!menu.classList.contains("project-unit-context-menu");
+      keyboard.escapeReturnedFocus=card.contains(document.activeElement)&&card.getAttribute("aria-expanded")==="false"&&escapeEvent.defaultPrevented;
+      card.dispatchEvent(new MouseEvent("contextmenu",{bubbles:true,cancelable:true,clientX:1270,clientY:890}));
+      document.body.dispatchEvent(new MouseEvent("click",{bubbles:true}));
+      keyboard.outsideClickClosed=!menu.classList.contains("open")&&!menu.classList.contains("project-unit-context-menu")&&card.getAttribute("aria-expanded")==="false";
+      card.dispatchEvent(new MouseEvent("contextmenu",{bubbles:true,cancelable:true,clientX:1270,clientY:890}));
+      document.querySelector("#outsideContextTarget").dispatchEvent(new MouseEvent("contextmenu",{bubbles:true,cancelable:true,clientX:600,clientY:400}));
+      keyboard.contextSwitchClosed=!menu.classList.contains("open")&&!menu.classList.contains("project-unit-context-menu")&&card.getAttribute("aria-expanded")==="false";
+      card.dispatchEvent(new MouseEvent("contextmenu",{bubbles:true,cancelable:true,clientX:1270,clientY:890}));
       const box=menu.getBoundingClientRect();
-      const initial={opened:menu.classList.contains("open")&&menu.classList.contains("project-unit-context-menu"),defaultPrevented:openEvent.defaultPrevented,actions:Array.from(menu.querySelectorAll("[data-p9-unit-context-status]"),node=>node.dataset.p9UnitContextStatus).concat(menu.querySelector("[data-p9-unit-context-products]")?.lastElementChild?.textContent.trim()),checked:menu.querySelector('[data-p9-unit-context-status="Bekliyor"]')?.getAttribute("aria-checked"),bounds:{x:box.x,y:box.y,width:box.width,height:box.height}};
+      const initial={opened:menu.classList.contains("open")&&menu.classList.contains("project-unit-context-menu"),defaultPrevented:openEvent.defaultPrevented,actions:Array.from(menu.querySelectorAll("[data-p9-unit-context-status]"),node=>node.dataset.p9UnitContextStatus).concat(menu.querySelector("[data-p9-unit-context-products]")?.lastElementChild?.textContent.trim()),checked:menu.querySelector('[data-p9-unit-context-status="Bekliyor"]')?.getAttribute("aria-checked"),bounds:{x:box.x,y:box.y,width:box.width,height:box.height},keyboard};
       window.__p9UnitContextRestore={oldLoadPart9Projects,oldApiFetch,card};
       return initial;
     })()`);
@@ -174,8 +236,8 @@ async function run() {
     const statusWrite = menuActions.status.writes.find(item => item.url === "/api/desktop/table/project_units");
     const box = menuResult.bounds;
     const menuFits = box.x >= 0 && box.y >= 0 && box.x + box.width <= 1280 && box.y + box.height <= 900;
-    if (!menuResult.opened || !menuResult.defaultPrevented || JSON.stringify(menuResult.actions) !== JSON.stringify(["Bekliyor", "Devam Ediyor", "Tamamlandı", "Ürünleri Yönet"]) || menuResult.checked !== "true" || !menuFits || !menuActions.status.closed || statusWrite?.body?.id !== 954 || statusWrite.body.status !== "Devam Ediyor" || statusWrite.body._action !== "update" || !menuActions.products.triggered || !menuActions.products.closed || !menuActions.productsDialogOpen || menuActions.singleClick.productsOpened || menuActions.singleClick.dialogOpen || !menuActions.doubleClick.productsOpened || !menuActions.doubleClick.dialogOpen || !menuActions.doubleClick.title.includes("Kurulu Ürünler") || menuActions.gate.prevented || menuActions.gate.opened || exceptions.length) {
-      throw new Error(`Project unit context menu mismatch: ${JSON.stringify({ menuResult, menuActions, browserExceptions: exceptions.length })}`);
+    if (!menuResult.opened || !menuResult.defaultPrevented || JSON.stringify(menuResult.actions) !== JSON.stringify(["Bekliyor", "Devam Ediyor", "Tamamlandı", "Ürünleri Yönet"]) || menuResult.checked !== "true" || !menuFits || !menuActions.status.closed || statusWrite?.body?.id !== 954 || statusWrite.body.status !== "Devam Ediyor" || statusWrite.body._action !== "update" || !menuActions.products.triggered || !menuActions.products.closed || !menuActions.productsDialogOpen || menuActions.singleClick.productsOpened || menuActions.singleClick.dialogOpen || !menuActions.doubleClick.productsOpened || !menuActions.doubleClick.dialogOpen || !menuActions.doubleClick.title.includes("Kurulu Ürünler") || menuActions.gate.prevented || menuActions.gate.opened || menuResult.keyboard.role !== "menu" || menuResult.keyboard.label !== "Daire i\u015flemleri" || !menuResult.keyboard.escapeReturnedFocus || Object.entries(menuResult.keyboard).some(([key, value]) => key !== "role" && key !== "label" && key !== "escapeReturnedFocus" && value !== true) || exceptions.length) {
+      throw new Error(`Project unit context menu mismatch: ${JSON.stringify({ menuResult, menuActions, browserExceptions: exceptions })}`);
     }
     process.stdout.write(JSON.stringify({ ...result, projectUnitContextMenu: menuResult, projectUnitActions: menuActions, menuScreenshot, browserExceptions: exceptions.length, headless: true }) + "\n");
   } finally {

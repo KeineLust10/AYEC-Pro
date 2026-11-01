@@ -1,5 +1,8 @@
 from pathlib import Path
 
+from tests.test_vendor_management_center import _setup_tenant
+import Web_Arayuzu.Main as web_main
+
 
 ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / "Web_Arayuzu" / "web" / "app.js"
@@ -14,6 +17,8 @@ def test_admin_notifications_use_supported_api_and_truthful_audit_history():
     assert 'target_tenant_id:targetTenantId' in block
     assert 'message_title:titleInput.value.trim()' in block
     assert 'message_content:bodyInput.value.trim()' in block
+    assert 'icon:notificationIcon' in block
+    assert 'danger:"error",update:"success"' in block
     assert 'popup:$("#notifyPopup").checked' in block
     assert 'row.action==="control_notification_sent"' in block
     assert 'openDialog("Duyuruyu Yayina Al"' in block
@@ -59,3 +64,63 @@ def test_admin_notifications_formatting_toolbar_matches_reference_height():
     assert "data-notify-format" in app
     assert "height: 40px; min-height: 40px; max-height: 40px;" in styles
     assert "height: 120px; min-height: 120px; margin-top: -9px;" in styles
+
+
+def test_midnight_shell_background_does_not_override_control_center_header():
+    desktop_styles = (ROOT / "Web_Arayuzu" / "web" / "desktop-parity.css").read_text(encoding="utf-8")
+    control_styles = (ROOT / "Web_Arayuzu" / "web" / "control-center.css").read_text(encoding="utf-8")
+
+    assert 'html[data-theme="midnight"] body:not([data-page="control-center"]) .app-shell > .topbar { background: #060E20; }' in desktop_styles
+    assert 'body[data-page="control-center"] .topbar {\n  height: 56px;' in control_styles
+    assert "background: rgba(9,14,28,.9);" in control_styles
+
+
+def test_control_notification_stores_desktop_icon_and_popup(monkeypatch, tmp_path):
+    actor, _tenant_path = _setup_tenant(monkeypatch, tmp_path)
+
+    result = web_main.control_send_notification(
+        actor,
+        {
+            "target_tenant_id": "tenant-1",
+            "message_title": "Service update",
+            "message_content": "Restart after saving work.",
+            "icon": "error",
+            "popup": True,
+        },
+    )
+
+    assert result == {"ok": True}
+    with web_main.registry_connect() as registry:
+        row = registry.execute(
+            "SELECT target_tenant_id,message_title,message_content,icon,popup FROM global_notifications ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+    assert tuple(row) == (
+        "tenant-1",
+        "Service update",
+        "Restart after saving work.",
+        "error",
+        1,
+    )
+
+
+def test_legacy_global_notifications_schema_adds_icon_column(tmp_path):
+    legacy_path = tmp_path / "legacy-registry.db"
+    with web_main.sqlite3.connect(legacy_path) as registry:
+        web_main.ensure_operational_schema(registry)
+        registry.execute(
+            "CREATE TABLE global_notifications (id INTEGER PRIMARY KEY, target_tenant_id TEXT, message_title TEXT, message_content TEXT, popup INTEGER DEFAULT 0, created_at TEXT NOT NULL, expires_at TEXT)"
+        )
+        registry.execute(
+            "INSERT INTO global_notifications(target_tenant_id,message_title,message_content,popup,created_at) VALUES ('All','Old notice','Existing row',0,'2026-01-01T00:00:00')"
+        )
+        web_main.ensure_web_schema(registry)
+        columns = {
+            row[1]
+            for row in registry.execute('PRAGMA table_info("global_notifications")')
+        }
+        row = registry.execute(
+            "SELECT icon FROM global_notifications WHERE message_title='Old notice'"
+        ).fetchone()
+
+    assert "icon" in columns
+    assert row[0] == "info"

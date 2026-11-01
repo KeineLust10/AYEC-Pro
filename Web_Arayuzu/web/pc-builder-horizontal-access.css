@@ -1,0 +1,13 @@
+body[data-page="pc-builder"] .pc-builder-page{grid-template-columns:minmax(0,1fr)!important}
+body[data-page="pc-builder"] .pc-builder-page>.pc-table-scroll{box-sizing:border-box;width:100%!important;max-width:100%!important;min-width:0!important;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-color:var(--muted,#64748b) transparent;scrollbar-width:thin}
+@media(min-width:1001px) and (max-width:1350px){body[data-page="pc-builder"] .pc-builder-page>.pc-table-scroll{width:calc(100% + 21px)!important;max-width:none!important}}
+@media(min-width:1001px) and (max-width:1350px){body[data-page="pc-builder"] .pc-table-scroll .pc-component-head,body[data-page="pc-builder"] .pc-table-scroll .pc-components{width:1219px}}
+@media(min-width:1001px) and (max-width:1350px){body[data-page="pc-builder"] .pc-table-scroll .pc-component-head{border-right:5px solid transparent}body[data-page="pc-builder"] .pc-table-scroll .pc-component-row{border-right:6px solid transparent}}
+@media(min-width:1001px) and (max-width:1350px){body[data-page="pc-builder"] .pc-customer-bar,body[data-page="pc-builder"] .pc-preset-bar,body[data-page="pc-builder"] .pc-summary,body[data-page="pc-builder"] .pc-actions{box-sizing:border-box;width:calc(100% - 40px);min-width:0;max-width:none;margin-left:20px}}
+@media(min-width:1001px) and (max-width:1350px){body[data-page="pc-builder"] .pc-preset-bar{height:auto;min-height:44px;flex-wrap:wrap}body[data-page="pc-builder"] .pc-summary{grid-template-columns:repeat(3,minmax(0,1fr))}body[data-page="pc-builder"] .pc-actions{flex-wrap:wrap}}
+@media(min-width:1598px){body[data-page="pc-builder"] .pc-builder-page>.pc-table-scroll{width:1230px!important;max-width:1230px!important}}
+body[data-page="pc-builder"] .pc-table-scroll:focus-visible{outline:2px solid var(--accent,#3b82f6);outline-offset:2px}
+@media(min-width:1001px) and (max-width:1350px){body[data-page="pc-builder"] .pc-components{gap:8px;margin-top:14px}body[data-page="pc-builder"] .pc-component-row{height:52px;min-height:52px}}
+@media(min-width:1001px) and (max-width:1350px){body[data-page="pc-builder"] .pc-preset-bar button{padding:4px 12px;font-size:11px;font-weight:400}body[data-page="pc-builder"] .pc-preset-bar button.success{padding:4px 14px;font-size:11px;font-weight:700}}
+
+\n

@@ -53,6 +53,11 @@ async function run() {
       await delay(200);
     }
     const maintenanceSetupAudit = await evaluate(`(async () => {
+      for (let attempt = 0; attempt < 80; attempt += 1) {
+        const authRoot = document.querySelector("#authRoot");
+        if (authRoot?.innerHTML && !authRoot.hidden) break;
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
       document.querySelector("#authRoot")?.remove(); document.body.classList.remove("auth-active"); currentSector = "otomotiv";
       window.__maintenanceAudit = {original: {apiFetch, hydrateDesktop, loadVehicleMaintenance, offerMaintenanceWhatsApp, toast}, savedPayload: null};
       apiFetch = async (url, options = {}) => {
@@ -182,9 +187,47 @@ async function run() {
       reopened?.querySelector("[data-checklist-cancel]")?.click(); await new Promise(resolve => setTimeout(resolve, 50));
       return {closed: !document.querySelector(".automotive-checklist-dialog"), parentOpen: service?.open === true, savedLabel, retained, cancelKeptLabel: opener?.textContent === savedLabel};
     })()`);
-    const result = {...opened, ...interaction, maintenanceSaveAudit, maintenanceSetupAudit, checklistInteraction};
-    if (!result.saved.closed || !result.saved.parentOpen || !result.saved.label.includes("(1)") || !result.retained || !result.cancelKeptLabel || !result.checklistResult.open || result.checklistResult.title !== "Otomotiv Kontrol Formu" || result.checklistResult.statusCount < 1 || result.checklistResult.noteCount !== result.checklistResult.statusCount || !result.checklistResult.intro || result.checklistResult.bounds.some((value,index) => Math.abs(value-[1120,760][index]) > 1) || result.checklistResult.firstStatus !== "Degismeli" || !result.checklistInteraction.closed || !result.checklistInteraction.parentOpen || !result.checklistInteraction.savedLabel.includes("Kontrol Formu (") || !result.checklistInteraction.retained || !result.checklistInteraction.cancelKeptLabel || exceptions.length) throw new Error(JSON.stringify({result, exceptions}));
-    process.stdout.write(`${JSON.stringify({result, exceptions, screenshots: [screenshotPath, checklistScreenshotPath, maintenanceScreenshotPath], headless: true})}\n`);
+    await send("Emulation.setDeviceMetricsOverride", {width: 390, height: 844, deviceScaleFactor: 1, mobile: true});
+    const mobileDamage = await evaluate(`(async () => {
+      const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+      const service = document.querySelector("#appDialog");
+      openManifestDialog({key:"automotive_damage_dialog"}); await delay(180);
+      const dialog = document.querySelector(".automotive-damage-dialog"), panel = dialog?.querySelector(".automotive-damage-panel");
+      const columns = dialog?.querySelector(".automotive-damage-columns"), form = dialog?.querySelector(".automotive-damage-form");
+      const footer = dialog?.querySelector("footer"), save = dialog?.querySelector("[data-damage-save]"), general = dialog?.querySelector("[data-damage-general]");
+      const bounds = dialog?.getBoundingClientRect(), footerBounds = footer?.getBoundingClientRect(), saveBounds = save?.getBoundingClientRect();
+      const columnsScroll = !!columns && columns.scrollHeight > columns.clientHeight;
+      general?.scrollIntoView({block: "center", behavior: "instant"});
+      await delay(30);
+      const generalBounds = general?.getBoundingClientRect(), columnBounds = columns?.getBoundingClientRect();
+      const result = {opened: dialog?.open === true, viewport: [innerWidth, innerHeight], bounds: bounds ? [Math.round(bounds.left), Math.round(bounds.top), Math.round(bounds.width), Math.round(bounds.height)] : [], footerInViewport: !!footerBounds && footerBounds.top >= 0 && footerBounds.bottom <= innerHeight, saveInViewport: !!saveBounds && saveBounds.left >= 0 && saveBounds.right <= innerWidth && saveBounds.top >= 0 && saveBounds.bottom <= innerHeight, singleColumn: !!form && getComputedStyle(form).gridTemplateColumns.split(" ").length === 1, columnsScroll, generalNoteReachable: !!generalBounds && !!columnBounds && generalBounds.top >= columnBounds.top && generalBounds.bottom <= columnBounds.bottom, panelFits: !!panel && panel.scrollWidth <= panel.clientWidth};
+      return result;
+    })()`);
+    const mobileScreenshot = await send("Page.captureScreenshot", {format: "png", captureBeyondViewport: true});
+    const mobileScreenshotPath = path.join(outDir, "automotive-damage-mobile-headless.png");
+    fs.writeFileSync(mobileScreenshotPath, Buffer.from(mobileScreenshot.data, "base64"));
+    await evaluate(`document.querySelector(".automotive-damage-dialog")?.close("cancel"); document.querySelector("#appDialog")?.close("cancel"); true`);
+    await evaluate(`openManifestDialog({key:"automotive_checklist_dialog"}); true`);
+    await delay(220);
+    const mobileChecklist = await evaluate(`(async () => {
+      const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+      const dialog = document.querySelector(".automotive-checklist-dialog"), panel = dialog?.querySelector(".automotive-checklist-panel");
+      const sections = dialog?.querySelector(".automotive-checklist-sections"), form = dialog?.querySelector(".automotive-checklist-item");
+      const footer = dialog?.querySelector("footer"), save = dialog?.querySelector("[data-checklist-save]"), notes = dialog?.querySelectorAll("[data-checklist-note]"), lastNote = notes?.[notes.length - 1];
+      const bounds = dialog?.getBoundingClientRect(), footerBounds = footer?.getBoundingClientRect(), saveBounds = save?.getBoundingClientRect();
+      if (lastNote) lastNote.scrollIntoView({block: "center", behavior: "instant"});
+      await delay(30);
+      const noteBounds = lastNote?.getBoundingClientRect(), sectionBounds = sections?.getBoundingClientRect();
+      return {opened: dialog?.open === true, viewport: [innerWidth, innerHeight], bounds: bounds ? [Math.round(bounds.left), Math.round(bounds.top), Math.round(bounds.width), Math.round(bounds.height)] : [], sections: dialog?.querySelectorAll(".automotive-checklist-section").length || 0, statusCount: dialog?.querySelectorAll("[data-checklist-status]").length || 0, noteCount: notes?.length || 0, footerInViewport: !!footerBounds && footerBounds.top >= 0 && footerBounds.bottom <= innerHeight, saveInViewport: !!saveBounds && saveBounds.left >= 0 && saveBounds.right <= innerWidth && saveBounds.top >= 0 && saveBounds.bottom <= innerHeight, singleColumn: !!sections && getComputedStyle(sections).gridTemplateColumns.split(" ").length === 1, sectionsScroll: !!sections && sections.scrollHeight > sections.clientHeight, lastNoteReachable: !!noteBounds && !!sectionBounds && noteBounds.top >= sectionBounds.top && noteBounds.bottom <= sectionBounds.bottom, noteWrapsBelowStatus: !!form && getComputedStyle(form.querySelector("textarea")).gridColumnStart === "1", panelFits: !!panel && panel.scrollWidth <= panel.clientWidth};
+    })()`);
+    const mobileChecklistScreenshot = await send("Page.captureScreenshot", {format: "png", captureBeyondViewport: true});
+    const mobileChecklistScreenshotPath = path.join(outDir, "automotive-checklist-mobile-headless.png");
+    fs.writeFileSync(mobileChecklistScreenshotPath, Buffer.from(mobileChecklistScreenshot.data, "base64"));
+    await evaluate(`document.querySelector(".automotive-checklist-dialog")?.close("cancel"); true`);
+    const result = {...opened, ...interaction, maintenanceSaveAudit, maintenanceSetupAudit, checklistInteraction, mobileDamage};
+    result.mobileChecklist = mobileChecklist;
+    if (!result.saved.closed || !result.saved.parentOpen || !result.saved.label.includes("(1)") || !result.retained || !result.cancelKeptLabel || !result.checklistResult.open || result.checklistResult.title !== "Otomotiv Kontrol Formu" || result.checklistResult.statusCount < 1 || result.checklistResult.noteCount !== result.checklistResult.statusCount || !result.checklistResult.intro || result.checklistResult.bounds.some((value,index) => Math.abs(value-[1120,760][index]) > 1) || result.checklistResult.firstStatus !== "Degismeli" || !result.checklistInteraction.closed || !result.checklistInteraction.parentOpen || !result.checklistInteraction.savedLabel.includes("Kontrol Formu (") || !result.checklistInteraction.retained || !result.checklistInteraction.cancelKeptLabel || !result.mobileDamage.opened || result.mobileDamage.bounds[0] < 0 || result.mobileDamage.bounds[0] + result.mobileDamage.bounds[2] > 390 || !result.mobileDamage.footerInViewport || !result.mobileDamage.saveInViewport || !result.mobileDamage.singleColumn || !result.mobileDamage.columnsScroll || !result.mobileDamage.generalNoteReachable || !result.mobileDamage.panelFits || !mobileChecklist.opened || mobileChecklist.bounds[0] < 0 || mobileChecklist.bounds[0] + mobileChecklist.bounds[2] > 390 || mobileChecklist.sections !== 3 || mobileChecklist.statusCount !== 18 || mobileChecklist.noteCount !== 18 || !mobileChecklist.footerInViewport || !mobileChecklist.saveInViewport || !mobileChecklist.singleColumn || !mobileChecklist.sectionsScroll || !mobileChecklist.lastNoteReachable || !mobileChecklist.noteWrapsBelowStatus || !mobileChecklist.panelFits || exceptions.length) throw new Error(JSON.stringify({result, mobileChecklist, exceptions}));
+    process.stdout.write(`${JSON.stringify({result, exceptions, screenshots: [screenshotPath, checklistScreenshotPath, maintenanceScreenshotPath, mobileScreenshotPath, mobileChecklistScreenshotPath], headless: true})}\n`);
   } finally {
     try { socket?.close(); } catch (_) {}
     try { execFileSync("taskkill", ["/PID", String(browser.pid), "/T", "/F"], { stdio: "ignore" }); } catch (_) {}

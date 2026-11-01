@@ -44,3 +44,13 @@ def test_live_status_layout_expands_and_stacks_on_mobile():
     assert "#adminTabContent .admin-live-companies { grid-template-columns: minmax(0,1fr); }" in styles
     assert "#adminTabContent .admin-live-latency-row { display: grid;" in styles
     assert "#adminTabContent .admin-live-metric-icon { position: absolute; top: 32px; right: 14px;" in styles
+
+
+def test_offscreen_route_audit_covers_live_status_filters_search_and_reset():
+    route_smoke = (ROOT / "tools" / "quality" / "web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+
+    assert "controlCenterLiveStatusWorkflow" in route_smoke
+    assert "QA Fast" in route_smoke
+    assert "QA Slow" in route_smoke
+    assert "QA Offline" in route_smoke
+    assert "adminLiveReset" in route_smoke

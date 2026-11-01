@@ -50,6 +50,22 @@ class EpochResetSyncClient(FakeSyncClient):
         return {"changes": {"parts": []}}
 
 
+class SettingsSyncClient(WebSyncClient):
+    def __init__(self):
+        super().__init__("http://example.invalid", verify_tls=False)
+        self.pushed = []
+
+    def manifest(self):
+        return {"tenant_id": "tenant-test", "tables": {"settings": {}}}
+
+    def pull(self, since=None, tables=None):
+        return {"changes": {"settings": [{"key": "voice_command_settings", "value": '{"scenarios":{"Web scenario":{}}}'}]}}
+
+    def push(self, changes):
+        self.pushed.extend(changes)
+        return {"applied": len(changes), "skipped": 0, "errors": []}
+
+
 class OfferSyncClient(FakeSyncClient):
     def manifest(self):
         return {
@@ -179,6 +195,40 @@ def test_initial_remote_link_is_pull_only(tmp_path):
     state = json.loads(state_path.read_text(encoding="utf-8"))
     assert "parts:1" in state["row_hashes"]
     assert "parts:2" in state["row_hashes"]
+
+
+def test_keyed_settings_are_pulled_and_local_updates_are_pushed(tmp_path):
+    db_path = tmp_path / "desktop-settings.db"
+    state_path = tmp_path / "settings-sync-state.json"
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT)")
+        conn.execute(
+            "INSERT INTO settings (key,value) VALUES (?,?)",
+            ("voice_command_settings", '{"scenarios":{"Old local":{}}}'),
+        )
+
+    client = SettingsSyncClient()
+    first = client.sync_sqlite(db_path, state_path, push_local=False)
+    assert first["ok"] is True
+    with sqlite3.connect(db_path) as conn:
+        remote_value = conn.execute(
+            "SELECT value FROM settings WHERE key='voice_command_settings'"
+        ).fetchone()[0]
+        assert "Web scenario" in remote_value
+
+    updated_value = '{"scenarios":{"Desktop scenario":{}}}'
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "UPDATE settings SET value=? WHERE key='voice_command_settings'",
+            (updated_value,),
+        )
+    second = client.sync_sqlite(db_path, state_path)
+    assert second["ok"] is True
+    setting_change = next(
+        change for change in client.pushed
+        if change["table"] == "settings" and change["row"]["key"] == "voice_command_settings"
+    )
+    assert setting_change["row"]["value"] == updated_value
 
 
 def test_epoch_change_clears_old_local_rows_before_push(tmp_path):

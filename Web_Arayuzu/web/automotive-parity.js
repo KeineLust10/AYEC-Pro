@@ -26,7 +26,7 @@
     bakim_sonrasi:[{name:"Yol Testi"},{name:"Ariza Lambasi Kontrolu",required:true},{name:"Servis Bakim Isigi Reset"},{name:"Teslim Oncesi Temizlik"},{name:"Musteri Bilgilendirme",required:true},{name:"Fatura Hazirligi"}]
   };
   const automotiveChecklistStatuses=["Tamam","Degismeli","Incelenmeli"];
-  const maintenanceVehicleCatalog={
+  let maintenanceVehicleCatalog={
     Ford:["Courier","Connect","Focus","Fiesta","Transit"],
     Fiat:["Doblo","Egea","Fiorino","Linea"],
     Renault:["Clio","Fluence","Kangoo","Megane","Symbol"],
@@ -36,9 +36,9 @@
     Hyundai:["Accent","i10","i20","i30","Tucson"],
     Opel:["Astra","Combo","Corsa","Insignia"]
   };
-  const maintenanceVehicleTypes=["Binek","Hafif Ticari","SUV","Minivan","Kamyonet","Motosiklet","Diger"];
-  const maintenanceEngineTypes=["Benzinli","Dizel","Hibrit","Elektrikli","LPG","Turbo Dizel","Diger"];
-  const maintenanceFuelTypes=["Benzin","Dizel","LPG","Elektrik","Hibrit","Diger"];
+  let maintenanceVehicleTypes=["Binek","Hafif Ticari","SUV","Minivan","Kamyonet","Motosiklet","Diger"];
+  let maintenanceEngineTypes=["Benzinli","Dizel","Hibrit","Elektrikli","LPG","Turbo Dizel","Diger"];
+  let maintenanceFuelTypes=["Benzin","Dizel","LPG","Elektrik","Hibrit","Diger"];
 
   function normalizeAutomotiveDamage(value){
     const parsed=typeof value==="string"?parseJson(value,{}):(value||{});
@@ -231,7 +231,7 @@
       const categoryOk=/^T.m Kategoriler$/i.test(category)||part.category===category;
       const levelOk=/^T.m Seviyeler$/i.test(level)||(level.includes("Kritik")?part.qty<=part.min:part.qty>part.min);
       return (!query||text.includes(query))&&categoryOk&&levelOk;
-    });
+    }).sort((a,b)=>String(a.name||"").localeCompare(String(b.name||""),"tr"));
   }
 
   function refreshStockFilter(){
@@ -299,24 +299,35 @@
   };
 
   saveProduct=async function(formData,existing){
-    const values=Object.fromEntries(formData),currency=String(values.currency||"TRY").toUpperCase(),rate=rateForCode(currency);
+    const values=Object.fromEntries(formData),currency=String(values.currency||"TRY").toUpperCase(),rate=rateForCode(currency),file=formData.get?.("photo_file")||values.photo_file,clearPhoto=values.clear_photo==="on",oldPhotoPath=String(existing?.photo_path||"");
+    let photoPath=clearPhoto?"":oldPhotoPath,uploadedPath="";
+    delete values.photo_file;delete values.clear_photo;
     if(currency!=="TRY"&&rate<=0)throw Error(`${currency} ${tr("kuru alinamadi")}`);
     const description=automotiveMode()?composeAutomotiveDescription(values.description,{supplier:values.supplier,vehicle_brand:values.vehicle_brand,vehicle_model:values.vehicle_model,position:values.position}):values.description;
+    if(file&&Number(file.size)>0){
+      if(Number(file.size)>12*1024*1024)throw Error("Photo exceeds the 12 MB limit.");
+      const data=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(",",2)[1]||"");reader.onerror=()=>reject(Error("Photo could not be read."));reader.readAsDataURL(file)});
+      const uploaded=await apiFetch("/api/desktop/stock/photo/upload",{method:"POST",body:JSON.stringify({filename:file.name,data})});
+      photoPath=uploadedPath=String(uploaded.photo_path||"");if(!photoPath)throw Error("Photo upload did not return a saved path.");
+    }
     const payload={
       id:existing&&/^\d+$/.test(String(existing.id))?+existing.id:undefined,
       name:values.name,code:values.code,barcode:values.barcode,category:values.category,
       brand:values.brand,currency,stock:+values.qty||0,min_stock:+values.min||0,
       purchase_price:+values.buy||0,price:+values.sell||0,description,unit:values.unit||"Adet",
-      payment_method:values.payment_method,exchange_rate:rate,oem_code:values.oem_code||"",
+      payment_method:values.payment_method,bank_account_id:values.bank_account_id||null,exchange_rate:rate,oem_code:values.oem_code||"",
       equivalent_code:values.equivalent_code||"",compatible_models:values.compatible_models||"",
-      shelf_number:values.shelf_number||""
+      shelf_number:values.shelf_number||"",photo_path:photoPath
     };
-    const result=await apiFetch("/api/desktop/stock/save",{method:"POST",body:JSON.stringify(payload)});
+    let result;
+    try{result=await apiFetch("/api/desktop/stock/save",{method:"POST",body:JSON.stringify(payload)})}catch(error){if(uploadedPath)await apiFetch("/api/desktop/stock/photo/delete",{method:"POST",body:JSON.stringify({photo_path:uploadedPath})}).catch(()=>{});throw error}
     const part=result.part,target=existing||{},savedDescription=part.description||description,metadata=automotiveDescriptionParts(savedDescription);
-    Object.assign(target,{id:String(part.id),code:part.code||"",name:part.name||part.part_name||"",barcode:part.barcode||"",category:part.category||"Genel",brand:part.brand||"",currency:part.currency||"TRY",qty:Number(part.stock||0),min:Number(part.min_stock||0),buy:moneyNumber(part.purchase_price),sell:moneyNumber(part.price),description:savedDescription,unit:part.unit||"Adet",oem_code:part.oem_code||"",equivalent_code:part.equivalent_code||"",compatible_models:part.compatible_models||"",shelf_number:part.shelf_number||"",supplier:metadata.supplier,vehicle_brand:metadata.vehicle_brand,vehicle_model:metadata.vehicle_model,position:metadata.position});
+    if(result.bank_account_id!=null&&Number.isFinite(Number(result.bank_account_balance))){const bank=(db.bankAccounts||[]).find(item=>Number(item.id??item.bank_account_id)===Number(result.bank_account_id));if(bank)bank.current_balance=Number(result.bank_account_balance)}
+    Object.assign(target,{id:String(part.id),code:part.code||"",name:part.name||part.part_name||"",barcode:part.barcode||"",category:part.category||"Genel",brand:part.brand||"",currency:part.currency||"TRY",qty:Number(part.stock||0),min:Number(part.min_stock||0),buy:moneyNumber(part.purchase_price),sell:moneyNumber(part.price),description:savedDescription,unit:part.unit||"Adet",oem_code:part.oem_code||values.oem_code||"",equivalent_code:part.equivalent_code||values.equivalent_code||"",compatible_models:part.compatible_models||values.compatible_models||"",shelf_number:part.shelf_number||values.shelf_number||"",photo_path:part.photo_path||photoPath,supplier:metadata.supplier,vehicle_brand:metadata.vehicle_brand,vehicle_model:metadata.vehicle_model,position:metadata.position});
     if(!existing)db.stock.unshift(target);
+    if(oldPhotoPath&&oldPhotoPath!==photoPath)await apiFetch("/api/desktop/stock/photo/delete",{method:"POST",body:JSON.stringify({photo_path:oldPhotoPath})});
     if(result.movement_id)db.movements.unshift({id:String(result.movement_id),date:new Date().toLocaleString("tr-TR"),product:target.name,type:result.delta>0?tr("Giris"):tr("Cikis"),qty:Math.abs(result.delta),ref:existing?tr("Stok duzenleme"):tr("Urun ekleme"),user:tr("Yonetici")});
-    if(result.finance_id)db.finance.unshift({id:String(result.finance_id),date:today(),type:"Gider",category:existing?tr("Stok Guncelleme"):tr("Stok Alimi"),amount:result.expense,original_amount:result.expense,try_equivalent:result.expense*result.exchange_rate,currency:result.currency,exchange_rate:result.exchange_rate,description:`${target.name} - ${Math.max(result.delta,0)}`,customer:""});
+    if(result.finance_id){const financeRow={id:String(result.finance_id),date:today(),type:"Gider",category:result.finance_category|| (existing?tr("Stok Guncelleme"):tr("Stok Alimi")),amount:result.finance_amount??result.expense,original_amount:result.original_amount??result.expense,try_equivalent:result.finance_amount??result.expense,currency:result.currency,exchange_rate:result.exchange_rate,bank_account_id:result.bank_account_id,payment_method:result.payment_method,description:result.finance_description||`${target.name} - ${Math.max(result.delta,0)}`,customer:""},financeIndex=db.finance.findIndex(item=>String(item.id)===String(result.finance_id));if(financeIndex>=0)Object.assign(db.finance[financeIndex],financeRow);else db.finance.unshift(financeRow)}
     save();activity(`${target.name} ${tr("stok karti kaydedildi")}`,"#");render();toast(tr("Urun, stok hareketi ve otomotiv bilgileri kaydedildi"),"success");return true;
   };
 
@@ -573,11 +584,11 @@
       };
       installServiceCombo(brandInput);installServiceCombo(modelInput);
       deviceTypeInput.addEventListener("change",refreshDeviceCatalog);otherDeviceInput.addEventListener("input",refreshDeviceCatalog);brandInput.addEventListener("input",refreshDeviceCatalog);brandInput.addEventListener("change",refreshDeviceCatalog);refreshDeviceCatalog();
-      apiFetch("/api/desktop/table/device_brands?limit=500").then(result=>{catalogBrandRows=result.rows||[];refreshDeviceCatalog()}).catch(()=>{});
+      loadAllDesktopTableRows("device_brands").then(rows=>{catalogBrandRows=rows;refreshDeviceCatalog()}).catch(()=>{});
     }
     const loadServiceNotes=async()=>{
       try{
-        const result=await apiFetch("/api/desktop/table/fast_notes?limit=500"),rows=(result.rows||[]).filter(row=>Number(row.is_active)!==0),faultRows=rows.filter(row=>row.category==="Ar\u0131za H\u0131zl\u0131 Se\u00e7imi"&&String(row.label||"").trim()),accessoryRows=rows.filter(row=>row.category==="Aksesuar"&&String(row.label||"").trim());
+        const rows=(await loadAllDesktopTableRows("fast_notes")).filter(row=>Number(row.is_active)!==0),faultRows=rows.filter(row=>row.category==="Ar\u0131za H\u0131zl\u0131 Se\u00e7imi"&&String(row.label||"").trim()),accessoryRows=rows.filter(row=>row.category==="Aksesuar"&&String(row.label||"").trim());
         if(faultRows.length){const host=$("[data-service-fault-notes]",serviceForm),options=$("[data-service-fault-note-options]",serviceForm),summary=$("[data-service-fault-selected]",serviceForm);host.hidden=false;options.replaceChildren(...faultRows.map(row=>{const button=document.createElement("button");button.type="button";button.className="secondary";button.dataset.serviceFaultNote=row.label;button.setAttribute("aria-pressed","false");button.textContent=row.label;button.onclick=()=>{if(selectedFaultNotes.has(row.label)){selectedFaultNotes.delete(row.label);button.setAttribute("aria-pressed","false")}else{selectedFaultNotes.add(row.label);button.setAttribute("aria-pressed","true")}summary.textContent=[...selectedFaultNotes].join("  \u2022  ")};return button}));}
         if(accessoryRows.length){const host=$("[data-service-accessory-options]",serviceForm);host.replaceChildren(...accessoryRows.map(row=>{const label=document.createElement("label"),input=document.createElement("input"),text=document.createElement("span");input.type="checkbox";input.name="accessory_option";input.value=row.label;text.textContent=row.label;label.append(input,text);return label}));}
       }catch(error){toast(tr("Hizli servis notlari yuklenemedi"),"warning")}
@@ -741,9 +752,13 @@
     })().catch(error=>toast(`Randevu g\u00fcncellenemedi: ${error.message}`,"error"));
   };
 
-  function vehicleEditor(customer,vehicle={},options={}){
-    openDialog(vehicle.id?tr("Araci Duzenle"):tr("Yeni Arac"),tr("OTOMOTIV ARAC KARTI"),`<div class="form-grid"><div class="field"><label>Plaka *</label><input name="plate" required value="${esc(vehicle.plate||"")}"></div><div class="field"><label>Marka *</label><input name="brand" required value="${esc(vehicle.brand||"")}"></div><div class="field"><label>Model *</label><input name="model" required value="${esc(vehicle.model||"")}"></div><div class="field"><label>${tr("Model Yili")}</label><input name="year" type="number" min="1900" max="2200" value="${esc(vehicle.year||"")}"></div><div class="field"><label>${tr("Arac Tipi")}</label><input name="vehicle_type" value="${esc(vehicle.vehicle_type||"")}"></div><div class="field"><label>${tr("Motor Tipi")}</label><input name="engine_type" value="${esc(vehicle.engine_type||"")}"></div><div class="field"><label>${tr("Yakit Turu")}</label><select name="fuel_type">${["Benzin","Dizel","LPG","Hibrit","Elektrik"].map(value=>`<option ${vehicle.fuel_type===value?"selected":""}>${value}</option>`).join("")}</select></div><div class="field"><label>${tr("Son Bilinen KM")}</label><input name="last_known_odometer" type="number" min="0" value="${esc(vehicle.last_known_odometer||0)}"></div><div class="field"><label>${tr("Muayene Tarihi")}</label><input name="inspection_due_date" type="date" value="${esc(String(vehicle.inspection_due_date||"").slice(0,10))}"></div><div class="field full"><label>Notlar</label><textarea name="notes">${esc(vehicle.notes||"")}</textarea></div></div>`,async data=>{
-      const values=Object.fromEntries(data),payload={...values,customer_id:+customer.id,year:+values.year||null,last_known_odometer:+values.last_known_odometer||0,is_active:1};
+  async function vehicleEditor(customer,vehicle={},options={}){
+    let catalog={};
+    try{catalog=await apiFetch("/api/desktop/automotive/vehicle-catalog")}catch(_){}
+    const brandChoices=Array.isArray(catalog.brands)?catalog.brands:[],yearChoices=Array.isArray(catalog.years)?catalog.years:[],vehicleTypeChoices=Array.isArray(catalog.vehicle_types)&&catalog.vehicle_types.length?catalog.vehicle_types:["Binek","Hafif Ticari","SUV","Minivan","Kamyonet","Motosiklet","Diger"],engineTypeChoices=Array.isArray(catalog.engine_types)&&catalog.engine_types.length?catalog.engine_types:["Benzinli","Dizel","Hibrit","Elektrikli","LPG","Turbo Dizel","Diger"],fuelChoices=Array.isArray(catalog.fuel_types)?catalog.fuel_types.slice():["Benzin","Dizel","LPG","Elektrik","Hibrit","Diger"],optionMarkup=values=>values.map(value=>`<option value="${esc(value)}"></option>`).join(""),selectMarkup=(values,selected)=>values.map(value=>`<option ${String(value)===String(selected)?"selected":""}>${esc(value)}</option>`).join(""),modelsFor=brand=>{const key=String(brand||"").trim().toLowerCase(),entry=Object.entries(catalog.models||{}).find(([name])=>name.toLowerCase()===key);return Array.isArray(entry?.[1])?entry[1]:[]};
+    if(vehicle.fuel_type&&!fuelChoices.includes(vehicle.fuel_type))fuelChoices.push(vehicle.fuel_type);
+    openDialog(vehicle.id?tr("Araci Duzenle"):tr("Yeni Arac"),tr("OTOMOTIV ARAC KARTI"),`<div class="form-grid"><div class="field"><label>Plaka *</label><input name="plate" required value="${esc(vehicle.plate||"")}"></div><div class="field"><label>Marka</label><input name="brand" list="automotiveVehicleBrandOptions" value="${esc(vehicle.brand||"")}"><datalist id="automotiveVehicleBrandOptions">${optionMarkup(brandChoices)}</datalist></div><div class="field"><label>Model</label><input name="model" list="automotiveVehicleModelOptions" value="${esc(vehicle.model||"")}"><datalist id="automotiveVehicleModelOptions">${optionMarkup(modelsFor(vehicle.brand))}</datalist></div><div class="field"><label>${tr("Model Yili")}</label><input name="year" type="text" inputmode="numeric" list="automotiveVehicleYearOptions" value="${esc(vehicle.year||"")}"><datalist id="automotiveVehicleYearOptions">${optionMarkup(yearChoices)}</datalist></div><div class="field"><label>${tr("Arac Tipi")}</label><select name="vehicle_type">${selectMarkup(vehicleTypeChoices,vehicle.vehicle_type||vehicleTypeChoices[0])}</select></div><div class="field"><label>${tr("Motor Tipi")}</label><select name="engine_type">${selectMarkup(engineTypeChoices,vehicle.engine_type||engineTypeChoices[0])}</select></div><div class="field"><label>${tr("Yakit Turu")}</label><select name="fuel_type">${selectMarkup(fuelChoices,vehicle.fuel_type||fuelChoices[0])}</select></div><div class="field"><label>${tr("Son Bilinen KM")}</label><input name="last_known_odometer" type="text" inputmode="decimal" value="${esc(vehicle.last_known_odometer||0)}"></div><div class="field"><label>${tr("Muayene Tarihi")}</label><input name="inspection_due_date" type="date" value="${esc(String(vehicle.inspection_due_date||"").slice(0,10))}"></div><div class="field full"><label>Notlar</label><textarea name="notes">${esc(vehicle.notes||"")}</textarea></div></div>`,async data=>{
+      const values=Object.fromEntries(data),odometerText=String(values.last_known_odometer||"0").trim().replace(",","."),odometerNumber=Number(odometerText),customerId=Number(customer.desktopId||customer.id);if(!Number.isFinite(odometerNumber)){toast(tr("KM alani sayisal olmali."),"warning");return false}if(!Number.isInteger(customerId)||customerId<=0){toast(tr("Musteri kaydi sunucuya eslestirilmedi."),"error");return false}const payload={...values,customer_id:customerId,plate:String(values.plate||"").trim().toUpperCase(),brand:String(values.brand||"").trim(),model:String(values.model||"").trim(),year:String(values.year||"").trim(),vehicle_type:String(values.vehicle_type||"").trim(),engine_type:String(values.engine_type||"").trim(),fuel_type:String(values.fuel_type||"").trim(),last_known_odometer:Math.trunc(odometerNumber),notes:String(values.notes||"").trim(),is_active:1};
       if(vehicle.id)Object.assign(payload,{id:+vehicle.id,_action:"update"});
       const result=await apiFetch("/api/desktop/table/customer_vehicles",{method:"POST",body:JSON.stringify(payload)});
       toast(tr("Arac karti kaydedildi"),"success");
@@ -751,6 +766,8 @@
       if(options.refreshCustomer!==false)setTimeout(()=>customer360(customer),120);
       return true;
     },tr("Araci Kaydet"));
+    const brandField=document.querySelector('#dialogBody [name="brand"]'),modelOptions=document.querySelector("#automotiveVehicleModelOptions");
+    brandField?.addEventListener("input",()=>{if(modelOptions)modelOptions.innerHTML=optionMarkup(modelsFor(brandField.value))});
   }
 
   window.openAutomotiveVehicleShortcut=function(){
@@ -767,6 +784,13 @@
   const baseVehicleMaintenanceDialog=maintenanceDialog;
   maintenanceDialog=async function(sourceRow={}){
     await baseVehicleMaintenanceDialog(sourceRow);
+    try{
+      const catalog=await apiFetch("/api/desktop/automotive/vehicle-catalog");
+      if(catalog.models&&typeof catalog.models==="object")maintenanceVehicleCatalog=catalog.models;
+      if(Array.isArray(catalog.vehicle_types)&&catalog.vehicle_types.length)maintenanceVehicleTypes=catalog.vehicle_types;
+      if(Array.isArray(catalog.engine_types)&&catalog.engine_types.length)maintenanceEngineTypes=catalog.engine_types;
+      if(Array.isArray(catalog.fuel_types)&&catalog.fuel_types.length)maintenanceFuelTypes=catalog.fuel_types;
+    }catch(_){}
     const maintenanceField=name=>document.querySelector(`#dialogBody [name="${name}"]`);
     const brandInput=maintenanceField("vehicle_brand"),modelInput=maintenanceField("vehicle_model");
     if(brandInput&&modelInput){
@@ -810,7 +834,7 @@
       vehicleRows.splice(0,vehicleRows.length);
       vehicleSelect.innerHTML=`<option value="">${tr("Musteriye ait arac secin")}</option>`;
       if(!customerId)return;
-      const result=await apiFetch("/api/desktop/table/customer_vehicles?limit=500");
+      const result=await loadAllDesktopTableData("customer_vehicles");
       const rows=(result.rows||[]).filter(vehicle=>String(vehicle.customer_id)===String(customerId));
       vehicleRows.push(...rows);
       vehicleSelect.innerHTML=`<option value="">${tr("Musteriye ait arac secin")}</option>`+rows.map(vehicle=>`<option value="${esc(vehicle.id)}">${esc(vehicle.plate||"")} | ${esc(`${vehicle.brand||""} ${vehicle.model||""}`.trim())}</option>`).join("");
@@ -834,7 +858,7 @@
       const form=document.querySelector("#dialogForm"),draft=Object.fromEntries(new FormData(form));
       draft._draftItems=readDraftItems();
       const dialog=document.querySelector("#appDialog");dialog.close("cancel");let saved=null;
-      const reopen=()=>{void maintenanceDialog({...draft,...(saved?{vehicle_id:saved.id,vehicle_plate:saved.plate,vehicle_brand:saved.brand,vehicle_model:saved.model,vehicle_year:saved.year,vehicle_type:saved.vehicle_type,engine_type:saved.engine_type,fuel_type:saved.fuel_type,odometer:saved.last_known_odometer,inspection_due_date:saved.inspection_due_date}:{})})};
+      const reopen=()=>{void maintenanceDialog({...draft,customer_id:customer.id,...(saved?{vehicle_id:saved.id,vehicle_plate:saved.plate,vehicle_brand:saved.brand,vehicle_model:saved.model,vehicle_year:saved.year,vehicle_type:saved.vehicle_type,engine_type:saved.engine_type,fuel_type:saved.fuel_type,odometer:saved.last_known_odometer,inspection_due_date:saved.inspection_due_date}:{})})};
       setTimeout(()=>{vehicleEditor(customer,{}, {refreshCustomer:false,onSaved:(result,payload)=>{saved={...payload,...result,id:result.id||payload.id}}});document.querySelector("#appDialog").addEventListener("close",reopen,{once:true})},80);
     });
     vehicleSelect.addEventListener("change",()=>{const vehicle=vehicleRows.find(item=>String(item.id)===String(vehicleSelect.value));if(vehicle)applyVehicle(vehicle)});
@@ -844,7 +868,7 @@
       if(!plate)return;
       plateInput.value=plate;
       try{
-        const result=await apiFetch("/api/desktop/table/customer_vehicles?limit=500");
+        const result=await loadAllDesktopTableData("customer_vehicles");
         const vehicle=(result.rows||[]).find(item=>String(item.plate||"").trim().toLocaleUpperCase("tr-TR")===plate);
         if(!vehicle)return;
         customerSelect.value=String(vehicle.customer_id);
@@ -858,7 +882,7 @@
     const host=$("#c360Vehicles");
     if(!host)return;
     try{
-      const response=await apiFetch("/api/desktop/table/customer_vehicles?limit=500");
+      const response=await loadAllDesktopTableData("customer_vehicles");
       const rows=(response.rows||[]).filter(vehicle=>String(vehicle.customer_id)===String(customer.id));
       host.innerHTML=`<div class="vehicle-list-head"><div><strong>${tr("Kayitli Araclar")}</strong><p class="muted">${rows.length} ${tr("arac")}</p></div><button type="button" class="primary" id="c360VehicleAdd">+ ${tr("Yeni Arac")}</button></div>${rows.length?`<div class="table-wrap"><table><thead><tr><th>Plaka</th><th>${tr("Arac")}</th><th>${tr("Yil")}</th><th>${tr("Yakit")}</th><th>KM</th><th>${tr("Muayene")}</th><th></th></tr></thead><tbody>${rows.map((vehicle,index)=>`<tr tabindex="0" data-vehicle-index="${index}"><td><strong>${esc(vehicle.plate||"-")}</strong></td><td>${esc(`${vehicle.brand||""} ${vehicle.model||""}`.trim()||"-")}</td><td>${esc(vehicle.year||"-")}</td><td>${esc(vehicle.fuel_type||"-")}</td><td>${esc(vehicle.last_known_odometer||0)}</td><td>${esc(String(vehicle.inspection_due_date||"-").slice(0,10))}</td><td><button type="button" class="mini" data-vehicle-edit="${index}">${tr("Duzenle")}</button></td></tr>`).join("")}</tbody></table></div>`:empty(tr("Arac kaydi yok"),tr("Bu musteri icin ilk arac kartini olusturun."))}`;
       $("#c360VehicleAdd").onclick=()=>{$("#appDialog").close();setTimeout(()=>vehicleEditor(customer),80)};
@@ -871,14 +895,13 @@
     baseCustomer360(customer);
     if(!automotiveMode())return;
     const tabs=$(".c360-tabs"),body=$("#dialogBody");
-    if(!tabs||!body||tabs.querySelector('[data-c360-tab="vehicles"]'))return;
-    const tab=document.createElement("button");
-    tab.className="tab";tab.type="button";tab.dataset.c360Tab="vehicles";tab.textContent=tr("Araclar");tabs.appendChild(tab);
-    const panel=document.createElement("div");
-    panel.className="c360-panel";panel.dataset.c360Panel="vehicles";panel.id="c360Vehicles";panel.textContent=tr("Arac kayitlari yukleniyor...");body.appendChild(panel);
+    if(!tabs||!body)return;
+    let tab=tabs.querySelector('[data-c360-tab="vehicles"]'),panel=body.querySelector('[data-c360-panel="vehicles"]');
+    if(!tab){tab=document.createElement("button");tab.className="tab";tab.type="button";tab.dataset.c360Tab="vehicles";tab.textContent=tr("Araclar");tabs.appendChild(tab)}
+    if(!panel){panel=document.createElement("div");panel.className="c360-panel";panel.dataset.c360Panel="vehicles";panel.id="c360Vehicles";panel.textContent=tr("Arac kayitlari yukleniyor...");body.appendChild(panel)}
     tab.onclick=()=>{
-      $$('[data-c360-tab]').forEach(item=>item.classList.toggle("active",item===tab));
-      $$('[data-c360-panel]').forEach(item=>item.classList.toggle("active",item===panel));
+      $$('[data-c360-tab]').forEach(item=>{const selected=item===tab;item.classList.toggle("active",selected);item.setAttribute("aria-selected",String(selected));item.tabIndex=selected?0:-1});
+      $$('[data-c360-panel]').forEach(item=>{const selected=item===panel;item.classList.toggle("active",selected);item.setAttribute("aria-hidden",String(!selected))});
       void loadCustomerVehicles(customer);
     };
   };
@@ -918,8 +941,13 @@
     }
     if(!customer||!service)return toast(tr("Servis kaydi bulunamadi"),"error");
     let stored={};
+    let paymentBanks=[];
     try{
-      const response=await apiFetch(`/api/desktop/table/automotive_service_forms?limit=500&q=${encodeURIComponent(service.no||"")}`);
+      const bankData=await loadAllDesktopTableData("bank_accounts");
+      paymentBanks=(bankData.rows||[]).filter(account=>Number(account.is_deleted||0)===0&&Number(account.is_active??1)!==0);
+    }catch(_){}
+    try{
+      const response=await loadAllDesktopTableData("automotive_service_forms",{q:service.no||""});
       stored=(response.rows||[]).find(row=>String(row.device_id)===String(service.id)||row.tracking_no===service.no)||{};
     }catch(error){toast(error.message,"warning")}
     const damageMarks=normalizeAutomotiveDamage(stored.damage_marks_json);
@@ -928,12 +956,39 @@
     service.plate=service.vehicle_plate||service.plate||service.serial||"";
     stored.vehicle_vin=stored.vehicle_vin||service.vehicle_vin||"";
     stored.vehicle_id=stored.vehicle_id||service.vehicle_id||null;
-    openDialog(`${service.no} - ${service.device}`,tr("OTOMOTIV TEKNISYEN FORMU"),`<div class="form-grid"><div class="field"><label>${tr("Musteri")}</label><input disabled value="${esc(customer.name)}"></div><div class="field"><label>Durum</label><select name="status">${statuses.map(value=>`<option ${service.status===value?"selected":""}>${value}</option>`).join("")}</select></div><div class="field"><label>Teknisyen</label><select name="technician"><option value="">${tr("Atanmadi")}</option>${desktopPersonnel.map(person=>`<option ${service.technician===person.name?"selected":""}>${esc(person.name)}</option>`).join("")}</select></div><div class="field"><label>${tr("Oncelik")}</label><select name="priority">${[tr("Dusuk"),"Normal",tr("Yuksek"),"Acil"].map(value=>`<option ${service.priority===value?"selected":""}>${value}</option>`).join("")}</select></div><section class="automotive-fields"><h3>${tr("Arac Kabul ve Kontrol")}</h3><div class="field"><label>Plaka</label><input name="vehicle_plate" value="${esc(stored.vehicle_plate||service.plate||service.serial||"")}"></div><div class="field"><label>VIN</label><input name="vehicle_vin" value="${esc(stored.vehicle_vin||"")}"></div><div class="field"><label>${tr("Motor Kodu")}</label><input name="engine_code" value="${esc(stored.engine_code||"")}"></div><div class="field"><label>${tr("Giris KM")}</label><input name="entry_odometer" type="number" min="0" value="${esc(stored.entry_odometer||service.odometer||0)}"></div><div class="field"><label>${tr("Cikis KM")}</label><input name="exit_odometer" type="number" min="0" value="${esc(stored.exit_odometer||0)}"></div><div class="field"><label>${tr("Giris Yakit")}</label><select name="fuel_level_entry">${["Bos","1/4","1/2","3/4","Dolu"].map(value=>`<option ${stored.fuel_level_entry===value?"selected":""}>${value}</option>`).join("")}</select></div><div class="field"><label>${tr("Cikis Yakit")}</label><select name="fuel_level_exit">${["Bos","1/4","1/2","3/4","Dolu"].map(value=>`<option ${stored.fuel_level_exit===value?"selected":""}>${value}</option>`).join("")}</select></div><div class="field full"><label>${tr("Kabul Notlari / Hasar Tespiti")}</label><textarea name="acceptance_notes">${esc(stored.acceptance_notes||"")}</textarea><button type="button" class="secondary" data-technician-damage-open>Hasar Tespiti (${automotiveDamageCount(damageMarks)})</button></div><div class="field full"><label>${tr("Arac Kontrol Listesi")}</label><button type="button" class="secondary" data-technician-checklist-open>Kontrol Formu (${checklistData.items.length})</button></div><div class="field full"><button type="button" class="secondary" data-technician-vehicle-history>QR / Ara\u00e7 Ge\u00e7mi\u015fi</button><div class="automotive-history-inline" id="technicianVehicleHistory" hidden></div></div><label class="setting"><span>${tr("Musteri onayi alindi")}</span><input class="switch" type="checkbox" name="customer_approval" ${stored.customer_approval?"checked":""}></label><label class="setting"><span>${tr("KVKK onayi alindi")}</span><input class="switch" type="checkbox" name="kvkk_approval" ${stored.kvkk_approval?"checked":""}></label></section><div class="field full"><label>${tr("Teknik Ic Not")}</label><textarea name="internal_notes">${esc(service.internal_notes||"")}</textarea></div><div class="field full"><label>${tr("Yapilan Islem / Musteri Notu")}</label><textarea name="repair_details">${esc(service.repair_details||"")}</textarea></div><div class="field"><label>${tr("Iscilik Tutari")}</label><input name="labor_cost" type="number" min="0" step=".01" value="${service.labor_cost||0}"></div><div class="field"><label>${tr("Kargo Tutari")}</label><input name="cargo_fee" type="number" min="0" step=".01" value="${service.cargo_fee||0}"></div><div class="field"><label>${tr("Kullanilan Stok")}</label><select name="part_id"><option value="">${tr("Parca kullanilmadi")}</option>${db.stock.filter(part=>part.qty>0).map(part=>`<option value="${part.id}">${esc(part.name)} (${part.qty} - ${money(part.sell,part.currency)})</option>`).join("")}</select></div><div class="field"><label>${tr("Parca Adedi")}</label><input name="part_quantity" type="number" min="0" step="1" value="0"></div><label class="setting field"><span>${tr("Simdi tahsilat al")}</span><input class="switch" id="collectPayment" name="collect_payment" type="checkbox"></label><div class="field payment-field" hidden><label>${tr("Tahsilat Tutari")}</label><input name="payment_amount" type="number" min="0" step=".01" value="0"></div><div class="field payment-field" hidden><label>${tr("Para Birimi")}</label><select name="payment_currency"><option>TRY</option><option>USD</option><option>EUR</option></select></div><div class="field payment-field" hidden><label>${tr("Odeme Yontemi")}</label><select name="payment_method"><option>Nakit</option><option>Banka</option><option>${tr("Kredi Karti")}</option></select></div></div>`,async formData=>{
+    openDialog(`${service.no} - ${service.device}`,tr("OTOMOTIV TEKNISYEN FORMU"),`<div class="form-grid"><div class="field"><label>${tr("Musteri")}</label><input disabled value="${esc(customer.name)}"></div><div class="field"><label>Durum</label><select name="status">${statuses.map(value=>`<option ${service.status===value?"selected":""}>${value}</option>`).join("")}</select></div><div class="field"><label>Teknisyen</label><select name="technician"><option value="">${tr("Atanmadi")}</option>${desktopPersonnel.map(person=>`<option ${service.technician===person.name?"selected":""}>${esc(person.name)}</option>`).join("")}</select></div><div class="field"><label>${tr("Oncelik")}</label><select name="priority">${[tr("Dusuk"),"Normal",tr("Yuksek"),"Acil"].map(value=>`<option ${service.priority===value?"selected":""}>${value}</option>`).join("")}</select></div><section class="automotive-fields"><h3>${tr("Arac Kabul ve Kontrol")}</h3><div class="field"><label>Plaka</label><input name="vehicle_plate" value="${esc(stored.vehicle_plate||service.plate||service.serial||"")}"></div><div class="field"><label>VIN</label><input name="vehicle_vin" value="${esc(stored.vehicle_vin||"")}"></div><div class="field"><label>${tr("Motor Kodu")}</label><input name="engine_code" value="${esc(stored.engine_code||"")}"></div><div class="field"><label>${tr("Giris KM")}</label><input name="entry_odometer" type="number" min="0" value="${esc(stored.entry_odometer||service.odometer||0)}"></div><div class="field"><label>${tr("Cikis KM")}</label><input name="exit_odometer" type="number" min="0" value="${esc(stored.exit_odometer||0)}"></div><div class="field"><label>${tr("Giris Yakit")}</label><select name="fuel_level_entry">${["Bos","1/4","1/2","3/4","Dolu"].map(value=>`<option ${stored.fuel_level_entry===value?"selected":""}>${value}</option>`).join("")}</select></div><div class="field"><label>${tr("Cikis Yakit")}</label><select name="fuel_level_exit">${["Bos","1/4","1/2","3/4","Dolu"].map(value=>`<option ${stored.fuel_level_exit===value?"selected":""}>${value}</option>`).join("")}</select></div><div class="field full"><label>${tr("Kabul Notlari / Hasar Tespiti")}</label><textarea name="acceptance_notes">${esc(stored.acceptance_notes||"")}</textarea><button type="button" class="secondary" data-technician-damage-open>Hasar Tespiti (${automotiveDamageCount(damageMarks)})</button></div><div class="field full"><label>${tr("Arac Kontrol Listesi")}</label><button type="button" class="secondary" data-technician-checklist-open>Kontrol Formu (${checklistData.items.length})</button></div><div class="field full"><button type="button" class="secondary" data-technician-vehicle-history>QR / Ara\u00e7 Ge\u00e7mi\u015fi</button> <button type="button" class="secondary" data-technician-service-print>Servis Formu PDF / Yazd\u0131r</button><div class="automotive-history-inline" id="technicianVehicleHistory" hidden></div></div><label class="setting"><span>${tr("Musteri onayi alindi")}</span><input class="switch" type="checkbox" name="customer_approval" ${stored.customer_approval?"checked":""}></label><label class="setting"><span>${tr("KVKK onayi alindi")}</span><input class="switch" type="checkbox" name="kvkk_approval" ${stored.kvkk_approval?"checked":""}></label></section><div class="field full"><label>${tr("Teknik Ic Not")}</label><textarea name="internal_notes">${esc(service.internal_notes||"")}</textarea></div><div class="field full"><label>${tr("Yapilan Islem / Musteri Notu")}</label><textarea name="repair_details">${esc(service.repair_details||"")}</textarea></div><div class="field"><label>${tr("Iscilik Tutari")}</label><input name="labor_cost" type="number" min="0" step=".01" value="${service.labor_cost||0}"></div><div class="field"><label>${tr("Kargo Tutari")}</label><input name="cargo_fee" type="number" min="0" step=".01" value="${service.cargo_fee||0}"></div><div class="field"><label>${tr("Kullanilan Stok")}</label><select name="part_id"><option value="">${tr("Parca kullanilmadi")}</option>${db.stock.filter(part=>part.qty>0).map(part=>`<option value="${part.id}">${esc(part.name)} (${part.qty} - ${money(part.sell,part.currency)})</option>`).join("")}</select></div><div class="field"><label>${tr("Parca Adedi")}</label><input name="part_quantity" type="number" min="0" step="1" value="0"></div><label class="setting field"><span>${tr("Simdi tahsilat al")}</span><input class="switch" id="collectPayment" name="collect_payment" type="checkbox"></label><div class="field payment-field" hidden><label>${tr("Tahsilat Tutari")}</label><input name="payment_amount" type="number" min="0" step=".01" value="0"></div><div class="field payment-field" hidden><label>${tr("Para Birimi")}</label><select name="payment_currency"><option>TRY</option><option>USD</option><option>EUR</option></select></div><div class="field payment-field" hidden><label>${tr("Odeme Yontemi")}</label><select name="payment_method"><option>Nakit</option><option>${tr("Kredi Karti")}</option><option>Havale / EFT</option><option>\u00c7ek / Senet</option></select></div><div class="field payment-field" data-payment-bank-field hidden><label>${tr("Banka Hesabi")}</label><select name="bank_account_id"><option value="">${tr("Varsayilan hesap")}</option>${paymentBanks.map(account=>`<option value="${Number(account.id??account.bank_account_id)}">${esc(account.bank_name||account.account_name||account.name||`Hesap ${account.id}`)}</option>`).join("")}</select></div></div>`,async formData=>{
       const values=Object.fromEntries(formData),currency=values.payment_currency||"TRY",checklist=checklistData.items;
-      const payload={device_id:+service.id,tracking_no:service.no,status:values.status,technician:values.technician,priority:values.priority,internal_notes:values.internal_notes,repair_details:values.repair_details,labor_cost:+values.labor_cost||0,cargo_fee:+values.cargo_fee||0,part_id:+values.part_id||0,part_quantity:+values.part_quantity||0,collect_payment:Boolean(values.collect_payment),payment_amount:+values.payment_amount||0,payment_currency:currency,payment_method:values.payment_method,exchange_rate:rateForCode(currency),automotive_form:{vehicle_id:+stored.vehicle_id||null,vehicle_plate:values.vehicle_plate,vehicle_vin:values.vehicle_vin,engine_code:values.engine_code,entry_odometer:+values.entry_odometer||0,exit_odometer:+values.exit_odometer||0,fuel_level_entry:values.fuel_level_entry,fuel_level_exit:values.fuel_level_exit,acceptance_notes:values.acceptance_notes,checklist,damage_marks:damageMarks,customer_approval:Boolean(values.customer_approval),kvkk_approval:Boolean(values.kvkk_approval)}};
+      const payload={device_id:+service.id,tracking_no:service.no,status:values.status,technician:values.technician,priority:values.priority,internal_notes:values.internal_notes,repair_details:values.repair_details,labor_cost:+values.labor_cost||0,cargo_fee:+values.cargo_fee||0,part_id:+values.part_id||0,part_quantity:+values.part_quantity||0,collect_payment:Boolean(values.collect_payment),payment_amount:+values.payment_amount||0,payment_currency:currency,payment_method:values.payment_method,bank_account_id:+values.bank_account_id||null,exchange_rate:rateForCode(currency),automotive_form:{vehicle_id:+stored.vehicle_id||null,vehicle_plate:values.vehicle_plate,vehicle_vin:values.vehicle_vin,engine_code:values.engine_code,entry_odometer:+values.entry_odometer||0,exit_odometer:+values.exit_odometer||0,fuel_level_entry:values.fuel_level_entry,fuel_level_exit:values.fuel_level_exit,acceptance_notes:values.acceptance_notes,checklist,damage_marks:damageMarks,customer_approval:Boolean(values.customer_approval),kvkk_approval:Boolean(values.kvkk_approval)}};
       const result=await apiFetch("/api/desktop/technician/update",{method:"POST",body:JSON.stringify(payload)});
-      await hydrateDesktop(true);activity(`${service.no} ${tr("otomotiv teknisyen kaydi guncellendi")}`,"#");toast(result.finance_id?tr("Servis, stok, arac kontrolu ve tahsilat islendi"):tr("Servis, stok ve arac kontrolu kaydedildi"),"success");return true;
+      await hydrateDesktop(true);activity(`${service.no} ${tr("otomotiv teknisyen kaydi guncellendi")}`,"#");toast(result.finance_id?tr("Servis, stok, arac kontrolu ve tahsilat islendi"):tr("Servis, stok ve arac kontrolu kaydedildi"),"success");if(result.finance_id&&customer.id)window.setTimeout(()=>window.ayecOpenServiceInvoiceDialog?.(customer),0);return true;
     },tr("Islemi Kaydet"));
+    const servicePrintButton=$("[data-technician-service-print]",$("#dialogBody"));
+    servicePrintButton?.addEventListener("click",()=>{
+      const vehicleName=[service.brand||service.device_brand,service.model||service.device_model].filter(Boolean).join(" ")||service.device;
+      const acceptanceLabel=tr("Kabul Notlari"),formatPrintValue=(label,value)=>{const escaped=esc(value||"-");return label===acceptanceLabel?escaped.replaceAll("\r\n","<br>").replaceAll("\n","<br>"):escaped};
+      const printFields=[[tr("Musteri"),customer.name],[tr("Takip Numarasi"),service.no],[tr("Arac"),vehicleName],[tr("Plaka"),$('[name=vehicle_plate]',$("#dialogBody"))?.value],["VIN",$('[name=vehicle_vin]',$("#dialogBody"))?.value],[tr("Motor Kodu"),$('[name=engine_code]',$("#dialogBody"))?.value],[tr("Giris KM"),$('[name=entry_odometer]',$("#dialogBody"))?.value],[tr("Cikis KM"),$('[name=exit_odometer]',$("#dialogBody"))?.value],[tr("Giris Yakit"),$('[name=fuel_level_entry]',$("#dialogBody"))?.value],[tr("Cikis Yakit"),$('[name=fuel_level_exit]',$("#dialogBody"))?.value],[acceptanceLabel,$('[name=acceptance_notes]',$("#dialogBody"))?.value]].map(([label,value])=>`<tr><th>${esc(label)}</th><td>${formatPrintValue(label,value)}</td></tr>`).join("");
+      const serviceKey=String(service.id||service.no||""),partLines=[...(window.ayecUsedPartsDrafts?.get(serviceKey)||[])];
+      if(!partLines.length){const partSelect=$("[name=part_id]",$("#dialogBody")),quantity=Number($("[name=part_quantity]",$("#dialogBody"))?.value||0),part=db.stock.find(item=>String(item.id)===String(partSelect?.value));if(part&&quantity>0)partLines.push({name:part.name,quantity,unit_price:part.sell||0,currency:part.currency||"TRY"})}
+      const partRows=partLines.map(line=>`<tr><td>${esc(line.name||"-")}</td><td>${esc(line.quantity||1)}</td><td>${esc(money(line.unit_price||0,line.currency||"TRY"))}</td><td>${esc(money(Number(line.unit_price||0)*Number(line.quantity||1),line.currency||"TRY"))}</td></tr>`).join("");
+      const laborAmount=Number($("[name=labor_cost]",$("#dialogBody"))?.value||0),cargoAmount=Number($("[name=cargo_fee]",$("#dialogBody"))?.value||0);
+      const totalsByCurrency=new Map();
+      for(const line of partLines){const code=String(line.currency||"TRY").toUpperCase(),amount=Number(line.unit_price||0)*Number(line.quantity||1);totalsByCurrency.set(code,(totalsByCurrency.get(code)||0)+amount)}
+      totalsByCurrency.set("TRY",(totalsByCurrency.get("TRY")||0)+laborAmount+cargoAmount);
+      const totalSummary=[...totalsByCurrency].map(([code,amount])=>money(amount,code)).join(" / ");
+      const costRows=`${partRows}<tr><td>Iscilik</td><td>1</td><td>${esc(money(laborAmount,"TRY"))}</td><td>${esc(money(laborAmount,"TRY"))}</td></tr><tr><td>Kargo</td><td>1</td><td>${esc(money(cargoAmount,"TRY"))}</td><td>${esc(money(cargoAmount,"TRY"))}</td></tr><tr><th colspan="3">Genel Toplam</th><th>${esc(totalSummary||money(0,"TRY"))}</th></tr>`;
+      const checklistRows=checklistData.items.map(item=>`<tr><td>${esc(item.section||"")}</td><td>${esc(item.label||"")}</td><td>${esc(item.status||"")}</td><td>${esc(item.note||"")}</td></tr>`).join("");
+      const damage=normalizeAutomotiveDamage(damageMarks);
+      const damageRows=damage.items.map(item=>`<tr><td>${esc(item.side||"")}</td><td>${esc(item.zone||"")}</td><td>${esc(item.status||"")}</td><td>${esc(item.note||"")}</td></tr>`).join("");
+      const companyName=String(desktopSettings.company_name||"AYEC Pro").trim();
+      const serviceDate=String(stored.created_at||service.entry_date||"").slice(0,10);
+      const companyPhone=String(desktopSettings.company_phone||"").trim();
+      const companyAddress=String(desktopSettings.company_address||"").trim();
+      const companyHeader=`<p class="automotive-print-company"><strong>${esc(companyName.toUpperCase())}</strong><br>${esc(companyAddress)}${companyPhone?` | Tel: ${esc(companyPhone)}`:""}</p>`;
+      const root=document.createElement("section");root.id="automotiveTechnicianPrintRoot";
+      root.innerHTML=`<style>@media print{body>*:not(#automotiveTechnicianPrintRoot){display:none!important}#automotiveTechnicianPrintRoot{display:block!important;font:12px Arial,sans-serif;color:#111;padding:12mm}#automotiveTechnicianPrintRoot table{width:100%;border-collapse:collapse;margin:8px 0 16px}#automotiveTechnicianPrintRoot th,#automotiveTechnicianPrintRoot td{border:1px solid #888;padding:5px;text-align:left}#automotiveTechnicianPrintRoot h1{font-size:18px}.automotive-print-company{text-align:center}</style>${companyHeader}<h1>${esc(service.no)} - ${esc(service.device)} - Servis Formu</h1><table>${printFields}</table><h2>Parca ve Iscilik</h2><table><tr><th>Kalem</th><th>Adet</th><th>Birim</th><th>Tutar</th></tr>${costRows}</table><h2>Arac Kontrol Listesi</h2><table><tr><th>Bolum</th><th>Kontrol</th><th>Durum</th><th>Not</th></tr>${checklistRows||"<tr><td colspan=4>Kayitli kontrol yok</td></tr>"}</table><h2>Hasar Tespiti (${automotiveDamageCount(damage)})</h2><p>${esc(damage.general_note||"-")}</p><table><tr><th>Yon</th><th>Bolge</th><th>Durum</th><th>Not</th></tr>${damageRows||"<tr><td colspan=4>Hasar kaydi yok</td></tr>"}</table><p>Musteri onayi: ${$("[name=customer_approval]",$("#dialogBody"))?.checked?"Evet":"Hayir"} | KVKK onayi: ${$("[name=kvkk_approval]",$("#dialogBody"))?.checked?"Evet":"Hayir"}</p><p>Musteri onay metni: ${esc(stored.customer_approval_text||"Onayliyorum.")}</p><p>KVKK metni: ${esc(stored.kvkk_text||"Veriler islenir.")}</p><p>Olusturulma: ${esc(serviceDate||"-")}</p>`;
+      document.body.append(root);const dialog=$("#appDialog");if(dialog?.open)dialog.close();
+      try{window.print();}finally{root.remove();if(dialog&&!dialog.open)dialog.showModal();}
+    });
     const checklistOpenButton=$("[data-technician-checklist-open]",$("#dialogBody"));
     checklistOpenButton?.addEventListener("click",()=>openAutomotiveChecklistDialog(checklistData,value=>{checklistData=value;checklistOpenButton.textContent=`Kontrol Formu (${checklistData.items.length})`;}));
     const historyButton=$("[data-technician-vehicle-history]",$("#dialogBody")),historyHost=$("#technicianVehicleHistory",$("#dialogBody"));
@@ -958,6 +1013,8 @@
     damageOpenButton?.addEventListener("click",()=>openAutomotiveDamageDialog(damageMarks,value=>{Object.assign(damageMarks,value);damageOpenButton.textContent=`Hasar Tespiti (${automotiveDamageCount(damageMarks)})`;}));
     const collect=$("#collectPayment");
     if(collect)collect.onchange=()=>$$('.payment-field').forEach(field=>field.hidden=!collect.checked);
+    const paymentMethod=$("[name=payment_method]",$("#dialogBody")),paymentBankField=$("[data-payment-bank-field]",$("#dialogBody"));
+    if(paymentMethod&&paymentBankField){const syncPaymentBank=()=>{paymentBankField.hidden=!collect?.checked||paymentMethod.value!=="Havale / EFT"};paymentMethod.addEventListener("change",syncPaymentBank);collect?.addEventListener("change",syncPaymentBank);syncPaymentBank()}
     if(window.ayecBindUsedPartsEditor)window.ayecBindUsedPartsEditor(service);
   };
   const ayecParityStockTable=stockTable;

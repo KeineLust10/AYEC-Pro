@@ -19,7 +19,8 @@ class AppointmentsMixin:
         return value
 
     def ensure_appointment_workflow_schema(self):
-        """Add planning and offer-link columns without changing existing appointments."""
+        """Add appointment form, planning, and offer fields without changing existing rows."""
+        self.update_appointments_schema()
         self.cursor.execute("PRAGMA table_info(appointments)")
         columns = {row[1] for row in (self.cursor.fetchall() or [])}
         additions = [
@@ -284,6 +285,11 @@ class AppointmentsMixin:
         """Sync appointment plans when a vehicle stock count removes stock."""
         delta = float(quantity_delta or 0)
         if delta >= -0.000001:
+            return
+        plan_table = self.cursor.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='appointment_plan_items'"
+        ).fetchone()
+        if not plan_table:
             return
         remaining = abs(delta)
         rows = self.cursor.execute(

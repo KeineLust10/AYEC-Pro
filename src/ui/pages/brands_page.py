@@ -212,7 +212,7 @@ class BrandsPage(QWidget):
         lbl_title = QLabel("Cihaz Bilgisi & Marka Y\u00f6netimi")
         lbl_title.setWordWrap(True)
         lbl_title.setStyleSheet(theme_qss(
-            "font-size: 18px; font-weight: 800; color: @finance_text;"
+            "font-size: 16px; font-weight: 800; color: @finance_text;"
         ))
         lbl_title.setMaximumWidth(350)
         lbl_title.setWordWrap(False)
@@ -252,10 +252,10 @@ class BrandsPage(QWidget):
         title_row.addWidget(title_content, 1)
         self.header_title.setMaximumHeight(72)
         self.header_actions = QWidget()
-        self.header_actions.setFixedHeight(104)
-        self.header_actions.setFixedWidth(654)
+        self.header_actions.setFixedHeight(56)
+        self.header_actions.setFixedWidth(794)
         actions = QGridLayout(self.header_actions)
-        actions.setContentsMargins(18, 0, 94, 0)
+        actions.setContentsMargins(0, 0, 0, 0)
         actions.setSpacing(8)
 
         btn_catalog = QPushButton("Web Katalo\u011funu G\u00fcncelle")
@@ -274,7 +274,7 @@ class BrandsPage(QWidget):
         btn_add.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_add.setStyleSheet(theme_qss(DesignTokens.get_button_qss("primary")))
         btn_add.clicked.connect(self.open_add_dialog)
-        actions.addWidget(btn_add, 1, 0)
+        actions.addWidget(btn_add, 0, 1)
 
         layout.addLayout(self.header_grid)
 
@@ -320,7 +320,7 @@ class BrandsPage(QWidget):
         self.cmb_status = ModernComboBox()
         self.cmb_status.set_reference_chevron()
         self.cmb_status.setMinimumWidth(0)
-        self.cmb_status.setFixedWidth(124)
+        self.cmb_status.setFixedWidth(150)
         self.cmb_status.setStyleSheet(
             self.cmb_status.styleSheet()
             + '\nQComboBox[referenceChevron="true"] { min-width: 96px; padding-left: 6px; padding-right: 12px; }'
@@ -369,7 +369,7 @@ class BrandsPage(QWidget):
             button.clicked.connect(callback)
             self.export_buttons.append(button)
             export_layout.addWidget(button)
-        actions.addWidget(self.export_group, 0, 1, Qt.AlignmentFlag.AlignLeft)
+        actions.addWidget(self.export_group, 0, 2, Qt.AlignmentFlag.AlignLeft)
         layout.addWidget(self.filter_frame)
         self._layout_reference_toolbar(self.width())
 
@@ -410,7 +410,7 @@ class BrandsPage(QWidget):
         self.table.setColumnWidth(4, 188)
         self.table.setColumnWidth(5, 170)
         header_view.setHighlightSections(False)
-        header_view.setFixedHeight(52)
+        header_view.setFixedHeight(44)
         self.select_all_checkbox = QCheckBox(header_view.viewport())
         self.select_all_checkbox.setFixedSize(18, 18)
         self.select_all_checkbox.move(19, 17)
@@ -431,7 +431,7 @@ class BrandsPage(QWidget):
             QAbstractItemView.EditTrigger.NoEditTriggers
         )
         self.table.setAlternatingRowColors(False)
-        self.table.verticalHeader().setDefaultSectionSize(66)
+        self.table.verticalHeader().setDefaultSectionSize(52)
         self.table.setSortingEnabled(True)
         self.table.setItemDelegateForColumn(4, _BrandsStatusDelegate(self.table))
         self.table.setItemDelegateForColumn(1, _DeviceGroupDelegate(self.table))
@@ -440,13 +440,13 @@ class BrandsPage(QWidget):
         ))
         table_font = QFont(self.table.font())
         table_font.setFamily("Inter")
-        table_font.setPointSizeF(10.0)
+        table_font.setPointSizeF(9.0)
         self.table.setFont(table_font)
         self.table.setMinimumHeight(160)
         tlay.addWidget(self.table, 1)
         table_frame.setMinimumHeight(162)
         layout.addSpacing(8)
-        layout.addWidget(table_frame, 0)
+        layout.addWidget(table_frame, 1)
 
         self.footer_grid = QGridLayout()
         self.count_label = QLabel()
@@ -514,10 +514,10 @@ class BrandsPage(QWidget):
         table_index = root_layout.indexOf(self.table_frame)
         if page_width < 1180:
             root_layout.setStretch(table_index, 1)
-            table_height = max(220, self.window().height() - 620)
             self.table.setMinimumHeight(0)
-            self.table.setMaximumHeight(table_height)
-            self.table_frame.setMaximumHeight(table_height + 2)
+            self.table.setMaximumHeight(16777215)
+            self.table_frame.setMinimumHeight(0)
+            self.table_frame.setMaximumHeight(16777215)
             compact_widths = (44, 150, 130, 160, 100, 150)
             if page_width < 920:
                 compact_widths = (40, 125, 110, 140, 90, 135)
@@ -526,8 +526,8 @@ class BrandsPage(QWidget):
                 header_view.setSectionResizeMode(column, QHeaderView.ResizeMode.Fixed)
                 self.table.setColumnWidth(column, column_width)
         else:
-            root_layout.setStretch(table_index, 0)
-            self.table.setMinimumHeight(160)
+            root_layout.setStretch(table_index, 1)
+            self.table.setMinimumHeight(0)
             self.table.setMaximumHeight(16777215)
             self.table_frame.setMaximumHeight(16777215)
         root_layout.invalidate()
@@ -539,8 +539,8 @@ class BrandsPage(QWidget):
             for column in range(5):
                 grid.setColumnStretch(column, 0)
         page_width = min(int(width), self.width())
-        narrow = page_width < 1180
-        self.layout().setContentsMargins(26, 24 if narrow else 23, 26, 20)
+        narrow = page_width < 1420
+        self.layout().setContentsMargins(20, 14 if narrow else 12, 20, 12)
         self.filter_frame.setFixedHeight(122 if narrow else 85)
         self.filter_layout.setContentsMargins(14, 15, 14, 7)
         self.header_grid.addWidget(self.header_title, 0, 0)
@@ -885,13 +885,10 @@ class BrandsPage(QWidget):
     def _fit_table_height(self):
         if not hasattr(self, "table") or not hasattr(self, "table_frame"):
             return
-        natural_height = self.table.horizontalHeader().height() + (
-            self.table.rowCount() * self.table.verticalHeader().defaultSectionSize()
-        ) + 2
-        available_height = max(160, self.height() - (620 if self.width() < 1180 else 315))
-        table_height = min(natural_height, available_height)
-        self.table.setFixedHeight(table_height)
-        self.table_frame.setFixedHeight(table_height + 2)
+        self.table.setMinimumHeight(160)
+        self.table.setMaximumHeight(16777215)
+        self.table_frame.setMinimumHeight(162)
+        self.table_frame.setMaximumHeight(16777215)
 
     def _set_visible_checks(self, state):
         checked = state == int(Qt.CheckState.Checked.value)

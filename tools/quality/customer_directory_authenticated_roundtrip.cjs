@@ -76,7 +76,7 @@ async function run() {
       navigate("customers");
       for(let attempt=0;attempt<160&&(!document.querySelector("#customerPageIndicator")||!document.querySelector("#customerSearch"));attempt++)await new Promise(resolve=>setTimeout(resolve,50));
       const table=document.querySelector(".customer-data-table"),tableWrap=table?.closest(".table-wrap");
-      const initial={role:currentAuthUser?.role||"",isControlAdmin:currentAuthUser?.is_control_admin===true,total:db.customers.length,visibleRows:document.querySelectorAll(".customer-data-table tbody tr").length,page:document.querySelector("#customerPageIndicator")?.textContent||"",metrics:[...document.querySelectorAll(".customer-metrics .metric")].slice(0,4).map(node=>node.querySelector("strong")?.textContent.trim()||""),metricSecondary:[...document.querySelectorAll(".customer-metrics .metric")].slice(0,2).map(node=>node.querySelector(".customer-metric-secondary")?.textContent.trim()||""),firstNames:[...document.querySelectorAll(".customer-data-table tbody tr")].slice(0,5).map(row=>row.querySelector(".customer-name strong>span")?.textContent.trim()||""),tableGeometry:{containerWidth:tableWrap?.clientWidth||0,tableWidth:table?.getBoundingClientRect().width||0,tableScrollWidth:table?.scrollWidth||0,columns:[...(table?.querySelectorAll("thead th")||[])].map(node=>Math.round(node.getBoundingClientRect().width))}};
+      const initial={role:currentAuthUser?.role||"",isControlAdmin:currentAuthUser?.is_control_admin===true,total:db.customers.length,visibleRows:document.querySelectorAll(".customer-data-table tbody tr").length,page:document.querySelector("#customerPageIndicator")?.textContent||"",metrics:[...document.querySelectorAll(".customer-metrics .metric")].slice(0,4).map(node=>node.querySelector("strong")?.textContent.trim()||""),metricSecondary:[...document.querySelectorAll(".customer-metrics .metric")].slice(0,2).map(node=>node.querySelector(".customer-metric-secondary")?.textContent.trim()||""),firstNames:[...document.querySelectorAll(".customer-data-table tbody tr")].slice(0,5).map(row=>row.querySelector(".customer-name strong>span")?.textContent.trim()||""),tableGeometry:{containerWidth:tableWrap?.clientWidth||0,tableWidth:table?.getBoundingClientRect().width||0,tableScrollWidth:table?.scrollWidth||0,columns:[...(table?.querySelectorAll("thead th")||[])].map(node=>Math.round(node.getBoundingClientRect().width)),columnFitMatches:(()=>{const available=tableWrap?.clientWidth||0,base=available<1100?[34,68,175,78,128,108,110,76,145]:[32,156,339,202,209,410,132,182,218],total=base.reduce((sum,width)=>sum+width,0),expected=base.map(width=>Math.max(28,Math.round(width*available/total)));expected[expected.length-1]=Math.max(28,available-expected.slice(0,-1).reduce((sum,width)=>sum+width,0));const actual=[...(table?.querySelectorAll("thead th")||[])].map(node=>Math.round(node.getBoundingClientRect().width));return actual.length===expected.length&&actual.every((width,index)=>Math.abs(width-expected[index])<=4)})()}};
       const horizontalReachability=(()=>{const old=tableWrap.scrollLeft,scrollMax=tableWrap.scrollWidth-tableWrap.clientWidth,wrapBounds=tableWrap.getBoundingClientRect();tableWrap.scrollLeft=scrollMax;const actionCell=table.querySelector("tbody tr:first-child td:last-child")?.getBoundingClientRect();const result={scrollMax,lastActionVisible:Boolean(actionCell&&actionCell.left>=wrapBounds.left-1&&actionCell.right<=wrapBounds.right+1),documentWidth:document.documentElement.scrollWidth,viewportWidth:document.documentElement.clientWidth};tableWrap.scrollLeft=old;return result})();
       const search=document.querySelector("#customerSearch");
       if(!search)throw new Error("Customer search field did not render.");
@@ -103,7 +103,7 @@ async function run() {
       const nextPageButton=document.querySelector("#customerPageNext");
       const nextPageEnabled=Boolean(nextPageButton&&!nextPageButton.disabled);
       nextPageButton?.click();
-      for(let attempt=0;attempt<40&&document.querySelector("#customerPageIndicator")?.textContent!=="2 / 3";attempt++)await new Promise(resolve=>setTimeout(resolve,25));
+      for(let attempt=0;attempt<40&&document.querySelector("#customerPageIndicator")?.textContent!=="2 / 2";attempt++)await new Promise(resolve=>setTimeout(resolve,25));
       const secondPage=document.querySelector("#customerPageIndicator")?.textContent||"";
       document.querySelector("#customerPagePrev")?.click();
       return{initial,horizontalReachability,secondPage,nextPageEnabled,searchMatches,searchedName,restored,filterAudit};
@@ -224,7 +224,7 @@ async function run() {
         const expected = [...db.customers].sort((left, right) => {
           const a = key(left), b = key(right);
           return numeric ? Number(a) - Number(b) : String(a).localeCompare(String(b), "tr-TR", { sensitivity: "base" });
-        }).slice(0, 10).map(customer => Number(customer.id));
+        }).slice(0, 15).map(customer => Number(customer.id));
         return JSON.stringify(ids()) === JSON.stringify(expected);
       };
       const segmentMatches = sortedIdsMatch(3, customer => customer.type || "Bireysel");
@@ -237,7 +237,7 @@ async function run() {
       const statusMatches = sortedIdsMatch(7, customer => customerReferenceStatus(customer));
       nameHeader().focus();
       nameHeader().dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
-      const keyboardSort = nameHeader().getAttribute("aria-sort") === "ascending" && JSON.stringify(ids()) === JSON.stringify([...db.customers].sort((left, right) => String(left.name || "").localeCompare(String(right.name || ""), "tr-TR", { sensitivity: "base" })).slice(0, 10).map(customer => Number(customer.id)));
+      const keyboardSort = nameHeader().getAttribute("aria-sort") === "ascending" && JSON.stringify(ids()) === JSON.stringify([...db.customers].sort((left, right) => String(left.name || "").localeCompare(String(right.name || ""), "tr-TR", { sensitivity: "base" })).slice(0, 15).map(customer => Number(customer.id)));
       return { descendingNames, ascendingNames, ascendingIds, namesDescending: ordered([...descendingNames].reverse()), namesAscending: ordered(ascendingNames), idsAscending: numericOrdered(ascendingIds), segmentMatches, phoneMatches, serviceMatches, balanceMatches, statusMatches, keyboardSort };
     })()`);
     if (Object.values(result.sortAudit).some(value => typeof value === "boolean" && !value)) throw new Error("Customer table sorting did not match the desktop header behavior.");
@@ -245,22 +245,25 @@ async function run() {
       const selected = () => window.ayecSelectedCustomerIds?.size || 0;
       const header = () => document.querySelector("#customerSelectAll");
       header()?.click();
-      const allRowsSelected = selected() === db.customers.length && document.querySelectorAll(".customer-row-select:checked").length === 10 && header()?.checked === true;
+      const firstPageSelected = selected() === 15 && document.querySelectorAll(".customer-row-select:checked").length === 15 && header()?.checked === true;
       document.querySelector("#customerPageNext")?.click();
       const secondPage = document.querySelector("#customerPageIndicator")?.textContent || "";
-      const secondPageSelected = document.querySelectorAll(".customer-row-select:checked").length;
+      const navigationCleared = selected() === 0 && document.querySelectorAll(".customer-row-select:checked").length === 0 && header()?.checked === false;
       header()?.click();
-      const allRowsCleared = selected() === 0 && document.querySelectorAll(".customer-row-select:checked").length === 0;
+      const secondPageSelected = selected() === 13 && document.querySelectorAll(".customer-row-select:checked").length === 13 && header()?.checked === true;
+      header()?.click();
+      const secondPageCleared = selected() === 0 && document.querySelectorAll(".customer-row-select:checked").length === 0;
       document.querySelector(".customer-row-select")?.click();
       const oneSelected = selected() === 1;
       document.querySelector("#customerPagePrev")?.click();
-      const retainedOffPage = selected() === 1 && document.querySelectorAll(".customer-row-select:checked").length === 0;
+      const previousPageCleared = selected() === 0 && document.querySelectorAll(".customer-row-select:checked").length === 0;
       document.querySelector("#customerPageNext")?.click();
-      const restoredOnPage = document.querySelectorAll(".customer-row-select:checked").length === 1;
-      return { allRowsSelected, secondPage, secondPageSelected, allRowsCleared, oneSelected, retainedOffPage, restoredOnPage };
+      const nextPageCleared = selected() === 0 && document.querySelectorAll(".customer-row-select:checked").length === 0;
+      return { firstPageSelected, secondPage, navigationCleared, secondPageSelected, secondPageCleared, oneSelected, previousPageCleared, nextPageCleared };
     })()`);
-    if (Object.values(result.selectionAudit).some(value => typeof value === "boolean" && !value) || result.selectionAudit.secondPage !== "2 / 3" || result.selectionAudit.secondPageSelected !== 10) throw new Error("Customer multi-selection did not persist across the full dataset and pagination.");
+    if (Object.values(result.selectionAudit).some(value => typeof value === "boolean" && !value) || result.selectionAudit.secondPage !== "2 / 2") throw new Error("Customer bulk selection did not stay scoped to the visible page.");
     result.selectionExportAudit = await evaluate(`(async () => {
+      document.querySelector(".customer-row-select")?.click();
       const selectedIds = [...(window.ayecSelectedCustomerIds || [])];
       let exportedRows = null;
       const originalFetch = window.fetch;
@@ -359,12 +362,13 @@ async function run() {
     const valid = result.initial.role === "Admin"
       && !result.initial.isControlAdmin
       && result.initial.total === 28
-      && result.initial.visibleRows === 10
-      && result.initial.page === "1 / 3"
-      && result.initial.tableGeometry.tableWidth === 1244
-      && result.initial.tableGeometry.tableScrollWidth === 1244
-      && JSON.stringify(result.initial.tableGeometry.columns) === JSON.stringify([36,106,215,143,149,191,146,111,147])
-      && result.horizontalReachability?.scrollMax > 0
+      && result.initial.visibleRows === 15
+      && result.initial.page === "1 / 2"
+      && Math.abs(result.initial.tableGeometry.tableWidth - result.initial.tableGeometry.containerWidth) <= 1
+      && result.initial.tableGeometry.tableScrollWidth <= result.initial.tableGeometry.containerWidth + 1
+      && result.initial.tableGeometry.columnFitMatches
+      && result.initial.tableGeometry.columns.length === 9
+      && result.horizontalReachability?.scrollMax <= 1
       && result.horizontalReachability?.lastActionVisible === true
       && result.horizontalReachability?.documentWidth === result.horizontalReachability?.viewportWidth
       && result.customer360.title === result.customer360.name
@@ -400,13 +404,13 @@ async function run() {
       && result.jobReport.exportFilename.startsWith("is-servis-raporu-")
       && result.jobReport.exportMime.includes("spreadsheetml.sheet")
       && result.jobReport.exportBytes > 0
-      && result.secondPage === "2 / 3"
+      && result.secondPage === "2 / 2"
       && result.searchMatches === 1
       && result.filterAudit.vip === expectedFilterCounts.vip
       && result.filterAudit.locationAnkara === expectedFilterCounts.locationAnkara
       && result.filterAudit.debt === expectedFilterCounts.debt
       && result.searchedName.includes(searchTerm)
-      && result.restored.page === "1 / 3"
+      && result.restored.page === "1 / 2"
       && result.restored.total === 28
       && exceptions.length === 0;
     if (!valid) throw new Error(JSON.stringify({ result, exceptions }));

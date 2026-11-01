@@ -467,7 +467,6 @@ def test_reference_service_identity_fields_and_dates_use_actual_record_data(monk
     app = QApplication.instance() or QApplication([])
     original_font = app.font()
     original_theme = ThemeManager._current_theme
-    original_stylesheet = app.styleSheet()
     from src.utils.reference_typography import apply_reference_font
     apply_reference_font(app)
     monkeypatch.setattr(ServiceListPage, "refresh_data", lambda self: None)
@@ -519,8 +518,7 @@ def test_reference_service_identity_fields_and_dates_use_actual_record_data(monk
         page.deleteLater()
         app.processEvents()
         db.close()
-        ThemeManager._activate_runtime_cache(original_theme)
-        app.setStyleSheet(original_stylesheet)
+        ThemeManager.apply_theme(app, original_theme, animate=False)
         app.setFont(original_font)
 
 

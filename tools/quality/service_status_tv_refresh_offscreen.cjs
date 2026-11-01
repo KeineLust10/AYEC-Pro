@@ -64,7 +64,7 @@ async function run() {
     if (sessionCookie) {
       let authenticated = false;
       for (let attempt = 0; attempt < 120; attempt += 1) {
-        authenticated = await evaluate("typeof currentAuthUser !== 'undefined' && Boolean(currentAuthUser?.id)");
+        authenticated = await evaluate("typeof currentAuthUser !== 'undefined' && Boolean(window.ayecApplicationReady && currentAuthUser?.id)");
         if (authenticated) break;
         await delay(100);
       }
@@ -91,9 +91,11 @@ async function run() {
         if (updated) break;
         await delay(100);
       }
-      const result = await evaluate(`({readCount:window.__deviceReads.length,intervalMs:window.__auditIntervals.find(item=>item.delay===5000&&item.callback.toString().includes('data-generic-refresh'))?.delay||0,refreshDelayMs:${refreshDelayMs},updateRefreshDelayMs:window.__deviceReads.length>${mutation.baseline}?window.__deviceReads[${mutation.baseline}]-${mutation.changedAt}:0,rowVisible:Boolean(document.querySelector('.status-wall-table')?.textContent.includes('TV-A-001')),updatedStatusVisible:Boolean(document.querySelector('.status-wall-table')?.textContent.includes('Teslim Edildi'))})`);
+      const result = await evaluate(`({readCount:window.__deviceReads.length,intervalMs:window.__auditIntervals.find(item=>item.delay===5000&&item.callback.toString().includes('loadGenericModule'))?.delay||0,refreshDelayMs:${refreshDelayMs},updateRefreshDelayMs:window.__deviceReads.length>${mutation.baseline}?window.__deviceReads[${mutation.baseline}]-${mutation.changedAt}:0,rowVisible:Boolean(document.querySelector('.status-wall-table')?.textContent.includes('TV-A-001')),updatedStatusVisible:Boolean(document.querySelector('.status-wall-table')?.textContent.includes('Teslim Edildi'))})`);
       if (!updated || result.intervalMs !== 5000 || result.refreshDelayMs < 4500 || result.refreshDelayMs > 8000 || result.updateRefreshDelayMs < 0 || result.updateRefreshDelayMs > 8000 || !result.rowVisible || !result.updatedStatusVisible || exceptions.length) throw new Error(JSON.stringify({ result, exceptions }));
-      process.stdout.write(JSON.stringify({ ...result, browserExceptions: exceptions.length }) + "\n");
+      const displayActions = await evaluate(`(()=>{window.__sharedStatusUrl="";Object.defineProperty(navigator,"share",{configurable:true,value:async payload=>{window.__sharedStatusUrl=payload.url}});document.querySelector("[data-status-tv-exit]")?.click();const exited=!window.ayecStatusWallDisplayMode&&!new URL(location.href).searchParams.has("display")&&Boolean(document.querySelector("[data-status-share]"));document.querySelector("[data-status-share]")?.click();return{exited,sharedDisplayMode:new URL(window.__sharedStatusUrl).searchParams.get("display")}})()`);
+      if (!displayActions.exited || displayActions.sharedDisplayMode !== "status-wall") throw new Error(JSON.stringify({ displayActions, exceptions }));
+      process.stdout.write(JSON.stringify({ ...result, ...displayActions, browserExceptions: exceptions.length }) + "\n");
     } else {
     let ready = false;
     for (let attempt = 0; attempt < 100; attempt += 1) {
@@ -121,7 +123,7 @@ async function run() {
       let clicks = 0;
       if (!refresh) return { found: false, clicks };
       refresh.addEventListener('click', () => { clicks += 1; });
-      const timer = window.__auditIntervals.find(item => item.delay === 5000 && item.callback.toString().includes('data-generic-refresh'));
+      const timer = window.__auditIntervals.find(item => item.delay === 5000 && item.callback.toString().includes('loadGenericModule'));
       if (!timer) return { found: false, clicks };
       document.body.dataset.page = 'dashboard';
       timer.callback();

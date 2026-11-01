@@ -30,6 +30,7 @@
     host.querySelectorAll("[data-kb-article]").forEach(function (button) {
       button.onclick = function () { selectedArticleId = button.dataset.kbArticle; renderArticles(meta, data); };
       button.oncontextmenu = function (event) {
+        if (!ayecContextMenuEnabled("knowledge-base")) { event.preventDefault(); return; }
         event.preventDefault();
         var targetArticle = rows.find(function (row) { return String(row.id) === String(button.dataset.kbArticle); });
         if (!targetArticle) return;
@@ -37,14 +38,41 @@
         renderArticles(meta, data);
         var menu = document.createElement("div");
         menu.className = "kb-context-menu";
-        menu.style.left = Math.max(8, Math.min(event.clientX, window.innerWidth - 190)) + "px";
-        menu.style.top = Math.max(8, Math.min(event.clientY, window.innerHeight - 100)) + "px";
-        menu.innerHTML = '<button type="button" data-kb-menu-delete>\u274c Sil</button><button type="button" data-kb-menu-copy>\uD83D\uDCCB \u0130\u00e7eri\u011fi Kopyala</button>';
+        menu.style.transition = "none";
+        menu.setAttribute("role", "menu");
+        menu.style.left = Math.max(8, event.clientX) + "px";
+        menu.style.top = Math.max(8, event.clientY) + "px";
+        menu.innerHTML = '<button type="button" role="menuitem" data-kb-menu-delete>\u274c Sil</button><button type="button" role="menuitem" data-kb-menu-copy>\uD83D\uDCCB \u0130\u00e7eri\u011fi Kopyala</button>';
         document.body.append(menu);
-        var closeMenu = function (outsideEvent) { if (!menu.contains(outsideEvent.target)) { menu.remove(); document.removeEventListener("pointerdown", closeMenu); } };
-        menu.querySelector("[data-kb-menu-copy]").onclick = function () { copyArticle(targetArticle); menu.remove(); document.removeEventListener("pointerdown", closeMenu); };
-        menu.querySelector("[data-kb-menu-delete]").onclick = function () { deleteArticle(meta, targetArticle); menu.remove(); document.removeEventListener("pointerdown", closeMenu); };
-        setTimeout(function () { document.addEventListener("pointerdown", closeMenu); }, 0);
+        var viewportWidth = window.visualViewport && window.visualViewport.width || document.documentElement.clientWidth || window.innerWidth;
+        var viewportHeight = window.visualViewport && window.visualViewport.height || document.documentElement.clientHeight || window.innerHeight;
+        var viewportOffsetLeft = (window.visualViewport && window.visualViewport.offsetLeft || 0) + (window.scrollX || 0);
+        var viewportOffsetTop = (window.visualViewport && window.visualViewport.offsetTop || 0) + (window.scrollY || 0);
+        menu.style.left = Math.max(8, Math.min(event.clientX - viewportOffsetLeft, viewportWidth - menu.offsetWidth - 8)) + "px";
+        menu.style.top = Math.max(8, Math.min(event.clientY - viewportOffsetTop, viewportHeight - menu.offsetHeight - 8)) + "px";
+        var closeMenu = function (outsideEvent) { if (!menu.contains(outsideEvent.target)) { menu.remove(); menu.onkeydown = null; document.removeEventListener("pointerdown", closeMenu); } };
+        menu.onkeydown = function (keyEvent) {
+          var actions = Array.from(menu.querySelectorAll('[role="menuitem"]')).filter(function (button) { return !button.disabled && !button.hidden; });
+          var index = actions.indexOf(document.activeElement);
+          if (keyEvent.key === "Escape") {
+            keyEvent.preventDefault();
+            keyEvent.stopPropagation();
+            menu.remove();
+            menu.onkeydown = null;
+            document.removeEventListener("pointerdown", closeMenu);
+            var returnTarget = Array.from(host.querySelectorAll("[data-kb-article]")).find(function (item) { return String(item.dataset.kbArticle) === String(targetArticle.id); });
+            returnTarget?.focus();
+            return;
+          }
+          if (!actions.length || !["ArrowDown", "ArrowUp", "Home", "End"].includes(keyEvent.key)) return;
+          keyEvent.preventDefault();
+          var next = keyEvent.key === "Home" ? 0 : keyEvent.key === "End" ? actions.length - 1 : keyEvent.key === "ArrowDown" ? (index + 1 + actions.length) % actions.length : (index - 1 + actions.length) % actions.length;
+          actions[next]?.focus();
+        };
+        menu.querySelector("[data-kb-menu-delete]")?.focus();
+        menu.querySelector("[data-kb-menu-copy]").onclick = function () { copyArticle(targetArticle); menu.remove(); menu.onkeydown = null; document.removeEventListener("pointerdown", closeMenu); };
+        menu.querySelector("[data-kb-menu-delete]").onclick = function () { deleteArticle(meta, targetArticle); menu.remove(); menu.onkeydown = null; document.removeEventListener("pointerdown", closeMenu); };
+        setTimeout(function () { if (menu.isConnected) document.addEventListener("pointerdown", closeMenu); }, 0);
       };
     });
     document.querySelectorAll("[data-kb-delete]").forEach(function (deleteButton) {

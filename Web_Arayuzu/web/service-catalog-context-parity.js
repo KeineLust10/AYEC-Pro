@@ -91,19 +91,47 @@
     if (!window.ayecContextMenuEnabled()) return;
     event.preventDefault();
     const menu = document.querySelector("#contextMenu");
+    menu.setAttribute("role", "menu");
     menu.innerHTML = items.map(([label, action], index) =>
       (index === 3 ? '<hr class="service-catalog-context-separator">' : "") +
-      `<button type="button" data-service-catalog-context="${action}">${label}</button>`
+      `<button type="button" role="menuitem" data-service-catalog-context="${action}">${label}</button>`
     ).join("");
-    menu.style.left = `${Math.max(8, Math.min(event.clientX, innerWidth - 230))}px`;
-    menu.style.top = `${Math.max(8, Math.min(event.clientY, innerHeight - items.length * 38 - 24))}px`;
+    menu.style.left = `${Math.max(8, event.clientX)}px`;
+    menu.style.top = `${Math.max(8, event.clientY)}px`;
     menu.classList.add("open");
+    menu.style.left = `${Math.max(8, Math.min(event.clientX, innerWidth - menu.offsetWidth - 8))}px`;
+    menu.style.top = `${Math.max(8, Math.min(event.clientY, innerHeight - menu.offsetHeight - 8))}px`;
+    const closeMenu = () => {
+      menu.classList.remove("open");
+      menu.onkeydown = null;
+      document.removeEventListener("pointerdown", outsidePointerDown, true);
+      if (menu.contains(document.activeElement)) document.activeElement.blur();
+    };
+    const outsidePointerDown = pointerEvent => {
+      if (!menu.contains(pointerEvent.target)) closeMenu();
+    };
+    menu.onkeydown = keyEvent => {
+      const actions = [...menu.querySelectorAll("[data-service-catalog-context]")].filter(button => !button.disabled && !button.hidden);
+      const index = actions.indexOf(document.activeElement);
+      if (keyEvent.key === "Escape") {
+        keyEvent.preventDefault();
+        keyEvent.stopPropagation();
+        closeMenu();
+        return;
+      }
+      if (!actions.length || !["ArrowDown", "ArrowUp", "Home", "End"].includes(keyEvent.key)) return;
+      keyEvent.preventDefault();
+      const next = keyEvent.key === "Home" ? 0 : keyEvent.key === "End" ? actions.length - 1 : keyEvent.key === "ArrowDown" ? (index + 1 + actions.length) % actions.length : (index - 1 + actions.length) % actions.length;
+      actions[next]?.focus();
+    };
+    menu.querySelector("[data-service-catalog-context]")?.focus();
     menu.querySelectorAll("[data-service-catalog-context]").forEach(button => {
       button.onclick = () => {
-        menu.classList.remove("open");
+        closeMenu();
         runAction(button.dataset.serviceCatalogContext, id, row);
       };
     });
+    document.addEventListener("pointerdown", outsidePointerDown, true);
   }
 
   if (typeof baseShowContext === "function") {
@@ -271,6 +299,8 @@
     renderServiceImportRows();
   }
 
+  window.openServiceCatalogImport = (mode = "smart-import") => chooseServiceImport(mode);
+
   async function chooseServiceImport(mode) {
     importInput.dataset.serviceImportMode = mode;
     importInput.accept = mode === "excel-import" ? ".xlsx,.xls,.csv" : ".xlsx,.xls,.csv,.pdf,.xml,.docx,.png,.jpg,.jpeg,.bmp,.tif,.tiff,.webp,.ppm";
@@ -338,18 +368,37 @@
     const count = rows.length;
     window.openDialog("Se\u00e7ili Hizmetleri Sil", "H\u0130ZMET Y\u00d6NET\u0130M\u0130", `<p>${count} adet hizmet silinsin mi? Bu i\u015flem geri al\u0131namaz.</p>`, async () => {
       let deleted = 0;
+      const failed = [];
       for (const row of rows) {
-        await window.apiFetch("/api/desktop/service-definition/delete", { method: "POST", body: JSON.stringify({ id: Number(row.id) }) });
-        deleted += 1;
+        try {
+          await window.apiFetch("/api/desktop/service-definition/delete", { method: "POST", body: JSON.stringify({ id: Number(row.id) }) });
+          deleted += 1;
+        } catch {
+          failed.push(row);
+        }
       }
       window.laborSelectedIds.clear();
-      window.laborMultiSelect = false;
-      window.toast(`${deleted} hizmet silindi.`, "success");
+      failed.forEach(row => window.laborSelectedIds.add(String(row.id)));
+      window.laborMultiSelect = failed.length > 0;
+      const multiToggle = document.querySelector('[data-service-more="multi"]');
+      if (multiToggle) multiToggle.textContent = window.laborMultiSelect ? "\u00c7oklu Se\u00e7im A\u00e7\u0131k" : "\u00c7oklu Se\u00e7im";
       await window.loadGenericModule(window.currentGenericMeta, document.querySelector("#genericSearch")?.value || "");
+      if (failed.length === 0) window.toast(`${deleted} hizmet silindi.`, "success");
+      else window.toast(`${deleted} hizmet silindi, ${failed.length} kay\u0131t silinemedi.`, deleted > 0 ? "warning" : "error");
+      return true;
     }, "Evet, Sil");
     const cancel = document.querySelector("#dialogCancel");
     if (cancel) cancel.textContent = "Hay\u0131r";
     const submit = document.querySelector("#dialogSubmit");
     if (submit) { submit.classList.remove("primary"); submit.classList.add("danger"); }
   });
+})();
+(function () {
+  const baseServiceDialog = window.serviceDialog;
+  if (typeof baseServiceDialog !== "function") return;
+  window.serviceDialog = function (...args) {
+    const result = baseServiceDialog.apply(this, args);
+    if (currentSector !== "otomotiv") loadServiceDeviceModelSuggestions();
+    return result;
+  };
 })();

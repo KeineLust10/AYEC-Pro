@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from PyQt6.QtWidgets import QWidget, QTabWidget, QVBoxLayout
-from PyQt6.QtCore import QTimer
+from PyQt6.QtCore import QEvent, QTimer
 import logging
 
 from src.utils.logger import logger
@@ -19,6 +19,23 @@ class CustomersPage(QWidget, CustomersBaseMixin, CustomersDataMixin, CustomersUI
     AYEC Pro M\u00fc\u015fteri ve Cari Y\u00f6netimi Sayfas\u0131.
     Mixin yap\u0131land\u0131rmas\u0131 ile mod\u00fcler hale getirilmi\u015ftir.
     """
+
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        if event.type() not in {
+            QEvent.Type.PaletteChange,
+            QEvent.Type.ApplicationPaletteChange,
+        }:
+            return
+        if getattr(self, "_customer_theme_event_pending", False):
+            return
+        self._customer_theme_event_pending = True
+
+        def refresh_theme():
+            self._customer_theme_event_pending = False
+            self.apply_theme_styles()
+
+        QTimer.singleShot(0, refresh_theme)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

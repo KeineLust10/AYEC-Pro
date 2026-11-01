@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import (
     QFrame,
     QGridLayout,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QLineEdit,
     QMenu,
@@ -149,7 +150,7 @@ class NewTransactionV2Page(TransactionPageBehaviorMixin, QWidget):
                 button.setFixedHeight(22 if compact else 32)
             self.catalog_layout.invalidate()
         if hasattr(self, 'catalog_cards_layout'):
-            height = 256 if compact else 354
+            height = 230 if compact else 310
             for index in range(self.catalog_cards_layout.count()):
                 card = self.catalog_cards_layout.itemAt(index).widget()
                 if card is not None and card.objectName() == 'TransactionProductCard':
@@ -894,7 +895,7 @@ class NewTransactionV2Page(TransactionPageBehaviorMixin, QWidget):
         discount_heading.addWidget(self.reference_discount_value)
         self.reference_discount_presets = QHBoxLayout()
         self.reference_discount_buttons = {}
-        for label, percent in (('%0', 0), ('%5', 5), ('%10', 10), ('%15', 15), ('Ozel %', -1)):
+        for label, percent in (('%0', 0), ('%5', 5), ('%10', 10), ('%15', 15), ('%20', 20), ('Ozel %', -1)):
             button = QPushButton(label)
             button.setFixedHeight(30)
             button.clicked.connect(lambda _checked=False, value=percent: self._apply_discount_percent(value))
@@ -902,7 +903,7 @@ class NewTransactionV2Page(TransactionPageBehaviorMixin, QWidget):
             self.reference_discount_presets.addWidget(button)
         discount_panel = QFrame()
         discount_panel.setObjectName('TransactionDiscountPanel')
-        discount_panel.setFixedHeight(72)
+        discount_panel.setFixedHeight(116)
         discount_panel.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         discount_panel.setStyleSheet(theme_qss(
             'QFrame#TransactionDiscountPanel { background: @finance_active_bg; border: 1px solid @finance_outline; border-radius: 10px; }'
@@ -917,7 +918,8 @@ class NewTransactionV2Page(TransactionPageBehaviorMixin, QWidget):
         self.inp_discount.setRange(0, 999999999)
         self.inp_discount.setFixedHeight(38)
         self.inp_discount.valueChanged.connect(self.update_totals)
-        self.inp_discount.hide()
+        self.inp_discount.setToolTip('Iskonto tutarini elle girebilir veya yukaridaki yuzde seceneklerini kullanabilirsiniz.')
+        discount_layout.addWidget(self.inp_discount)
         self.cmb_vat = ModernComboBox(min_height=38)
         self.cmb_vat.addItems(['%0', '%1', '%10', '%18', '%20'])
         default_vat_text = TaxSettings.combo_text(self.db)
@@ -1140,10 +1142,20 @@ class NewTransactionV2Page(TransactionPageBehaviorMixin, QWidget):
         self._set_reference_currency(code)
 
     def _apply_discount_percent(self, percent):
-        if percent < 0:
-            self.inp_discount.setFocus()
-            return
         subtotal = sum(float(item.get('price') or 0) * float(item.get('qty') or 1) for item in self.cart_items)
+        if percent < 0:
+            value, accepted = QInputDialog.getDouble(
+                self,
+                'Ozel Iskonto',
+                'Iskonto oranini girin (%):',
+                0.0,
+                0.0,
+                100.0,
+                2,
+            )
+            if not accepted:
+                return
+            percent = value
         self.inp_discount.setValue(subtotal * float(percent) / 100.0)
         for label, button in self.reference_discount_buttons.items():
             button.setStyleSheet(self._catalog_filter_style(label == f'%{percent}'))
@@ -1210,7 +1222,7 @@ class NewTransactionV2Page(TransactionPageBehaviorMixin, QWidget):
             card.setObjectName('TransactionProductCard')
             card.setFlat(True)
             card.setCursor(Qt.CursorShape.PointingHandCursor)
-            card.setFixedHeight(256 if self.height() < 980 else 354)
+            card.setFixedHeight(230 if self.height() < 980 else 310)
             card.setMinimumWidth(0)
             card.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
             card.setToolTip(f"{name}\n{info.get('stock', 0)} adet | {price}\n{info.get('description') or info.get('category') or ''}")

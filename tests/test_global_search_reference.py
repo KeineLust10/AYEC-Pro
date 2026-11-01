@@ -34,10 +34,14 @@ def test_global_search_reference_is_loaded_after_app_and_exposes_desktop_targets
     assert 'fold(customer.name).includes(folded)||fold(customer.phone).includes(folded)' in script
     assert 'if(item.kind==="service")' in script
     assert 'service.serial_no' in script
+    assert 'service.customerName||"M\\u00fc\\u015fteri"' in script
     assert 'window.ayecAdvancedServiceFilter={customer:"",tracking:item.query' in script
     assert 'event.key==="ArrowDown"' in script
     assert 'event.key==="ArrowUp"' in script
     assert 'event.key==="Escape"' in script
+    assert 'className="global-search-clear"' in script
+    assert 'clearButton.hidden=!input.value' in script
+    assert 'clearButton.addEventListener("click"' in script
     assert 'event.ctrlKey||event.metaKey' in script
     assert 'dispatchEvent(new Event("input",{bubbles:true}))' in app
     assert '$("#globalSearch").onkeydown=' not in app

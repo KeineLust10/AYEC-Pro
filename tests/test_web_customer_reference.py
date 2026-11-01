@@ -20,6 +20,33 @@ ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "Web_Arayuzu" / "web"
 
 
+def test_customer_history_export_handles_expired_sessions_and_html_fallbacks():
+    source = (WEB / "customer-history-parity.js").read_text(encoding="utf-8")
+    index = (WEB / "index.html").read_text(encoding="utf-8")
+    route_smoke = (ROOT / "tools" / "quality" / "web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+
+    assert "response.status === 401 && window.handleUnauthorized" in source
+    assert "assertDownloadResponse(response)" in source
+    assert "customer-history-parity.js?v=20261026-customer-history-export-auth-1" in index
+    assert "result.customerHistoryExportSessionWorkflow" in route_smoke
+    assert "historyExport.unauthorizedCalls !== 1" in route_smoke
+    assert "historyExport.htmlFallbackRejected" in route_smoke
+
+
+def test_customer_device_summary_uses_all_database_devices():
+    app = (WEB / "app.js").read_text(encoding="utf-8")
+    audit = (ROOT / "tools" / "quality" / "web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+    start = app.index("function renderCustomers()")
+    end = app.index("\nfunction ", start + 10)
+    customer_renderer = app[start:end]
+
+    assert "const metricDevices=db.devices||[]" in customer_renderer
+    assert "assemblyCount=metricDevices.filter" in customer_renderer
+    assert "testCount=metricDevices.filter" in customer_renderer
+    assert "activeDeviceCount=metricDevices.filter" in customer_renderer
+    assert 'customerListParity.databaseMetrics.active !== "3 Adet Aktif"' in audit
+
+
 def test_customer_header_actions_match_reference_hierarchy_and_mobile_widths():
     app = (WEB / "app.js").read_text(encoding="utf-8")
     styles = (WEB / "midnight-reference.css").read_text(encoding="utf-8")
@@ -28,15 +55,32 @@ def test_customer_header_actions_match_reference_hierarchy_and_mobile_widths():
     template = app[start:end]
 
     assert template.index("customer-page-head") < template.index("customer-head-actions")
+    assert r'placeholder="\u2315  \u0130sim, unvan, telefon, vergi no veya e-posta ile anl\u0131k filtrele..."' in template
     assert template.index("customer-head-actions") < template.index("customer-management")
     assert template.index("customer-export-actions") < template.index("customer-add")
     assert ".customer-head-actions{display:grid" in styles
     assert "@media(max-width:760px){.customer-page-head" in styles
     assert "@media(max-width:420px){.customer-export-actions" in styles
     assert ".customer-export-actions .mini{min-height:38px;padding:8px;font-size:12px}" in styles
-    assert 'body[data-page="customers"] .customer-page-head{min-height:112px;align-items:center;margin:0;padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}' in (WEB / "desktop-parity.css").read_text(encoding="utf-8")
+    parity = (WEB / "desktop-parity.css").read_text(encoding="utf-8")
+    assert 'body[data-page="customers"] .customer-page-head{min-height:112px;align-items:center;margin:0;padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}' in parity
+    assert 'body[data-page="customers"] .customer-page-head .customer-export-actions {\n    display: grid;' in parity
+    assert 'body[data-page="customers"] .customer-page-head .customer-export-actions .mini {\n    width: 100%;' in parity
     assert ".customer-filterbar{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:12px}" in styles
     assert "@media(max-width:420px){.customer-filterbar{grid-template-columns:minmax(0,1fr)}" in styles
+
+
+def test_customer_bulk_sms_action_uses_selected_rows_and_tenant_endpoint():
+    app = (WEB / "app.js").read_text(encoding="utf-8")
+    start = app.index("function customerSmsSelected()")
+    end = app.index("function customerHistorySelected()", start)
+    action = app[start:end]
+
+    assert 'data-action="customer-sms-selected"' in app
+    assert 'if(action==="customer-sms-selected")customerSmsSelected()' in app
+    assert '$$(".customer-row-select:checked")' in action
+    assert "openCustomerSmsDialog(selected[index++],next)" in action
+    assert '/api/desktop/customer-sms' in app
 
 
 def test_customer_desktop_filter_rows_and_main_content_spacing_match_reference():
@@ -66,19 +110,47 @@ def test_customer_metrics_and_hover_use_midnight_enterprise_surfaces():
     assert 'body[data-page="customers"] .customer-filterbar {\n  background: var(--surface);' in styles
     assert 'body[data-page="customers"] .customer-data-table th{background:var(--surface-2)}' in (WEB / "desktop-parity.css").read_text(encoding="utf-8")
     assert 'body[data-page="customers"] .customer-data-table tbody tr:not(:hover) td{background:var(--bg)}' in styles
-    assert '@media(min-width:761px){body[data-page="customers"] .customer-data-table tbody tr{height:80px}}' in styles
+    assert '@media(min-width:761px){body[data-page="customers"] .customer-data-table tbody tr{height:60px}}' in styles
     assert 'body[data-page="customers"] .customer-data-table td{height:48px!important;padding:6px;font-size:11px;line-height:1.12}' in styles
+    assert 'body[data-page="customers"] .customer-data-table tbody tr{height:48px}' in styles
+    assert 'body[data-page="customers"] .customer-data-table td{height:36px!important}' in styles
     assert 'body[data-page="customers"] .customer-data-table tbody tr:hover td {\n  background: var(--surface-2);' in styles
 
 
-def test_customer_desktop_table_preserves_native_column_widths_in_scroll_view():
+def test_customer_page_uses_native_sans_serif_font_stack():
+    styles = (WEB / "desktop-parity.css").read_text(encoding="utf-8")
+    index = (WEB / "index.html").read_text(encoding="utf-8")
+
+    assert 'body[data-page="customers"] .customer-page-head,body[data-page="customers"] .customer-metrics' in styles
+    assert 'font-family:"Segoe UI",Arial,sans-serif' in styles
+    assert 'font:700 12px "Segoe UI",Arial,sans-serif' in styles
+    assert "Times New Roman" not in styles
+    assert 'body[data-page="customers"] .customer-filterbar{display:flex;flex-wrap:nowrap;align-items:center;gap:7px;min-height:0;grid-template-columns:none;margin:12px 0 0;' in styles
+    assert 'desktop-parity.css?v=20261028-sidebar-section-heading-typography-1' in index
+
+
+def test_customer_desktop_table_fits_native_responsive_column_sizing():
     styles = (WEB / "desktop-parity.css").read_text(encoding="utf-8")
     desktop = (ROOT / "src" / "ui" / "pages" / "_customers_base_mixin.py").read_text(encoding="utf-8")
 
-    assert "self._customer_column_widths = (36, 106, 215, 143, 149, 191, 146, 111, 147)" in desktop
-    assert "width:1244px;min-width:1244px;max-width:none;table-layout:fixed" in styles
-    for index, width in enumerate((36, 106, 215, 143, 149, 191, 146, 111, 147), start=1):
-        assert f".customer-data-table th:nth-child({index}),body[data-page=\"customers\"] .customer-data-table td:nth-child({index}){{width:{width}px}}" in styles
+    assert "self._customer_column_widths = (32, 156, 339, 202, 209, 410, 132, 182, 218)" in desktop
+    assert "if available < 1100:" in desktop
+    assert "widths = (34, 68, 175, 78, 128, 108, 110, 76, 145)" in desktop
+    assert "scale = available / total" in desktop
+    assert "container-type:inline-size;container-name:customer-table" in styles
+    assert "@container customer-table (max-width:1099px)" in styles
+    assert "width:100%;min-width:0;max-width:100%;table-layout:fixed" in styles
+    assert "width:3.7%" in styles and "width:21.8%" in styles
+
+
+def test_customer_contact_values_keep_native_hover_tooltips():
+    app = (WEB / "app.js").read_text(encoding="utf-8")
+    start = app.index("function customerTable(rows)")
+    end = app.index("\nfunction ", start + 10)
+    template = app[start:end]
+
+    assert 'class="customer-contact"><span title="${esc(c.phone||"-")}"' in template
+    assert '<small title="${esc(c.email||"-")}"' in template
 
 
 def test_customer_table_supports_native_sortable_headers():
@@ -94,15 +166,33 @@ def test_customer_table_supports_native_sortable_headers():
     assert 'th[data-customer-sort][aria-sort="descending"]::after' in styles
 
 
-def test_customer_select_all_covers_database_rows_and_survives_pagination():
+def test_customer_directory_defaults_to_non_deleted_non_partner_rows():
+    app = (WEB / "app.js").read_text(encoding="utf-8")
+    route_smoke = (ROOT / "tools" / "quality" / "web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+    start = app.index("function renderCustomers(){")
+    end = app.index("\nfunction ", start + 10)
+    renderer = app[start:end]
+
+    assert 'function isCustomerDirectoryPartner(customer)' in app
+    assert 'function customerDirectoryRows(includePartners=false)' in app
+    assert 'customers=customerDirectoryRows()' in renderer
+    assert 'customerTable(customers)' in renderer
+    assert 'customerDirectoryRows(type==="partner"||type==="dealer")' in app
+    assert 'result.customerDirectoryIsolation' in route_smoke
+    assert 'defaultHasPartner || result.customerDirectoryIsolation.defaultHasDeleted' in route_smoke
+
+
+def test_customer_selection_is_scoped_to_the_visible_page():
     app = (WEB / "app.js").read_text(encoding="utf-8")
     context = (WEB / "customer-context-parity.js").read_text(encoding="utf-8")
     desktop = (ROOT / "src" / "ui" / "pages" / "_customers_ui_mixin.py").read_text(encoding="utf-8")
 
     assert "for row in range(self.table.rowCount())" in desktop
     assert "const selectedCustomerIds=new Set" in app
-    assert "selectedCustomerIds.add(String(customer.id))" in app
+    assert "selectedCustomerIds.add(id)" in app
     assert "input.checked=selectedCustomerIds.has(String(input.dataset.id))" in app
+    assert "selectedCustomerIds.clear();page=Math.max(0,page-1)" in app
+    assert "selectedCustomerIds.clear();page++" in app
     assert "window.ayecSelectedCustomerIds" in context
 
 
@@ -129,7 +219,7 @@ def test_authenticated_customer_directory_loads_reference_fixture_in_browser(mon
             f"{base_url.rstrip('/')}/api/auth/login",
             json={"identifier": "customer-admin", "password": "oldpass123", "tenant_id": "tenant-1"},
         )
-        assert login.status_code == 200
+        assert login.status_code == 200, login.text
         assert login.json()["user"]["role"] == "Admin"
         assert login.json()["user"]["is_control_admin"] is False
         with sqlite3.connect(tenant_path) as conn:
@@ -234,10 +324,10 @@ def test_authenticated_customer_directory_loads_reference_fixture_in_browser(mon
         browser_result = json.loads(audit.stdout)
         initial = browser_result["initial"]
         assert initial["total"] == 28
-        assert initial["visibleRows"] == 10
-        assert initial["page"] == "1 / 3"
+        assert initial["visibleRows"] == 15
+        assert initial["page"] == "1 / 2"
         assert browser_result["nextPageEnabled"] is True
-        assert browser_result["secondPage"] == "2 / 3"
+        assert browser_result["secondPage"] == "2 / 2"
         assert browser_result["searchMatches"] == 1
         assert browser_result["filterAudit"] == expected_filter_counts
         assert initial["metrics"][:2] == ["\u20ba22,300.00 TRY", "\u20ba0.00 TRY"]
@@ -337,3 +427,25 @@ def test_authenticated_customer_directory_loads_reference_fixture_in_browser(mon
         server.shutdown()
         server.server_close()
         worker.join(timeout=2)
+
+
+def test_offscreen_route_audit_covers_selected_customer_sms_sequence():
+    route_smoke = (ROOT / "tools" / "quality" / "web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+
+    assert "result.customerSmsSelectionWorkflow" in route_smoke
+    assert 'sms.selectedIds.join(",") !== "9901,9902,9903"' in route_smoke
+    assert "sms.payloads.length !== 2" in route_smoke
+    assert "Number(sms.payloads[0].customer_id) !== 9902" in route_smoke
+    assert "Number(sms.payloads[1].customer_id) !== 9903" in route_smoke
+    assert "!sms.noPhoneToast" in route_smoke
+    assert "!sms.dialogClosed" in route_smoke
+
+
+def test_offscreen_route_audit_covers_sequential_customer_history_cards():
+    route_smoke = (ROOT / "tools" / "quality" / "web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+
+    assert "result.customerHistorySequenceWorkflow" in route_smoke
+    assert 'history.opened.join(",") !== "9911,9912"' in route_smoke
+    assert 'history.firstTitle.includes("QA History One")' in route_smoke
+    assert 'history.secondTitle.includes("QA History Two")' in route_smoke
+    assert "!history.dialogClosed" in route_smoke

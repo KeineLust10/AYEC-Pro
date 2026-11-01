@@ -309,6 +309,9 @@ def test_pc_builder_quote_note_and_finance_persist_in_authenticated_tenant(
         assert '"oversizeRejected":true' in proforma_browser.stdout
         assert '"browserExceptions":0' in proforma_browser.stdout
         assert '"editorSaved":true' in proforma_browser.stdout
+        assert '"editorFormattingApplied":true' in proforma_browser.stdout
+        assert '"editorPasteSanitized":true' in proforma_browser.stdout
+        assert '"editorTokenInserted":true' in proforma_browser.stdout
         assert '"editorPreviewStatus":200' in proforma_browser.stdout
         assert '"editorPreviewContentType":"application/pdf"' in proforma_browser.stdout
         assert '"legacyGuardVerified":true' in proforma_browser.stdout

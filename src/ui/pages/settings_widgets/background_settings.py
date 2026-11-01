@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (
     QApplication,
     QColorDialog,
     QComboBox,
+    QFontComboBox,
     QFileDialog,
     QFrame,
     QGridLayout,
@@ -21,6 +22,7 @@ from PyQt6.QtWidgets import (
     QRadioButton,
     QScrollArea,
     QSlider,
+    QSpinBox,
     QSizePolicy,
     QTabBar,
     QTabWidget,
@@ -370,6 +372,43 @@ class BackgroundSettingsWidget(QWidget):
             )
         scale_layout.addLayout(scale_legend)
         general_layout.addWidget(scale_group)
+
+        typography_group = QGroupBox("Yaz\u0131 Tipi ve Punto")
+        typography_group.setStyleSheet(self._card_qss())
+        typography_layout = QVBoxLayout(typography_group)
+        typography_layout.setSpacing(8)
+        typography_heading = QLabel("Program genelinde yaz\u0131 bi\u00e7imi")
+        typography_heading.setStyleSheet(theme_qss("color: @text; font-size: 12px; font-weight: 600; border: none;"))
+        typography_layout.addWidget(typography_heading)
+        typography_controls = QGridLayout()
+        typography_controls.setHorizontalSpacing(8)
+        typography_controls.setVerticalSpacing(6)
+        typography_controls.addWidget(QLabel("Yaz\u0131 tipi"), 0, 0)
+        self.cmb_typography_family = QFontComboBox()
+        self.cmb_typography_family.setFontFilters(QFontComboBox.FontFilter.ScalableFonts)
+        self.cmb_typography_family.setAccessibleName("Program yaz\u0131 tipi")
+        typography_controls.addWidget(self.cmb_typography_family, 0, 1, 1, 3)
+        typography_controls.addWidget(QLabel("Form / men\u00fc"), 1, 0)
+        self.spn_typography_body = QSpinBox()
+        self.spn_typography_body.setRange(1, 24)
+        self.spn_typography_body.setSuffix(" pt")
+        self.spn_typography_body.setAccessibleName("Form ve men\u00fc yaz\u0131 puntosu")
+        typography_controls.addWidget(self.spn_typography_body, 1, 1)
+        typography_controls.addWidget(QLabel("Ba\u015fl\u0131k"), 1, 2)
+        self.spn_typography_heading = QSpinBox()
+        self.spn_typography_heading.setRange(1, 32)
+        self.spn_typography_heading.setSuffix(" pt")
+        self.spn_typography_heading.setAccessibleName("Ba\u015fl\u0131k yaz\u0131 puntosu")
+        typography_controls.addWidget(self.spn_typography_heading, 1, 3)
+        typography_layout.addLayout(typography_controls)
+        self.lbl_typography_preview = QLabel("\u00d6nizleme: Form metni 11 pt  |  Ba\u015fl\u0131k 14 pt")
+        self.lbl_typography_preview.setWordWrap(True)
+        self.lbl_typography_preview.setStyleSheet(theme_qss("color: @text_muted; font-size: 11px; border: none;"))
+        typography_layout.addWidget(self.lbl_typography_preview)
+        general_layout.addWidget(typography_group)
+        self.cmb_typography_family.currentFontChanged.connect(self._apply_typography_preview)
+        self.spn_typography_body.valueChanged.connect(self._apply_typography_preview)
+        self.spn_typography_heading.valueChanged.connect(self._apply_typography_preview)
 
         menu_label_group = QGroupBox("Sol Men\u00fc G\u00f6r\u00fcn\u00fcm\u00fc")
         menu_label_group.setStyleSheet(self._card_qss())
@@ -820,7 +859,7 @@ class BackgroundSettingsWidget(QWidget):
         scale_navigation_layout.setContentsMargins(0, 0, 0, 0)
         scale_navigation_layout.setSpacing(8)
         scale_navigation_row.setMinimumHeight(0)
-        for group in (scale_group, menu_label_group):
+        for group in (scale_group, typography_group, menu_label_group):
             group.setTitle("")
             group.setStyleSheet(theme_qss(
                 "QGroupBox { background: @surface_alt; border: 1px solid @border; "
@@ -828,6 +867,7 @@ class BackgroundSettingsWidget(QWidget):
                 "QLabel { color: @text; background: transparent; border: none; }"
             ))
         scale_navigation_layout.addWidget(scale_group, 1)
+        scale_navigation_layout.addWidget(typography_group, 1)
         scale_navigation_layout.addWidget(menu_label_group, 1)
         left_layout.addWidget(self._reference_section(
             "Yaz\u0131, \u0130kon Boyutu ve Sol Men\u00fc G\u00f6r\u00fcn\u00fcm\u00fc", "#22d3ee",
@@ -936,7 +976,7 @@ class BackgroundSettingsWidget(QWidget):
                 """
             )
         )
-        self.btn_save.clicked.connect(self.save_data)
+        self.btn_save.clicked.connect(self._on_apply_clicked)
         layout.addWidget(self.btn_save)
 
     def _toggle_all_pages(self):
@@ -1095,7 +1135,8 @@ class BackgroundSettingsWidget(QWidget):
             side_menu.set_menu_label_mode(value, persist=False)
 
     def _on_display_profile_changed(self):
-        self.save_data()
+        profile = self.cmb_display_profile.currentData() or "auto"
+        self.db.set_setting("display_profile", profile)
         if self.main_window and hasattr(self.main_window, "apply_display_profile"):
             self.main_window.apply_display_profile()
 
@@ -1133,6 +1174,20 @@ class BackgroundSettingsWidget(QWidget):
         self.sld_interface_scale.setValue(scale_index)
         self.sld_interface_scale.blockSignals(False)
         self.lbl_interface_scale.setText(f"%{scale_percent}")
+
+        family = self.db.get_setting(ThemeManager.TYPOGRAPHY_FAMILY_SETTING, "Inter")
+        typography_signal_blockers = [
+            QSignalBlocker(self.cmb_typography_family),
+            QSignalBlocker(self.spn_typography_body),
+            QSignalBlocker(self.spn_typography_heading),
+        ]
+        family_index = self.cmb_typography_family.findText(family, Qt.MatchFlag.MatchFixedString)
+        if family_index >= 0:
+            self.cmb_typography_family.setCurrentIndex(family_index)
+        self.spn_typography_body.setValue(int(self.db.get_setting(ThemeManager.TYPOGRAPHY_BODY_SIZE_SETTING, "11")))
+        self.spn_typography_heading.setValue(int(self.db.get_setting(ThemeManager.TYPOGRAPHY_HEADING_SIZE_SETTING, "14")))
+        del typography_signal_blockers
+        self._apply_typography_preview()
 
         appearance_mode = AppearanceModeManager.current(self.db)
         if appearance_mode in self._appearance_radio_btns:
@@ -1241,6 +1296,28 @@ class BackgroundSettingsWidget(QWidget):
         percent = self.interface_scale_steps[self.sld_interface_scale.value()]
         self.db.set_setting(ThemeManager.INTERFACE_SCALE_SETTING, str(percent))
         ThemeManager.set_interface_scale(percent, QApplication.instance())
+
+    def _apply_typography_preview(self, *_args):
+        if not hasattr(self, "cmb_typography_family"):
+            return
+        family = self.cmb_typography_family.currentFont().family()
+        body_size = self.spn_typography_body.value()
+        heading_size = self.spn_typography_heading.value()
+        self.lbl_typography_preview.setText(
+            f"\u00d6nizleme: Form metni {body_size} pt  |  Ba\u015fl\u0131k {heading_size} pt"
+        )
+        preview_font = QFont(family, body_size)
+        self.lbl_typography_preview.setFont(preview_font)
+
+    def _on_apply_clicked(self):
+        self.save_data()
+        family = self.cmb_typography_family.currentFont().family()
+        body_size = self.spn_typography_body.value()
+        heading_size = self.spn_typography_heading.value()
+        self.db.set_setting(ThemeManager.TYPOGRAPHY_FAMILY_SETTING, family)
+        self.db.set_setting(ThemeManager.TYPOGRAPHY_BODY_SIZE_SETTING, str(body_size))
+        self.db.set_setting(ThemeManager.TYPOGRAPHY_HEADING_SIZE_SETTING, str(heading_size))
+        ThemeManager.set_typography(family, body_size, heading_size, QApplication.instance())
 
     def apply_custom_color(self, hex_color, color_type="accent"):
         if color_type == "accent":

@@ -101,6 +101,9 @@ def test_sales_cart_context_menu_edits_and_manages_lines():
     app = (WEB / "app.js").read_text(encoding="utf-8")
     desktop = (ROOT / "src/ui/pages/transaction_page_behaviors.py").read_text(encoding="utf-8")
 
+    assert 'db.stock.find(x=>String(x.id)===String(line.productId))' in app
+    assert 'db.stock.find(x=>String(x.id)===String(l.productId))' in app
+    assert 'db.customers.find(x=>String(x.id)===String(salesCustomer))' in app
     assert 'data-kind="sales-cart" data-id="${index}"' in app
     assert 'if(kind==="sales-cart")items=[[' in app
     for action in (
@@ -117,6 +120,11 @@ def test_sales_cart_context_menu_edits_and_manages_lines():
     assert 'line.priceTry=line.unitPriceTry' in app
     assert 'max="999999999" step="1"' in app
     bulk_sales = (WEB / "bulk-sales-selection.js").read_text(encoding="utf-8")
+    assert 'loadAllDesktopTableRows("services")' in bulk_sales
+    assert 'apiFetch("/api/desktop/table/services?limit=1000")' not in bulk_sales
+    service_catalog = app.split("async function loadSalesServiceCatalog()", 1)[1].split("\n}", 1)[0]
+    assert 'loadAllDesktopTableRows("services")' in service_catalog
+    assert 'services?limit=1000' not in service_catalog
     assert 'type="text" inputmode="decimal" value="${esc(line.qty)}"' in bulk_sales
     assert 'step="${service?"any":"1"}"' in bulk_sales
     assert 'line.priceTry=value' in bulk_sales
@@ -127,3 +135,46 @@ def test_sales_cart_context_menu_edits_and_manages_lines():
     end = desktop.index("\n    def ", start + 1)
     assert desktop[start:end].count("menu.addSeparator()") == 2
     assert '["Hizmeti Kopyala","sales-cart-copy"],["","sales-cart-separator"],["Sepetten \\u00c7\\u0131kar","sales-cart-remove"]' in app
+
+
+
+
+def test_offscreen_route_audit_covers_numeric_stock_id_resolution():
+    route_smoke = (ROOT / "tools/quality/web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+
+    assert "result.salesCartIdentifierWorkflow" in route_smoke
+    assert "result.salesPaymentWorkflow" in route_smoke
+    assert 'workflow.total) !== 120' in route_smoke
+    assert 'workflow.cartShowsProduct' in route_smoke
+    assert 'payment.path !== "/api/desktop/sales/commit"' in route_smoke
+    assert 'Number(payment.paymentAmount) !== 100' in route_smoke
+    assert 'payment.paymentMethod !== "Banka"' in route_smoke
+
+
+def test_bulk_selection_enter_key_accepts_selected_rows():
+    source = (WEB / "bulk-sales-selection.js").read_text(encoding="utf-8")
+    index = (WEB / "index.html").read_text(encoding="utf-8")
+    route_smoke = (ROOT / "tools" / "quality" / "web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+    assert "event.key!==\"Enter\"" in source
+    assert "dialog.querySelector(\"#dialogForm\")?.requestSubmit()" in source
+    assert "bulk-sales-selection.js?v=20261027-offer-edit-unit-price-parity-1" in index
+    assert "result.bulkStockKeyboardWorkflow" in route_smoke
+
+
+def test_mixed_offer_edit_preserves_service_lines_and_custom_part_prices():
+    app = (WEB / "app.js").read_text(encoding="utf-8")
+    bulk = (WEB / "bulk-sales-selection.js").read_text(encoding="utf-8")
+    route_smoke = (ROOT / "tools" / "quality" / "web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+    offer_edit = app.split("function beginOfferEdit(offer){", 1)[1].split("\n}", 1)[0]
+
+    assert 'item.item_type||item.line_type||item.type' in offer_edit
+    assert 'if(itemType==="service")' in offer_edit
+    assert 'serviceId:item.item_id??item.serviceId??undefined' in offer_edit
+    assert 'qty,unitPriceTry,priceTry:unitPriceTry' in offer_edit
+    assert 'storedDiscountTry=Number(offer.discount_try)' in offer_edit
+    assert 'discountPercent:Math.max(0,Math.min(100,discountPercent))' in offer_edit
+    assert 'Number(line.unitPriceTry??line.priceTry??' in bulk
+    assert "result.salesOfferMixedLineEditWorkflow" in route_smoke
+    assert 'mixedOfferEdit.discountPercent !== 10' in route_smoke
+    assert 'approvalExists:!!approval,approvalMarkup:document.querySelector("#content")?.innerHTML.includes("salesIncludeApproval")' in route_smoke
+    assert 'mixedOfferEdit.approvalExists !== true' in route_smoke

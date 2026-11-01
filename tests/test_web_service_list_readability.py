@@ -11,8 +11,13 @@ def test_service_list_and_accept_form_use_readable_text_sizes():
     stylesheet = (WEB / "service-list-reference.css").read_text(encoding="utf-8")
 
     assert re.search(r'service-list-reference\.css\?v=[^" ]+', html)
+    assert "service-list-reference.css?v=20261026-service-list-numbered-pages-1" in html
+    assert "@media print{html body .service-bulk-slip .service-receipt-qr p{font-size:8px!important}}" in stylesheet
+    assert "@media print{html body .service-bulk-slip .service-receipt-qr{margin-top:6px!important;padding-bottom:5px!important}}" in stylesheet
     assert ".service-list-table{font-size:12px}" in stylesheet
     assert ".service-list-table td{height:70px;" in stylesheet
+    assert "@media(min-width:1121px){.service-list-table td{height:108px}}" in stylesheet
+    assert "@media(max-width:760px){.service-list-table td{height:auto}}" in stylesheet
     assert ".service-list-table td small{font-size:11px}" in stylesheet
     assert '.service-list-status{display:inline-block;box-sizing:border-box;max-width:100%;height:30px;' in stylesheet
     assert 'font:800 8px/1.1 Inter,"Segoe UI",sans-serif;text-align:center;white-space:pre-line' in stylesheet
@@ -57,6 +62,18 @@ def test_service_list_desktop_table_keeps_native_columns_and_all_row_actions():
     assert "@media(max-width:760px){.service-list-table{min-width:0}" in stylesheet
 
 
+def test_service_list_rows_support_keyboard_navigation():
+    source = (WEB / "service-list-reference.js").read_text(encoding="utf-8")
+
+    assert 'tabindex="0" aria-selected="${current}"' in source
+    assert 'document.addEventListener("focusin",event=>' in source
+    assert 'document.addEventListener("click",event=>' in source
+    assert 'event.key==="ArrowDown"?Math.min(rows.length-1,index+1)' in source
+    assert 'event.key==="ArrowUp"?Math.max(0,index-1)' in source
+    assert 'event.key==="Home"?0:event.key==="End"?rows.length-1:-1' in source
+    assert 'item.tabIndex = current ? 0 : -1' in source
+
+
 def test_service_list_uses_shared_theme_and_mobile_width_rules():
     html = (WEB / "index.html").read_text(encoding="utf-8")
     parity = (WEB / "desktop-parity.css").read_text(encoding="utf-8")
@@ -71,6 +88,24 @@ def test_service_list_uses_shared_theme_and_mobile_width_rules():
     assert '.service-list-table-wrap {\n    max-width: 100%;\n    overflow-x: auto' in parity
     assert '#content .service-list-table-wrap .service-list-table thead tr {\n    height: 42px !important;' in parity
     assert '#content .service-list-table-wrap .service-list-table thead input[type="checkbox"] {\n    width: 16px;' in parity
+
+
+def test_service_list_numbered_pagination_matches_desktop_page_windows():
+    source = (WEB / "service-list-reference.js").read_text(encoding="utf-8")
+    stylesheet = (WEB / "service-list-reference.css").read_text(encoding="utf-8")
+    desktop = (ROOT / "src" / "ui" / "pages" / "service_list_page.py").read_text(encoding="utf-8")
+
+    assert "const pageItems = pages <= 7" in source
+    assert "ayecServiceListState.page <= 4 ? [1, 2, 3, 4, 5, \"...\", pages]" in source
+    assert "ayecServiceListState.page >= pages - 3 ? [1, \"...\", pages - 4" in source
+    assert 'data-service-page-number="${value}"' in source
+    assert 'aria-current="page"' in source
+    assert 'event.target.closest("[data-service-page-number]")' in source
+    assert '.service-list-pagination button[aria-current="page"]' in stylesheet
+    assert '@media(max-width:760px){.service-list-pagination>div{justify-content:flex-start;flex-wrap:wrap}}' in stylesheet
+    assert 'if total_pages <= 7:' in desktop
+    assert 'self._current_page <= 4' in desktop
+    assert 'self._current_page >= total_pages - 3' in desktop
 
 
 def test_dashboard_service_context_menu_keeps_desktop_actions_and_order():
@@ -117,10 +152,10 @@ def test_service_list_date_defaults_and_today_chip_match_desktop():
     source = (WEB / "service-list-reference.js").read_text(encoding="utf-8")
     desktop = (ROOT / "src" / "ui" / "pages" / "service_list_page.py").read_text(encoding="utf-8")
 
-    assert 'tab: "all", query: "", status: "all", date: "last_30", priority: "all"' in source
+    assert 'tab: "all", query: "", status: "all", date: "all", priority: "all"' in source
     assert 'if (key === "today") return ayecServiceListDateMatches(item, "today");' in source
     assert 'item.id, item.customer, item.brand, item.model' in source
-    assert 'self.combo_date.setCurrentIndex(self.combo_date.findData("last_30"))' in desktop
+    assert 'self.combo_date.setCurrentIndex(self.combo_date.findData("all"))' in desktop
     assert 'entry = str(rec.get("entry_date") or "")' in desktop
     assert 'if not entry.startswith(today_str):' in desktop
 
@@ -151,6 +186,37 @@ def test_service_cargo_tab_uses_desktop_delivery_fields_and_statuses():
     assert '["kargo bekliyor", "kargoya verildi"].includes(status)' in source
     assert 'elif cat == "cargo_waiting":' in desktop
     assert 'str(rec.get("delivery_type") or "") + " " + str(rec.get("service_source") or "")' in desktop
+
+
+def test_service_list_bulk_selection_is_exercised_by_route_smoke():
+    route_smoke = (ROOT / "tools" / "quality" / "web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+
+    assert "result.serviceListInteractionWorkflow" in route_smoke
+    assert "selectedCount !== 15" in route_smoke
+    assert "!result.serviceListInteractionWorkflow.selectionCleared" in route_smoke
+
+
+def test_service_receipt_total_box_uses_the_matched_width_probe():
+    html = (WEB / "index.html").read_text(encoding="utf-8")
+    source = (WEB / "service-list-reference.js").read_text(encoding="utf-8")
+
+    assert "service-list-reference.js?v=20261029-service-list-show-all-default-1" in html
+    assert ".service-receipt-total{width:43.3%;margin:5px 2pt 0 auto" in source
+
+
+def test_service_receipt_tracking_number_keeps_native_regular_weight():
+    source = (WEB / "service-list-reference.js").read_text(encoding="utf-8")
+
+    assert '<p>Takip QR<br>${esc(tracking)}<br>' in source
+
+
+def test_service_list_page_change_clears_page_scoped_bulk_selection():
+    source = (WEB / "service-list-reference.js").read_text(encoding="utf-8")
+    route_smoke = (ROOT / "tools" / "quality" / "web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+
+    assert 'ayecServiceListState.page = targetPage; ayecServiceListState.selected.clear(); render();' in source
+    assert "serviceListSelectionPageWorkflow" in route_smoke
+    assert "!result.serviceListSelectionPageWorkflow.cleared" in route_smoke
 
 
 

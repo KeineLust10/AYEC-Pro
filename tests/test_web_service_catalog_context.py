@@ -29,6 +29,30 @@ def test_service_catalog_context_menu_matches_desktop_commands():
     assert '/api/desktop/services/export/xlsx' in web
     assert '/api/desktop/services/export/pdf' in web
     assert '/api/desktop/service-definition/delete' in web
+    assert "def _duplicate_labor_row(self, service_id):" in desktop
+    app = (WEB / "app.js").read_text(encoding="utf-8")
+    assert "data-labor-duplicate" in app
+    assert "(Kopya)" in app
+
+
+def test_offscreen_route_audit_covers_service_definition_crud():
+    audit = (ROOT / "tools" / "quality" / "web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+    assert "auditServiceDefinitionCrud" in audit
+    assert "auditServiceDefinitionBulkPrice" in audit
+    assert 'JSON.stringify(bulkPrice.prices) !== JSON.stringify([110,220])' in audit
+    assert 'JSON.stringify(crud.actions) !== JSON.stringify(["insert","update","delete"])' in audit
+    assert "finalOriginalName !== \"Audit CRUD Labor\"" in audit
+
+
+def test_service_catalog_bulk_delete_cancel_and_confirm_are_offscreen_verified():
+    audit = (ROOT / "tools" / "quality" / "web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+
+    assert "auditServiceDefinitionMultiDelete" in audit
+    assert "cancelNoWrite" in audit
+    assert "multiDelete.partial" in audit
+    assert "multiDelete.retryOpened" in audit
+    assert "JSON.stringify(multiDelete.ids) !== JSON.stringify([940031,940032,940032])" in audit
+    assert 'multiDelete.remaining !== 0' in audit
 
 
 def test_service_catalog_more_menu_supports_multi_select_edit_and_delete():

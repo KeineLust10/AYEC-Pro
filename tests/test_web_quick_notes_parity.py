@@ -33,6 +33,7 @@ def test_quick_note_search_includes_original_and_display_categories():
 
     assert '" ".join((str(n_cat), display_category, title, str(n_label))).lower()' in desktop_filter
     assert 'const text=`${n.category||\"\"} ${n.display_category||\"\"} ${n.title||\"\"} ${n.label||\"\"}`' in loader
+    assert 'loadAllDesktopTableData("fast_notes")' in loader
 
 
 def test_quick_notes_delete_requires_confirmation_before_write():

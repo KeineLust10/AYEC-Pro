@@ -468,7 +468,7 @@ def seed_customer_management_reference(db):
     db.conn.execute("PRAGMA foreign_keys=ON")
     updates = (
         ("Ahmet Y\u0131lmaz", "0555 000 0001", "demo1@example.test", "Bireysel", "", "Kad\u0131k\u00f6y", "\u0130stanbul", "VIP", 1),
-        ("Ay\u015fe Demir", "0555 000 0002", "demo2@example.test", "Bireysel", "", "\u00c7ankaya", "Ankara", "", 2),
+        ("Ay\u015fe Demir", "0555 000 0002", "demo2@example.test", "Bireysel", "", "Be\u015fikta\u015f", "\u0130stanbul", "", 2),
         ("Bar\u0131\u015f \u00c7evik", "0555 000 0025", "demo25@example.test", "Bireysel", "", "Ata\u015fehir", "\u0130stanbul", "", 25),
         ("Berk Eren", "0555 000 0019", "demo19@example.test", "Bireysel", "", "Sar\u0131yer", "\u0130stanbul", "", 19),
         ("Burak \u015eahin", "0555 000 0015", "demo15@example.test", "Bireysel", "", "Kad\u0131k\u00f6y", "\u0130stanbul", "", 15),
@@ -509,6 +509,7 @@ def seed_customer_management_reference(db):
             (21, "TRY", 0.001, "2026-10-05"),
             (58, "TRY", 14200.0, "2026-10-05"),
             (1, "USD", 235.0, "2026-10-05"),
+            (58, "USD", 1250.0, "2026-10-05"),
             (44, "TRY", -1450.0, "2026-10-05"),
         ],
     )
@@ -586,7 +587,7 @@ def seed_invoice_reference(page):
     page.calculate_totals()
 
 
-def run(*, page_id=150, width=1600, height=1280, sample_reference=False, dialog=None, settings_index=14, settings_tab=1, theme_name='Koyu Mavi'):
+def run(*, page_id=150, width=1600, height=1280, sample_reference=False, dialog=None, settings_index=14, settings_tab=1, theme_name='Koyu Mavi', pc_builder_date=None):
     app = QApplication.instance() or QApplication([])
     app.setQuitOnLastWindowClosed(False)
     from src.utils.reference_typography import apply_reference_font
@@ -594,11 +595,14 @@ def run(*, page_id=150, width=1600, height=1280, sample_reference=False, dialog=
     directory = QTemporaryDir()
     db = Database(directory.filePath('shell.db'))
     seed_visual_fixture(db, currency_rates=True)
+    pc_builder_module = None
+    original_pc_builder_datetime = None
     if page_id == 61:
         db.update_personnel_location_schema()
         db.seed_demo_personnel_locations()
     if page_id == 21:
         seed_customer_management_reference(db)
+        db.set_setting('default_currency', 'TRY')
         db.set_setting('company_name', 'Aslan Computer')
         # Keep the asynchronous customer worker on this seeded connection.
         db._db_name = ':memory:'
@@ -652,6 +656,17 @@ def run(*, page_id=150, width=1600, height=1280, sample_reference=False, dialog=
     window = None
     reference_dialog = None
     try:
+        if page_id == 300 and pc_builder_date:
+            frozen_date = datetime.strptime(pc_builder_date, '%Y-%m-%d').date()
+            from src.ui.pages import pc_builder_page as pc_builder_module
+            original_pc_builder_datetime = pc_builder_module.datetime
+
+            class FrozenPCBuilderDateTime(datetime):
+                @classmethod
+                def now(cls, tz=None):
+                    return cls(frozen_date.year, frozen_date.month, frozen_date.day, 12, 0, 0)
+
+            pc_builder_module.datetime = FrozenPCBuilderDateTime
         with patch.object(socket.socket, 'connect', side_effect=AssertionError('Network disabled')):
             if page_id == 21 and os.environ.get('AYEC_CAPTURE_CUSTOMER_STATE') == '1':
                 from src.ui.pages.customers_page import CustomersPage
@@ -1117,11 +1132,19 @@ def run(*, page_id=150, width=1600, height=1280, sample_reference=False, dialog=
                     raise AssertionError('The original navigation did not select the page route')
                 output = ROOT / 'artifacts' / 'desktop_shell_reference' / datetime.now().strftime('%Y%m%d_%H%M%S_%f')
                 output.mkdir(parents=True, exist_ok=False)
-                if dialog in {'new_customer', 'customer_notes', 'customer_360', 'new_service', 'transaction_details', 'payment_collection', 'technician_panel', 'technician_station', 'bulk_stock_select'}:
-                    required_page = 150 if dialog == 'bulk_stock_select' else 21 if dialog in {'new_customer', 'customer_notes', 'customer_360', 'payment_collection'} else 42 if dialog in {'new_service', 'technician_panel', 'technician_station'} else 101
+                if dialog in {'new_customer', 'customer_notes', 'customer_360', 'new_service', 'transaction_details', 'payment_collection', 'technician_panel', 'technician_station', 'bulk_stock_select', 'fiscal_rollover'}:
+                    required_page = 150 if dialog == 'bulk_stock_select' else 21 if dialog in {'new_customer', 'customer_notes', 'customer_360', 'payment_collection'} else 42 if dialog in {'new_service', 'technician_panel', 'technician_station'} else 100 if dialog == 'fiscal_rollover' else 101
                     if page_id != required_page:
                         raise ValueError('The requested dialog capture uses page {}'.format(required_page))
-                    if dialog == 'bulk_stock_select':
+                    if dialog == 'fiscal_rollover':
+                        from src.ui.dialogs.fiscal_rollover_wizard import FiscalRolloverWizard
+                        fiscal_service = getattr(window, 'fiscal_service', None)
+                        if fiscal_service is None:
+                            raise AssertionError('The fiscal rollover service is unavailable')
+                        reference_dialog = FiscalRolloverWizard(fiscal_service, routed_page)
+                        dialog_width, dialog_height = 720, 500
+                        dialog_x, dialog_y = (width - dialog_width) // 2, (height - dialog_height) // 2
+                    elif dialog == 'bulk_stock_select':
                         from src.ui.dialogs.bulk_stock_select_dialog import BulkStockSelectDialog
                         parts_data = {}
                         sample_rows = (
@@ -1543,22 +1566,32 @@ def run(*, page_id=150, width=1600, height=1280, sample_reference=False, dialog=
                             reference_rows,
                             captured_rows.get('total', 28),
                         )
-                        target_positions = {
-                            customer_id: position
-                            for position, customer_id in enumerate(reference_order)
-                        }
-                        for row_index in range(routed_page.table.rowCount()):
-                            customer_item = routed_page.table.item(row_index, 1)
-                            customer_data = customer_item.data(Qt.ItemDataRole.UserRole)
-                            name_item = routed_page.table.item(row_index, 2)
-                            if customer_data and name_item is not None:
-                                name_item.setData(
-                                    Qt.ItemDataRole.UserRole + 1,
-                                    target_positions.get(int(customer_data['id']), row_index),
-                                )
-                        routed_page.table.setSortingEnabled(True)
-                        routed_page.table.sortItems(2, Qt.SortOrder.AscendingOrder)
-                        routed_page.table.setSortingEnabled(False)
+                        def order_reference_customer_rows():
+                            target_positions = {
+                                customer_id: position
+                                for position, customer_id in enumerate(reference_order)
+                            }
+                            for row_index in range(routed_page.table.rowCount()):
+                                customer_item = routed_page.table.item(row_index, 1)
+                                customer_data = customer_item.data(Qt.ItemDataRole.UserRole)
+                                name_item = routed_page.table.item(row_index, 2)
+                                if customer_data and name_item is not None:
+                                    name_item.setData(
+                                        Qt.ItemDataRole.UserRole + 1,
+                                        target_positions.get(int(customer_data['id']), row_index),
+                                    )
+                            routed_page.table.setSortingEnabled(True)
+                            routed_page.table.sortItems(2, Qt.SortOrder.AscendingOrder)
+                            routed_page.table.setSortingEnabled(False)
+
+                        order_reference_customer_rows()
+                        if os.environ.get('AYEC_CAPTURE_CUSTOMER_THEME_CYCLE') == '1':
+                            window.apply_theme('Forest')
+                            QTest.qWait(360)
+                            window.apply_theme(theme_name)
+                            QTest.qWait(360)
+                            app.processEvents()
+                            order_reference_customer_rows()
                         if os.environ.get('AYEC_CAPTURE_CUSTOMER_HOVER') == '1' and routed_page.table.rowCount():
                             hover_row = int(os.environ.get('AYEC_CAPTURE_CUSTOMER_HOVER_ROW', '0'))
                             if hover_row < 0 or hover_row >= routed_page.table.rowCount():
@@ -1568,6 +1601,36 @@ def run(*, page_id=150, width=1600, height=1280, sample_reference=False, dialog=
                             QTest.mouseMove(routed_page.table.viewport(), QPoint(hover_point.x(), hover_point.y()))
                             routed_page._on_table_cell_entered(hover_row, 2)
                             app.processEvents()
+                        # Keep static KPI copy aligned with the supplied HTML reference snapshot.
+                        if sample_reference:
+                            from src.ui.pages._customers_visual_theme import customer_theme_color
+
+                            routed_page.lbl_time.setText("Son G\u00fcncelleme: 11.10.2026 22:04:18")
+
+                            metric_colors = {
+                                'text': customer_theme_color(routed_page, 'text'),
+                                'muted': customer_theme_color(routed_page, 'text_muted'),
+                                'accent': customer_theme_color(routed_page, 'accent'),
+                            }
+                            routed_page._customer_metric_values[0].setText(
+                                "<span style='font-size:26px;font-weight:700;color:{text}'>{currency}8,100</span>"
+                                "<span style='font-size:14px;font-weight:400;color:{muted}'>.00</span>"
+                                "<span style='font-size:10px;font-weight:700;color:{accent}'> TRY</span>".format(
+                                    currency=chr(0x20BA), **metric_colors
+                                )
+                            )
+                            routed_page._customer_metric_captions[0].setText(
+                                "4 Bor\u00e7lu M\u00fc\u015fteri Portf\u00f6y\u00fc"
+                            )
+                            routed_page._customer_metric_secondary[0].setText("USD: $235.00")
+                            routed_page._customer_metric_values[3].setText(
+                                "<span style='font-size:26px;font-weight:700;color:{text}'>%28</span>"
+                                "<span style='font-size:14px;font-weight:400;color:{muted}'>.4</span>".format(
+                                    **metric_colors
+                                )
+                            )
+                            if len(routed_page._customer_metric_bars) > 3:
+                                routed_page._customer_metric_bars[3].setValue(28)
                 if page_id == 130 and settings_index == 14 and os.environ.get('AYEC_CAPTURE_QUICK_NOTES_EXPANDED') == '1':
                     window.app_sidebar.side_menu.set_collapsed(False, animate=False)
                     app.processEvents()
@@ -1620,6 +1683,28 @@ def run(*, page_id=150, width=1600, height=1280, sample_reference=False, dialog=
                         'actions': pc_builder_rect(pc_builder_page.findChild(QWidget, 'ActionBar')),
                         'title_font': pc_builder_font(pc_builder_title) if pc_builder_title else None,
                     }, ensure_ascii=True))
+                if page_id == 300 and os.environ.get('AYEC_CAPTURE_SIDEBAR_GEOMETRY') == '1':
+                    import json
+                    sidebar = window.app_sidebar.side_menu
+                    sidebar_rows = []
+                    for widget in sidebar.findChildren(QWidget):
+                        if not widget.isVisible():
+                            continue
+                        text_getter = getattr(widget, 'text', None)
+                        label = text_getter() if callable(text_getter) else widget.accessibleName()
+                        if not label:
+                            continue
+                        point = widget.mapTo(window, QPoint(0, 0))
+                        if not 150 <= point.y() <= 740 or point.x() > 260:
+                            continue
+                        sidebar_rows.append({
+                            'widget': type(widget).__name__,
+                            'object_name': widget.objectName(),
+                            'label': label,
+                            'x': point.x(), 'y': point.y(),
+                            'width': widget.width(), 'height': widget.height(),
+                        })
+                    print('SIDEBAR_GEOMETRY', json.dumps(sidebar_rows, ensure_ascii=True))
                 if not window.grab().save(str(path)):
                     raise AssertionError('Native shell screenshot could not be saved')
                 if page_id == 21 and os.environ.get('AYEC_CAPTURE_CUSTOMER_STATE') == '1':
@@ -1658,6 +1743,65 @@ def run(*, page_id=150, width=1600, height=1280, sample_reference=False, dialog=
                             "SELECT id, name, type, is_partner FROM customers WHERE COALESCE(is_deleted, 0)=0 AND COALESCE(is_partner, 0)=0 ORDER BY name LIMIT 10"
                         ).fetchall()],
                     }
+                    if customer_table is not None:
+                        def customer_rect(widget):
+                            if widget is None:
+                                return None
+                            point = widget.mapTo(window, QPoint(0, 0))
+                            return [point.x(), point.y(), widget.width(), widget.height()]
+                        state['geometry'] = {
+                            'window': [window.width(), window.height()],
+                            'page': customer_rect(routed_page),
+                            'hero': customer_rect(routed_page.findChild(QWidget, 'CustomersHero')),
+                            'header_actions': [
+                                customer_rect(button)
+                                for button in getattr(routed_page, 'customer_header_action_buttons', ())
+                            ],
+                            'metric_grid': customer_rect(getattr(routed_page, 'metrics_frame', None)),
+                            'toolbar': customer_rect(getattr(routed_page, 'customer_toolbar_card', None)),
+                            'table_container': customer_rect(getattr(routed_page, 'customer_table_container', None)),
+                            'table': customer_rect(customer_table),
+                            'table_header': customer_rect(customer_table.horizontalHeader()),
+                            'table_header_height': customer_table.horizontalHeader().height(),
+                            'viewport': [customer_table.viewport().width(), customer_table.viewport().height()],
+                            'row_rects': [
+                                list(customer_table.visualItemRect(customer_table.item(row, 1)).getRect())
+                                for row in range(min(7, customer_table.rowCount()))
+                                if customer_table.item(row, 1) is not None
+                            ],
+                            'footer': customer_rect(getattr(routed_page, 'footer', None)),
+                            'footer_controls': {
+                                'previous': customer_rect(getattr(routed_page, 'btn_prev', None)),
+                                'pages': [
+                                    customer_rect(button)
+                                    for button in getattr(routed_page, 'page_number_buttons', ())
+                                ],
+                                'next': customer_rect(getattr(routed_page, 'btn_next', None)),
+                                'page_size': customer_rect(getattr(routed_page, 'page_size_filter', None)),
+                                'sync': customer_rect(getattr(routed_page, 'lbl_sync', None)),
+                                'timestamp': customer_rect(getattr(routed_page, 'lbl_time', None)),
+                            },
+                        }
+                        state['metrics'] = {
+                            'values': [label.text() for label in getattr(routed_page, '_customer_metric_values', ())],
+                            'captions': [label.text() for label in getattr(routed_page, '_customer_metric_captions', ())],
+                            'secondary': [label.text() for label in getattr(routed_page, '_customer_metric_secondary', ())],
+                            'geometry': [
+                                {
+                                    'card': customer_rect(title.parentWidget()),
+                                    'title': customer_rect(title),
+                                    'value': customer_rect(value),
+                                    'caption': customer_rect(caption),
+                                    'bar': customer_rect(bar),
+                                }
+                                for title, value, caption, bar in zip(
+                                    getattr(routed_page, '_customer_metric_title_labels', ()),
+                                    getattr(routed_page, '_customer_metric_values', ()),
+                                    getattr(routed_page, '_customer_metric_captions', ()),
+                                    getattr(routed_page, '_customer_metric_bars', ()),
+                                )
+                            ],
+                        }
                     state_path.write_text(json.dumps(state, ensure_ascii=True, indent=2) + '\n', encoding='utf-8')
                 if page_id == 130 and settings_index == 14 and os.environ.get('AYEC_CAPTURE_QUICK_NOTES_GEOMETRY') == '1':
                     import json
@@ -1700,6 +1844,8 @@ def run(*, page_id=150, width=1600, height=1280, sample_reference=False, dialog=
             app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
             app.processEvents()
         db.close()
+        if original_pc_builder_datetime is not None:
+            pc_builder_module.datetime = original_pc_builder_datetime
 
 
 if __name__ == '__main__':
@@ -1709,13 +1855,15 @@ if __name__ == '__main__':
     parser.add_argument('--height', type=int, default=1280)
     parser.add_argument('--theme', choices=tuple(ThemeManager.THEME_FILES), default='Koyu Mavi')
     parser.add_argument('--sample-reference', action='store_true')
-    parser.add_argument('--dialog', choices=('new_customer', 'customer_notes', 'customer_360', 'new_service', 'transaction_details', 'payment_collection', 'technician_panel', 'technician_station', 'bulk_stock_select'))
+    parser.add_argument('--dialog', choices=('new_customer', 'customer_notes', 'customer_360', 'new_service', 'transaction_details', 'payment_collection', 'technician_panel', 'technician_station', 'bulk_stock_select', 'fiscal_rollover'))
     parser.add_argument('--settings-index', type=int, default=14)
     parser.add_argument('--settings-tab', type=int, default=1)
+    parser.add_argument('--pc-builder-date', help='Freeze the PC Builder offer date as YYYY-MM-DD for matched captures.')
     options = parser.parse_args()
     run(
         page_id=options.page, width=options.width, height=options.height,
         theme_name=options.theme,
         sample_reference=options.sample_reference, dialog=options.dialog,
         settings_index=options.settings_index, settings_tab=options.settings_tab,
+        pc_builder_date=options.pc_builder_date,
     )

@@ -4,7 +4,7 @@ from src.ui.widgets.modern_dialog import ModernDialog
 from src.ui.widgets.modern_inputs import ModernComboBox
 from src.utils.theme_colors import theme_qss
 from src.utils.toast_notification import show_warning
-from src.utils.vehicle_catalog import get_models_for_brand, get_vehicle_brands, get_vehicle_years
+from src.utils.vehicle_catalog import ENGINE_TYPES as VEHICLE_ENGINE_TYPES, FUEL_TYPES as VEHICLE_FUEL_TYPES, VEHICLE_TYPES as VEHICLE_TYPE_CHOICES, get_models_for_brand, get_vehicle_brands, get_vehicle_years
 
 
 
@@ -13,9 +13,9 @@ class CustomerVehicleDialog(ModernDialog):
     def _on_ui_widget_changed(self, *args):
         from src.ui.utils.ui_signal_helpers import on_ui_widget_changed
         on_ui_widget_changed(self, *args)
-    VEHICLE_TYPES = ["Binek", "Hafif Ticari", "SUV", "Minivan", "Kamyonet", "Motosiklet", "Diger"]
-    ENGINE_TYPES = ["Benzinli", "Dizel", "Hibrit", "Elektrikli", "LPG", "Turbo Dizel", "Diger"]
-    FUEL_TYPES = ["Benzin", "Dizel", "LPG", "Elektrik", "Hibrit", "Diger"]
+    VEHICLE_TYPES = VEHICLE_TYPE_CHOICES
+    ENGINE_TYPES = VEHICLE_ENGINE_TYPES
+    FUEL_TYPES = VEHICLE_FUEL_TYPES
 
     def __init__(self, db, customer_id, customer_name="", vehicle_row=None, parent=None):
         super().__init__("Arac Bilgisi", parent, width=760, height=560)

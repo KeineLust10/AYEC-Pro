@@ -24,6 +24,13 @@ def test_external_tracking_pending_metric_detail_matches_desktop():
     assert "Bekleyen i\\u015Flemler</footer>" not in script
 
 
+def test_external_tracking_loads_all_pages_from_the_desktop_catalog():
+    script = (WEB / "external-tracking-reference.js").read_text(encoding="utf-8")
+
+    assert 'loadAllDesktopTableRows(table)' in script
+    assert 'apiFetch(url + "?limit=500")' not in script
+
+
 def test_external_tracking_report_export_label_matches_desktop():
     script = (WEB / "external-tracking-reference.js").read_text(encoding="utf-8")
     desktop = (ROOT / "src" / "ui" / "pages" / "external_tracking_page.py").read_text(encoding="utf-8")

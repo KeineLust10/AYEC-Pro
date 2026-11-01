@@ -681,8 +681,9 @@ class UnitsTab(QWidget):
             completion = None
             if hasattr(unit, "keys"):
                 try:
-                    completion = float(unit["completion_percent"])
-                except (KeyError, TypeError, ValueError):
+                    if "completion_percent" in unit.keys():
+                        completion = float(unit["completion_percent"])
+                except (IndexError, KeyError, TypeError, ValueError):
                     pass
             if completion is None:
                 completion = 100 if "tamam" in normalized else 50 if "devam" in normalized else 0

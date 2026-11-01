@@ -1,6 +1,7 @@
 import base64
 import os
 import sqlite3
+import socket
 import subprocess
 import threading
 from http.server import ThreadingHTTPServer
@@ -181,7 +182,9 @@ def test_hidden_browser_contract_attachments_use_authenticated_tenant_api(monkey
         env["AYEC_AUDIT_URL"] = f"{base_url}/"
         env["AYEC_CONTRACT_SESSION_COOKIE"] = session.cookies.get("ayec_session")
         env["AYEC_CONTRACT_ID"] = str(contract_id)
-        env["AYEC_AUDIT_CDP_PORT"] = "9257"
+        with socket.socket() as port_socket:
+            port_socket.bind(("127.0.0.1", 0))
+            env["AYEC_AUDIT_CDP_PORT"] = str(port_socket.getsockname()[1])
         audit = subprocess.run(
             ["node", "tools/quality/contracts_authenticated_api_offscreen.cjs"],
             cwd=Path(__file__).resolve().parents[1],

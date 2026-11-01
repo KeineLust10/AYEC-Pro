@@ -33,6 +33,15 @@ def test_dashboard_matches_reference_metrics_and_five_column_activity_table():
     assert '<th>Operat\\u00f6r</th>' in app
     assert 'colspan="5"' in app
     assert 'id="controlAuditSearch"' in app
+
+
+def test_control_center_api_errors_render_retryable_and_escaped_feedback():
+    app = APP_SOURCE.read_text(encoding="utf-8")
+
+    assert 'class="empty admin-load-error" role="alert"' in app
+    assert r'esc(error.message||"Bilinmeyen sunucu hatas\u0131")' in app
+    assert 'data-admin-load-retry' in app
+    assert 'retryButton.disabled=true' in app
     assert '${logItems.length} sistem kay\\u0131d\\u0131 listeleniyor (Canl\\u0131 ak\\u0131\\u015f)' in app
     assert '\\u25cf WebSocket Sync: Aktif' in app
     assert 'Audit trail ve u\\u00e7 nokta i\\u015flem log ak\\u0131\\u015f\\u0131' in app
@@ -125,4 +134,15 @@ def test_admin_mobile_topbar_keeps_reference_breadcrumb_segments_and_search():
     assert "flex: 0 0 160px; width: 160px; min-width: 160px;" in styles
     assert "#breadcrumb .admin-breadcrumb-segment,\n  body[data-page=\"control-center\"] .topbar #breadcrumb > span[aria-hidden=\"true\"] { display: inline-block !important; }" in styles
     assert "#breadcrumb .admin-breadcrumb-current { max-width: 82px; overflow: visible; white-space: normal; }" in styles
+
+
+def test_offscreen_route_audit_covers_dashboard_metrics_search_refresh_and_license_navigation():
+    route_smoke = (ROOT / "tools" / "quality" / "web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+
+    assert "controlCenterDashboardWorkflow" in route_smoke
+    assert "QA Dashboard Active" in route_smoke
+    assert "QA Dashboard Paused" in route_smoke
+    assert "controlAuditSearch" in route_smoke
+    assert "data-control-dashboard-refresh" in route_smoke
+    assert 'data-control-action="license-requests"' in route_smoke
 

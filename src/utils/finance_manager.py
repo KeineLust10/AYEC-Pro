@@ -652,6 +652,7 @@ class FinanceManager:
                     "source": "accounting",
                     "category": cat,
                     "date": date,
+                    "created_at": created_at,
                     "description": final_desc,
                     "amount": amount_foreign,
                     "amount_try": amount_try,

@@ -3,6 +3,7 @@ import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt6.QtCore import Qt
+from PyQt6 import sip
 from PyQt6.QtWidgets import QApplication, QFrame, QDialog, QWidget, QPushButton, QLabel
 from PyQt6.QtNetwork import QNetworkReply
 from unittest.mock import patch
@@ -397,20 +398,22 @@ def test_customer_theme_styles_follow_active_light_and_dark_palette():
             app.processEvents()
             page.customer_quick_filter_bar.show()
             app.processEvents()
-            window_color = ThemeManager.get_palette_color(theme_name, "window")
-            text_color = ThemeManager.get_palette_color(theme_name, "text")
-            muted_color = ThemeManager.get_palette_color(theme_name, "text_muted")
-            warning_color = ThemeManager.get_palette_color(theme_name, "warning")
-            accent_color = ThemeManager.get_palette_color(theme_name, "accent")
+            window_color = ThemeManager.get_palette_color(theme_name, "customer_window")
+            surface_color = ThemeManager.get_palette_color(theme_name, "customer_surface")
+            text_color = ThemeManager.get_palette_color(theme_name, "customer_text")
+            muted_color = ThemeManager.get_palette_color(theme_name, "customer_text_muted")
+            warning_color = ThemeManager.get_palette_color(theme_name, "customer_warning")
+            accent_color = ThemeManager.get_palette_color(theme_name, "customer_accent")
+            secondary_color = ThemeManager.get_palette_color(theme_name, "customer_secondary")
             assert window_color.lower() in page.styleSheet().lower()
             assert text_color.lower() in page.styleSheet().lower()
-            assert window_color.lower() in page.table.styleSheet().lower()
+            assert surface_color.lower() in page.table.styleSheet().lower()
             assert text_color.lower() in page.table.styleSheet().lower()
             assert text_color.lower() in page._customer_metric_values[0].styleSheet().lower()
             assert muted_color.lower() in page._customer_metric_title_labels[0].styleSheet().lower()
             warning_button = page.customer_filter_buttons["DEBTORS"]
             assert warning_color.lower() in warning_button.styleSheet().lower()
-            assert accent_color.lower() in page._customer_metric_bars[3].styleSheet().lower()
+            assert secondary_color.lower() in page._customer_metric_bars[3].styleSheet().lower()
             assert "@window" not in page.styleSheet()
             assert "@text" not in page.table.styleSheet()
             page.customer_quick_filter_bar.hide()
@@ -418,3 +421,24 @@ def test_customer_theme_styles_follow_active_light_and_dark_palette():
         ThemeManager.apply_theme(app, previous_theme, animate=False)
         page.deleteLater()
         app.processEvents()
+
+
+def test_customer_theme_icon_refresh_discards_deleted_widgets():
+    app = QApplication.instance() or QApplication([])
+
+    class ThemeProbe(CustomersBaseMixin, QWidget):
+        pass
+
+    page = ThemeProbe()
+    icon_widget = QLabel(page)
+    widget_id = id(icon_widget)
+    page._customer_theme_icon_specs = {
+        widget_id: (icon_widget, "groups_3", 16, "accent", True)
+    }
+    sip.delete(icon_widget)
+
+    page._refresh_customer_theme_icons()
+
+    assert widget_id not in page._customer_theme_icon_specs
+    page.deleteLater()
+    app.processEvents()

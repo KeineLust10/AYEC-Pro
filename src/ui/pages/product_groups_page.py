@@ -45,7 +45,7 @@ from src.utils.toast_notification import (
 
 
 class ProductGroupsPage(QWidget):
-    PAGE_SIZE = 10
+    PAGE_SIZE = 100
     STANDARD_TEMPLATES = (
         (("all in one", "aio"), "Entegre Sistem \u015eablonu (AIO-01)"),
         (("bilgisayar",), "Donan\u0131m & Test \u015eablonu (D-02)"),
@@ -170,7 +170,7 @@ class ProductGroupsPage(QWidget):
         header.addLayout(title_box)
         header.addStretch()
         btn_hierarchy = QPushButton("Grup Hiyerar\u015fisi")
-        btn_hierarchy.setFixedSize(100, 26)
+        btn_hierarchy.setFixedSize(150, 30)
         btn_hierarchy.setStyleSheet(theme_qss(
             DesignTokens.get_button_qss("secondary") +
             " QPushButton { font-size: 9px; padding: 0 6px; }"
@@ -178,7 +178,7 @@ class ProductGroupsPage(QWidget):
         btn_hierarchy.clicked.connect(self.show_group_hierarchy)
         header.addWidget(btn_hierarchy)
         btn_add = QPushButton("Yeni \u00dcr\u00fcn Grubu Ekle")
-        btn_add.setFixedSize(128, 26)
+        btn_add.setFixedSize(180, 30)
         btn_add.setStyleSheet(
             theme_qss(DesignTokens.get_button_qss("primary") +
                       " QPushButton { font-size: 9px; padding: 0 6px; }")
@@ -197,6 +197,7 @@ class ProductGroupsPage(QWidget):
         self.active_group_summary = QLabel()
         self.active_group_summary.setStyleSheet(theme_qss('color: @finance_action_income; font-size: 9px;'))
         self.metric_total_groups.detail_layout.addWidget(self.active_group_summary)
+        self.metric_total_groups.metric_detail.hide()
         for metric in (
             self.metric_total_groups,
             self.metric_device_inventory,
@@ -257,7 +258,7 @@ class ProductGroupsPage(QWidget):
         self.view_tabs.setDrawBase(False)
         self.view_tabs.addTab('Liste')
         self.view_tabs.addTab('Kart')
-        self.view_tabs.setFixedWidth(96)
+        self.view_tabs.setFixedWidth(152)
         self.view_tabs.setStyleSheet(theme_qss(
             'QTabBar::tab { color: @text_muted; background: @finance_surface_lowest; '
             'border: 1px solid @finance_outline; padding: 6px 8px; font-size: 9px; } '
@@ -275,7 +276,7 @@ class ProductGroupsPage(QWidget):
                 theme_qss(DesignTokens.get_button_qss("secondary"))
             )
             button.setFixedHeight(32)
-            button.setFixedWidth({"Excel \u00c7\u0131kt\u0131": 72, "PDF Kaydet": 78, "Yazd\u0131r": 56}[label])
+            button.setFixedWidth({"Excel \u00c7\u0131kt\u0131": 100, "PDF Kaydet": 110, "Yazd\u0131r": 72}[label])
             button.setStyleSheet(theme_qss(
                 DesignTokens.get_button_qss("secondary") + " QPushButton { font-size: 9px; padding: 0 4px; }"
             ))
@@ -338,7 +339,7 @@ class ProductGroupsPage(QWidget):
         ))
         self.table.horizontalHeader().setFixedHeight(29)
         self.table.horizontalHeader().setStretchLastSection(False)
-        card_layout.addWidget(self.table)
+        card_layout.addWidget(self.table, 1)
         footer = QHBoxLayout()
         self._table_footer = footer
         footer.setContentsMargins(12, 7, 12, 7)
@@ -352,7 +353,7 @@ class ProductGroupsPage(QWidget):
         page_size_label.setStyleSheet(theme_qss('color: @text_muted; font-size: 9px;'))
         footer.addWidget(page_size_label)
         self.page_size_combo = QComboBox()
-        self.page_size_combo.addItems(["10", "25", "50"])
+        self.page_size_combo.addItems(["10", "25", "50", "100"])
         self.page_size_combo.setCurrentText(str(self.PAGE_SIZE))
         self.page_size_combo.setFixedSize(48, 22)
         self.page_size_combo.setStyleSheet(theme_qss(
@@ -362,6 +363,8 @@ class ProductGroupsPage(QWidget):
         ))
         self.page_size_combo.currentTextChanged.connect(self._change_page_size)
         footer.addWidget(self.page_size_combo)
+        page_size_label.hide()
+        self.page_size_combo.hide()
         footer.addStretch()
         self.btn_previous = QPushButton("\u00d6nceki")
         self.btn_previous.clicked.connect(self.previous_page)
@@ -389,8 +392,8 @@ class ProductGroupsPage(QWidget):
         )
         self.btn_previous.setStyleSheet(page_button_qss)
         self.btn_next.setStyleSheet(page_button_qss)
-        self.btn_previous.setFixedSize(58, 24)
-        self.btn_next.setFixedSize(58, 24)
+        self.btn_previous.setFixedSize(112, 24)
+        self.btn_next.setFixedSize(112, 24)
         footer.addWidget(self.btn_previous)
         self.page_buttons_host = QWidget()
         self.page_buttons_layout = QHBoxLayout(self.page_buttons_host)
@@ -398,6 +401,9 @@ class ProductGroupsPage(QWidget):
         self.page_buttons_layout.setSpacing(4)
         footer.addWidget(self.page_buttons_host)
         footer.addWidget(self.btn_next)
+        self.btn_previous.hide()
+        self.btn_next.hide()
+        self.page_buttons_host.hide()
         card_layout.addLayout(footer)
         self.views = QStackedWidget()
         self.views.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
@@ -423,23 +429,23 @@ class ProductGroupsPage(QWidget):
     def _metric_card(self, title, value):
         card = QFrame()
         card.setObjectName("ProductGroupMetric")
-        card.setFixedHeight(82)
+        card.setFixedHeight(74)
         card.setStyleSheet(theme_qss(
             "QFrame#ProductGroupMetric { background: @surface; border: 1px solid @border; "
             "border-radius: 8px; padding: 8px; }"
         ))
         layout = QHBoxLayout(card)
-        layout.setContentsMargins(12, 8, 12, 8)
-        layout.setSpacing(8)
+        layout.setContentsMargins(8, 6, 8, 6)
+        layout.setSpacing(6)
         detail_layout = QVBoxLayout()
         detail_layout.setContentsMargins(0, 0, 0, 0)
         detail_layout.setSpacing(2)
         label = QLabel(title)
-        label.setStyleSheet(theme_qss("color: @text_muted; font-size: 10px; font-weight: 700; background: transparent; border: none;"))
+        label.setStyleSheet(theme_qss("color: @text_muted; font-size: 9px; font-weight: 700; background: transparent; border: none;"))
         number = QLabel(value)
         number.setWordWrap(False)
         number.setObjectName("metricValue")
-        number.setStyleSheet(theme_qss("color: @text; font-size: 16px; font-weight: 800; background: transparent; border: none;"))
+        number.setStyleSheet(theme_qss("color: @text; font-size: 13px; font-weight: 800; background: transparent; border: none;"))
         detail_layout.addWidget(label)
         value_row = QHBoxLayout()
         value_row.setContentsMargins(0, 0, 0, 0)
@@ -467,12 +473,12 @@ class ProductGroupsPage(QWidget):
             "E\u015fle\u015fen Marka Havuzu": ("\U0001f9e9", "#c084fc", "accent"),
         }.get(title, ("\U0001f4e6", "@accent", "accent"))
         icon = NavigationGlyph(icon_glyph, title=title, active_token=icon_token)
-        icon.setFixedSize(34, 34)
+        icon.setFixedSize(28, 28)
         icon.set_navigation_state(True)
         icon.set_render_color(icon_color if icon_color.startswith("#") else "")
         icon.setStyleSheet(theme_qss(
             "QLabel { color: %s; background: @surface_alt; border: 1px solid %s; "
-            "border-radius: 8px; font-size: 16px; }" % (icon_color, icon_color)
+            "border-radius: 7px; font-size: 14px; }" % (icon_color, icon_color)
         ))
         layout.addWidget(icon, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         card.metric_value = number
@@ -499,18 +505,17 @@ class ProductGroupsPage(QWidget):
             tuple(params),
         )
         self.total_count = int(self.db.cursor.fetchone()[0] or 0)
-        max_page = max(0, (self.total_count - 1) // self.PAGE_SIZE)
-        self.current_page = min(self.current_page, max_page)
-        offset = self.current_page * self.PAGE_SIZE
+        max_page = 0
+        self.current_page = 0
+        offset = 0
         self.db.cursor.execute(
             f"""
             SELECT id, name, is_active
             FROM product_groups
             {where_sql}
             ORDER BY id ASC
-            LIMIT ? OFFSET ?
             """,
-            tuple(params + [self.PAGE_SIZE, offset]),
+            tuple(params),
         )
         rows = self.db.cursor.fetchall() or []
         self.table.setSortingEnabled(False)
@@ -548,7 +553,7 @@ class ProductGroupsPage(QWidget):
             btn_edit = QPushButton("D\u00fczenle")
             btn_edit.setCursor(Qt.CursorShape.PointingHandCursor)
             btn_edit.setMinimumWidth(66)
-            btn_edit.setFixedSize(66, 26)
+            btn_edit.setFixedSize(78, 26)
             btn_edit.setStyleSheet(
                 theme_qss(
                     'QPushButton { background: @finance_surface_lowest; color: @finance_primary; '
@@ -596,19 +601,10 @@ class ProductGroupsPage(QWidget):
     def _fit_table_card(self):
         if not hasattr(self, "table_card") or not hasattr(self, "table"):
             return
-        natural_table_height = (
-            self.table.horizontalHeader().height()
-            + self.table.rowCount() * self.table.verticalHeader().defaultSectionSize()
-        )
-        footer_height = self._table_footer.sizeHint().height()
-        natural_card_height = natural_table_height + footer_height + 4
-        available_card_height = max(
-            220, self.height() - (344 if self.width() < 900 else 234)
-        )
-        card_height = min(natural_card_height, available_card_height)
-        table_height = max(140, card_height - footer_height - 4)
-        self.table.setFixedHeight(table_height)
-        self.table_card.setFixedHeight(card_height)
+        self.table.setMinimumHeight(0)
+        self.table.setMaximumHeight(16777215)
+        self.table_card.setMinimumHeight(0)
+        self.table_card.setMaximumHeight(16777215)
 
     def _render_page_buttons(self, page_count):
         while self.page_buttons_layout.count():
@@ -616,6 +612,9 @@ class ProductGroupsPage(QWidget):
             widget = item.widget()
             if widget is not None:
                 widget.deleteLater()
+        self.page_buttons_host.hide()
+        self.btn_previous.hide()
+        self.btn_next.hide()
         if page_count > 8:
             label = QLabel(self.page_label.text())
             label.setStyleSheet(theme_qss('color: @text_muted; font-size: 9px;'))
@@ -869,7 +868,7 @@ class ProductGroupsPage(QWidget):
         cell.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         cell.setStyleSheet(theme_qss('background: @surface; border: none;'))
         row = QHBoxLayout(cell)
-        row.setContentsMargins(0, 4, 4, 4)
+        row.setContentsMargins(0, 2, 4, 2)
         row.setSpacing(9)
         normalized = str(name or '').casefold()
         icon_glyph, icon_color = ('\U0001f4e6', '@accent')
@@ -898,11 +897,11 @@ class ProductGroupsPage(QWidget):
         ))
         stack = QVBoxLayout()
         stack.setContentsMargins(0, 0, 0, 0)
-        stack.setSpacing(1)
+        stack.setSpacing(2)
         title = QLabel(str(name or ''))
-        title.setStyleSheet(theme_qss('color: @text; background: transparent; border: none; font-weight: 700;'))
+        title.setStyleSheet(theme_qss('color: @text; background: transparent; border: none; font-size: 11px; font-weight: 700;'))
         subtitle = QLabel(self._group_description(name))
-        subtitle.setStyleSheet(theme_qss('color: @text_muted; background: transparent; border: none; font-size: 10px;'))
+        subtitle.setStyleSheet(theme_qss('color: @text_muted; background: transparent; border: none; font-size: 9px;'))
         stack.addWidget(title)
         stack.addWidget(subtitle)
         row.addWidget(icon)

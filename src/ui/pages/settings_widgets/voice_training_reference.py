@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QListWidget,
     QListWidgetItem,
+    QMenu,
     QPushButton,
     QToolButton,
     QSlider,
@@ -24,6 +25,7 @@ from src.ui.pages.settings_widgets.voice_training_base import VoiceTrainingWidge
 from src.utils.design_system import DesignTokens
 from src.utils.theme_colors import tc, theme_qss
 from src.ui.widgets.animated_toggle import AnimatedToggle
+from src.utils.toast_notification import show_success, show_error
 
 
 class VoiceTrainingWidget(BaseVoiceTrainingWidget):
@@ -206,6 +208,10 @@ class VoiceTrainingWidget(BaseVoiceTrainingWidget):
         self.btn_new_voice_command.setStyleSheet("QPushButton{background:#09252d;color:#22d3ee;border:1px solid #0e7490;border-radius:7px;padding:6px 10px;font-size:11px;font-weight:700;}QPushButton:hover{background:#0b3540;border-color:#22d3ee;}")
         self.btn_export_scenarios = self._button("\u21e7  \u015eablonlar\u0131 D\u0131\u015fa Aktar")
         self.btn_export_scenarios.setFixedWidth(122)
+        self.scenario_files_menu = QMenu(self.btn_export_scenarios)
+        self.scenario_files_menu.addAction("\u21e7  Senaryolar\u0131 D\u0131\u015fa Aktar", self.export_scenarios)
+        self.scenario_files_menu.addAction("\u21e7  Dosyadan Senaryo Al", self.import_scenarios)
+        self.btn_export_scenarios.setMenu(self.scenario_files_menu)
         command_divider = QFrame()
         command_divider.setFixedHeight(1)
         command_divider.setStyleSheet("background:@border;border:0;")
@@ -247,7 +253,6 @@ class VoiceTrainingWidget(BaseVoiceTrainingWidget):
         self.btn_test_scenario.clicked.connect(self.test_active_scenario)
         self.btn_healthcheck.clicked.connect(self.run_healthcheck)
         self.btn_new_voice_command.clicked.connect(self.open_new_scenario_dialog)
-        self.btn_export_scenarios.clicked.connect(self.export_scenarios)
         for index, button in enumerate((self.btn_open_scenarios, self.btn_add_scen, self.btn_load_defaults, self.btn_fix_legacy, self.btn_test_scenario, self.btn_healthcheck)):
             actions.addWidget(button, index // 3, index % 3)
         op.addLayout(actions)
@@ -380,6 +385,43 @@ class VoiceTrainingWidget(BaseVoiceTrainingWidget):
         with open(path, "w", encoding="utf-8") as stream:
             import json
             json.dump(self.data, stream, ensure_ascii=False, indent=2)
+
+    def import_scenarios(self):
+        import json
+        import os
+        from PyQt6.QtWidgets import QFileDialog, QMessageBox
+
+        path, _ = QFileDialog.getOpenFileName(self, "Senaryo dosyas\u0131 al", "", "JSON (*.json)")
+        if not path:
+            return
+        try:
+            if os.path.getsize(path) > 1_048_576:
+                raise ValueError("Senaryo dosyasi 1 MB sinirini asiyor.")
+            with open(path, "r", encoding="utf-8") as stream:
+                imported = json.load(stream)
+            if isinstance(imported, dict) and isinstance(imported.get("scenarios"), dict):
+                imported = imported["scenarios"]
+            if not isinstance(imported, dict) or not imported:
+                raise ValueError("Dosyada senaryo bulunamad\u0131.")
+            imported = self._sanitize_data(self._normalize_data(imported))
+            if not imported:
+                raise ValueError("Dosyada ge\u00e7erli senaryo bulunamad\u0131.")
+            answer = QMessageBox.question(
+                self,
+                "Senaryolar\u0131 De\u011fi\u015ftir",
+                "Mevcut senaryolar\u0131 se\u00e7ilen dosyadakilerle de\u011fi\u015ftirmek istiyor musunuz?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return
+            self.data = imported
+            self.current_scenario_name = ""
+            self._sync_active_scenario()
+            self._persist_voice_data()
+            show_success(self.main_window or self, "Senaryo dosyas\u0131 i\u00e7e aktar\u0131ld\u0131.")
+        except Exception as error:
+            show_error(self.main_window or self, f"Senaryo dosyas\u0131 al\u0131namad\u0131: {error}")
 
     def _filter_commands(self, query="", category=None):
         query = str(query or "").strip().casefold()

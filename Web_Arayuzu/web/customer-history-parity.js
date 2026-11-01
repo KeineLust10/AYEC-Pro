@@ -45,7 +45,7 @@
     addSelectionColumn(financePanel, "finance");
 
     const services = Array.isArray(c.services) ? c.services : [];
-    const finance = (window.db && Array.isArray(window.db.finance) ? window.db.finance : [])
+    const finance = (typeof db !== "undefined" && Array.isArray(db.finance) ? db.finance : [])
       .filter(item => item.customer === c.name);
     const serviceTable = servicePanel && servicePanel.querySelector("table");
     const financeTable = financePanel && financePanel.querySelector("table");
@@ -55,11 +55,11 @@
       const financeBoxes = [...financePanel.querySelectorAll('input[data-customer-history-select="finance"]')];
       const serviceRows = selectedRows(serviceTable, serviceBoxes, services, item => [
         item.no || "", item.device || "", item.note || "", item.status || "",
-        window.money(item.amount || 0, item.currency || "TRY"), String(item.date || "").slice(0, 10)
+        money(item.amount || 0, item.currency || "TRY"), String(item.date || "").slice(0, 10)
       ]);
       const financeRows = selectedRows(financeTable, financeBoxes, finance, item => [
         item.category || "", item.description || "", item.type || "", String(item.date || "").slice(0, 10),
-        window.money(item.amount || 0, item.currency || "TRY")
+        money(item.amount || 0, item.currency || "TRY")
       ]);
       try {
         const response = await fetch("/api/desktop/customer/history/export/xlsx", {
@@ -70,8 +70,10 @@
         });
         if (!response.ok) {
           const error = await response.json().catch(() => ({}));
+          if (response.status === 401 && window.handleUnauthorized) window.handleUnauthorized();
           throw new Error(error.error || `Excel export failed (${response.status})`);
         }
+        if (typeof assertDownloadResponse === "function") assertDownloadResponse(response);
         const blob = await response.blob();
         if (blob.type && blob.type !== workbookMime) throw new Error("Invalid Excel response");
         const url = URL.createObjectURL(blob);
@@ -89,7 +91,8 @@
     };
 
     const pdf = dialog.querySelector("#c360Pdf");
-    if (pdf) pdf.onclick = () => {
+    if (pdf) pdf.addEventListener("click", () => {
+      if (dialog.querySelector('[data-c360-tab].active')?.dataset.c360Tab !== "service") return;
       const boxes = [...servicePanel.querySelectorAll('input[data-customer-history-select="service"]')];
       const rows = selectedRows(serviceTable, boxes, services, item => item);
       if (!rows.length) {
@@ -108,7 +111,7 @@
       const body = table.createTBody();
       rows.forEach(item => {
         const row = body.insertRow();
-        [item.device || "", item.note || "", window.money(item.amount || 0, item.currency || "TRY"), String(item.date || "").slice(0, 10)]
+        [item.device || "", item.note || "", money(item.amount || 0, item.currency || "TRY"), String(item.date || "").slice(0, 10)]
           .forEach(value => { const cell = row.insertCell(); cell.textContent = value; });
       });
       report.append(title, table);
@@ -121,7 +124,7 @@
       };
       window.addEventListener("afterprint", cleanup, { once: true });
       window.print();
-    };
+    });
   }
 
   if (typeof baseCustomer360 === "function") {

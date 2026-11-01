@@ -301,7 +301,7 @@ def test_field_action_buttons_open_task_traffic_and_route(monkeypatch):
     saved_secrets = {}
     monkeypatch.setattr("src.utils.local_secret_store.load_secret", lambda name: saved_secrets.get(name, ""))
     monkeypatch.setattr("src.utils.local_secret_store.save_secret", lambda name, value: saved_secrets.__setitem__(name, value))
-    monkeypatch.setattr(page, "_prompt_tomtom_api_key", lambda: "test-key")
+    monkeypatch.setattr(page, "_prompt_tomtom_api_key", lambda recovery_required=False: "test-key")
     traffic_requests = []
     def begin_traffic(key):
         traffic_requests.append(key)

@@ -68,3 +68,15 @@ def test_mobile_settings_reuses_selected_title_without_duplicate_intro():
 
     assert 'body[data-page="settings"] .content > .page-head > div:first-child { display: none; }' in styles
     assert 'body[data-page="settings"] .content > .page-head { min-height: 0; margin: 0; gap: 0; }' in styles
+
+
+def test_settings_save_lets_rejected_api_write_reach_error_handler():
+    app = (WEB / "app.js").read_text(encoding="utf-8")
+    start = app.index('if(saveSettingsButton)saveSettingsButton.addEventListener("click",async()=>{')
+    end = app.index('if($("#quickNotesHost"))', start)
+    handler = app[start:end]
+
+    write = 'await apiFetch(`/api/desktop/table/${scope}`,{method:"POST",body:JSON.stringify({key,value})});savedCount++;'
+    assert write in handler
+    assert handler.index(write) < handler.index('catch(error){toast(`Ayar kaydedilemedi: ${error.message}`,"error")}')
+    assert 'await desktopWrite(scope,{key,value})' not in handler

@@ -48,10 +48,20 @@ def test_company_reference_uses_summary_and_compact_workflow_panels():
 def test_company_bank_panel_reads_and_writes_tenant_mappings():
     source = (ROOT / "Web_Arayuzu/web/settings-theme-reference.js").read_text(encoding="utf-8")
     backend = (ROOT / "Web_Arayuzu/Main.py").read_text(encoding="utf-8")
-    assert '/api/desktop/table/product_bank_mappings?limit=1000' in source
-    assert '/api/desktop/table/bank_accounts?limit=500' in source
+    assert 'loadAllDesktopTableData("product_bank_mappings")' in source
+    assert 'loadAllDesktopTableData("bank_accounts")' in source
     assert 'data-company-bank-save' in source
     assert 'default_kdv_rate: Number(row.querySelector("[data-bank-vat]").value || 20)' in source
     assert 'row.dataset.mappingId = String(saved.id)' in source
     assert '"product_bank_mappings",' in backend
     assert '"internal_settings", "product_bank_mappings"' in backend
+
+
+def test_company_number_print_uses_an_isolated_values_report():
+    source = (ROOT / "Web_Arayuzu/web/settings-theme-reference.js").read_text(encoding="utf-8")
+    runner = (ROOT / "tools/quality/web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+    assert 'host.querySelector("[data-company-number-print]")?.addEventListener("click", openCompanyNumberPrintPreview)' in source
+    assert 'window.open("", "_blank")' in source
+    assert '<th>T\\u00fcr</th>' in source
+    assert 'companyNumberExports.printReport.title' in runner
+    assert 'companyNumberExports.printReport.next' in runner

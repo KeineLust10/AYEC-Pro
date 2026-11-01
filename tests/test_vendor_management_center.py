@@ -136,14 +136,14 @@ def test_vendor_reset_is_single_use_and_never_reads_password(monkeypatch, tmp_pa
 def test_admin_can_reset_tenant_user_password(monkeypatch, tmp_path):
     _, tenant_path = _setup_tenant(monkeypatch, tmp_path)
 
-    result = web_main.admin_reset_user_password("tenant-1", 1, "temporary-pass-42")
+    result = web_main.admin_reset_user_password("tenant-1", 1, "  temporary-pass-42  ")
 
     assert result == {"ok": True, "user_id": 1}
     with sqlite3.connect(tenant_path) as conn:
         stored_password = conn.execute(
             "SELECT password FROM users WHERE id=1"
         ).fetchone()[0]
-    assert web_main.password_matches("temporary-pass-42", stored_password)
+    assert web_main.password_matches("  temporary-pass-42  ", stored_password)
     assert stored_password != "temporary-pass-42"
 
 

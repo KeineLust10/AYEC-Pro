@@ -24,10 +24,62 @@ import shutil
 from datetime import datetime
 import os
 import ctypes
+import base64
+import hashlib
+import secrets
+import time
 from src.utils.logger import logger
 from src.utils.desktop_web_sync import configured_sync_url, sync_session_path
 from src.utils.web_sync_client import WebSyncClient, WebSyncError
 from src.utils.license_api_client import LicenseApiClient, LicenseApiError
+
+
+class _GoogleDesktopLoginWorker(QThread):
+    browser_url_ready = pyqtSignal(str)
+    completed = pyqtSignal(bool, object)
+
+    def __init__(self, mode, parent=None):
+        super().__init__(parent)
+        self.mode = str(mode or "login")
+        self.local_password = secrets.token_urlsafe(32)
+
+    def run(self):
+        try:
+            base_url = configured_sync_url().rstrip("/")
+            if not base_url.lower().startswith("https://") and not base_url.lower().startswith("http://127.0.0.1"):
+                raise ValueError("Google sign-in requires the secure central server.")
+            verifier = secrets.token_urlsafe(64)
+            challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode("ascii")).digest()).rstrip(b"=").decode("ascii")
+            client = WebSyncClient(
+                base_url, verify_tls=not base_url.lower().startswith("http://"), timeout=20,
+            )
+            start = client.google_desktop_start(challenge)
+            transaction = str(start.get("transaction_id") or "")
+            if not transaction:
+                raise WebSyncError("The central server did not create a sign-in request.")
+            self.browser_url_ready.emit(f"{base_url}/?desktop_google={transaction}#{self.mode}")
+            deadline = time.monotonic() + min(600, int(start.get("expires_in") or 600))
+            while time.monotonic() < deadline:
+                if self.isInterruptionRequested():
+                    raise WebSyncError("Google sign-in was cancelled.")
+                result = client.google_desktop_poll(transaction, verifier)
+                if result.get("ok"):
+                    user = dict(result.get("user") or {})
+                    client.save_session(
+                        sync_session_path(),
+                        {
+                            "username": user.get("username") or "",
+                            "tenant_id": user.get("tenant_id") or "",
+                            "company_name": user.get("company_name") or "",
+                            "initial_pull_pending": True,
+                        },
+                    )
+                    self.completed.emit(True, result)
+                    return
+                time.sleep(2)
+            raise WebSyncError("Google sign-in expired. Start again.")
+        except Exception as exc:
+            self.completed.emit(False, {"error": str(exc)})
 
 class _FullInitWorker(QThread):
     completed = pyqtSignal(bool, str)
@@ -572,6 +624,11 @@ class ModernLoginWindow(QtDialog):
         btn_back.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_back.clicked.connect(self.open_remote_account_login)
         layout.addWidget(btn_back, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        btn_google = QPushButton("Google ile kaydol / giri\u015f yap")
+        btn_google.setProperty("skipThemeTransform", True)
+        btn_google.clicked.connect(lambda: self.open_google_desktop_login("register"))
+        layout.addWidget(btn_google, alignment=Qt.AlignmentFlag.AlignCenter)
         
         layout.addSpacing(40)
         return page
@@ -1654,14 +1711,17 @@ class ModernLoginWindow(QtDialog):
 
         actions = QHBoxLayout()
         actions.addStretch()
+        google_button = QPushButton("Google ile devam et")
         cancel_button = QPushButton("Vazge\u00e7")
         login_button = QPushButton("Giri\u015f Yap")
         login_button.setDefault(True)
+        actions.addWidget(google_button)
         actions.addWidget(cancel_button)
         actions.addWidget(login_button)
         layout.addLayout(actions)
 
         cancel_button.clicked.connect(dialog.reject)
+        google_button.clicked.connect(lambda: self.open_google_desktop_login("login", dialog))
 
         def begin_login():
             user_text = identifier.text().strip()
@@ -1709,6 +1769,59 @@ class ModernLoginWindow(QtDialog):
 
         login_button.clicked.connect(begin_login)
         password.returnPressed.connect(begin_login)
+        dialog.exec()
+
+    def open_google_desktop_login(self, mode="login", parent_dialog=None):
+        dialog = QtDialog(self)
+        dialog.setWindowTitle("AYEC Pro - Google ile oturum")
+        dialog.setModal(True)
+        dialog.setMinimumWidth(420)
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(24, 22, 24, 22)
+        layout.setSpacing(14)
+        title = QLabel("Google ile g\u00fcvenli oturum")
+        title.setFont(QFont("Segoe UI", 17, QFont.Weight.Bold))
+        layout.addWidget(title)
+        description = QLabel("Google hesab\u0131n\u0131z\u0131 g\u00fcvenli AYEC Pro sayfas\u0131nda do\u011frulay\u0131n.")
+        description.setWordWrap(True)
+        layout.addWidget(description)
+        status = QLabel("Taray\u0131c\u0131 ba\u011flant\u0131s\u0131 haz\u0131rlan\u0131yor...")
+        status.setWordWrap(True)
+        layout.addWidget(status)
+        actions = QHBoxLayout()
+        actions.addStretch()
+        cancel = QPushButton("Vazge\u00e7")
+        actions.addWidget(cancel)
+        layout.addLayout(actions)
+        worker = _GoogleDesktopLoginWorker(mode, self)
+        self._google_login_worker = worker
+        cancel.clicked.connect(worker.requestInterruption)
+        cancel.clicked.connect(dialog.reject)
+        worker.browser_url_ready.connect(lambda url: (
+            QDesktopServices.openUrl(QUrl(url)),
+            status.setText("Taray\u0131c\u0131da Google do\u011frulamas\u0131n\u0131 tamamlay\u0131n."),
+        ))
+
+        def completed(ok, result):
+            if not ok:
+                status.setText(str(dict(result or {}).get("error") or "Google oturumu a\u00e7\u0131lamad\u0131."))
+                return
+            try:
+                self._finish_remote_account_login(
+                    dict(result or {}), worker.local_password, True,
+                )
+            except Exception as exc:
+                logger.exception("Google desktop account setup failed")
+                status.setText(f"Hesap yerelde haz\u0131rlanamad\u0131: {exc}")
+                return
+            dialog.accept()
+            if parent_dialog is not None:
+                parent_dialog.accept()
+            QTimer.singleShot(0, self.start_opening)
+
+        worker.completed.connect(completed)
+        worker.finished.connect(worker.deleteLater)
+        worker.start()
         dialog.exec()
 
     def _finish_remote_account_login(self, result, password, remember):

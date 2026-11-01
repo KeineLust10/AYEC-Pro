@@ -130,20 +130,35 @@ class StockImportMixin:
             "musteri",
             "musteri adi",
             "musteri no",
+            "customer",
+            "customer name",
+            "customer no",
             "telefon",
-            "e-posta",
+            "phone",
+            "phone number",
+            "e posta",
             "email",
             "vergi no",
+            "tax number",
             "firma",
+            "company name",
         }
         stock_markers = {
             "stok",
             "stok kodu",
             "urun",
             "urun adi",
+            "product",
+            "product name",
+            "sku",
             "barkod",
+            "barcode",
             "alis fiyati",
+            "purchase price",
             "satis fiyati",
+            "sale price",
+            "unit price",
+            "stock quantity",
             "kategori",
         }
         customer_score = len(headers & customer_markers)
@@ -158,7 +173,14 @@ class StockImportMixin:
         )
         customer_value_hits = sum(
             marker in raw_text
-            for marker in ("ad soyad", "telefon", "e-posta", "musteri")
+            for marker in (
+                "ad soyad",
+                "telefon",
+                "e posta",
+                "musteri",
+                "customer name",
+                "phone",
+            )
         )
         if customer_value_hits >= 2 and stock_score < 2:
             return True

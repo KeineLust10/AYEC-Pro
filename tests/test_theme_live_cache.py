@@ -269,7 +269,7 @@ def test_cached_theme_switch_updates_existing_widgets_in_place():
 def test_reapplying_identical_application_stylesheet_skips_qt_cascade(monkeypatch):
     ThemeManager._install_stylesheet_patch()
     previous_stylesheet = APP.styleSheet()
-    original_setter = ThemeManager._original_app_set_stylesheet
+    original_setter = ThemeManager._original_app_set_stylesheet_unbound
     calls = []
 
     def counted_setter(target, stylesheet):
@@ -290,7 +290,7 @@ def test_theme_switch_suspends_top_level_paints_during_qss_cascade(monkeypatch):
     root = QWidget()
     root.show()
     APP.processEvents()
-    original_setter = ThemeManager._original_app_set_stylesheet
+    original_setter = ThemeManager._original_app_set_stylesheet_unbound
     updates_during_cascade = []
 
     def counted_setter(target, stylesheet):
@@ -426,12 +426,12 @@ def test_interface_scale_changes_qss_font_size_without_compounding():
         ThemeManager._interface_scale_percent = 120
         first = ThemeManager._sanitize_qss(raw_style)
         second = ThemeManager._sanitize_qss(raw_style)
-        assert "font-size: 12px" in first
+        assert "font-size: 13.2pt" in first
         assert second == first
 
         ThemeManager._interface_scale_percent = 80
         smaller = ThemeManager._sanitize_qss(raw_style)
-        assert "font-size: 8px" in smaller
+        assert "font-size: 8.8pt" in smaller
     finally:
         ThemeManager._interface_scale_percent = previous_scale
         ThemeManager.invalidate_runtime_cache()

@@ -266,7 +266,7 @@ def test_vehicle_maintenance_form_selects_existing_customer_vehicles_and_plate_l
     app = (ROOT / "Web_Arayuzu" / "web" / "app.js").read_text(encoding="utf-8")
 
     assert 'name="vehicle_id"' in script
-    assert 'customer_vehicles?limit=500' in script
+    assert script.count('loadAllDesktopTableData("customer_vehicles")') == 3
     assert 'data-maintenance-add-vehicle' in script
     assert 'data-maintenance-add-customer' in script
     assert 'draft._draftItems=' in script
@@ -274,6 +274,15 @@ def test_vehicle_maintenance_form_selects_existing_customer_vehicles_and_plate_l
     assert 'customerSelect.addEventListener("change"' in script
     assert 'plateInput?.addEventListener("blur"' in script
     assert "maintenanceVehicleCatalog" in script
+    assert 'apiFetch("/api/desktop/automotive/vehicle-catalog")' in script
+    assert "maintenanceVehicleTypes=catalog.vehicle_types" in script
+    assert "maintenanceEngineTypes=catalog.engine_types" in script
+    assert "maintenanceFuelTypes=catalog.fuel_types" in script
+    assert "customer_id:customerId" in script
+    assert "customer_id:customer.id" in script
+    assert '<label>Marka</label><input name="brand" list="automotiveVehicleBrandOptions"' in script
+    assert '<select name="vehicle_type">${selectMarkup(vehicleTypeChoices,vehicle.vehicle_type||vehicleTypeChoices[0])}</select>' in script
+    assert '<select name="engine_type">${selectMarkup(engineTypeChoices,vehicle.engine_type||engineTypeChoices[0])}</select>' in script
     assert 'replaceWithChoices(maintenanceField("vehicle_year")' in script
     assert 'replaceWithChoices(maintenanceField("engine_type"),maintenanceEngineTypes)' in script
     assert "_reload_customer_vehicles" in desktop
@@ -284,3 +293,30 @@ def test_vehicle_maintenance_form_selects_existing_customer_vehicles_and_plate_l
     assert 'if(!payload.items.length){toast("En az bir bakim kalemi secin."' in app
     assert "_apply_vehicle_row" in desktop
     assert "_lookup_plate" in desktop
+
+
+def test_customer_360_vehicle_tab_reuses_base_markup_and_loads_vehicle_actions():
+    script = (WEB / "automotive-parity.js").read_text(encoding="utf-8")
+    app = (WEB / "app.js").read_text(encoding="utf-8")
+
+    assert 'const vehicleTab=currentSector==="otomotiv"' in app
+    assert 'let tab=tabs.querySelector(\'[data-c360-tab="vehicles"]\')' in script
+    assert "if(!tabs||!body)return" in script
+    assert "tab.onclick=()=>{" in script
+    assert "void loadCustomerVehicles(customer)" in script
+
+def test_offscreen_vehicle_maintenance_create_failure_preserves_draft_for_retry():
+    audit = (ROOT / "tools" / "quality" / "web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+
+    assert "maintenance.failureShown" in audit
+    assert "maintenance.draftRetained" in audit
+    assert "maintenance.buttonRecovered" in audit
+    assert "maintenance.attempts !== 2" in audit
+
+def test_offscreen_route_audit_covers_vehicle_maintenance_desktop_create():
+    audit = (ROOT / "tools" / "quality" / "web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+
+    assert "result.vehicleMaintenanceDesktopWorkflow" in audit
+    assert "maintenance.viewport < 1024" in audit
+    assert '"34 QA 930"' in audit
+    assert "maintenance.call?.payload?.items?.length !== 1" in audit

@@ -82,16 +82,20 @@ def test_company_registration_persists_geocoded_location(monkeypatch, tmp_path):
     assert settings["installation_lng"] == "27.8826"
 
 
-def test_company_registration_stops_when_address_cannot_be_geocoded(monkeypatch, tmp_path):
+def test_company_registration_succeeds_when_address_cannot_be_geocoded(monkeypatch, tmp_path):
     registry_path, _tenant_root = _configure_isolated_web(monkeypatch, tmp_path)
     monkeypatch.setattr(web_main, "resolve_installation_location", lambda _address: (None, None))
 
-    with pytest.raises(ValueError, match="konumu adresinizden belirlenemedi"):
-        web_main.setup_application(
-            _registration_payload(sector="teknik_servis"), allow_existing=True
-        )
+    result = web_main.setup_application(
+        _registration_payload(sector="teknik_servis"), allow_existing=True
+    )
+    assert result["location_pending"] is True
+    assert "Harita konumunu" in result["mail_message"]
     with sqlite3.connect(registry_path) as registry:
-        assert registry.execute("SELECT COUNT(*) FROM tenants").fetchone()[0] == 0
+        row = registry.execute(
+            "SELECT company_address,installation_lat,installation_lng FROM tenants"
+        ).fetchone()
+    assert row == ("Test street 1, Balikesir", None, None)
 
 
 def test_company_info_sync_fills_legacy_tenant_location(monkeypatch, tmp_path):
@@ -248,6 +252,13 @@ def test_web_navigation_is_scoped_and_hierarchical_for_both_sectors():
     assert 'data-editor-panel="${sector}"' in app_source
     assert 'data-editor-sector="teknik_servis"' in app_source
     assert 'data-editor-sector="otomotiv"' in app_source
+    assert 'role="tab" id="editor-sector-tab-teknik_servis"' in app_source
+    assert 'aria-controls="editor-sector-panel-teknik_servis"' in app_source
+    assert 'aria-controls="editor-sector-panel-otomotiv"' in app_source
+    assert 'role="tabpanel" aria-labelledby="editor-sector-tab-${sector}"' in app_source
+    assert 'button.tabIndex=active?0:-1' in app_source
+    assert 'event.key==="ArrowRight"' in app_source and 'event.key==="ArrowLeft"' in app_source
+    assert 'event.key==="Home"' in app_source and 'event.key==="End"' in app_source
     assert 'target==="stock")target="automotive-stock"' in app_source
     assert 'target==="automotive-stock")target="stock"' in app_source
     assert ".sector-menu-columns" in style_source

@@ -4,6 +4,13 @@
   if(!input||!searchLabel)return;
   const wrapper=document.createElement("div");
   wrapper.className="global-search-wrap";
+  const clearButton=document.createElement("button");
+  clearButton.type="button";
+  clearButton.className="global-search-clear";
+  clearButton.setAttribute("aria-label","Arama alan\u0131n\u0131 temizle");
+  clearButton.title="Arama alan\u0131n\u0131 temizle";
+  clearButton.textContent="\u00d7";
+  clearButton.hidden=true;
   const results=document.createElement("div");
   results.className="global-search-results";
   results.id="globalSearchResults";
@@ -13,7 +20,7 @@
   searchLabel.before(wrapper);
   const searchAnchor=document.createComment("Global search position");
   wrapper.before(searchAnchor);
-  wrapper.append(searchLabel,results);
+  wrapper.append(searchLabel,clearButton,results);
   const palette=document.createElement("dialog");
   palette.id="globalSearchDialog";
   palette.className="global-search-dialog";
@@ -82,16 +89,19 @@
     if(folded.length<2){close();return}
     pageItems().filter(item=>fold(item.label).includes(folded)).forEach(item=>matches.push({...item,kind:"page",subtitle:"Sayfaya Git"}));
     (Array.isArray(db?.customers)?db.customers:[]).filter(customer=>fold(customer.name).includes(folded)||fold(customer.phone).includes(folded)).slice(0,5).forEach(customer=>matches.push({kind:"customer",query:customer.name,label:customer.name,subtitle:`M\u00fc\u015fteri Detay\u0131na Git (${customer.phone||"-"})`}));
-    (Array.isArray(db?.customers)?db.customers:[]).flatMap(customer=>(Array.isArray(customer.services)?customer.services:[]).map(service=>({...service,customerName:customer.name}))).filter(service=>[service.no,service.tracking_no,service.customerName,service.serial,service.serial_no,service.device,service.device_model,service.note,service.fault_description,service.status].some(value=>fold(value).includes(folded))).slice(0,5).forEach(service=>{const no=String(service.no||service.tracking_no||"");if(no)matches.push({kind:"service",query:no,label:no,subtitle:`Servis: ${service.customerName||"M\u00fcşteri"} | ${service.device||service.device_model||service.device_type||"Cihaz"} | ${service.status||""}`})});
+    (Array.isArray(db?.customers)?db.customers:[]).flatMap(customer=>(Array.isArray(customer.services)?customer.services:[]).map(service=>({...service,customerName:customer.name}))).filter(service=>[service.no,service.tracking_no,service.customerName,service.serial,service.serial_no,service.device,service.device_model,service.note,service.fault_description,service.status].some(value=>fold(value).includes(folded))).slice(0,5).forEach(service=>{const no=String(service.no||service.tracking_no||"");if(no)matches.push({kind:"service",query:no,label:no,subtitle:`Servis: ${service.customerName||"M\u00fc\u015fteri"} | ${service.device||service.device_model||service.device_type||"Cihaz"} | ${service.status||""}`})});
     (Array.isArray(db?.stock)?db.stock:[]).filter(stock=>fold(stock.name).includes(folded)).slice(0,5).forEach(stock=>matches.push({kind:"stock",query:stock.name,label:stock.name,subtitle:`Stok: ${stock.quantity??stock.qty??0} Adet | ${money(stock.sell??stock.price_sell??0,stock.currency||"TRY")}`}));
     if(!matches.length){close();return}
     results.innerHTML=matches.map((item,index)=>`<button type="button" id="globalSearchResult${index}" data-search-kind="${esc(item.kind)}" data-search-route="${esc(item.route||"")}" role="option" aria-selected="false" class="global-search-result"><strong>${esc(item.label)}</strong><small>${esc(item.subtitle)}</small></button>`).join("");
     results.hidden=false;
     input.setAttribute("aria-expanded","true");
     activeIndex=-1;
-    results.querySelectorAll("[role=option]").forEach((button,index)=>button.addEventListener("click",()=>activate(matches[index])));
+    results.querySelectorAll("[role=option]").forEach((button,index)=>button.addEventListener("click",()=>activate(matches[index])));markActive(0);
   };
-  input.addEventListener("input",render);
+  const syncClearButton=()=>{clearButton.hidden=!input.value};
+  input.addEventListener("input",()=>{syncClearButton();render()});
+  clearButton.addEventListener("click",()=>{input.value="";syncClearButton();input.dispatchEvent(new Event("input",{bubbles:true}));input.focus()});
+  syncClearButton();
   input.addEventListener("keydown",event=>{
     if(event.key==="ArrowDown"&&matches.length){event.preventDefault();markActive(activeIndex+1)}
     else if(event.key==="ArrowUp"&&matches.length){event.preventDefault();markActive(activeIndex<0?matches.length-1:activeIndex-1)}

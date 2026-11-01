@@ -1,9 +1,12 @@
+import json
 import sqlite3
+import subprocess
 from pathlib import Path
 
 import pytest
 
 from Web_Arayuzu import Main as web_main
+from src.utils.tax_settings import TaxSettings
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -31,11 +34,11 @@ def test_tax_and_exchange_settings_are_available_and_drive_invoice_defaults():
     assert '"bank_fx_update_minutes"' not in tax_definition
     assert '"currency_precision"' not in tax_definition
     settings_renderer = app[app.index("function renderSettings()"):app.index("\nfunction ", app.index("function renderSettings()"))]
-    assert 'settingsSection==="tax-currency"?"":' in settings_renderer
+    assert '["tax-currency","license"].includes(settingsSection)?"":' in settings_renderer
     assert "async function saveWebBankSettings()" in app
     assert 'new Set(["bank_default_currency","bank_auto_fx","bank_sync_finance","bank_warn_negative"])' in app
-    assert 'invoiceLineMarkup(1,desktopSettings.vat_default_rate??20)' in app
-    assert 'invoiceLineMarkup(rows().length+1,desktopSettings.vat_default_rate??20)' in app
+    assert 'invoiceLineMarkup(1,ayecNormalizeVatPercent(desktopSettings?.default_vat_percent??desktopSettings?.vat_default_rate))' in app
+    assert 'invoiceLineMarkup(rows().length+1,ayecNormalizeVatPercent(desktopSettings?.default_vat_percent??desktopSettings?.vat_default_rate))' in app
     assert 'data-tax-currency-action="save-vat"' in app
     assert 'data-tax-currency-action="save-rates"' in app
     assert 'data-tax-currency-action="fetch-rates"' in app
@@ -48,6 +51,51 @@ def test_tax_and_exchange_settings_are_available_and_drive_invoice_defaults():
     assert 'if not role_is_admin(user.get("role")):' in server
     assert '"/api/desktop/tax-currency/vat"' in server
     assert '"/api/desktop/exchange-rates/manual"' in server
+
+
+def test_web_vat_normalization_matches_desktop_tax_settings():
+    app = (WEB / "app.js").read_text(encoding="utf-8")
+    pc_builder = (WEB / "pc-builder-reference.js").read_text(encoding="utf-8")
+    smart_home = (WEB / "smart-home-sales-reference.js").read_text(encoding="utf-8")
+    start = app.index("function ayecNormalizeVatPercent")
+    end = app.index("\nconst money", start)
+    helper = app[start:end]
+    values = [None, 0, 0.08, "", 8, 8.5, 18, 20, 150, -2, "invalid"]
+    node_script = (
+        helper
+        + "\nprocess.stdout.write(JSON.stringify("
+        + json.dumps(values)
+        + ".map(ayecNormalizeVatPercent)));"
+    )
+    result = subprocess.run(["node", "-e", node_script], capture_output=True, text=True, check=True)
+
+    assert json.loads(result.stdout) == [TaxSettings.normalize_percent(value) for value in values]
+    assert "vat=ayecNormalizeVatPercent(settings.default_vat_percent??settings.vat_default_rate)" in app
+    assert "ayecNormalizeVatPercent(desktopSettings?.default_vat_percent??db.settings?.default_vat_percent)" in app
+    assert "ayecNormalizeVatPercent(desktopSettings?.default_vat_percent)" in pc_builder
+    assert "ayecNormalizeVatPercent(desktopSettings?.default_vat_percent ?? db.settings?.default_vat_percent)" in smart_home
+
+
+def test_invoice_lines_allow_the_same_custom_vat_rates_as_desktop():
+    app = (WEB / "app.js").read_text(encoding="utf-8")
+    start = app.index("function invoiceLineMarkup")
+    end = app.index("\nfunction renderInvoiceComposer", start)
+    markup_function = app[start:end]
+    normalize_start = app.index("function ayecNormalizeVatPercent")
+    normalize_end = app.index("\nconst money", normalize_start)
+    node_script = (
+        app[normalize_start:normalize_end]
+        + "\n"
+        + markup_function
+        + "\nprocess.stdout.write(JSON.stringify([invoiceLineMarkup(1, 8.5), invoiceLineMarkup(2, 0.08), invoiceLineMarkup(3, 0)]));"
+    )
+    result = subprocess.run(["node", "-e", node_script], capture_output=True, text=True, check=True)
+    rows = json.loads(result.stdout)
+
+    assert 'class="invoice-line-vat" type="number" min="0" max="100" step="any" value="8.5"' in rows[0]
+    assert 'class="invoice-line-vat" type="number" min="0" max="100" step="any" value="8"' in rows[1]
+    assert 'class="invoice-line-vat" type="number" min="0" max="100" step="any" value="0"' in rows[2]
+    assert '<select class="invoice-line-vat"' not in "".join(rows)
 
 
 def _financial_connection():

@@ -128,6 +128,18 @@ class WebSyncClient:
             payload["tenant_id"] = tenant_id
         return self._request("/api/auth/login", "POST", payload)
 
+    def google_desktop_start(self, code_challenge: str) -> dict:
+        return self._request(
+            "/api/auth/google/desktop/start", "POST",
+            {"code_challenge": code_challenge},
+        )
+
+    def google_desktop_poll(self, transaction_id: str, code_verifier: str) -> dict:
+        return self._request(
+            "/api/auth/google/desktop/poll", "POST",
+            {"transaction_id": transaction_id, "code_verifier": code_verifier},
+        )
+
     def provision_desktop_tenant(self, payload: dict) -> dict:
         return self._request("/api/sync/provision", "POST", payload)
 
@@ -284,6 +296,27 @@ class WebSyncClient:
                 json.dumps(normalized, sort_keys=True, default=str).encode()
             ).hexdigest()[:16]
 
+        def table_identity(table_name: str, columns: set[str], row_data: dict) -> dict | None:
+            if "id" in columns and row_data.get("id") is not None:
+                value = row_data["id"]
+                return {
+                    "state_key": f"{table_name}:{value}",
+                    "source_value": str(value),
+                    "where_sql": '"id"=?',
+                    "where_values": (value,),
+                    "identity_columns": {"id"},
+                }
+            if table_name in {"settings", "internal_settings"} and "key" in columns and row_data.get("key") is not None:
+                value = str(row_data["key"])
+                return {
+                    "state_key": f"{table_name}:key:{value}",
+                    "source_value": f"key:{value}",
+                    "where_sql": '"key"=?',
+                    "where_values": (value,),
+                    "identity_columns": {"key"},
+                }
+            return None
+
         self.device_id = str(state.get("machine_id") or "")
         self.installation_id = str(state.get("installation_id") or "")
         manifest = self.manifest()
@@ -352,7 +385,7 @@ class WebSyncClient:
                 if table not in tables or not _SQL_IDENTIFIER.fullmatch(str(table or "")):
                     continue
                 columns = {row[1] for row in conn.execute(f'PRAGMA table_info("{table}")')}
-                if "id" not in columns:
+                if "id" not in columns and not (table in {"settings", "internal_settings"} and "key" in columns):
                     continue
                 for record in records:
                     clean = {key: value for key, value in record.items() if key in columns}
@@ -360,11 +393,15 @@ class WebSyncClient:
                         # File paths are machine-local. The desktop rebuilds a
                         # synchronized offer PDF from its database payload.
                         clean.pop("pdf_path", None)
-                    if clean.get("id") is None:
+                    identity = table_identity(table, columns, clean)
+                    if identity is None:
                         continue
-                    remote_keys.add(f"{table}:{clean['id']}")
-                    existing = conn.execute(f'SELECT * FROM "{table}" WHERE id=?', (clean["id"],)).fetchone()
-                    key = f"{table}:{clean['id']}"
+                    remote_keys.add(identity["state_key"])
+                    existing = conn.execute(
+                        f'SELECT * FROM "{table}" WHERE {identity["where_sql"]}',
+                        identity["where_values"],
+                    ).fetchone()
+                    key = identity["state_key"]
                     if existing:
                         local_row = dict(existing)
                         base_hash = str(row_hashes.get(key) or "")
@@ -380,21 +417,27 @@ class WebSyncClient:
                             # tables without updated_at, which are fully pulled on
                             # every pass so edits to existing rows stay visible.
                             preserved_conflicts.append(
-                                {"table": table, "record_id": str(clean["id"])}
+                                {"table": table, "record_id": identity["source_value"]}
                             )
                             continue
                     if existing and "updated_at" in columns and clean.get("updated_at") and existing["updated_at"] and str(clean["updated_at"]) <= str(existing["updated_at"]):
                         continue
                     if existing:
-                        updates = {key: value for key, value in clean.items() if key != "id"}
+                        updates = {key: value for key, value in clean.items() if key not in identity["identity_columns"]}
                         if updates:
                             setters = ",".join(f'"{key}"=?' for key in updates)
-                            conn.execute(f'UPDATE "{table}" SET {setters} WHERE id=?', (*updates.values(), clean["id"]))
+                            conn.execute(
+                                f'UPDATE "{table}" SET {setters} WHERE {identity["where_sql"]}',
+                                (*updates.values(), *identity["where_values"]),
+                            )
                     else:
                         names = ",".join(f'"{key}"' for key in clean)
                         marks = ",".join("?" for _ in clean)
                         conn.execute(f'INSERT INTO "{table}" ({names}) VALUES ({marks})', tuple(clean.values()))
-                    stored = conn.execute(f'SELECT * FROM "{table}" WHERE id=?', (clean["id"],)).fetchone()
+                    stored = conn.execute(
+                        f'SELECT * FROM "{table}" WHERE {identity["where_sql"]}',
+                        identity["where_values"],
+                    ).fetchone()
                     if stored:
                         row_hashes[key] = row_digest(table, dict(stored))
                     applied += 1
@@ -416,12 +459,16 @@ class WebSyncClient:
                 )
             for table in tables:
                 columns = [row[1] for row in conn.execute(f'PRAGMA table_info("{table}")')]
-                if "id" not in columns:
+                if "id" not in columns and not (table in {"settings", "internal_settings"} and "key" in columns):
                     continue
-                for record in conn.execute(f'SELECT * FROM "{table}" ORDER BY id DESC LIMIT 5000').fetchall():
+                order_by = ' ORDER BY id DESC' if "id" in columns else ' ORDER BY "key" ASC'
+                for record in conn.execute(f'SELECT * FROM "{table}"{order_by} LIMIT 5000').fetchall():
                     row = dict(record)
+                    identity = table_identity(table, set(columns), row)
+                    if identity is None:
+                        continue
                     digest = row_digest(table, row)
-                    key = f"{table}:{row['id']}"
+                    key = identity["state_key"]
                     remote_missing = table in recovery_tables and key not in remote_keys
                     if row_hashes.get(key) == digest and not remote_missing:
                         conflict_hashes.pop(key, None)
@@ -440,8 +487,8 @@ class WebSyncClient:
                             timespec="microseconds"
                         )
                         conn.execute(
-                            f'UPDATE "{table}" SET updated_at=? WHERE id=?',
-                            (sync_row["updated_at"], row["id"]),
+                            f'UPDATE "{table}" SET updated_at=? WHERE {identity["where_sql"]}',
+                            (sync_row["updated_at"], *identity["where_values"]),
                         )
                         digest = row_digest(table, sync_row)
                     if table == "offers":
@@ -451,7 +498,7 @@ class WebSyncClient:
                         "row": sync_row,
                         "action": "upsert",
                         "base_hash": "" if table == "offers" else str(row_hashes.get(key) or ""),
-                        "source_id": f"desktop:{state['machine_id']}:{table}:{row['id']}:{digest}",
+                        "source_id": f"desktop:{state['machine_id']}:{table}:{identity['source_value']}:{digest}",
                     })
                     pending_hashes[key] = digest
             conn.commit()

@@ -58,10 +58,13 @@ def test_authenticated_technician_permissions_filter_both_sector_sidebars(
         assert result["signedIn"]["role"] == "Teknisyen"
         assert result["signedIn"]["pages"] == [40, 41, 21]
         assert result["authStatus"]["isControlAdmin"] is False
+        assert result["mappingWrite"]["status"] == 403
         assert result["technical"]["allowed"] == [True, True, True]
         assert result["technical"]["denied"] == [False, False, False]
+        assert result["technical"]["permissionRouteCoverage"] is True
         assert result["automotive"]["allowed"] == [True, False, True]
         assert result["automotive"]["denied"] == [False, False, False, False]
+        assert result["automotive"]["permissionRouteCoverage"] is True
         assert result["browserExceptions"] == 0
         with sqlite3.connect(tenant_path) as conn:
             persisted = conn.execute(

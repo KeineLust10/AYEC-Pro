@@ -13,6 +13,8 @@ def test_midnight_reference_styles_are_loaded_after_page_styles():
     assert "midnight-reference.css?v=" in html
     assert html.index("service-list-reference.css") < html.index("midnight-reference.css")
     assert "color-scheme: dark" in stylesheet
+    assert 'html[data-theme="midnight"]{scrollbar-color:#1b2a42 #080e1a;scrollbar-width:thin}' in stylesheet
+    assert 'html[data-theme="midnight"] ::-webkit-scrollbar{width:8px;height:8px}' in stylesheet
     assert "--bg: #080E1A" in stylesheet
     assert "--surface: #0D1829" in stylesheet
     app_styles = (WEB / "styles.css").read_text(encoding="utf-8")
@@ -39,12 +41,14 @@ def test_midnight_controls_use_active_theme_surface_tokens():
     assert "background-color:#0b1320" not in stylesheet
 
 
-def test_midnight_sidebar_header_uses_the_desktop_surface_height():
+def test_midnight_sidebar_header_background_stays_inside_brand_card():
     desktop = (ROOT / "src" / "ui" / "widgets" / "side_menu.py").read_text(encoding="utf-8")
     parity = (WEB / "desktop-parity.css").read_text(encoding="utf-8")
 
     assert "header.setFixedHeight(104)" in desktop
-    assert 'html[data-theme="midnight"] .sidebar{background:linear-gradient(180deg,var(--surface) 0 104px,transparent 104px)' in parity
+    assert ".sidebar .brand {" in parity
+    assert "background: var(--sidebar-panel, var(--ayec-slate-panel));" in parity
+    assert 'html[data-theme="midnight"] .sidebar{background:linear-gradient(180deg,var(--surface) 0 104px,transparent 104px)' not in parity
 
 
 def test_web_shell_keeps_cache_versions_for_updated_ui_assets():
@@ -135,7 +139,9 @@ def test_finance_dashboard_uses_data_backed_currency_balances_and_periods():
     app = (WEB / "app.js").read_text(encoding="utf-8")
     styles = (WEB / "midnight-reference.css").read_text(encoding="utf-8")
 
-    assert "usdRate>0?money(value/usdRate,\"USD\"):money(value,\"TRY\")" in app
+    assert 'const metricCurrency="TRY";' in app
+    assert "const financeUsd=value=>financeDashboardMoney(value,metricCurrency);" in app
+    assert "financeTryValue(item)" in app
     assert "Math.max(0,-moneyNumber(balance))*rateForCode(currency)" in app
     assert 'Array.isArray(db.bankAccounts)' in app
     assert "finance-weekly-chart" in app

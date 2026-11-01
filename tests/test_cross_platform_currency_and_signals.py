@@ -455,6 +455,7 @@ def test_sales_proforma_pdf_uses_saved_transaction_date(tmp_path, monkeypatch):
         "mode": "proforma", "customer_id": customer_id,
         "customer_name": "Currency Test Customer", "currency": "TRY",
         "exchange_rate": 1, "transaction_date": "2026-08-21",
+        "include_approval": False,
         "lines": [{"line_type": "service", "service_name": "Installation",
                    "unit_price": 100, "qty": 1}],
         "offer_no": "DATED-PDF-1",
@@ -476,6 +477,7 @@ def test_sales_proforma_pdf_uses_saved_transaction_date(tmp_path, monkeypatch):
     target, offer_no = web_main.build_offer_pdf(result["offer_id"])
     assert offer_no == "DATED-PDF-1"
     assert captured["offer_date"] == "2026-08-21"
+    assert captured["include_approval"] is False
     target.unlink(missing_ok=True)
 
 
@@ -825,12 +827,12 @@ def test_desktop_web_gap_audit_uses_current_layout():
     assert "login_dialog" not in report["dialogs"]["unmapped_workflows"]
     assert "registration_dialog" not in report["dialogs"]["unmapped_workflows"]
     assert report["dialogs"]["unmapped_workflows"] == []
-    assert report["dialogs"]["inactive_dialog_entries"] == ["admin_approval_dialog"]
+    assert report["dialogs"]["inactive_dialog_entries"] == []
     assert report["settings"]["missing_keys"] == []
     assert "voice_input_device" in report["settings"]["native_only_keys"]
     structural_keys = report["dialogs"]["structural_catalog_entries"]
     for key in (
-        "modern_confirm", "modern_input_dialog", "modern_select_dialog",
+        "modern_confirm", "modern_select_dialog",
         "password_prompt_dialog", "simple_confirm",
     ):
         assert key in structural_keys
@@ -869,3 +871,117 @@ def test_sales_hub_partial_payment_allocates_credit_and_preserves_open_balance(t
     assert float(transactions[1][2]) == pytest.approx(-result["remaining_amount"])
     assert float(link[0]) == pytest.approx(1)
     assert "Nakit" in note and "Deposit" in note
+
+
+def test_quick_sale_commits_without_customer_and_tracks_inventory(tmp_path, monkeypatch):
+    path = tmp_path / "quick-sale.db"
+    _customer_id, part_ids = _sales_database(path)
+    _configure_web_database(monkeypatch, path)
+
+    result = web_main.commit_quick_sale({
+        "lines": [{"product_id": part_ids[0], "qty": 2}],
+        "discount": 5,
+        "payment_method": "Nakit",
+        "reference": "QS-TEST-1",
+    })
+
+    db = Database(str(path))
+    stock = db.cursor.execute(
+        "SELECT stock FROM parts WHERE id=?", (part_ids[0],)
+    ).fetchone()[0]
+    income = db.cursor.execute(
+        "SELECT type,amount,original_amount,currency,customer_id,payment_method "
+        "FROM accounting WHERE tracking_no=?",
+        ("QS-TEST-1",),
+    ).fetchone()
+    cost = db.cursor.execute(
+        "SELECT type,amount,currency FROM accounting "
+        "WHERE tracking_no=? AND type='Gider'",
+        ("QS-TEST-1",),
+    ).fetchone()
+    movement = db.cursor.execute(
+        "SELECT movement_type,amount,new_stock FROM stock_movements "
+        "WHERE part_id=? ORDER BY id DESC LIMIT 1",
+        (part_ids[0],),
+    ).fetchone()
+    used_part = db.cursor.execute(
+        "SELECT tracking_no,part_name,price FROM used_parts ORDER BY id DESC LIMIT 1"
+    ).fetchone()
+    customer_transactions = db.cursor.execute(
+        "SELECT COUNT(*) FROM currency_transactions WHERE tracking_no=?",
+        ("QS-TEST-1",),
+    ).fetchone()[0]
+    db.close()
+
+    assert result["currency"] == "TRY"
+    assert result["subtotal"] == pytest.approx(200)
+    assert result["discount"] == pytest.approx(5)
+    assert result["total"] == pytest.approx(195)
+    assert float(stock) == pytest.approx(8)
+    assert income[0] == "Gelir"
+    assert float(income[1]) == pytest.approx(195)
+    assert float(income[2]) == pytest.approx(195)
+    assert income[3] == "TRY"
+    assert income[4] is None
+    assert income[5] == "Nakit"
+    assert cost[0] == "Gider"
+    assert float(cost[1]) == pytest.approx(100)
+    assert cost[2] == "TRY"
+    assert len(result["cost_ids"]) == 1
+    assert movement[0] == "\u00c7\u0131k\u0131\u015f"
+    assert float(movement[1]) == pytest.approx(2)
+    assert float(movement[2]) == pytest.approx(8)
+    assert used_part[0] == "DIRECT_SALE"
+    assert "2x TRY Part" in used_part[1]
+    assert float(used_part[2]) == pytest.approx(200)
+    assert customer_transactions == 0
+
+
+def test_quick_sale_rejects_mixed_currency_without_mutating_stock(tmp_path, monkeypatch):
+    path = tmp_path / "quick-sale-mixed-currency.db"
+    _customer_id, part_ids = _sales_database(path)
+    _configure_web_database(monkeypatch, path)
+
+    with pytest.raises(ValueError, match="different currencies"):
+        web_main.commit_quick_sale({
+            "lines": [
+                {"product_id": part_ids[0], "qty": 1},
+                {"product_id": part_ids[1], "qty": 1},
+            ],
+        })
+
+    db = Database(str(path))
+    stock = db.cursor.execute(
+        "SELECT stock FROM parts WHERE id IN (?,?) ORDER BY id",
+        (part_ids[0], part_ids[1]),
+    ).fetchall()
+    incomes = db.cursor.execute(
+        "SELECT COUNT(*) FROM accounting WHERE tracking_no LIKE 'QS-%'"
+    ).fetchone()[0]
+    db.close()
+    assert [float(row[0]) for row in stock] == [10.0, 10.0]
+    assert incomes == 0
+
+
+def test_quick_sale_rejects_quantity_above_stock_without_partial_writes(tmp_path, monkeypatch):
+    path = tmp_path / "quick-sale-stock-limit.db"
+    _customer_id, part_ids = _sales_database(path)
+    _configure_web_database(monkeypatch, path)
+
+    with pytest.raises(ValueError, match="Insufficient stock"):
+        web_main.commit_quick_sale({
+            "lines": [{"product_id": part_ids[0], "qty": 11}],
+            "reference": "QS-STOCK-LIMIT",
+        })
+
+    db = Database(str(path))
+    stock = db.cursor.execute(
+        "SELECT stock FROM parts WHERE id=?", (part_ids[0],)
+    ).fetchone()[0]
+    records = db.cursor.execute(
+        "SELECT COUNT(*) FROM accounting WHERE tracking_no=?",
+        ("QS-STOCK-LIMIT",),
+    ).fetchone()[0]
+    db.close()
+    assert float(stock) == 10.0
+    assert records == 0

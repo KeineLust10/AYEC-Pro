@@ -169,7 +169,10 @@
     if (!appointment) return;
     try {
       if (Number.isInteger(+appointment.id)) {
-        await desktopWrite("appointments", { id: +appointment.id, _action: "update", status: status });
+        await apiFetch("/api/desktop/table/appointments", {
+          method: "POST",
+          body: JSON.stringify({ id: +appointment.id, _action: "update", status: status })
+        });
       }
       appointment.status = status;
       save();
@@ -242,10 +245,12 @@
     statusTrigger.textContent = "Durum De\u011fi\u015ftir  \u203a";
     statusTrigger.setAttribute("aria-haspopup", "menu");
     statusTrigger.setAttribute("aria-expanded", "false");
+    statusTrigger.setAttribute("aria-controls", "appointment-status-menu");
     menu.append(statusTrigger);
 
     var statusMenu = document.createElement("div");
     statusMenu.className = "appointment-status-submenu";
+    statusMenu.id = "appointment-status-menu";
     statusMenu.setAttribute("role", "menu");
     Object.assign(statusMenu.style, {
       display: "none",
@@ -270,6 +275,8 @@
       statusButton.type = "button";
       statusButton.textContent = entry[0];
       statusButton.dataset.contextAction = "appointment-status";
+      statusButton.setAttribute("role", "menuitem");
+      statusButton.tabIndex = -1;
       statusButton.onclick = function () {
         menu.classList.remove("open");
         statusMenu.style.display = "none";
@@ -282,20 +289,52 @@
       statusMenu.append(statusButton);
     });
     menu.append(statusMenu);
-    statusTrigger.onclick = function (event) {
-      event.stopPropagation();
+    function openStatusMenu() {
       var bounds = statusTrigger.getBoundingClientRect();
       var submenuWidth = 204;
       var left = bounds.right + 5;
       if (left + submenuWidth > window.innerWidth - 8) left = bounds.left - submenuWidth - 5;
       statusMenu.style.left = Math.max(8, left) + "px";
+      statusMenu.style.display = "block";
+      statusMenu.style.top = Math.max(8, Math.min(bounds.top, window.innerHeight - statusMenu.offsetHeight - 8)) + "px";
+      statusTrigger.setAttribute("aria-expanded", "true");
+      var items = statusMenu.querySelectorAll('[role="menuitem"]');
+      items.forEach(function (item, index) { item.tabIndex = index === 0 ? 0 : -1; });
+      if (items[0]) items[0].focus();
+    }
+    function closeStatusMenu(returnFocus) {
+      statusMenu.style.display = "none";
+      statusTrigger.setAttribute("aria-expanded", "false");
+      statusMenu.querySelectorAll('[role="menuitem"]').forEach(function (item) { item.tabIndex = -1; });
+      if (returnFocus) statusTrigger.focus();
+    }
+    statusTrigger.onkeydown = function (event) {
+      if (event.key === "ArrowRight" || event.key === "ArrowDown" || event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        openStatusMenu();
+      }
+    };
+    statusMenu.onkeydown = function (event) {
+      var items = Array.from(statusMenu.querySelectorAll('[role="menuitem"]'));
+      var current = items.indexOf(document.activeElement);
+      if (event.key === "Escape" || event.key === "ArrowLeft") {
+        event.preventDefault();
+        closeStatusMenu(true);
+        return;
+      }
+      if (event.key !== "ArrowDown" && event.key !== "ArrowUp" && event.key !== "Home" && event.key !== "End") return;
+      event.preventDefault();
+      var next = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1
+        : (current + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+      items.forEach(function (item, index) { item.tabIndex = index === next ? 0 : -1; });
+      if (items[next]) items[next].focus();
+    };
+    statusTrigger.onclick = function (event) {
+      event.stopPropagation();
       if (statusMenu.style.display === "none") {
-        statusMenu.style.display = "block";
-        statusMenu.style.top = Math.max(8, Math.min(bounds.top, window.innerHeight - statusMenu.offsetHeight - 8)) + "px";
-        statusTrigger.setAttribute("aria-expanded", "true");
+        openStatusMenu();
       } else {
-        statusMenu.style.display = "none";
-        statusTrigger.setAttribute("aria-expanded", "false");
+        closeStatusMenu(false);
       }
     };
 
@@ -325,10 +364,34 @@
       + " " + pad(now.getHours()) + ":" + pad(now.getMinutes()) + ":" + pad(now.getSeconds());
     try {
       if (Number.isInteger(+appointment.id)) {
-        await desktopWrite("appointments", { id: +appointment.id, _action: "update", status: "Tamamland\u0131", completed_at: completedAt });
+        await apiFetch("/api/desktop/table/appointments", {
+          method: "POST",
+          body: JSON.stringify({ id: +appointment.id, _action: "update", status: "Tamamland\u0131", completed_at: completedAt })
+        });
       }
       appointment.status = "Tamamland\u0131";
       appointment.completed_at = completedAt;
+      save();
+      toast("Randevu durumu: " + appointment.status);
+      render();
+      return true;
+    } catch (error) {
+      toast("Randevu durumu g\u00fcncellenemedi: " + (error.message || ""), "error");
+      return false;
+    }
+  }
+
+  async function cancelAppointmentStatus(id) {
+    var appointment = appointmentFor(id);
+    if (!appointment) return false;
+    try {
+      if (Number.isInteger(+appointment.id)) {
+        await apiFetch("/api/desktop/table/appointments", {
+          method: "POST",
+          body: JSON.stringify({ id: +appointment.id, _action: "update", status: "\u0130ptal" })
+        });
+      }
+      appointment.status = "\u0130ptal";
       save();
       toast("Randevu durumu: " + appointment.status);
       render();
@@ -367,7 +430,7 @@
     var needsMaterialDecision = montage && (cancellation
       ? remainingVehicleStock(appointment)
       : (appointment.plan_items || []).length > 0);
-    if (cancellation && !needsMaterialDecision) return baseContextAction(kind, id, action, row);
+    if (cancellation && !needsMaterialDecision) return cancelAppointmentStatus(id);
     if (!needsMaterialDecision) {
       return completeAppointmentStatus(id).then(function (saved) {
         if (saved && montage) openAppointmentPayment(id);
@@ -376,8 +439,7 @@
     }
     return openAppointmentMontageCompletion(id, cancellation, function () {
       if (cancellation) {
-        baseContextAction(kind, id, action, row);
-        return;
+        return cancelAppointmentStatus(id);
       }
       completeAppointmentStatus(id).then(function (saved) {
         if (saved) openAppointmentPayment(id);

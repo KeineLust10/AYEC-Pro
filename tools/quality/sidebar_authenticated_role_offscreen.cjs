@@ -10,6 +10,16 @@ const login = { identifier: process.env.AYEC_ROLE_LOGIN_USER || "", password: pr
 const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "ayec-role-audit-"));
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
+async function stopProcessTree(child) {
+  if (!child?.pid) return;
+  await new Promise(resolve => {
+    const killer = spawn("taskkill.exe", ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore", windowsHide: true });
+    killer.once("exit", resolve);
+    killer.once("error", resolve);
+  });
+  await delay(500);
+}
+
 async function run() {
   if (!baseUrl || !login.identifier || !login.password || !login.tenantId) throw new Error("Authenticated audit URL and login are required.");
   const browser = spawn(edgePath, ["--headless=new", "--disable-gpu", "--no-first-run", "--no-default-browser-check", `--remote-debugging-port=${debugPort}`, `--user-data-dir=${path.join(tempRoot, "profile")}`, baseUrl], { stdio: "ignore", windowsHide: true });
@@ -64,6 +74,7 @@ async function run() {
     if (!loginResult.ok) throw new Error("Authenticated role-audit login failed: " + JSON.stringify(loginResult));
     const authStatus = await evaluate(`(async()=>{const response=await fetch(${JSON.stringify(new URL("/api/auth/status", baseUrl).toString())});const status=await response.json();if(!status.authenticated||!status.user)return{authenticated:false};updateCurrentUser(status.user);hideAuth();await startApplication();return{authenticated:true,userId:status.user.id,role:status.user.role,permissions:status.user.permissions,isControlAdmin:status.user.is_control_admin}})()`);
     if (!authStatus.authenticated) throw new Error("Authenticated API status did not recognize the browser session.");
+    const mappingWrite = await evaluate(`(async()=>{const response=await fetch("/api/desktop/table/product_bank_mappings",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:-1,_action:"update",default_kdv_rate:99})});return{status:response.status,body:await response.json().catch(()=>({}))}})()`);
     let appReady = false;
     for (let attempt = 0; attempt < 100; attempt += 1) {
       appReady = await evaluate("Boolean(currentAuthUser?.id && document.querySelector('#appShell') && !document.body.classList.contains('auth-active'))");
@@ -75,22 +86,26 @@ async function run() {
       const permissionData = typeof currentAuthUser.permissions === 'string' ? JSON.parse(currentAuthUser.permissions || '{}') : (currentAuthUser.permissions || {});
       const signedIn = { id: currentAuthUser.id, role: currentAuthUser.role, pages: permissionData.pages || [] };
       const inspect = (sector, allowed, denied) => {
+        const savedPermissions = currentAuthUser.permissions;
         currentSector = sector;
+        currentAuthUser.permissions = JSON.stringify({ mode: 'all' });
         renderNav();
-        return { sector, allowed: allowed.map(id => Boolean(document.querySelector('#nav [data-page="'+id+'"]'))), denied: denied.map(id => Boolean(document.querySelector('#nav [data-page="'+id+'"]'))) };
+        const allRoutes = [...document.querySelectorAll('#nav [data-page]')].map(button => ({ id: button.dataset.page, pageId: ayecDesktopPageIds[button.dataset.page] })).filter(route => Number.isInteger(route.pageId));
+        currentAuthUser.permissions = savedPermissions;
+        renderNav();
+        const visibleRoutes = [...document.querySelectorAll('#nav [data-page]')].map(button => button.dataset.page).sort();
+        const permittedRoutes = allRoutes.filter(route => signedIn.pages.includes(route.pageId)).map(route => route.id).sort();
+        return { sector, allowed: allowed.map(id => Boolean(document.querySelector('#nav [data-page="'+id+'"]'))), denied: denied.map(id => Boolean(document.querySelector('#nav [data-page="'+id+'"]'))), allRouteCount: allRoutes.length, permissionRouteCoverage: JSON.stringify(visibleRoutes) === JSON.stringify(permittedRoutes) };
       };
       const technical = inspect('teknik_servis', ['dashboard','services','customers'], ['service-list','technician','support']);
       const automotive = inspect('otomotiv', ['dashboard','services','customers'], ['service-list','automotive-stock','vehicle-maintenance','support']);
-      return { loginResult: ${JSON.stringify(loginResult)}, authStatus: ${JSON.stringify(authStatus)}, signedIn, technical, automotive, shellRole: document.querySelector('#currentUserRole')?.textContent || '' };
+      return { loginResult: ${JSON.stringify(loginResult)}, authStatus: ${JSON.stringify(authStatus)}, mappingWrite: ${JSON.stringify(mappingWrite)}, signedIn, technical, automotive, shellRole: document.querySelector('#currentUserRole')?.textContent || '' };
     })()`);
-    if (!result.signedIn.id || !/Teknisyen|Technician/i.test(result.signedIn.role) || !result.signedIn.pages.includes(40) || result.technical.allowed.some(value => !value) || result.technical.denied.some(Boolean) || result.automotive.allowed[0] !== true || result.automotive.allowed[1] !== false || result.automotive.allowed[2] !== true || result.automotive.denied.some(Boolean) || exceptions.length) throw new Error(JSON.stringify({ result, exceptions }));
+    if (result.mappingWrite.status !== 403 || !result.signedIn.id || !/Teknisyen|Technician/i.test(result.signedIn.role) || !result.signedIn.pages.includes(40) || result.technical.allowed.some(value => !value) || result.technical.denied.some(Boolean) || !result.technical.permissionRouteCoverage || result.automotive.allowed[0] !== true || result.automotive.allowed[1] !== false || result.automotive.allowed[2] !== true || result.automotive.denied.some(Boolean) || !result.automotive.permissionRouteCoverage || exceptions.length) throw new Error(JSON.stringify({ result, exceptions }));
     process.stdout.write(JSON.stringify({ ...result, browserExceptions: exceptions.length }) + "\n");
   } finally {
-    if (socket?.readyState === WebSocket.OPEN) {
-      try { await new Promise(resolve => { socket.addEventListener("close", resolve, { once: true }); socket.send(JSON.stringify({ id: 999999, method: "Browser.close" })); setTimeout(resolve, 200); }); } catch (_) { socket.close(); }
-    }
-    browser.kill();
-    await delay(200);
+    if (socket?.readyState === WebSocket.OPEN) socket.close();
+    await stopProcessTree(browser);
     fs.rmSync(tempRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   }
 }

@@ -165,12 +165,13 @@ class StockListTabMixin:
         self.cat_layout.setContentsMargins(8, 2, 8, 2)
         self.cat_layout.setSpacing(6)
         scroll = QScrollArea()
-        scroll.setFixedHeight(34)
+        scroll.setFixedHeight(48)
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         scroll.setStyleSheet(theme_qss("QScrollArea { background: @surface; border: 1px solid @border; border-radius: 8px; }"))
         scroll.setWidget(self.cat_container)
+        self.category_scroll = scroll
         layout.addWidget(scroll)
 
         filter_bar = QFrame()
@@ -531,6 +532,7 @@ class StockListTabMixin:
                 )
                 button = QPushButton(f"{category} ({count})")
                 button.setMinimumWidth(148)
+            button.setToolTip(button.text())
             button.setProperty('stock_category_key', category)
             button.setCheckable(True)
             button.setChecked(category == self.selected_category)
@@ -538,11 +540,26 @@ class StockListTabMixin:
             button.setStyleSheet(
                 theme_qss(self._cat_style(category == self.selected_category))
             )
+            text_width = button.fontMetrics().horizontalAdvance(button.text()) + 40
+            button.setMinimumWidth(max(button.minimumWidth(), button.sizeHint().width() + 16, text_width))
             button.clicked.connect(
                 lambda _checked=False, value=category: self._select_stock_category(value)
             )
             self.cat_layout.addWidget(button)
         self.cat_layout.addStretch()
+        category_width = sum(
+            self.cat_layout.itemAt(index).widget().minimumWidth()
+            for index in range(self.cat_layout.count())
+            if isinstance(self.cat_layout.itemAt(index).widget(), QPushButton)
+        )
+        category_count = sum(
+            isinstance(self.cat_layout.itemAt(index).widget(), QPushButton)
+            for index in range(self.cat_layout.count())
+        )
+        margins = self.cat_layout.contentsMargins()
+        category_width += max(0, category_count - 1) * self.cat_layout.spacing()
+        category_width += margins.left() + margins.right()
+        self.cat_container.setMinimumWidth(max(category_width, self.cat_layout.sizeHint().width()))
 
     def _select_stock_category(self, category):
         if category == self.selected_category:

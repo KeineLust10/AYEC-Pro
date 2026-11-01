@@ -7,16 +7,73 @@ from pathlib import Path
 import requests
 
 import Web_Arayuzu.Main as web_main
+import src.utils.local_secret_store as local_secret_store
 from tests.test_vendor_management_center import _setup_tenant
+
+
+def test_tomtom_live_key_check_sanitizes_provider_failures(monkeypatch):
+    monkeypatch.setattr(web_main, "_field_service_tomtom_key", lambda _tenant_id: "private-key")
+    monkeypatch.setattr(web_main, "_field_service_tomtom_key_status", lambda _tenant_id: "configured")
+    failures = [
+        (401, "rejected"),
+        (403, "rejected"),
+        (429, "rate_limited"),
+        (503, "unavailable"),
+    ]
+    for status_code, expected in failures:
+        error = web_main.HTTPError(
+            "https://api.tomtom.com/maps/orbis/assets/styles/0.6.0-0/style.json",
+            status_code,
+            "provider response",
+            hdrs=None,
+            fp=None,
+        )
+
+        def fail_provider(*_args, _error=error, **_kwargs):
+            raise _error
+
+        monkeypatch.setattr(web_main, "desktop_field_service_vector_resource", fail_provider)
+        assert web_main.desktop_field_service_test_tomtom("tenant-1") == expected
+
+    monkeypatch.setattr(
+        web_main,
+        "desktop_field_service_vector_resource",
+        lambda *_args, **_kwargs: (b"not-json", "application/json"),
+    )
+    assert web_main.desktop_field_service_test_tomtom("tenant-1") == "invalid_response"
+
+
+def test_tomtom_live_key_check_distinguishes_missing_and_unreadable_keys(monkeypatch):
+    monkeypatch.setattr(web_main, "_field_service_tomtom_key_status", lambda _tenant_id: "missing")
+    assert web_main.desktop_field_service_test_tomtom("tenant-1") == "missing_key"
+
+    monkeypatch.setattr(web_main, "_field_service_tomtom_key_status", lambda _tenant_id: "unavailable")
+    assert web_main.desktop_field_service_test_tomtom("tenant-1") == "unavailable"
+
+
+def test_tomtom_key_status_uses_the_matching_secret_scope(monkeypatch):
+    names = []
+
+    def load_secret(name):
+        names.append(name)
+        return "private-key"
+
+    monkeypatch.setattr(local_secret_store, "load_secret", load_secret)
+    monkeypatch.setattr(web_main, "_field_service_tomtom_secret_name", lambda tenant_id: "tenant-key-" + tenant_id)
+
+    assert web_main._field_service_tomtom_key_status("") == "configured"
+    assert web_main._field_service_tomtom_key_status("tenant-1") == "configured"
+    assert names == ["tomtom_traffic_api_key", "tenant-key-tenant-1"]
 
 
 def test_field_service_map_renders_all_located_personnel_markers():
     root = Path(__file__).resolve().parents[1]
     script = (root / "Web_Arayuzu/web/field-service-parity.js").read_text(encoding="utf-8")
     page = (root / "Web_Arayuzu/web/index.html").read_text(encoding="utf-8")
+    route_audit = (root / "tools/quality/web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
     assert "personnelMarkers = new Map()" in script
     assert "L.marker([point.lat, point.lng]" in script
-    assert "fieldMap.fitBounds(bounds" in script
+    assert "fieldMap.setView([fieldMapCenter.lat, fieldMapCenter.lng], 17)" in script
     assert "data-field-route-optimize" in script
     assert "window.L.polyline" in script
     assert "/api/desktop/field-service/geocode" in script
@@ -28,10 +85,14 @@ def test_field_service_map_renders_all_located_personnel_markers():
     assert "/api/desktop/field-service/location" in script
     assert "navigator.geolocation.watchPosition" in script
     assert "data-field-vector-toggle" in script
+    assert "fieldServiceRouteWorkflow.toolsHidden !== false" in route_audit
     assert "field-vector-map-dist/index.html" in script
     assert "/api/desktop/field-service/vector-resource" in (root / "src/ui/widgets/tomtom_vector_map/web/src/main.js").read_text(encoding="utf-8")
     assert "fieldLocationResults" in script
     assert "field-service-parity.js" in page
+    assert "field-service-parity.js?v=20261028-field-map-native-zoom-parity-1" in page
+    assert "function handleVectorMapClick" in script and "onClick?.(handleVectorMapClick)" in script
+    assert "field-service-parity.css?v=20261024-mobile-map-first-3" in page
 
 
 def test_field_service_geocoder_falls_back_to_photon(monkeypatch):
@@ -268,6 +329,7 @@ def test_field_service_personnel_and_finish_duty_use_active_tenant(monkeypatch, 
     traffic_url = base_url + "/api/desktop/field-service/traffic/12/2310/1400"
     vector_url = base_url + "/api/desktop/field-service/vector-resource/maps/orbis/style?language=tr-TR"
     tomtom_key_url = base_url + "/api/desktop/field-service/tomtom-key"
+    tomtom_test_url = base_url + "/api/desktop/field-service/tomtom-test"
     try:
         assert requests.get(personnel_url).status_code == 401
         assert requests.post(finish_url, json={"id": 93001}).status_code == 401
@@ -279,6 +341,7 @@ def test_field_service_personnel_and_finish_duty_use_active_tenant(monkeypatch, 
         assert requests.get(traffic_url).status_code == 401
         assert requests.get(vector_url).status_code == 401
         assert requests.get(tomtom_key_url).status_code == 401
+        assert requests.post(tomtom_test_url, json={}).status_code == 401
         session = requests.Session()
         session.headers["Origin"] = base_url
         login = session.post(
@@ -296,12 +359,32 @@ def test_field_service_personnel_and_finish_duty_use_active_tenant(monkeypatch, 
         monkeypatch.setattr(secret_store, "load_secret", lambda name: saved_keys.get(name, ""))
         monkeypatch.setattr(secret_store, "save_secret", lambda name, value: saved_keys.__setitem__(name, value))
         assert session.get(tomtom_key_url).json() == {"status": "missing"}
+        assert session.post(tomtom_test_url, json={}).json() == {"status": "missing_key"}
         saved = session.post(tomtom_key_url, json={"api_key": "tenant-private-key"})
         assert saved.status_code == 200
         assert saved.json() == {"status": "configured"}
         assert "tenant-private-key" not in saved.text
         assert list(saved_keys) == [web_main._field_service_tomtom_secret_name("tenant-1")]
         assert web_main._field_service_tomtom_secret_name("tenant-1") != web_main._field_service_tomtom_secret_name("tenant-2")
+        assert session.get(tomtom_key_url).json() == {"status": "configured"}
+        with monkeypatch.context() as tenantless:
+            tenantless.setattr(web_main, "active_tenant_id", lambda: "")
+            tenantless.setattr(web_main.AYECRequestHandler, "current_user", lambda _self: _actor)
+            assert session.get(tomtom_key_url).status_code == 409
+            assert session.post(tomtom_test_url, json={}).status_code == 409
+        tenant_two_actor = {**_actor, "_tenant_id": "tenant-2"}
+        with monkeypatch.context() as second_tenant:
+            second_tenant.setattr(web_main, "active_tenant_id", lambda: "tenant-2")
+            second_tenant.setattr(web_main.AYECRequestHandler, "current_user", lambda _self: tenant_two_actor)
+            assert session.get(tomtom_key_url).json() == {"status": "missing"}
+            tenant_two_saved = session.post(tomtom_key_url, json={"api_key": "tenant-two-private-key"})
+            assert tenant_two_saved.status_code == 200
+            assert "tenant-two-private-key" not in tenant_two_saved.text
+            assert session.get(tomtom_key_url).json() == {"status": "configured"}
+        assert set(saved_keys) == {
+            web_main._field_service_tomtom_secret_name("tenant-1"),
+            web_main._field_service_tomtom_secret_name("tenant-2"),
+        }
         assert session.get(tomtom_key_url).json() == {"status": "configured"}
         assert session.post(tomtom_key_url, json={"api_key": "bad"}, headers={"Origin": "http://example.com"}).status_code == 403
         vector_page = session.get(base_url + "/field-vector-map-dist/index.html")
@@ -312,6 +395,8 @@ def test_field_service_personnel_and_finish_duty_use_active_tenant(monkeypatch, 
 
         def fake_vector_resource(target_url, **_kwargs):
             vector_target["url"] = target_url
+            if "style.json" in target_url:
+                return json.dumps({"version": 8, "sources": {"base": {}}}).encode("utf-8"), "application/json"
             return b"map-resource", "application/json"
 
         monkeypatch.setattr(web_main, "desktop_field_service_vector_resource", fake_vector_resource)
@@ -320,6 +405,14 @@ def test_field_service_personnel_and_finish_duty_use_active_tenant(monkeypatch, 
         assert vector_response.headers["Content-Type"] == "application/json"
         assert vector_response.content == b"map-resource"
         assert vector_target["url"] == "https://api.tomtom.com/maps/orbis/style?language=tr-TR"
+        verified = session.post(tomtom_test_url, json={})
+        assert verified.status_code == 200
+        assert verified.json() == {"status": "connected"}
+        assert vector_target["url"] == (
+            "https://api.tomtom.com/maps/orbis/assets/styles/0.6.0-0/style.json"
+            "?apiVersion=1&map=basic_street-light"
+        )
+        assert session.post(tomtom_test_url, json={}, headers={"Origin": "http://example.com"}).status_code == 403
         with sqlite3.connect(tenant_path) as connection:
             connection.execute("UPDATE personnel SET username=? WHERE id=93001", ("vendor-operator",))
             connection.commit()
@@ -397,7 +490,11 @@ def test_field_service_personnel_and_finish_duty_use_active_tenant(monkeypatch, 
             connection.commit()
         assert session.get(tomtom_key_url).status_code == 403
         assert session.post(tomtom_key_url, json={"api_key": "unauthorized-key"}).status_code == 403
-        assert list(saved_keys.values()) == ["tenant-private-key"]
+        assert session.post(tomtom_test_url, json={}).status_code == 403
+        assert saved_keys == {
+            web_main._field_service_tomtom_secret_name("tenant-1"): "tenant-private-key",
+            web_main._field_service_tomtom_secret_name("tenant-2"): "tenant-two-private-key",
+        }
     finally:
         server.shutdown()
         server.server_close()

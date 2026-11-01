@@ -224,7 +224,7 @@ class SupportPage(QWidget):
         <ul>
             <li><b>API Anahtarı Havuzu:</b> Jarvis'in kesintisiz çalışması için buraya birden fazla API anahtarı girebilirsiniz. Her anahtarı yeni bir satıra yazın.</li>
             <li><b>Bağlantı Testi:</b> "API Havuzunu Test Et" butonuna bastığınızda sistem anahtarları kontrol eder. Buton Yeşil (SİSTEM ÇEVRİMİÇİ) yanıyorsa Jarvis emirlerinize hazırdır.</li>
-            <li><b>Zeka Modeli Seçimi:</b> ComboBox (Açılır Menü) yanındaki "GÜNCELLE" butonuna basarak Google sunucularındaki en güncel modelleri (Gemini 2.0 Flash vb.) otomatik olarak listeleyebilirsiniz.</li>
+            <li><b>Zeka Modeli Se\u00e7imi:</b> ComboBox (A\u00e7\u0131l\u0131r Men\u00fc) yan\u0131ndaki G\u00dcNCELLE butonuna basarak Google sunucular\u0131ndaki desteklenen g\u00fcncel modelleri (gemini-3.6-flash gibi) listeleyebilirsiniz.</li>
         </ul>
  
         <h2 style="color: #334155;">2. 🧠 Jarvis ile Etkileşim</h2>
@@ -238,8 +238,8 @@ class SupportPage(QWidget):
         <h2 style="color: #334155;">3. 🛠️ Otonom Yetenekler ve Bakım</h2>
         <p>Sistem, kendi kendini denetleyen modüllerle donatılmıştır.</p>
         <ul>
-            <li><b>Otomatik Yedekleme:</b> Her gün saat 02:00'de veritabanınız otomatik olarak yedeklenir. Yedekleme durumu günlük dosyasında (log) "[OK]" ibaresiyle raporlanır.</li>
-            <li><b>Kota Yönetimi (Smart Rotate):</b> Eğer bir API anahtarının kotası dolarsa (429 Hatası), Jarvis kullanıcıya hissettirmeden havuzdaki bir sonraki anahtara geçiş yapar.</li>
+            <li><b>Otomatik Yedekleme:</b> Yedekleme, Ayarlar b\u00f6l\u00fcm\u00fcnde g\u00fcnl\u00fck otomatik yedekleme a\u00e7\u0131ksa se\u00e7ilen saatte \u00e7al\u0131\u015f\u0131r. Program kapan\u0131\u015f\u0131nda yedekleme ayar\u0131 a\u00e7\u0131ksa kapan\u0131\u015f yede\u011fi de al\u0131nabilir.</li>
+            <li><b>Kota Y\u00f6netimi (Smart Rotate):</b> Otomatik anahtar d\u00f6n\u00fc\u015f\u00fc a\u00e7\u0131ksa ve birden fazla anahtar kay\u0131tl\u0131ysa, kota hatas\u0131nda s\u0131radaki anahtar bir kez denenir.</li>
             <li><b>Hata İzleyici:</b> Sistem kritik bir hata aldığında, teknik detaylar yerine size "İnternet bağlantınızı kontrol edin" veya "Model güncellemesi yapın" gibi kullanıcı dostu uyarılar verir.</li>
         </ul>
  
@@ -274,8 +274,7 @@ class SupportPage(QWidget):
  
         <h3 style="color: #e67e22;">6.1. API ve Kota Hataları (429 & 404)</h3>
         <ul>
-            <li><b>429 RESOURCE_EXHAUSTED:</b> Bu hata sistemin çok ağır çalıştığı veya donduğu anlamına gelmez; sadece Google'ın ücretsiz kullanım sınırına ulaştığınızı belirtir.<br>
-            <i>Müdahale:</i> Sistem otomatik olarak havuzdaki diğer anahtara geçer. Eğer tüm anahtarlar doluysa, 60 saniye beklemek sorunu %100 çözecektir.</li>
+            <li><b>429 RESOURCE_EXHAUSTED:</b> Bu hata, Google API kota s\u0131n\u0131r\u0131na ula\u015f\u0131ld\u0131\u011f\u0131n\u0131 g\u00f6sterir.<br><i>M\u00fcdahale:</i> Birden fazla anahtar varsa uygulama s\u0131radaki anahtar\u0131 bir kez dener. Kota yenilenme s\u00fcresi sa\u011flay\u0131c\u0131ya ve plana ba\u011fl\u0131d\u0131r; API kullan\u0131m ve kota durumunu kontrol edip daha sonra yeniden deneyin.</li>
             <li><b>404 MODEL_NOT_FOUND:</b> Seçili AI motorunun artık desteklenmediğini veya bölgenizde kapandığını gösterir.<br>
             <i>M\u00fcdahale:</i> Ayarlar men\u00fcs\u00fcndeki "Modelleri G\u00fcncelle" butonuna bas\u0131n ve listeden g\u00fcncel bir model (\u00d6rn: gemini-3.6-flash) se\u00e7in.</li>
         </ul>
@@ -295,8 +294,7 @@ class SupportPage(QWidget):
  
         <h3 style="color: #e67e22;">6.4. Veritabanı ve Yedekleme Notları</h3>
         <ul>
-            <li><b>Yedekleme Çakışması:</b> Gece 02:00'deki otomatik yedekleme sırasında uygulama açıksa, veritabanı "Locked" (Kilitli) hatası verebilir.<br>
-            <i>Çözüm:</i> Sistem bu durumu otomatik algılar ve 5 dakika sonra tekrar dener. Manuel müdahaleye gerek yoktur.</li>
+            <li><b>Yedekleme Durumu:</b> Yedekleme zaman\u0131n\u0131 ve son yedek kayd\u0131n\u0131 Yedekleme ekran\u0131ndan kontrol edin. Hata g\u00f6r\u00fcrseniz g\u00fcncel yedekleme ayarlar\u0131n\u0131 inceleyin.</li>
         </ul>
         <br><br>
         <div style="text-align: center; color: #94a3b8; font-size: 12px;">AYEC Pro © 2026 - Tum Haklari Saklidir.</div>

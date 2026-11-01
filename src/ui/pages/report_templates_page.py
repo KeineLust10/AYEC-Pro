@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
     QStyle,
     QStyleOptionViewItem,
     QStyledItemDelegate,
+    QSizePolicy,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -171,7 +172,7 @@ class ReportTemplatesPage(QWidget):
         title.setFixedWidth(286)
         title.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         title.setStyleSheet(
-            theme_qss("font-size: 20px; font-weight: 800; color: @text; background: transparent; border: none;")
+            theme_qss("font-size: 14px; font-weight: 800; color: @text; background: transparent; border: none;")
         )
         description = QLabel(
             "Servis kabul, teknisyen te\u015fhis paneli ve fatura teslim tutanaklar\u0131nda "
@@ -180,7 +181,7 @@ class ReportTemplatesPage(QWidget):
         description.setMaximumWidth(680)
         description.setMinimumHeight(34)
         description.setWordWrap(True)
-        description.setStyleSheet(theme_qss("color: @text_muted; font-size: 12px; background: transparent; border: none;"))
+        description.setStyleSheet(theme_qss("color: @text_muted; font-size: 10px; background: transparent; border: none;"))
         title_row = QHBoxLayout()
         self.report_title_row = title_row
         title_row.setSpacing(10)
@@ -218,7 +219,7 @@ class ReportTemplatesPage(QWidget):
             button.setFixedHeight(44)
             button.setStyleSheet(theme_qss(
                 DesignTokens.get_button_qss(role)
-                + " QPushButton { font-size: 12px; font-weight: 700; padding: 3px 8px; }"
+                + " QPushButton { font-size: 10px; font-weight: 700; padding: 3px 8px; }"
             ))
             header.addWidget(button, 0, Qt.AlignmentFlag.AlignVCenter)
         self.import_button.setFixedWidth(143)
@@ -254,7 +255,7 @@ class ReportTemplatesPage(QWidget):
         self.category_tabs.setDrawBase(False)
         self.category_tabs.setStyleSheet(theme_qss(
             "QTabBar::tab { background: @surface; color: @text_muted; border: 1px solid @border; "
-            "border-radius: 8px; padding: 8px 18px; margin-right: 6px; font-size: 14px; } "
+            "border-radius: 8px; padding: 5px 10px; margin-right: 4px; font-size: 9px; } "
             "QTabBar::tab:selected { background: @electric_blue; color: @selection_text; "
             "border-color: @electric_blue; }"
         ))
@@ -341,6 +342,8 @@ class ReportTemplatesPage(QWidget):
 
         self.table = QTableWidget(0, 8)
         self.table.setMinimumWidth(0)
+        self.table.setMinimumHeight(0)
+        self.table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.table.setHorizontalHeaderLabels(
             ["KATEGOR\u0130 & KAPSAM", "C\u00dcMLE KALIBI /\nHAZIR MET\u0130N", "DURUM", "#", "KULLANIM\nALANI", "KISAYOL", "", "\u0130\u015eLEMLER"]
         )
@@ -350,7 +353,7 @@ class ReportTemplatesPage(QWidget):
         self.table.setShowGrid(False)
         self.table.setStyleSheet(theme_qss(
             DesignTokens.get_table_qss() +
-            " QTableWidget { background: @bg; gridline-color: transparent; font-size: 12px; } "
+            " QTableWidget { background: @bg; gridline-color: transparent; font-size: 10px; } "
             " QTableWidget::item { padding: 0 8px; } "
             " QTableWidget::item:selected { background: @surface_alt; color: @text; } "
             " QHeaderView::section { background: @surface; color: @text_muted; "
@@ -358,13 +361,13 @@ class ReportTemplatesPage(QWidget):
                 "font-size: 11px; font-weight: 800; }"
         ))
         self.table.verticalHeader().setVisible(False)
-        self.table.verticalHeader().setDefaultSectionSize(64)
-        self.table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        self.table.verticalHeader().setDefaultSectionSize(52)
+        self.table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         self.table.setWordWrap(True)
         self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.table.setItemDelegateForColumn(2, ReferenceStatusDelegate(self.table))
         self.table.setItemDelegateForColumn(1, _TemplateLabelDelegate(self.table))
-        self.table.horizontalHeader().setFixedHeight(54)
+        self.table.horizontalHeader().setFixedHeight(46)
         for column, width in {
             0: 300, 1: 210, 2: 64, 3: 46,
             4: 96, 5: 60, 6: 26, 7: 68,
@@ -388,7 +391,11 @@ class ReportTemplatesPage(QWidget):
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
         )
         self.template_splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.template_splitter.setMinimumSize(0, 0)
+        self.template_splitter.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.table_panel = QWidget(self)
+        self.table_panel.setMinimumSize(0, 0)
+        self.table_panel.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.table_panel_layout = QVBoxLayout(self.table_panel)
         self.table_panel_layout.setContentsMargins(0, 0, 0, 0)
         self.table_panel_layout.setSpacing(0)
@@ -410,7 +417,7 @@ class ReportTemplatesPage(QWidget):
         preview_heading_icon = QLabel("\u25c9")
         preview_heading_icon.setStyleSheet(theme_qss("color: @electric_blue; font-size: 16px;"))
         preview_title = QLabel("CANLI \u00c7IKTI \u00d6N\u0130ZLEME")
-        preview_title.setStyleSheet(theme_qss("color: @text; font-size: 13px; font-weight: 800;"))
+        preview_title.setStyleSheet(theme_qss("color: @text; font-size: 11px; font-weight: 800;"))
         preview_header_layout.addWidget(preview_heading_icon)
         preview_header_layout.addWidget(preview_title)
         preview_header_layout.addStretch(1)
@@ -433,8 +440,8 @@ class ReportTemplatesPage(QWidget):
         ))
         receipt_layout = QVBoxLayout(receipt)
         self.preview_receipt_layout = receipt_layout
-        receipt_layout.setContentsMargins(20, 20, 20, 20)
-        receipt_layout.setSpacing(8)
+        receipt_layout.setContentsMargins(12, 12, 12, 12)
+        receipt_layout.setSpacing(5)
         company = 'AYEC Pro'
         try:
             company = self.db.get_setting('company_name', company) or company
@@ -444,7 +451,7 @@ class ReportTemplatesPage(QWidget):
         self.preview_company.setTextFormat(Qt.TextFormat.PlainText)
         self.preview_company.setWordWrap(True)
         self.preview_company.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.preview_company.setStyleSheet(theme_qss('color: @finance_text; font-weight: 800; font-size: 16px;'))
+        self.preview_company.setStyleSheet(theme_qss('color: @finance_text; font-weight: 800; font-size: 12px;'))
         receipt_layout.addWidget(self.preview_company)
         document_type = QLabel('AYEC PRO TEKN\u0130K SERV\u0130S F\u0130\u015e\u0130')
         self.preview_document_type = document_type
@@ -472,11 +479,11 @@ class ReportTemplatesPage(QWidget):
             context_layout = QHBoxLayout(context_row)
             context_layout.setContentsMargins(0, 0, 0, 0)
             caption_label = QLabel(caption)
-            caption_label.setStyleSheet(theme_qss('color: @text_muted; font-size: 12px;'))
+            caption_label.setStyleSheet(theme_qss('color: @text_muted; font-size: 10px;'))
             value_label = QLabel('\u2014')
             value_label.setObjectName(object_name)
             value_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            value_label.setStyleSheet(theme_qss('color: @text; font-size: 12px; font-weight: 700;'))
+            value_label.setStyleSheet(theme_qss('color: @text; font-size: 10px; font-weight: 700;'))
             context_layout.addWidget(caption_label)
             context_layout.addWidget(value_label, 1)
             receipt_layout.addWidget(context_row)
@@ -503,15 +510,15 @@ class ReportTemplatesPage(QWidget):
         self.preview_text.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.preview_text.setStyleSheet(theme_qss(
             'color: @finance_text; background: @finance_surface; border: 1px solid @finance_outline; '
-            'border-radius: 6px; padding: 12px; font-size: 14px;'
+            'border-radius: 6px; padding: 8px; font-size: 11px;'
         ))
         receipt_layout.addWidget(self.preview_category)
         self.preview_category.hide()
-        receipt_layout.addSpacing(14)
+        receipt_layout.addSpacing(8)
         receipt_layout.addWidget(self.preview_template_type)
-        receipt_layout.addSpacing(6)
+        receipt_layout.addSpacing(4)
         receipt_layout.addWidget(self.preview_text)
-        receipt_layout.addSpacing(18)
+        receipt_layout.addSpacing(8)
         receipt_layout.addStretch(1)
         self.preview_accessory_title = QLabel('ALINAN AKSESUAR:')
         self.preview_accessory_title.setStyleSheet(theme_qss(
@@ -573,7 +580,7 @@ class ReportTemplatesPage(QWidget):
             caption = QLabel(label)
             caption.setStyleSheet(theme_qss("color: @text_muted; font-size: 9px;"))
             value.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            value.setStyleSheet(theme_qss("color: @accent; font-family: " + DesignTokens.MONO_FONT_FAMILY + "; font-size: 14px; font-weight: 800;"))
+            value.setStyleSheet(theme_qss("color: @accent; font-family: " + DesignTokens.MONO_FONT_FAMILY + "; font-size: 12px; font-weight: 800;"))
             cell_layout.addWidget(caption)
             cell_layout.addWidget(value)
             stats_values.addWidget(cell, 1)
@@ -611,10 +618,10 @@ class ReportTemplatesPage(QWidget):
 
         self.template_splitter.addWidget(preview)
         self.preview_panel = preview
-        self.template_splitter.setStretchFactor(0, 7)
-        self.template_splitter.setStretchFactor(1, 3)
+        self.template_splitter.setStretchFactor(0, 1)
+        self.template_splitter.setStretchFactor(1, 0)
         self.template_splitter.setHandleWidth(1)
-        self.template_splitter.setSizes([880, 400])
+        self.template_splitter.setSizes([650, 320])
         self.template_splitter.setMinimumWidth(0)
         self.template_splitter.setChildrenCollapsible(True)
         self.table.itemSelectionChanged.connect(self._update_preview)
@@ -625,6 +632,8 @@ class ReportTemplatesPage(QWidget):
         self.template_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.template_scroll.setFrameShape(QFrame.Shape.NoFrame)
         self.template_scroll_content = QWidget()
+        self.template_scroll_content.setMinimumSize(0, 0)
+        self.template_scroll_content.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         scroll_layout = QVBoxLayout(self.template_scroll_content)
         scroll_layout.setContentsMargins(0, 0, 0, 0)
         scroll_layout.setSpacing(0)
@@ -664,19 +673,19 @@ class ReportTemplatesPage(QWidget):
         self.footer_controls_layout = QHBoxLayout(self.footer_controls_widget)
         self.footer_controls_layout.setContentsMargins(0, 0, 0, 0)
         self.footer_controls_layout.setSpacing(6)
-        self.btn_first = QPushButton("\u00ab\u00ab\n\u0130lk")
-        self.btn_first.setFixedSize(54, 48)
+        self.btn_first = QPushButton("\u00ab\u00ab \u0130lk")
+        self.btn_first.setFixedSize(64, 32)
         self.btn_first.setToolTip("\u0130lk sayfa")
-        self.btn_previous = QPushButton("\u2039\n\u00d6nceki")
-        self.btn_previous.setFixedSize(64, 48)
+        self.btn_previous = QPushButton("\u2039 \u00d6nceki")
+        self.btn_previous.setFixedSize(92, 32)
         self.btn_previous.setToolTip("\u00d6nceki sayfa")
         self.lbl_page = QLabel("1 / 1")
         self.lbl_page.hide()
         self.page_numbers = QHBoxLayout()
         self.page_numbers.setContentsMargins(0, 0, 0, 0)
         self.page_numbers.setSpacing(6)
-        self.btn_next = QPushButton("Sonraki\n\u203a")
-        self.btn_next.setFixedSize(70, 48)
+        self.btn_next = QPushButton("Sonraki \u203a")
+        self.btn_next.setFixedSize(92, 32)
         self.btn_first.clicked.connect(lambda: self._go_to_page(1))
         self.btn_previous.clicked.connect(self.previous_page)
         self.btn_next.clicked.connect(self.next_page)
@@ -894,10 +903,10 @@ class ReportTemplatesPage(QWidget):
             category_parts = [part.strip() for part in str(row["category"] or "").split("::") if part.strip()]
             scope = "::".join(category_parts[:2]) if len(category_parts) >= 3 else str(row["category"] or "")
             usage_area = str(row.get("display_category") or (category_parts[-1] if category_parts else ""))
-            scope_label = QLabel(scope)
+            scope_label = QLabel(scope.replace("::", "\n"))
             scope_label.setWordWrap(True)
             scope_label.setMinimumWidth(0)
-            scope_label.setFixedWidth(156)
+            scope_label.setFixedWidth(164)
             tone = next((
                 (foreground, background)
                 for token, foreground, background in (
@@ -911,29 +920,29 @@ class ReportTemplatesPage(QWidget):
             ), ("#7dd3fc", "#0b2231"))
             scope_label.setStyleSheet(
                 "background: {}; color: {}; border: 1px solid {}; border-radius: 6px; "
-                "padding: 4px 6px; font-family: {}; font-size: 10px; font-weight: 600;".format(
+                "padding: 3px 5px; font-family: {}; font-size: 8px; font-weight: 600;".format(
                     tone[1], tone[0], tone[0], DesignTokens.MONO_FONT_FAMILY
                 )
             )
-            scope_label.setFixedHeight(52)
+            scope_label.setFixedHeight(46)
             category_cell = QWidget(self.table)
             category_layout = QHBoxLayout(category_cell)
-            category_layout.setContentsMargins(25, 4, 12, 4)
+            category_layout.setContentsMargins(12, 3, 8, 3)
             category_layout.setSpacing(4)
             category_layout.addWidget(scope_label)
             category_arrow = QLabel("\u203a")
-            category_arrow.setStyleSheet(theme_qss("color: @text_muted; font-size: 16px;"))
+            category_arrow.setStyleSheet(theme_qss("color: @text_muted; font-size: 12px;"))
             category_layout.addWidget(category_arrow)
             category_name = QLabel(category_parts[-1] if len(category_parts) >= 3 else "")
             category_name.setWordWrap(True)
-            category_name.setStyleSheet(theme_qss("color: @text; font-weight: 650;"))
+            category_name.setStyleSheet(theme_qss("color: @text; font-size: 9px; font-weight: 650;"))
             category_layout.addWidget(category_name, 1)
             category_cell.setMinimumWidth(0)
             self.table.setCellWidget(index, 0, category_cell)
             label_item = QTableWidgetItem(str(row["label"] or ""))
             label_font = label_item.font()
             label_font.setFamily("Inter")
-            label_font.setPointSize(11)
+            label_font.setPointSize(9)
             label_font.setWeight(QFont.Weight.DemiBold)
             label_item.setFont(label_font)
             label_item.setData(Qt.ItemDataRole.UserRole, str(row["category"] or ""))
@@ -1011,7 +1020,7 @@ class ReportTemplatesPage(QWidget):
         self.preview_text.setText("\u00bb  " + preview_label)
         self.preview_text.setStyleSheet(theme_qss(
             "color: @finance_text; background: #251725; border: 1px solid #9f1239; "
-            "border-radius: 6px; padding: 12px; font-size: 14px; font-weight: 700;"
+            "border-radius: 6px; padding: 8px; font-size: 11px; font-weight: 700;"
         ))
         self.preview_id.setText("Se\u00e7ili \u015eablon #{:02d}".format(int(row["id"] or 0)))
         self.preview_status.setText("KAYIT ALINDI" if int(row['is_active'] or 0) else "PASIF KALIP")
@@ -1040,7 +1049,7 @@ class ReportTemplatesPage(QWidget):
             button.clicked.connect(callback)
             button.setStyleSheet(theme_qss(
                 "QToolButton { color: @text_muted; background: transparent; border: 1px solid transparent; "
-                "border-radius: 5px; font-size: 13px; } "
+                "border-radius: 5px; font-size: 11px; } "
                 "QToolButton:hover { color: @electric_blue; background: @surface_alt; "
                 "border-color: @finance_outline; }"
             ))
@@ -1172,6 +1181,7 @@ class ReportTemplatesPage(QWidget):
             return
         compact_layout = self.width() < 1200
         stacked_layout = self.width() < 1150
+        short_layout = self.height() < 1100
         self.footer_widget.setFixedWidth(
             max(0, self.width() - 48) if mobile_layout
             else max(0, int(self.width() * 0.69))
@@ -1182,30 +1192,36 @@ class ReportTemplatesPage(QWidget):
             else QBoxLayout.Direction.LeftToRight
         )
         if mobile_layout:
-            self.btn_first.setFixedSize(36, 34)
-            self.btn_previous.setFixedSize(44, 34)
-            self.btn_next.setFixedSize(52, 34)
+            self.btn_first.setFixedSize(60, 34)
+            self.btn_previous.setFixedSize(88, 34)
+            self.btn_next.setFixedSize(88, 34)
             for index in range(self.page_numbers.count()):
                 item = self.page_numbers.itemAt(index)
                 widget = item.widget() if item is not None else None
                 if isinstance(widget, QPushButton):
                     widget.setFixedSize(28, 30)
         else:
-            self.btn_first.setFixedSize(54, 48)
-            self.btn_previous.setFixedSize(64, 48)
-            self.btn_next.setFixedSize(70, 48)
+            self.btn_first.setFixedSize(64, 32)
+            self.btn_previous.setFixedSize(92, 32)
+            self.btn_next.setFixedSize(92, 32)
             for index in range(self.page_numbers.count()):
                 item = self.page_numbers.itemAt(index)
                 widget = item.widget() if item is not None else None
                 if isinstance(widget, QPushButton):
-                    widget.setFixedSize(40, 40)
+                    widget.setFixedSize(32, 30)
         self.template_scroll_content.setMinimumHeight(720 if stacked_layout else 0)
-        self.preview_receipt.setFixedHeight(180 if compact_layout else 427)
-        self.preview_stats.setFixedHeight(116 if compact_layout else 134)
-        self.preview_company.setVisible(not compact_layout)
-        self.preview_document_type.setVisible(not compact_layout)
-        self.preview_serial.setVisible(not compact_layout)
-        self.preview_header_rule.setVisible(not compact_layout)
+        self.template_scroll.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded if stacked_layout
+            else Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self.preview_receipt.setFixedHeight(
+            180 if compact_layout else 360 if short_layout else 427
+        )
+        self.preview_stats.setFixedHeight(116 if compact_layout or short_layout else 134)
+        self.preview_company.setVisible(not compact_layout and not short_layout)
+        self.preview_document_type.setVisible(not compact_layout and not short_layout)
+        self.preview_serial.setVisible(not compact_layout and not short_layout)
+        self.preview_header_rule.setVisible(not compact_layout and not short_layout)
         for label in self.preview_context_labels:
             label.setVisible(not compact_layout)
         self.preview_context_rule.setVisible(not compact_layout)
@@ -1214,16 +1230,16 @@ class ReportTemplatesPage(QWidget):
         self.preview_footer_rule.setVisible(not compact_layout)
         self.preview_footer_row.setVisible(not compact_layout)
         self.preview_status.setVisible(not compact_layout)
-        self.preview_assistant.setVisible(not compact_layout)
+        self.preview_assistant.setVisible(not compact_layout and not short_layout)
         self.preview_layout.setContentsMargins(
             18, 12 if compact_layout else 24, 18, 8
         )
         self.preview_layout.setSpacing(4 if compact_layout else 6)
         self.preview_receipt_layout.setContentsMargins(
-            10 if compact_layout else 20, 8 if compact_layout else 20,
-            10 if compact_layout else 20, 8 if compact_layout else 20
+            10 if compact_layout else 12, 8 if compact_layout else 12,
+            10 if compact_layout else 12, 8 if compact_layout else 12
         )
-        self.preview_receipt_layout.setSpacing(6 if compact_layout else 16)
+        self.preview_receipt_layout.setSpacing(4 if compact_layout else 5)
         self.preview_text.setFixedHeight(64 if compact_layout else 44)
         orientation = (
             Qt.Orientation.Vertical if stacked_layout

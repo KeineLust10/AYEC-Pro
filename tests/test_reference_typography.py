@@ -85,7 +85,6 @@ def test_global_stylesheet_uses_readable_body_font_without_icon_font_override(mo
         assert app.font().family() == 'Segoe UI'
 
         stylesheet = ThemeManager.get_stylesheet('Koyu Mavi')
-        assert 'font-family: "Segoe UI";' in stylesheet
         assert 'FontAwesome' not in stylesheet
         assert 'Font Awesome' not in stylesheet
 

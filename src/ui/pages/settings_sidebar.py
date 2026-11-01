@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 
 from PyQt6.QtCore import QSize, Qt
-from PyQt6.QtGui import QColor, QFont
+import os
+
+from PyQt6.QtGui import QColor, QFont, QIcon
 from PyQt6.QtWidgets import QApplication, QLabel, QLineEdit, QListWidget, QListWidgetItem, QVBoxLayout, QHBoxLayout, QWidget, QFrame, QPushButton, QStyledItemDelegate, QStyleOptionViewItem, QStyle
 
 from src.utils.appearance_mode import AppearanceModeManager
@@ -84,6 +86,9 @@ class PremiumSettingsSidebar(QWidget):
             "background: @finance_active_bg; color: @accent; border: 1px solid @finance_outline; "
             "border-radius: 14px; font-size: 20px;"
         ))
+        self.profile_host = None
+        self.profile_mode = None
+        self._refresh_company_logo()
         profile_layout.addWidget(self.profile_avatar, 0, Qt.AlignmentFlag.AlignVCenter)
         profile_text = QVBoxLayout()
         profile_text.setSpacing(4)
@@ -94,6 +99,7 @@ class PremiumSettingsSidebar(QWidget):
         profile_company = QLabel(company_name)
         profile_company.setStyleSheet(theme_qss("color: @text_muted; background: transparent; border: none; font-size: 10px;"))
         profile_mode = QLabel("TEKN\u0130K SERV\u0130S MODU")
+        self.profile_mode = profile_mode
         profile_mode.setStyleSheet(theme_qss(
             "color: @accent; background: @finance_surface_alt; border: 1px solid @finance_outline; "
             "border-radius: 5px; padding: 3px 6px; font-size: 10px; font-weight: 700;"
@@ -103,6 +109,7 @@ class PremiumSettingsSidebar(QWidget):
         profile_text.addWidget(profile_mode, 0, Qt.AlignmentFlag.AlignLeft)
         profile_layout.addLayout(profile_text, 1)
         profile_host = QWidget(self)
+        self.profile_host = profile_host
         profile_host.setFixedHeight(104)
         profile_host_layout = QHBoxLayout(profile_host)
         profile_host_layout.setContentsMargins(15, 14, 15, 14)
@@ -178,8 +185,17 @@ class PremiumSettingsSidebar(QWidget):
         self._embedded = bool(embedded)
         self.setFixedWidth(width if embedded else 274)
         self.header_label.hide()
-        self.profile_card.setVisible(not embedded)
+        self.profile_card.setVisible(True)
         self.footer.setVisible(not embedded)
+        if embedded:
+            self.profile_host.setFixedHeight(76)
+            self.profile_card.setFixedHeight(60)
+            self.profile_avatar.setFixedSize(44, 44)
+            self.profile_mode.hide()
+        else:
+            self.profile_host.setFixedHeight(104)
+            self.profile_card.setFixedHeight(76)
+            self.profile_mode.show()
         self.list_widget.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         if embedded:
             self.list_widget.setMinimumHeight(0)
@@ -187,6 +203,32 @@ class PremiumSettingsSidebar(QWidget):
         else:
             self.list_widget.setMinimumHeight(0)
             self.list_widget.setMaximumHeight(16777215)
+
+    def _refresh_company_logo(self):
+        if not self.db or not hasattr(self, "profile_avatar"):
+            return
+        path = str(self.db.get_setting("logo_path", "") or "").strip()
+        if path and not os.path.exists(path):
+            candidate = os.path.join(os.getcwd(), "assets", os.path.basename(path))
+            if os.path.exists(candidate):
+                path = candidate
+        if not path or not os.path.exists(path):
+            path = os.path.join(os.getcwd(), "assets", "app_icon.png")
+        if not os.path.exists(path):
+            return
+        source = QIcon(path).pixmap(QSize(128, 128))
+        if source.isNull():
+            return
+        size = min(self.profile_avatar.width(), self.profile_avatar.height())
+        ratio = max(1.0, self.profile_avatar.devicePixelRatioF())
+        pixmap = source.scaled(
+            round(size * ratio), round(size * ratio),
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        pixmap.setDevicePixelRatio(ratio)
+        self.profile_avatar.setText("")
+        self.profile_avatar.setPixmap(pixmap)
 
     def _refresh_embedded_geometry(self):
         if not getattr(self, "_embedded", False):

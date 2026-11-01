@@ -623,7 +623,7 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
         chip_container.setStyleSheet("background: transparent;")
         c_layout = QHBoxLayout(chip_container)
         c_layout.setContentsMargins(0, 2, 0, 2)
-        c_layout.setSpacing(4)
+        c_layout.setSpacing(3)
 
         # Chip definitions: (key, title)
         chips_def = [
@@ -766,7 +766,7 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
         self.combo_date.addItem("Son 30 G\u00fcn", "last_30")
         self.combo_date.addItem("Bu Y\u0131l", "year")
         if self.main_window is not None:
-            self.combo_date.setCurrentIndex(self.combo_date.findData("last_30"))
+            self.combo_date.setCurrentIndex(self.combo_date.findData("all"))
         self.combo_date.currentIndexChanged.connect(self._on_combo_filter_changed)
         layout.addWidget(self.combo_date, 1)
 
@@ -1586,7 +1586,6 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
         badge.setFixedHeight(30 if self.main_window is not None else 18)
         badge.setWordWrap(self.main_window is not None)
         badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
         if self.main_window is not None and status == "Kargoda":
             bg, fg = "@finance_active_bg", "@service_kpi_active"
         elif self.main_window is not None and status == "Onayland\u0131":
@@ -1612,13 +1611,15 @@ class ServiceListPage(DashboardActionsMixin, QWidget):
             QLabel {{
                 background-color: {bg};
                 color: {fg};
-                font-size: {8 if self.main_window is not None else 9}px;
-                font-weight: 800;
                 border: none;
                 border-radius: 3px;
                 padding: 0 2px;
             }}
         """))
+        badge_font = badge.font()
+        badge_font.setPixelSize(8 if self.main_window is not None else 9)
+        badge_font.setBold(True)
+        badge.setFont(badge_font)
         layout.addWidget(badge)
         return container
 

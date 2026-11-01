@@ -13,9 +13,10 @@ function ayecNewManagedUserDialog(){
   const updatePermissions=()=>{const role=roleField.value;allowed=defaultUserPermissionPages(role);document.querySelectorAll("#newUserPermissions [data-user-permission]").forEach(input=>{input.checked=allowed.has(Number(input.dataset.userPermission));input.disabled=userAdminRole(role)});const count=document.getElementById("newUserPermissionCount");if(count)count.textContent=`${allowed.size} / ${ayecUserPermissionSections.reduce((sum,[,items])=>sum+items.length,0)} sayfa`;};
   roleField.onchange=updatePermissions;document.querySelectorAll("#newUserPermissions [data-user-permission]").forEach(input=>input.onchange=()=>{allowed=new Set([...document.querySelectorAll("#newUserPermissions [data-user-permission]:checked")].map(item=>Number(item.dataset.userPermission)));const count=document.getElementById("newUserPermissionCount");if(count)count.textContent=`${allowed.size} / ${ayecUserPermissionSections.reduce((sum,[,items])=>sum+items.length,0)} sayfa`;});updatePermissions();
 }
+async function loadAllManagedTableRows(table){const limit=1000,first=await apiFetch(`/api/desktop/table/${table}?limit=${limit}&offset=0`),offsets=[];for(let offset=limit;offset<Number(first.count||0);offset+=limit)offsets.push(offset);const rest=await Promise.all(offsets.map(offset=>apiFetch(`/api/desktop/table/${table}?limit=${limit}&offset=${offset}`)));return[...(first.rows||[]),...rest.flatMap(result=>result.rows||[])]}
 settingsUserDialog=async function(user){
   let personnel=[];
-  try{personnel=(await apiFetch("/api/desktop/table/personnel?limit=1000")).rows||[]}catch(error){toast("Personel listesi y\u00fcklenemedi: "+error.message,"warning")}
+  try{personnel=await loadAllManagedTableRows("personnel")}catch(error){toast("Personel listesi y\u00fcklenemedi: "+error.message,"warning")}
   const roleChoices=[...new Set(["Master","Admin","Teknisyen","Muhasebe","Personel","Sat\u0131\u015f","Di\u011fer",user.role].filter(Boolean))];
   let allowed=userPermissionPages(user.permissions,user.role);
   const roles=roleChoices.map(role=>`<option value="${esc(role)}" ${String(user.role||"")===role?"selected":""}>${esc(role)}</option>`).join("");
@@ -108,16 +109,26 @@ function ayecAttachUserDeleteAction(){
 }
 const ayecShowContextBeforeManagedUser=showContext;
 showContext=function(event,kind,id){
-  if(kind!=="settings-user")return ayecShowContextBeforeManagedUser(event,kind,id);
+  if(kind!=="settings-user"){const menu=document.querySelector("#contextMenu");if(menu)menu.onkeydown=null;return ayecShowContextBeforeManagedUser(event,kind,id)}
   if(!ayecContextMenuEnabled())return;
   const user=ayecSettingsUsers.find(item=>String(item.id)===String(id));if(!user)return;
   event.preventDefault();const menu=document.querySelector("#contextMenu");
   const items=[["\u270f\ufe0f D\u00fczenle","managed-user-edit"],["\u{1f5d1}\ufe0f Sil","managed-user-delete"]];
   menu.innerHTML=items.map(([label,action])=>`<button type="button" role="menuitem" data-context-action="${action}">${label}</button>`).join("");
-  menu.style.left=Math.max(8,Math.min(event.clientX,innerWidth-220))+"px";
-  menu.style.top=Math.max(8,Math.min(event.clientY,innerHeight-items.length*40-20))+"px";
-  menu.classList.add("open");menu.querySelectorAll("[data-context-action]").forEach(button=>{
-    button.onclick=()=>{menu.classList.remove("open");contextAction(kind,id,button.dataset.contextAction,event.currentTarget)};
+  menu.setAttribute("role","menu");
+  menu.style.left=Math.max(8,event.clientX)+"px";
+  menu.style.top=Math.max(8,event.clientY)+"px";
+  menu.classList.add("open");
+  menu.style.left=Math.max(8,Math.min(event.clientX,innerWidth-menu.offsetWidth-8))+"px";
+  menu.style.top=Math.max(8,Math.min(event.clientY,innerHeight-menu.offsetHeight-8))+"px";
+  menu.onkeydown=keyEvent=>{
+    const actions=[...menu.querySelectorAll("[data-context-action]")].filter(button=>!button.disabled&&!button.hidden),index=actions.indexOf(document.activeElement);
+    if(keyEvent.key==="Escape"){keyEvent.preventDefault();keyEvent.stopPropagation();menu.classList.remove("open");menu.onkeydown=null;document.activeElement?.blur();return}
+    if(!["ArrowDown","ArrowUp","Home","End"].includes(keyEvent.key)||!actions.length)return;
+    keyEvent.preventDefault();const next=keyEvent.key==="Home"?0:keyEvent.key==="End"?actions.length-1:keyEvent.key==="ArrowDown"?(index+1+actions.length)%actions.length:(index-1+actions.length)%actions.length;actions[next]?.focus();
+  };
+  menu.querySelector('[data-context-action="managed-user-edit"]')?.focus();menu.querySelectorAll("[data-context-action]").forEach(button=>{
+    button.onclick=()=>{menu.classList.remove("open");menu.onkeydown=null;contextAction(kind,id,button.dataset.contextAction,event.currentTarget)};
   });
 };
 const ayecContextActionBeforeManagedUser=contextAction;

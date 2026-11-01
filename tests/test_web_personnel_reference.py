@@ -10,7 +10,7 @@ CONTEXT = ROOT / "Web_Arayuzu" / "web" / "personnel-context-parity.js"
 def test_personnel_reference_reads_only_recorded_staff_and_payroll_fields():
     source = APP.read_text(encoding="utf-8")
     assert 'if (page !== "personnel" || meta?.table !== "personnel")' in source
-    assert 'apiFetch("/api/desktop/table/personnel?limit=1000&include_deleted=1")' in source
+    assert 'loadAllDesktopTableData("personnel", {include_deleted:"1"})' in source
     assert 'Number(row.salary)' in source
     assert 'Number(row.commission)' in source
     assert 'GPS' not in source[source.index('let ayecPersonnelSelectedId'):]
@@ -26,6 +26,32 @@ def test_personnel_reference_has_search_role_filter_profile_and_mobile_layout():
     assert 'personnel-ref-layout' in css
     assert '@media(max-width:700px){body[data-page="personnel"]' in css
     assert '@media print{body[data-page="personnel"]' in css
+
+
+def test_personnel_directory_supports_native_keyboard_row_selection():
+    source = APP.read_text(encoding="utf-8")
+    desktop = (ROOT / "src" / "ui" / "pages" / "personnel_page.py").read_text(encoding="utf-8")
+    audit = (ROOT / "tools" / "quality" / "web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+
+    assert "setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)" in desktop
+    assert "itemSelectionChanged.connect(self._update_personnel_detail)" in desktop
+    assert 'event.key === "ArrowDown"' in source
+    assert 'event.key === "ArrowUp"' in source
+    assert 'event.key === "Home"' in source
+    assert 'event.key === "End"' in source
+    assert 'aria-selected="${String(row.id) === ayecPersonnelSelectedId}"' in source
+    assert "personnelKeyboardWorkflow" in audit
+    assert 'personnelKeyboardWorkflow?.down?.id!=="942"' in audit
+
+
+def test_personnel_context_menu_clamps_using_rendered_height():
+    source = CONTEXT.read_text(encoding="utf-8")
+    start = source.index('window.showContext = function(event, kind, id) {')
+    end = source.index('\n  };', start)
+    menu = source[start:end]
+
+    assert menu.index('menu.classList.add("open")') < menu.index('innerHeight - menu.offsetHeight - 8')
+    assert 'items.length * 40' not in menu
 
 
 def test_personnel_desktop_context_actions_require_password_and_delete_linked_payroll():
@@ -63,7 +89,7 @@ def test_personnel_reference_covers_desktop_table_rail_and_field_expansion():
         assert token in personnel
     assert 'personnel-ref-footer' in personnel
     assert 'personnel-ref-table.expanded .personnel-extra' in css
-    assert 'personnel-ref-list .table-wrap{height:560px' in css
+    assert 'personnel-ref-list .table-wrap{height:min(45vh,390px);max-height:min(45vh,390px)' in css
 
 
 def test_personnel_table_column_order_matches_desktop():
@@ -71,11 +97,16 @@ def test_personnel_table_column_order_matches_desktop():
     desktop = (ROOT / "src" / "ui" / "pages" / "personnel_page.py").read_text(encoding="utf-8")
     assert '"TC No", "\\u00dccret Tipi", "Birim \\u00dccret",' in desktop
     assert '"KAYITLI PRIM", "G\\u00d6REV DURUMU", "COZULEN IS", "AKSIYON"' in desktop
-    assert '<th class="personnel-extra">Ucret Tipi</th><th>Birim Ucret</th><th>KAYITLI PRIM</th><th>G\\u00d6REV DURUMU</th><th>COZULEN IS</th>' in source
-    row_start = source.index('host.innerHTML = visible.map', source.index('const genericShellBeforePersonnel'))
-    row_end = source.index('}).join("")', row_start)
-    row_template = source[row_start:row_end]
-    assert row_template.index('class="personnel-money"') < row_template.index('${task}') < row_template.index('<td>-</td>')
+    assert '<th>G\\u00d6REV DURUMU</th><th>COZULEN IS</th><th>KAYITLI PRIM</th><th>Birim Ucret</th>' in source
+    assert 'const desktopColumnOrder = [0, 1, 2, 11, 12, 10, 9, 3, 4, 5, 6, 7, 8, 13]' in source
+    assert 'desktopColumnOrder.forEach(index => { if (cells[index]) row.append(cells[index]); })' in source
+
+
+def test_personnel_right_rail_width_matches_desktop_capture():
+    css = CSS.read_text(encoding="utf-8")
+    assert 'grid-template-columns:minmax(0,2.03fr) minmax(320px,1fr);gap:9px' in css
+    audit = (ROOT / "tools" / "quality" / "web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+    assert "personnelMatchedLayout" in audit
 
 
 def test_personnel_fields_toggle_has_only_one_click_state_transition():
@@ -88,11 +119,20 @@ def test_personnel_search_and_role_filters_match_desktop_normalization():
     source = APP.read_text(encoding="utf-8")
     desktop = (ROOT / "src" / "ui" / "pages" / "personnel_page.py").read_text(encoding="utf-8")
     assert 'const personnelFilterText = value => String(value ?? "").toLocaleLowerCase("tr-TR").normalize("NFKD")' in source
-    assert 'apiFetch("/api/desktop/table/personnel?limit=1000&include_deleted=1")' in source
+    assert 'loadAllDesktopTableData("personnel", {include_deleted:"1"})' in source
     assert 'const roles = ["Teknisyen", "Muhendis", "Idare"]' in source
     assert 'personnelFilterText(Object.values(row).join(" "))' in source
     assert 'query = normalize(self.personnel_search.text().strip())' in desktop
     assert 'visible = visible and normalize(role) in haystack' in desktop
+
+
+def test_personnel_directory_uses_shared_offset_pagination_for_all_rows():
+    source = APP.read_text(encoding="utf-8")
+    helper = source[source.index("async function loadAllDesktopTableData"):source.index("async function loadAllDesktopTableRows")]
+    assert "async function loadAllDesktopTableData(table,options={})" in helper
+    assert "new URLSearchParams(options)" in helper
+    assert "offset=${offset}${suffix}" in helper
+    assert 'loadAllDesktopTableData("personnel", {include_deleted:"1"})' in source
 
 
 def test_personnel_table_can_include_archived_rows_without_changing_other_tables():

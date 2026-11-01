@@ -1,3 +1,27 @@
+function ayecStatusNormalizeText(value) {
+  return String(value || "").toUpperCase().replace(/[\u0130\u0131]/g, "I").replace(/\u00c7/g, "C");
+}
+
+function ayecStatusCriticalMatch(status, urgency) {
+  const combined = ayecStatusNormalizeText(status) + " " + ayecStatusNormalizeText(urgency);
+  return ["PARCA", "BEKLIYOR", "ACIL"].some(token => combined.includes(token));
+}
+
+function ayecStatusCategoryMatch(status, category) {
+  const normalized = ayecStatusNormalizeText(status);
+  const delivered = normalized.includes("TESLIM") && !normalized.includes("HAZIR");
+  const parts = normalized.includes("PARCA");
+  return category === "all" || (category === "done" && delivered) || (category === "parts" && parts) || (category === "open" && !delivered && !parts);
+}
+
+function ayecStatusSearchMatch(row, query) {
+  const needle = String(query || "").trim().toLocaleLowerCase("tr-TR");
+  if (!needle) return true;
+  const device = [row.device_brand, row.device_model].filter(Boolean).join(" ");
+  const values = [row.tracking_no || "-", row.customer_name || "-", device, row.serial_no || "", row.status || "Bekliyor", row.entry_date, row.estimated_date || "-", row.urgency || "Normal", row.delivered_at || row.exit_date || "-"];
+  return values.some(value => String(value || "").toLocaleLowerCase("tr-TR").includes(needle));
+}
+
 (function() {
   const params = new URLSearchParams(window.location.search);
   const isTvDisplay = params.get("display") === "status-wall";
@@ -6,17 +30,14 @@
 
   function filteredRows() {
     const query = String(document.querySelector("#genericSearch")?.value || "").trim().toLocaleLowerCase("tr-TR");
-    const sort = document.querySelector("#statusWallSort")?.value || "date";
+    const sort = document.querySelector("#statusWallSort")?.value || "newest";
     const rows = ayecStatusRows.filter(row => {
-      const status = String(row.status || "").toLocaleLowerCase("tr-TR");
-      const urgency = String(row.urgency || "").toLocaleLowerCase("tr-TR");
-      const critical = /par\u00e7a|bekliyor|acil|kritik/.test(status + " " + urgency);
-      const kind = /teslim|tamam|kapal|iptal|cancel/i.test(status) ? "done" : /par\u00e7a|yedek|malzeme/i.test(status) ? "parts" : "open";
-      return (!query || [row.tracking_no, row.customer_name, row.device_brand, row.device_model, row.serial_no, row.status].join(" ").toLocaleLowerCase("tr-TR").includes(query)) &&
-        (ayecStatusFilter === "all" || kind === ayecStatusFilter) &&
+      const critical = ayecStatusCriticalMatch(row.status, row.urgency);
+      return ayecStatusSearchMatch(row, query) &&
+        ayecStatusCategoryMatch(row.status, ayecStatusFilter) &&
         (!ayecStatusCriticalOnly || critical);
     });
-    rows.sort((a, b) => sort === "priority" ? String(b.urgency || "").localeCompare(String(a.urgency || "")) : String(b.entry_date || "").localeCompare(String(a.entry_date || "")));
+    ayecStatusSortRows(rows, sort);
     return rows;
   }
 
@@ -103,7 +124,4 @@
     download("durum-paneli-" + today() + ".csv", csv(records));
   }, true);
 
-  if (isTvDisplay) setInterval(() => {
-    if (document.body.dataset.page === "service-status") document.querySelector("[data-generic-refresh]")?.click();
-  }, 5000);
 })();

@@ -278,6 +278,21 @@
     }
   }
 
+  async function loadPartnerDocumentsTab(partner) {
+    const host = document.querySelector("#partnerWorkspaceDocuments");
+    if (!host || !partner) return;
+    host.innerHTML = '<p class="partner-web-empty">Belgeler yukleniyor...</p>';
+    try {
+      const result = await apiFetch(`/api/desktop/partners/documents?partner_id=${encodeURIComponent(partner.id)}`);
+      if (!host.isConnected || String(selectedPartnerId) !== String(partner.id) || selectedTab !== "documents") return;
+      const documents = Array.isArray(result.documents) ? result.documents : [];
+      host.innerHTML = `<div class="table-wrap"><table class="partner-web-table"><thead><tr><th>Baslik</th><th>Kategori</th><th>Sevk</th><th>Eklenme</th><th>Durum</th></tr></thead><tbody>${documents.length ? documents.map((item) => `<tr data-partner-workspace-document="${esc(item.id)}"><td>${esc(item.title || "-")}</td><td>${esc(item.category || "-")}</td><td>${esc(item.shipment_id || "-")}</td><td>${esc(item.added_at || "-")}</td><td>${item.available ? "Web erisimi var" : "Yerel dosya erisimi yok"}</td></tr>`).join("") : '<tr><td colspan="5" class="partner-web-empty">Belge kaydi bulunamadi.</td></tr>'}</tbody></table></div>`;
+    } catch (error) {
+      host.innerHTML = '<p class="partner-web-empty">Belgeler yuklenemedi.</p>';
+      toast(error.message || "Partner belgeleri yuklenemedi.", "error");
+    }
+  }
+
   async function openPartnerFinanceDialog() {
     const partner = partnerRows.find((item) => String(item.id) === String(selectedPartnerId));
     if (!partner) return toast("Once bir partner secin.", "warning");
@@ -327,9 +342,30 @@
     menu.innerHTML = items.map(([label, action]) => action === "separator"
       ? '<hr class="context-menu-separator">'
       : `<button type="button" role="menuitem" data-partner-shipment-action="${action}">${label}</button>`).join("");
-    menu.style.left = `${Math.max(8, Math.min(event.clientX, innerWidth - 220))}px`;
-    menu.style.top = `${Math.max(8, Math.min(event.clientY, innerHeight - items.length * 28 - 12))}px`;
+    menu.setAttribute("role", "menu");
+    menu.style.left = `${Math.max(8, event.clientX)}px`;
+    menu.style.top = `${Math.max(8, event.clientY)}px`;
     menu.classList.add("open");
+    menu.style.left = `${Math.max(8, Math.min(event.clientX, innerWidth - menu.offsetWidth - 8))}px`;
+    menu.style.top = `${Math.max(8, Math.min(event.clientY, innerHeight - menu.offsetHeight - 8))}px`;
+    menu.onkeydown = (keyEvent) => {
+      const actions = [...menu.querySelectorAll("[data-partner-shipment-action]")].filter(button => !button.disabled && !button.hidden);
+      const index = actions.indexOf(document.activeElement);
+      if (keyEvent.key === "Escape") {
+        keyEvent.preventDefault();
+        keyEvent.stopPropagation();
+        menu.classList.remove("open");
+        delete menu.dataset.partnerMenu;
+        menu.onkeydown = null;
+        document.activeElement?.blur();
+        return;
+      }
+      if (!actions.length || !["ArrowDown", "ArrowUp", "Home", "End"].includes(keyEvent.key)) return;
+      keyEvent.preventDefault();
+      const next = keyEvent.key === "Home" ? 0 : keyEvent.key === "End" ? actions.length - 1 : keyEvent.key === "ArrowDown" ? (index + 1 + actions.length) % actions.length : (index - 1 + actions.length) % actions.length;
+      actions[next]?.focus();
+    };
+    menu.querySelector("[data-partner-shipment-action]")?.focus();
   }
 
   function exportPartnerShipments() {
@@ -389,12 +425,13 @@
     let notes = [];
     let selectedId = null;
     let filter = "Tumu";
-    const body = `<section class="partner-web-notes"><header class="partner-web-note-head"><strong>${esc(partner.name || "Partner")}</strong><small>ID: #C-${String(partner.id).padStart(4, "0")}</small><span>Musteri etkilesim gecmisi ve dahili partner notlari</span></header><div class="partner-web-note-filter"><div>${[["Tumu", "Tumu"], ["Genel Not", "Genel Not"], ["WhatsApp", "WhatsApp Mesaj\u0131"], ["SMS", "SMS"], ["Telefon", "Telefon G\u00f6r\u00fc\u015fmesi"], ["E-Posta", "E-Posta"], ["Teklif", "PC Teklif"]].map(([label, value]) => `<button type="button" class="secondary" data-partner-note-filter="${esc(value)}">${esc(label)}</button>`).join("")}</div><input class="control" id="partnerNoteSearch" type="search" placeholder="Notlarda ara..." aria-label="Notlarda ara"></div><div class="partner-web-notes-split"><aside class="partner-web-note-history"><header><strong>Kayit Gecmisi</strong><small id="partnerNoteCount">0 Kayit Listelendi</small></header><div id="partnerNoteList"></div></aside><section class="partner-web-note-editor"><label class="field"><span>Not Basligi *</span><input class="control" id="partnerNoteTitle" placeholder="Not basligi"></label><div class="partner-web-note-toolbar">${[["B", "bold", "Bold"], ["I", "italic", "Italik"], ["U", "underline", "Alti cizili"], ["\u2022", "insertUnorderedList", "Madde isaretli liste"], ["&lt;/&gt;", "formatBlock", "Kod"], ["\u25a3", "date", "Tarih ekle"]].map(([label, action, title]) => `<button type="button" class="secondary" data-partner-note-format="${action}" title="${title}">${label}</button>`).join("")}<span id="partnerNoteCharacters">0 karakter</span></div><div id="partnerNoteEditor" class="partner-web-note-content" contenteditable="true" role="textbox" aria-label="Not metni" data-placeholder="Not metnini buraya yaziniz..."></div><div class="partner-web-note-meta"><small id="partnerNoteDate">Yeni not - tarih kayitta otomatik olusturulacak</small><small>UTF-8 Destekli</small></div><div class="partner-web-note-actions"><label>Kategori:<select class="control" id="partnerNoteType">${types.map((type, index) => `<option value="${typeValues[index]}">${type}</option>`).join("")}</select></label><div><button type="button" class="secondary" id="partnerNoteNew">+ Yeni Not</button><button type="button" class="secondary" id="partnerNoteDelete">Sil</button><button type="button" class="primary" id="partnerNoteSave">Kaydet / Guncelle</button></div></div><div class="partner-web-note-confirm" id="partnerNoteConfirm" hidden><span>Bu notu silmek istiyor musunuz?</span><button type="button" class="secondary" id="partnerNoteDeleteCancel">Iptal</button><button type="button" class="danger" id="partnerNoteDeleteConfirm">Sil</button></div></section></div></section>`;
+    const body = `<section class="partner-web-notes"><header class="partner-web-note-head"><strong>${esc(partner.name || "Partner")}</strong><small>ID: #C-${String(partner.id).padStart(4, "0")}</small><span>Musteri etkilesim gecmisi ve dahili partner notlari</span></header><div class="partner-web-note-filter"><div>${[["Tumu", "Tumu"], ["Genel Not", "Genel Not"], ["WhatsApp", "WhatsApp Mesaj\u0131"], ["SMS", "SMS"], ["Telefon", "Telefon G\u00f6r\u00fc\u015fmesi"], ["E-Posta", "E-Posta"], ["Teklif", "PC Teklif"]].map(([label, value]) => `<button type="button" class="secondary" data-partner-note-filter="${esc(value)}">${esc(label)}</button>`).join("")}</div><input class="control" id="partnerNoteSearch" type="search" placeholder="Notlarda ara..." aria-label="Notlarda ara"></div><div class="partner-web-notes-split"><aside class="partner-web-note-history"><header><strong>Kayit Gecmisi</strong><small id="partnerNoteCount">0 Kayit Listelendi</small></header><div id="partnerNoteList"></div></aside><section class="partner-web-note-editor"><label class="field"><span>Not Basligi *</span><input class="control" id="partnerNoteTitle" placeholder="Not basligi"></label><div class="partner-web-note-toolbar">${[["B", "bold", "Bold"], ["I", "italic", "Italik"], ["U", "underline", "Alti cizili"], ["\u2022", "insertUnorderedList", "Madde isaretli liste"], ["&lt;/&gt;", "formatBlock", "Kod"], ["\u25a3", "date", "Tarih ekle"]].map(([label, action, title]) => `<button type="button" class="secondary" data-partner-note-format="${action}" title="${title}">${label}</button>`).join("")}<span id="partnerNoteCharacters">0 karakter</span></div><div id="partnerNoteEditor" class="partner-web-note-content" contenteditable="true" role="textbox" aria-label="Not metni" data-placeholder="Not metnini buraya yaziniz..."></div><div class="partner-web-note-meta"><small id="partnerNoteDate">Yeni not - tarih kayitta otomatik olusturulacak</small><small>UTF-8 Destekli</small></div><div class="partner-web-note-actions"><label>Kategori:<select class="control" id="partnerNoteType">${types.map((type, index) => `<option value="${typeValues[index]}">${type}</option>`).join("")}</select></label><div><button type="button" class="secondary" id="partnerNoteNew">+ Yeni Not</button><button type="button" class="secondary" id="partnerNoteDelete">Sil</button><button type="button" class="primary" id="partnerNoteSave">Kaydet / Guncelle</button></div></div><div class="partner-web-note-confirm" id="partnerNoteConfirm" hidden><span>Bu notu silmek istiyor musunuz?</span><button type="button" class="secondary" id="partnerNoteDeleteCancel">Iptal</button><button type="button" class="danger" id="partnerNoteDeleteConfirm">Sil</button></div></section></div><dialog id="partnerNotePreviewDialog" class="partner-web-note-preview-dialog"><article><header><div><p class="eyebrow">PARTNER NOTU</p><h3 id="partnerNotePreviewTitle"></h3></div><button type="button" class="icon-btn" id="partnerNotePreviewClose" aria-label="Kapat">&times;</button></header><div class="partner-web-note-preview-meta"><span id="partnerNotePreviewType"></span><time id="partnerNotePreviewDate"></time></div><div id="partnerNotePreviewContent" class="partner-web-note-preview-content"></div><footer><button type="button" class="secondary" id="partnerNotePreviewDismiss">Kapat</button><button type="button" class="primary" id="partnerNotePreviewPdf">PDF G\u00f6r / Kaydet</button></footer></article></dialog></section>`;
     openDialog("Partner Notlari", "PARTNER NOTLARI", body, async () => true, "Kapat");
     const editor = document.querySelector("#partnerNoteEditor");
     const titleInput = document.querySelector("#partnerNoteTitle");
     const typeInput = document.querySelector("#partnerNoteType");
     const list = document.querySelector("#partnerNoteList");
+    let previewNote = null;
     const load = async (preferredId = selectedId) => {
       const result = await apiFetch(`/api/desktop/partners/notes?partner_id=${encodeURIComponent(partner.id)}`);
       notes = Array.isArray(result.notes) ? result.notes : [];
@@ -416,7 +453,9 @@
       if (count) count.textContent = `${visible.length} Kayit Listelendi`;
       if (list) list.innerHTML = visible.length ? visible.map((note) => {
         const plain = new DOMParser().parseFromString(cleanPartnerNoteHtml(note.content), "text/html").body.textContent || "";
-        return `<button type="button" class="partner-web-note-card ${String(note.id) === String(selectedId) ? "selected" : ""}" data-partner-note-id="${esc(note.id)}"><strong>${esc(note.title || note.created_at || "Not")}</strong><span>${esc(plain.replace(/\s+/g, " ").slice(0, 78))}</span><small>${esc(note.note_type || "Genel Not")} · ${esc(note.created_at || "")}</small></button>`;
+        const offer = ["PC Teklif", "Teklif"].includes(note.note_type);
+        const offerActions = offer ? `<div class="partner-web-note-card-actions"><button type="button" class="secondary" data-partner-note-open="${esc(note.id)}">A\u00e7</button><button type="button" class="success" data-partner-note-pdf="${esc(note.id)}">PDF</button></div>` : "";
+        return `<article class="partner-web-note-card-wrap"><button type="button" class="partner-web-note-card ${String(note.id) === String(selectedId) ? "selected" : ""}" data-partner-note-id="${esc(note.id)}"><strong>${esc(note.title || note.created_at || "Not")}</strong><span>${esc(plain.replace(/\s+/g, " ").slice(0, 78))}</span><small>${esc(note.note_type || "Genel Not")} · ${esc(note.created_at || "")}</small></button>${offerActions}</article>`;
       }).join("") : '<p class="partner-web-empty">Bu partnere ait not yok. Yeni Not ile baslayin.</p>';
     };
     const updateCount = () => { const count = document.querySelector("#partnerNoteCharacters"); if (count && editor) count.textContent = `${editor.innerText.length} karakter`; };
@@ -441,16 +480,53 @@
       drawList();
       titleInput.focus();
     };
+    const renderOfferPreview = (note) => {
+      if (!note) return;
+      previewNote = note;
+      const preview = document.querySelector("#partnerNotePreviewDialog");
+      document.querySelector("#partnerNotePreviewTitle").textContent = note.title || note.created_at || "Teklif";
+      document.querySelector("#partnerNotePreviewType").textContent = note.note_type || "PC Teklif";
+      document.querySelector("#partnerNotePreviewDate").textContent = note.created_at || "";
+      document.querySelector("#partnerNotePreviewContent").innerHTML = cleanPartnerNoteHtml(note.content);
+      if (preview && !preview.open) preview.showModal();
+    };
+    const printOfferNote = (note) => {
+      const popup = window.open("", "_blank", "popup,width=900,height=700");
+      if (!popup) { toast("PDF penceresi acilamadi.", "error"); return false; }
+      const title = esc(note.title || note.created_at || "Teklif");
+      const type = esc(note.note_type || "PC Teklif");
+      const date = esc(note.created_at || "");
+      const content = cleanPartnerNoteHtml(note.content);
+      popup.document.open();
+      popup.document.write(`<!doctype html><html lang="tr"><head><meta charset="utf-8"><title>${title}</title><style>@page{size:A4;margin:18mm}body{font:14px Arial,sans-serif;color:#172033;line-height:1.55}header{border-bottom:1px solid #cbd5e1;margin-bottom:24px;padding-bottom:12px}h1{font-size:22px;margin:0 0 8px}small{color:#64748b}img{max-width:100%;height:auto}</style></head><body><main><header><h1>${title}</h1><small>${type} | ${date}</small></header><article>${content}</article></main></body></html>`);
+      popup.document.close();
+      popup.addEventListener("afterprint", () => popup.close(), { once: true });
+      setTimeout(() => { if (!popup.closed) { popup.focus(); popup.print(); } }, 150);
+      return true;
+    };
     list.onclick = (event) => {
+      const previewAction = event.target.closest("[data-partner-note-open], [data-partner-note-pdf]");
+      if (previewAction) {
+        const note = notes.find((item) => String(item.id) === (previewAction.dataset.partnerNoteOpen || previewAction.dataset.partnerNotePdf));
+        if (previewAction.hasAttribute("data-partner-note-open")) renderOfferPreview(note);
+        else printOfferNote(note);
+        return;
+      }
       const card = event.target.closest("[data-partner-note-id]");
       const note = notes.find((item) => String(item.id) === card?.dataset.partnerNoteId);
       if (note) selectNote(note);
+    };
+    document.querySelector("#partnerNotePreviewClose").onclick = () => document.querySelector("#partnerNotePreviewDialog")?.close();
+    document.querySelector("#partnerNotePreviewDismiss").onclick = () => document.querySelector("#partnerNotePreviewDialog")?.close();
+    document.querySelector("#partnerNotePreviewPdf").onclick = () => {
+      const note = previewNote;
+      if (note && printOfferNote(note)) document.querySelector("#partnerNotePreviewDialog")?.close();
     };
     document.querySelector("#partnerNoteSearch").oninput = drawList;
     document.querySelectorAll("[data-partner-note-filter]").forEach((button) => { button.onclick = () => { filter = button.dataset.partnerNoteFilter; document.querySelectorAll("[data-partner-note-filter]").forEach((item) => item.classList.toggle("primary", item === button)); drawList(); }; });
     document.querySelectorAll("[data-partner-note-format]").forEach((button) => { button.onclick = () => {
       const action = button.dataset.partnerNoteFormat;
-      if (action === "date") document.execCommand("insertText", false, new Date().toISOString().slice(0, 10));
+      if (action === "date") document.execCommand("insertText", false, today());
       else if (action === "formatBlock") document.execCommand("formatBlock", false, "pre");
       else document.execCommand(action, false);
       editor.focus(); updateCount();
@@ -558,11 +634,11 @@
     const services = [...new Set(partnerRows.map((partner) => String(partner.service_type || "").trim()).filter(Boolean))].sort();
     const tabs = [{ id: "active", label: "Aktif G\u00f6nderiler" }, { id: "history", label: "Ge\u00e7mi\u015f" }, { id: "notes", label: "Notlar" }, { id: "finance", label: "Finans" }, { id: "documents", label: "Belgeler" }, { id: "timeline", label: "Zaman Cizelgesi" }, { id: "trends", label: "Trendler" }];
     const selectedRows = selectedTab === "history" ? history : active;
-    const selectedContent = selectedTab === "timeline" ? partnerAnalyticsTable("timeline") : selectedTab === "trends" ? partnerAnalyticsTable("trends") : selectedTab === "notes" ? '<section class="partner-web-tab-action"><p>Secili partnerin hizli notlari ve etkilesim gecmisi.</p><button type="button" class="primary" id="partnerNotesOpen">Partner Notlarini Ac</button></section>' : selectedTab === "finance" ? '<section class="partner-web-tab-action"><p>Komisyon, tahsilat ve partner bazli finans hareketleri.</p><button type="button" class="primary" id="partnerFinanceOpen">Tahsilat / Finans Islemi</button></section>' : selectedTab === "documents" ? '<section class="partner-web-tab-action"><p>Secili partnerin sozlesme, teklif, fatura ve sevk belgeleri.</p><button type="button" class="primary" id="partnerDocumentsOpen">Belgeleri Ac</button></section>' : shipmentTableMarkup(selectedRows);
+    const selectedContent = selectedTab === "timeline" ? partnerAnalyticsTable("timeline") : selectedTab === "trends" ? partnerAnalyticsTable("trends") : selectedTab === "notes" ? '<section class="partner-web-tab-action"><p>Secili partnerin hizli notlari ve etkilesim gecmisi.</p><button type="button" class="primary" id="partnerNotesOpen">Partner Notlarini Ac</button></section>' : selectedTab === "finance" ? '<section class="partner-web-finance"><div id="partnerFinanceSummary"><p class="partner-web-empty">Finans ozeti yukleniyor...</p></div><h4>Finans Hareketleri</h4><div id="partnerFinanceEntries"></div><h4>Sevkiyat Mutabakati</h4><div id="partnerFinanceReconciliation"></div><button type="button" class="primary" id="partnerFinanceOpen">Tahsilat / Finans Islemi</button></section>' : selectedTab === "documents" ? '<section class="partner-web-documents"><p>Secili partnerin sozlesme, teklif, fatura ve sevk belgeleri.</p><div id="partnerWorkspaceDocuments"></div><button type="button" class="primary" id="partnerDocumentsOpen">Belgeleri Ac</button></section>' : shipmentTableMarkup(selectedRows);
     const stats = selected ? `<div class="partner-web-stats"><article><strong>${shipmentRows.length}</strong><small>Toplam Gonderi</small></article><article><strong>${active.length}</strong><small>Surecte</small></article><article><strong>${history.length}</strong><small>Tamamlanan</small></article><article><strong>${esc(String(shipmentRows[0]?.sent_at || shipmentRows[0]?.created_at || "-").slice(0, 10))}</strong><small>Son Gonderim</small></article></div>` : "";
     const scorecard = selected ? partnerScorecard(selected, shipmentRows, active.length) : "";
     const heading = pageHead("\u00c7al\u0131\u015fma Ortaklar\u0131", "Partner kartlar\u0131n\u0131, g\u00f6nderileri ve d\u00f6n\u00fc\u015f s\u00fcrecini izleyin.", '<button type="button" class="primary" id="partnerAdd">+ Yeni Ortak</button>');
-    return `${heading}<section class="partner-web-layout"><aside class="card partner-web-sidebar"><div class="partner-web-filters"><input class="control" id="partnerWorkspaceSearch" type="search" value="${esc(partnerQuery)}" placeholder="Ortak ara: ad, \u015fehir, telefon, hizmet..." aria-label="Ortak ara"><select class="control" id="partnerWorkspaceService"><option value="">Hizmet</option>${services.map((service) => `<option value="${esc(service)}" ${service === serviceFilter ? "selected" : ""}>${esc(service)}</option>`).join("")}</select><select class="control" id="partnerWorkspaceCommission"><option value="all" ${commissionFilter === "all" ? "selected" : ""}>T\u00fcm partnerler</option><option value="commissioned" ${commissionFilter === "commissioned" ? "selected" : ""}>Komisyonlu</option><option value="no-commission" ${commissionFilter === "no-commission" ? "selected" : ""}>Komisyonsuz</option></select></div><div class="partner-web-list" id="partnerWorkspaceList">${partnerListMarkup()}</div><small class="partner-web-count">Toplam partner: ${filteredPartners().length}</small></aside><section class="partner-web-main">${selected ? `<header class="card partner-web-hero"><div class="partner-web-hero-copy"><h2>${esc([...(selected.name || "").split(/\s+/).filter(Boolean).slice(0,2).map((part) => part[0]?.toUpperCase() || "")].join("") || "PT")}  ${esc(selected.name || "Partner")}</h2><p>${esc([selected.type || "Partner", selected.service_type || "Genel", selected.city, Number(selected.commission_rate || 0) ? `Komisyon %${Number(selected.commission_rate).toFixed(2)}` : ""].filter(Boolean).join(" | "))}</p><p class="partner-web-scorecard">${esc(scorecard)}</p></div><div class="partner-web-hero-actions"><button type="button" class="primary" id="partnerShipmentAdd">+ Gonderi Kaydi</button><button type="button" class="primary" id="partnerHeroDocuments">Belgeler</button><button type="button" class="primary" id="partnerHeroDocumentCenter">Belge Merkezi</button><button type="button" class="primary" id="partnerProfileEdit">Ortak Bilgilerini Duzenle</button><button type="button" class="primary" id="partnerMore">Daha Fazla</button><div class="partner-web-more-menu" id="partnerMoreMenu" hidden><button type="button" data-partner-more="360">Ortak 360</button><button type="button" data-partner-more="profile">Hizmet &amp; Komisyon</button><button type="button" data-partner-more="notes">Notlar</button><button type="button" data-partner-more="service">Yeni Servis Kaydi</button><button type="button" data-partner-more="finance">Odeme / Tahsilat</button><button type="button" data-partner-more="whatsapp">WhatsApp Mesaj</button></div></div>${stats}</header><section class="card partner-web-shipments"><h3 class="partner-web-shipments-title">Gonderilen Urunler</h3><p class="partner-web-shipments-subtitle">Secili partnerin acik, servis ve gecmis kayitlari.</p><nav class="partner-web-tabs" aria-label="Partner sevkiyatlar\u0131">${tabs.map((tab) => `<button type="button" data-partner-workspace-tab="${tab.id}" class="${selectedTab === tab.id ? "active" : ""}">${tab.label}</button>`).join("")}</nav><div id="partnerWorkspaceShipments">${selectedContent}</div></section>` : '<section class="card partner-web-empty-state"><h2>Partner se\u00e7in</h2><p>Soldaki listeden bir \u00e7al\u0131\u015fma orta\u011f\u0131 se\u00e7erek sevk ve takip ekran\u0131n\u0131 a\u00e7\u0131n.</p></section>'}</section></section>`;
+    return `${heading}<section class="partner-web-layout"><aside class="card partner-web-sidebar"><div class="partner-web-filters"><input class="control" id="partnerWorkspaceSearch" type="search" value="${esc(partnerQuery)}" placeholder="Ortak ara: ad, \u015fehir, telefon, hizmet..." aria-label="Ortak ara"><select class="control" id="partnerWorkspaceService"><option value="">Hizmet</option>${services.map((service) => `<option value="${esc(service)}" ${service === serviceFilter ? "selected" : ""}>${esc(service)}</option>`).join("")}</select><select class="control" id="partnerWorkspaceCommission"><option value="all" ${commissionFilter === "all" ? "selected" : ""}>T\u00fcm partnerler</option><option value="commissioned" ${commissionFilter === "commissioned" ? "selected" : ""}>Komisyonlu</option><option value="no-commission" ${commissionFilter === "no-commission" ? "selected" : ""}>Komisyonsuz</option></select></div><div class="partner-web-list" id="partnerWorkspaceList">${partnerListMarkup()}</div><small class="partner-web-count">Toplam partner: ${filteredPartners().length}</small></aside><section class="partner-web-main">${selected ? `<header class="card partner-web-hero"><div class="partner-web-hero-copy"><h2>${esc([...(selected.name || "").split(/\s+/).filter(Boolean).slice(0,2).map((part) => part[0]?.toUpperCase() || "")].join("") || "PT")}  ${esc(selected.name || "Partner")}</h2><p>${esc([selected.type || "Partner", selected.service_type || "Genel", selected.city, Number(selected.commission_rate || 0) ? `Komisyon %${Number(selected.commission_rate).toFixed(2)}` : ""].filter(Boolean).join(" | "))}</p><p class="partner-web-scorecard">${esc(scorecard)}</p></div><div class="partner-web-hero-actions"><button type="button" class="primary" id="partnerShipmentAdd">+ Gonderi Kaydi</button><button type="button" class="primary" id="partnerHeroDocuments">Belgeler</button><button type="button" class="primary" id="partnerHeroDocumentCenter">Belge Merkezi</button><button type="button" class="primary" id="partnerProfileEdit">Ortak Bilgilerini Duzenle</button><button type="button" class="primary" id="partnerMore">Daha Fazla</button><div class="partner-web-more-menu" id="partnerMoreMenu" hidden><button type="button" data-partner-more="360">Ortak 360</button><button type="button" data-partner-more="profile">Hizmet &amp; Komisyon</button><button type="button" data-partner-more="notes">Notlar</button><button type="button" data-partner-more="service">Yeni Servis Kaydi</button><button type="button" data-partner-more="finance">Odeme / Tahsilat</button><button type="button" data-partner-more="whatsapp">WhatsApp Mesaj</button></div></div>${stats}</header><section class="card partner-web-shipments"><h3 class="partner-web-shipments-title">Gonderilen Urunler</h3><p class="partner-web-shipments-subtitle">Secili partnerin acik, servis ve gecmis kayitlari.</p><nav class="partner-web-tabs" role="tablist" aria-label="Partner sevkiyatlar\u0131">${tabs.map((tab) => `<button type="button" role="tab" id="partner-tab-${tab.id}" aria-controls="partnerWorkspaceShipments" aria-selected="${selectedTab === tab.id}" tabindex="${selectedTab === tab.id ? "0" : "-1"}" data-partner-workspace-tab="${tab.id}" class="${selectedTab === tab.id ? "active" : ""}">${tab.label}</button>`).join("")}</nav><div id="partnerWorkspaceShipments" role="tabpanel" aria-labelledby="partner-tab-${selectedTab}" tabindex="0">${selectedContent}</div></section>` : '<section class="card partner-web-empty-state"><h2>Partner se\u00e7in</h2><p>Soldaki listeden bir \u00e7al\u0131\u015fma orta\u011f\u0131 se\u00e7erek sevk ve takip ekran\u0131n\u0131 a\u00e7\u0131n.</p></section>'}</section></section>`;
   }
 
   async function loadPartnerWorkspace(partnerId) {
@@ -591,8 +667,31 @@
     if (search) search.oninput = () => { partnerQuery = search.value; document.querySelector("#partnerWorkspaceList").innerHTML = partnerListMarkup(); document.querySelector(".partner-web-count").textContent = `Toplam partner: ${filteredPartners().length}`; bindPartnerRows(); };
     if (service) service.onchange = () => { serviceFilter = service.value; renderPartnerWorkspacePage(); };
     if (commission) commission.onchange = () => { commissionFilter = commission.value; renderPartnerWorkspacePage(); };
-    document.querySelectorAll("[data-partner-workspace-tab]").forEach((button) => {
-      button.onclick = () => { selectedTab = button.dataset.partnerWorkspaceTab; renderPartnerWorkspacePage(); };
+    const workspaceTabs = [...document.querySelectorAll("[data-partner-workspace-tab]")];
+    const selectWorkspaceTab = (tabId, moveFocus = false) => {
+      if (!workspaceTabs.some((tab) => tab.dataset.partnerWorkspaceTab === tabId)) return;
+      selectedTab = tabId;
+      renderPartnerWorkspacePage();
+      const selectedButton = [...document.querySelectorAll("[data-partner-workspace-tab]")]
+        .find((tab) => tab.dataset.partnerWorkspaceTab === tabId);
+      if (moveFocus) selectedButton?.focus();
+      if (selectedTab === "documents" && selectedPartner) loadPartnerDocumentsTab(selectedPartner);
+      if (selectedTab === "finance" && selectedPartner) {
+        apiFetch(`/api/desktop/partners/finance?partner_id=${encodeURIComponent(selectedPartner.id)}`)
+          .then(drawPartnerFinanceContent)
+          .catch((error) => toast(error.message || "Partner finans yuklenemedi.", "error"));
+      }
+    };
+    workspaceTabs.forEach((button, index) => {
+      button.onclick = () => selectWorkspaceTab(button.dataset.partnerWorkspaceTab);
+      button.onkeydown = (event) => {
+        const targetIndex = event.key === "ArrowRight" ? (index + 1) % workspaceTabs.length
+          : event.key === "ArrowLeft" ? (index - 1 + workspaceTabs.length) % workspaceTabs.length
+            : event.key === "Home" ? 0 : event.key === "End" ? workspaceTabs.length - 1 : -1;
+        if (targetIndex < 0) return;
+        event.preventDefault();
+        selectWorkspaceTab(workspaceTabs[targetIndex].dataset.partnerWorkspaceTab, true);
+      };
     });
     const add = document.querySelector("#partnerShipmentAdd");
     if (add) add.onclick = () => openShipmentDialog();
@@ -636,9 +735,10 @@
     const menu = document.querySelector("#contextMenu");
     if (!menu?.dataset.partnerMenu) return;
     const action = event.target.closest("[data-partner-shipment-action]");
-    if (!action) { menu.classList.remove("open"); delete menu.dataset.partnerMenu; return; }
+    if (!action) { menu.classList.remove("open"); menu.onkeydown = null; delete menu.dataset.partnerMenu; return; }
     event.preventDefault();
     menu.classList.remove("open");
+    menu.onkeydown = null;
     delete menu.dataset.partnerMenu;
     const selected = shipmentRows.find((row) => String(row.id) === menu.dataset.partnerShipmentId);
     if (action.dataset.partnerShipmentAction === "edit" && selected) openShipmentDialog(selected);

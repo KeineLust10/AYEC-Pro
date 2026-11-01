@@ -15,7 +15,7 @@ def test_status_wall_renders_desktop_assistant_personnel_and_camera_panels():
     assert 'status-wall-assistant' in source
     assert 'body[data-page="service-status"] .status-wall-layout' in styles
     assert 'body[data-page="service-status"] .status-wall-side{grid-template-rows:160px 168px 150px;overflow-y:auto' in styles
-    assert 'body[data-page="service-status"] .status-wall-camera>div{min-height:112px;flex:none}' in styles
+    assert 'body[data-page="service-status"] .status-wall-camera>div{min-height:102px;flex:none}' in styles
     assert 'body[data-page="service-status"] .status-wall-side:focus-visible{outline:2px solid var(--brand)' in styles
     assert 'body[data-page="service-status"] .status-wall-side{grid-template-rows:160px 168px 150px' in styles
 
@@ -39,6 +39,18 @@ def test_status_rows_keep_desktop_detail_print_and_sms_actions():
     assert 'data-status-sms' in source
     assert 'function ayecStatusPrintChoices(row)' in source
     assert 'apiFetch("/api/desktop/service-sms/status?tracking_no="' in source
+
+
+def test_status_export_uses_all_filtered_rows_and_only_desktop_visible_columns():
+    source = (ROOT / "Web_Arayuzu" / "web" / "app.js").read_text(encoding="utf-8")
+
+    assert "let ayecStatusMatchedRows = []" in source
+    assert "ayecStatusMatchedRows = rows.slice()" in source
+    assert 'download("durum-paneli-" + today() + ".csv", ayecStatusExportCsv(ayecStatusMatchedRows))' in source
+    assert "function ayecStatusExportCsv(rows)" in source
+    assert '"HEDEF TAR\\u0130H"' in source
+    assert '"TESL\\u0130M"' in source
+    assert '"internal_notes"' not in source[source.index("function ayecStatusExportCsv(rows)"):source.index("const ayecGenericShellBeforeStatus")]
 
 
 def test_status_wall_filter_buttons_render_live_category_counts():

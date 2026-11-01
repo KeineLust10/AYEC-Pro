@@ -593,10 +593,12 @@ class NewServiceDialog(
             self.btn_delivery_details.setMinimumSize(116, 24)
             self.btn_delivery_details.setCursor(Qt.CursorShape.PointingHandCursor)
             self.btn_delivery_details.setStyleSheet(theme_qss(
-                "QPushButton { background: @surface_alt; color: @text_muted; "
-                "border: 1px solid @border; border-radius: 6px; padding: 0 7px; "
-                "font-size: 10px; font-weight: 700; } "
-                "QPushButton:checked { color: @text; border-color: @accent; }"
+                "QPushButton { background: @accent_soft; color: @accent; "
+                "border: 1px solid @accent; border-radius: 6px; padding: 0 9px; "
+                "font-size: 10px; font-weight: 800; } "
+                "QPushButton:hover { background: @accent; color: @selection_text; } "
+                "QPushButton:checked { background: @accent; color: @selection_text; "
+                "border-color: @accent; }"
             ))
             self.delivery_details_panel = QFrame()
             self.delivery_details_panel.setObjectName("serviceDeliveryCard")

@@ -65,10 +65,16 @@ def test_project_unit_card_opens_products_on_desktop_double_click_gesture():
     web_double_handler = web[web_double_start:web_click_start]
     web_click_end = web.index('\ndocument.addEventListener("', web_click_start + 1)
     web_click_handler = web[web_click_start:web_click_end]
+    products_start = web.index('const button = event.target.closest("[data-p9-unit-products]")')
+    products_end = web.index('\ndocument.addEventListener("', products_start)
+    products_handler = web[products_start:products_end]
 
     assert "self.parent_tab.open_unit_products(self.unit)" in desktop_handler
     assert 'event.target.closest(".p9-unit-card")' in web_double_handler
     assert 'unitCard.querySelector("[data-p9-unit-products]")?.click()' in web_double_handler
     assert 'event.target.closest("button,a,input,select,textarea")' in web_double_handler
     assert '.p9-unit-card' not in web_click_handler
+    assert 'loadAllDesktopTableData("project_unit_products")' in web
+    assert 'loadAllDesktopTableData("parts")' in products_handler
+    assert 'parts?limit=300' not in products_handler
 

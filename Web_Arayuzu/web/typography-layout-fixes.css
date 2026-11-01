@@ -1,0 +1,567 @@
+/* Shared form typography and desktop page fit corrections. */
+body[data-page] .content input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+body[data-page] .content select,
+body[data-page] .content textarea,
+body[data-page] #content input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+body[data-page] #content select,
+body[data-page] #content textarea,
+body[data-page] #appDialog input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+body[data-page] #appDialog select,
+body[data-page] #appDialog textarea {
+  font-family: Inter, "Segoe UI", sans-serif;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+body[data-page] .content label,
+body[data-page] #content label,
+body[data-page] #appDialog label {
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+body[data-page="logistics"] .logistics-ref-table tbody tr:hover > td {
+  background: color-mix(in srgb, var(--brand) 14%, var(--surface)) !important;
+  color: var(--ink) !important;
+}
+
+body[data-page="logistics"] .logistics-ref-table tbody tr:hover .logistics-ref-code {
+  color: var(--brand-2);
+}
+
+body[data-page="logistics"] .logistics-ref-table tbody tr:hover .logistics-ref-status {
+  color: inherit;
+}
+
+.toast-root {
+  bottom: 58px;
+}
+
+@media (min-width: 1001px) {
+  body[data-page="product-groups"] .app-shell {
+    height: calc(100vh - 16px);
+    min-height: calc(100vh - 16px);
+    overflow: hidden;
+  }
+
+  body[data-page="product-groups"] .main {
+    display: flex;
+    min-height: 0;
+    overflow: hidden;
+    flex-direction: column;
+  }
+
+  body[data-page="product-groups"] #content {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+    flex-direction: column;
+  }
+
+  body[data-page="product-groups"] .group-list-card {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+  }
+
+  body[data-page="product-groups"] .group-list-card .table-wrap {
+    height: auto;
+    max-height: none;
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+
+  body[data-page="report-templates"] .template-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  body[data-page="report-templates"] .template-preview {
+    display: none !important;
+  }
+
+  body[data-page="report-templates"] .template-table-card .table-wrap {
+    min-height: 420px;
+    max-height: calc(100vh - 370px);
+  }
+}
+
+body[data-page="report-templates"] .template-preview {
+  display: none !important;
+}
+
+body[data-page="report-templates"] .template-table-card th {
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+body[data-page="report-templates"] .template-table-card td,
+body[data-page="report-templates"] .template-table-card td strong {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+@media (max-width: 1000px) {
+  body[data-page="report-templates"] .template-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  body[data-page="report-templates"] .template-table-card .table-wrap {
+    max-height: 68vh;
+    min-height: 0;
+  }
+}
+
+body[data-page="brands"] .brands-reference-toolbar label {
+  font-size: 11px;
+}
+
+body[data-page="brands"] .brands-reference-table td {
+  height: 54px;
+  font-size: 12px;
+}
+
+body[data-page="brands"] .brands-count {
+  font-size: 11px;
+}
+
+/* Keep desktop dialogs and dense business forms within the available viewport. */
+dialog#appDialog:has(.p9-member-form) {
+  box-sizing: border-box;
+  width: min(840px, calc(100vw - 28px));
+  height: min(900px, calc(100vh - 32px));
+  max-height: calc(100vh - 32px);
+}
+
+dialog#appDialog:has(.p9-member-form) > form {
+  display: flex;
+  height: 100%;
+  max-height: 100%;
+  flex-direction: column;
+}
+
+dialog#appDialog:has(.p9-member-form) > form > header {
+  flex: 0 0 88px;
+  height: 88px;
+  padding: 0 22px;
+}
+
+dialog#appDialog:has(.p9-member-form) #dialogTitle {
+  gap: 12px;
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+dialog#appDialog:has(.p9-member-form) #dialogEyebrow {
+  top: 58px;
+  left: 88px;
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+dialog#appDialog:has(.p9-member-form) #dialogBody {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 14px 20px;
+}
+
+dialog#appDialog:has(.p9-member-form) #dialogFooter {
+  flex: 0 0 auto;
+  padding: 10px 20px;
+}
+
+.p9-member-form {
+  gap: 10px;
+}
+
+.p9-member-form .field > label,
+.p9-member-payment > strong {
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.p9-member-form input:not([type="checkbox"]),
+.p9-member-form select,
+.p9-member-form textarea {
+  box-sizing: border-box;
+  min-height: 38px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.p9-member-form textarea {
+  min-height: 74px;
+}
+
+/* Keep all three desktop status panels inside the native reference height. */
+body[data-page="service-status"] .status-wall-side {
+  display: grid;
+  grid-template-rows: 160px 168px 150px;
+  height: 499px;
+  min-height: 0;
+  gap: 8px;
+}
+
+body[data-page="service-status"] .status-wall-side > section {
+  box-sizing: border-box;
+  min-height: 0;
+}
+
+/* Six discount presets fit on one row; custom input remains a normal editable field. */
+body[data-page="sales"] .sales-discount-options {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+body[data-page="sales"] .sales-custom-discount {
+  position: relative;
+  z-index: 1;
+  width: fit-content;
+}
+
+body[data-page="sales"] .sales-custom-discount input {
+  box-sizing: border-box;
+  min-width: 112px;
+  pointer-events: auto;
+}
+
+/* Dense card headings stay readable without competing with page titles. */
+body[data-page] #content .card h2,
+body[data-page] .content .card h2 {
+  font-size: 17px;
+  line-height: 1.3;
+}
+
+body[data-page] #content .card h3,
+body[data-page] .content .card h3 {
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+body[data-page] #content .card h4,
+body[data-page] .content .card h4 {
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+@media (max-width: 760px) {
+  dialog#appDialog:has(.p9-member-form) {
+    width: calc(100vw - 20px);
+    height: min(900px, calc(100vh - 20px));
+    max-height: calc(100vh - 20px);
+  }
+
+  dialog#appDialog:has(.p9-member-form) > form > header {
+    flex-basis: 76px;
+    height: 76px;
+    padding: 0 14px;
+  }
+
+  dialog#appDialog:has(.p9-member-form) #dialogTitle {
+    font-size: 16px;
+  }
+
+  dialog#appDialog:has(.p9-member-form) #dialogEyebrow {
+    top: 51px;
+    left: 70px;
+    font-size: 10px;
+  }
+
+  dialog#appDialog:has(.p9-member-form) #dialogBody {
+    padding: 12px;
+  }
+}
+
+@media (min-width: 1001px) {
+  body[data-page="customers"] .app-shell,
+  body[data-page="contracts"] .app-shell {
+    height: calc(100vh - 16px);
+    min-height: calc(100vh - 16px);
+    overflow: hidden;
+  }
+
+  body[data-page="customers"] .main,
+  body[data-page="contracts"] .main {
+    display: flex;
+    min-height: 0;
+    overflow: hidden;
+    flex-direction: column;
+  }
+
+  body[data-page="customers"] #content,
+  body[data-page="contracts"] #content {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+    flex-direction: column;
+  }
+
+  body[data-page="customers"] .customer-management {
+    display: flex;
+    order: 2;
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+    flex-direction: column;
+  }
+
+  body[data-page="customers"] #content > .customer-metrics {
+    order: 1;
+    flex: 0 0 auto;
+  }
+
+  body[data-page="customers"] .customer-management #customerTable {
+    height: auto;
+    min-height: 0;
+    flex: 1 1 0;
+  }
+
+  body[data-page="customers"] .customer-card {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  body[data-page="customers"] .customer-card #customerTable {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+  }
+
+  body[data-page="customers"] .customer-management #customerTable .table-wrap,
+  body[data-page="customers"] .customer-card .table-wrap {
+    height: auto;
+    max-height: none;
+    min-height: 0;
+    flex: 1 1 0;
+    overflow: auto;
+  }
+
+  body[data-page="contracts"] .contracts-reference-list {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+  }
+
+  body[data-page="contracts"] .contracts-reference-list #genericHost {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+  }
+
+  body[data-page="contracts"] .contracts-reference-list #genericHost > .empty {
+    min-height: 120px;
+    flex: 1 1 auto;
+    place-content: center;
+  }
+
+  body[data-page="contracts"] .contracts-reference-list .table-wrap {
+    max-height: none;
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow: auto;
+  }
+}
+
+body[data-page="customers"] #content > .customer-metrics {
+  gap: 8px;
+  margin: 8px 0 10px;
+}
+
+body[data-page="customers"] .customer-metrics .metric,
+body[data-page="contracts"] .contracts-reference-metrics .metric {
+  min-height: 76px;
+  padding: 9px 12px;
+}
+
+body[data-page="customers"] .customer-metrics .metric-icon,
+body[data-page="contracts"] .contracts-reference-metrics .metric-icon {
+  flex-basis: 30px;
+  width: 30px;
+  height: 30px;
+}
+
+body[data-page="customers"] .customer-metrics .metric strong,
+body[data-page="contracts"] .contracts-reference-metrics .metric strong {
+  margin-top: 4px;
+  font-size: 18px;
+}
+
+body[data-page="contracts"] .contracts-reference-metrics {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 8px 0 10px;
+}
+
+body[data-page="contracts"] .contracts-reference-footer {
+  gap: 8px;
+}
+
+body[data-page="contracts"] .contracts-reference-footer article {
+  min-height: 84px;
+  padding: 8px 10px;
+}
+
+.customer-editor-column {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.customer-location-map iframe {
+  height: min(220px, 32vh);
+  min-height: 180px;
+}
+
+#appDialog.service-accept-dialog[open] {
+  position: fixed;
+  top: 50%;
+  right: auto;
+  bottom: auto;
+  left: 50%;
+  margin: 0;
+  transform: translate(-50%, -50%);
+}
+
+/* Keep the customer and contract workspaces dense and viewport-sized. */
+@media (min-width: 1001px) {
+  body[data-page="customers"] .customer-data-table th {
+    height: 52px;
+    padding: 7px 9px;
+  }
+
+  body[data-page="customers"] .customer-data-table td {
+    height: 50px;
+    padding: 6px 9px;
+  }
+
+  body[data-page="customers"] .customer-data-table.comfortable td {
+    height: 70px;
+    padding: 10px 9px;
+  }
+
+  body[data-page="customers"] #content > .customer-metrics .metric,
+  body[data-page="contracts"] .contracts-reference-metrics .metric {
+    box-sizing: border-box;
+    height: 82px;
+    min-height: 82px;
+    max-height: 82px;
+    overflow: hidden;
+    padding: 8px 11px;
+  }
+
+  body[data-page="customers"] #content > .customer-metrics .metric strong,
+  body[data-page="contracts"] .contracts-reference-metrics .metric strong {
+    margin-top: 2px;
+    font-size: 17px;
+    line-height: 1.15;
+  }
+
+  body[data-page="customers"] #content > .customer-metrics .metric small,
+  body[data-page="contracts"] .contracts-reference-metrics .metric small {
+    overflow: hidden;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  body[data-page="contracts"] .contracts-reference-list {
+    min-height: 0;
+  }
+
+  body[data-page="contracts"] .contracts-reference-list .contracts-reference-table-wrap {
+    min-height: 0;
+    max-height: none;
+    flex: 1 1 auto;
+  }
+}
+
+#appDialog.customer-editor-dialog[open] {
+  display: flex;
+  width: min(1120px, calc(100vw - 32px));
+  height: min(900px, calc(100svh - 32px));
+  max-width: none;
+  max-height: calc(100svh - 32px);
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#appDialog.customer-editor-dialog > form {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+}
+
+#appDialog.customer-editor-dialog #dialogBody {
+  min-height: 0;
+  max-height: none;
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: 14px;
+}
+
+#appDialog.customer-editor-dialog #dialogFooter {
+  flex: 0 0 auto;
+}
+
+#appDialog.customer-editor-dialog .customer-editor-section {
+  padding: 12px;
+}
+
+#appDialog.customer-editor-dialog .customer-editor-section h3 {
+  margin-bottom: 9px;
+}
+
+#appDialog.customer-editor-dialog .customer-editor-section .form-grid {
+  gap: 9px;
+}
+
+#appDialog.customer-editor-dialog .customer-location-map iframe {
+  height: 190px;
+  min-height: 160px;
+}
+
+#appDialog.service-accept-dialog[open] {
+  inset: auto;
+  top: 50%;
+  left: 50%;
+  width: min(1440px, calc(100vw - 32px));
+  height: min(920px, calc(100svh - 32px));
+  max-width: none;
+  max-height: calc(100svh - 32px);
+  margin: 0;
+  transform: translate(-50%, -50%);
+}
+
+#appDialog.service-accept-dialog > form {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+#appDialog.service-accept-dialog #dialogBody {
+  min-height: 0;
+  max-height: none;
+  flex: 1 1 auto;
+  overflow: auto;
+}
+
+#appDialog.service-accept-dialog .service-accept-form {
+  height: auto !important;
+  min-height: 0 !important;
+}
+
+/* Native dialogs must return to the hidden state after close(). */
+#appDialog:not([open]) {
+  display: none !important;
+}

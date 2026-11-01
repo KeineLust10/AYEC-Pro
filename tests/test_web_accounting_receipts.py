@@ -25,6 +25,10 @@ def test_accounting_receipt_download_is_authenticated_tenant_scoped_and_listed(m
             "INSERT INTO accounting_receipts VALUES(?,?,?,?,?)",
             (accounting_id, "expense-receipt.pdf", "application/pdf", receipt_bytes, current_date),
         )
+        no_receipt_id = conn.execute(
+            "INSERT INTO accounting(type,category,amount,description,date) VALUES(?,?,?,?,?)",
+            ("Gider", "Supplies", 50, "No receipt fixture", current_date),
+        ).lastrowid
         conn.commit()
 
     tenant2_path = tmp_path / "Kullanicilar" / "Second Company.db"
@@ -78,6 +82,12 @@ def test_accounting_receipt_download_is_authenticated_tenant_scoped_and_listed(m
         assert download.headers["Content-Type"] == "application/pdf"
         assert "filename*=UTF-8''expense-receipt.pdf" in download.headers["Content-Disposition"]
         assert session.get(f"{base_url}/api/desktop/accounting/{accounting_id + 9000}/receipt/download").status_code == 404
+        bootstrap = session.get(f"{base_url}/api/desktop/bootstrap")
+        assert bootstrap.status_code == 200
+        finance_rows = {row["id"]: row for row in bootstrap.json()["finance"]}
+        assert finance_rows[accounting_id]["source"] == "accounting"
+        assert finance_rows[accounting_id]["receipt_available"] is True
+        assert finance_rows[no_receipt_id]["receipt_available"] is False
 
         second_session = requests.Session()
         second_session.headers["Origin"] = base_url

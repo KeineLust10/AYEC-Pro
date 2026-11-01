@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import { View, ActivityIndicator } from 'react-native';
 
 // Screens
@@ -19,7 +19,7 @@ export default function App() {
         const bootstrapAsync = async () => {
             let token;
             try {
-                token = await AsyncStorage.getItem('userToken');
+                token = await SecureStore.getItemAsync('userToken');
             } catch (e) {
                 console.log('Restoring token failed');
             }

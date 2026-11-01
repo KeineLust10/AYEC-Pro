@@ -557,7 +557,7 @@ button.dashboard-recent-row {
   max-width: calc(100vw - var(--sidebar, 260px));
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  gap: 6px;
+  gap: 3px;
   padding: 24px 28px 28px;
   overflow: auto;
   border: 1px solid var(--line);
@@ -635,17 +635,20 @@ html[data-theme="midnight"] body[data-page="dashboard"] .dashboard-shortcut-over
 
 .dashboard-shortcut-card > div {
   display: grid;
-  gap: 7px;
+  gap: 0;
 }
 
 .dashboard-shortcut-card strong {
   font-size: 15px;
   font-weight: 800;
+  line-height: 1.15;
 }
 
 .dashboard-shortcut-card span {
-  color: var(--muted);
-  font-size: 11px;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.15;
 }
 
 .dashboard-shortcut-card:hover,

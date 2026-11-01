@@ -3,7 +3,7 @@
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel,
                              QPushButton, QTextEdit,
                              QFrame, QScrollArea, QWidget, QFileDialog,
-                             QRadioButton, QButtonGroup, QDoubleSpinBox)
+                             QRadioButton, QButtonGroup, QDoubleSpinBox, QApplication)
 from src.utils.toast_notification import show_success, show_error, show_warning
 from PyQt6.QtCore import Qt, pyqtSignal, QMetaObject, Q_ARG
 from datetime import datetime, timedelta
@@ -31,7 +31,11 @@ class AddDeviceDialog(ModernDialog):
         from src.ui.utils.ui_signal_helpers import on_ui_widget_changed
         on_ui_widget_changed(self, *args)
     def __init__(self, db, parent=None, customer_name=None, device_data=None):
-        super().__init__("Yeni Servis Kayd\u0131 Olu\u015ftur", parent, width=1400, height=900)
+        screen = QApplication.primaryScreen()
+        available = screen.availableGeometry() if screen is not None else None
+        width = max(760, available.width() - 16) if available is not None else 1400
+        height = max(600, available.height() - 16) if available is not None else 900
+        super().__init__("Yeni Servis Kayd\u0131 Olu\u015ftur", parent, width=width, height=height)
         self.db = db
         self.device_data = device_data
         self._editing_tracking_no = self._device_value(device_data, "tracking_no")

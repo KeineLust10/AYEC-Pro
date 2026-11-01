@@ -1,6 +1,11 @@
 from datetime import datetime
 
 
+VEHICLE_TYPES = ["Binek", "Hafif Ticari", "SUV", "Minivan", "Kamyonet", "Motosiklet", "Diger"]
+ENGINE_TYPES = ["Benzinli", "Dizel", "Hibrit", "Elektrikli", "LPG", "Turbo Dizel", "Diger"]
+FUEL_TYPES = ["Benzin", "Dizel", "LPG", "Elektrik", "Hibrit", "Diger"]
+
+
 VEHICLE_BRAND_MODELS = {
     "Alfa Romeo": ["159", "Brera", "Giulia", "Giulietta", "Mito", "Stelvio", "Tonale"],
     "Audi": ["A3", "A4", "A5", "A6", "A7", "A8", "Q2", "Q3", "Q5", "Q7", "Q8", "TT"],

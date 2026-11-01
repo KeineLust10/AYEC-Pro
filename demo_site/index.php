@@ -1,0 +1,58 @@
+<?php
+declare(strict_types=1);
+
+$entryUrl = getenv('AYEC_DEMO_ENTRY_URL') ?: 'https://demo-panel.ayecpro.com/api/demo/session';
+$entryUrl = htmlspecialchars($entryUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+header('Content-Type: text/html; charset=utf-8');
+header('Cache-Control: no-store, max-age=0');
+header('X-Content-Type-Options: nosniff');
+header('Referrer-Policy: no-referrer');
+header('X-Frame-Options: DENY');
+header("Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; form-action 'self' https://demo-panel.ayecpro.com; frame-ancestors 'none'; base-uri 'self'; object-src 'none'");
+?>
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <title>AYEC Pro | Canli Demo</title>
+  <style>
+    :root{color-scheme:dark;--bg:#071426;--panel:#0d2139;--line:#254766;--text:#f5f8ff;--muted:#a9bad0;--blue:#3478ff;--cyan:#31d4c3}
+    *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 82% 5%,#183a67 0,transparent 34%),var(--bg);color:var(--text);font:16px/1.55 Inter,"Segoe UI",Arial,sans-serif;min-height:100vh}
+    .wrap{width:min(1120px,calc(100% - 36px));margin:auto}.nav{height:78px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #1d3855}.brand{display:flex;align-items:center;gap:12px;font-weight:850;letter-spacing:.02em}.mark{width:42px;height:42px;border:1px solid #3a6692;border-radius:13px;display:grid;place-items:center;background:linear-gradient(145deg,#215ab0,#12304f);color:#8be8df}.brand small{display:block;color:#8ca8c6;font-size:10px;letter-spacing:.15em}.nav a{color:#d7e6f7;text-decoration:none;font-size:14px}
+    .hero{display:grid;grid-template-columns:1.1fr .9fr;gap:60px;align-items:center;padding:76px 0 66px}.eyebrow{display:inline-flex;align-items:center;gap:9px;padding:7px 12px;border:1px solid #31577c;border-radius:99px;color:#a9ccf3;background:#0d2340;font-size:11px;font-weight:800;letter-spacing:.13em}.dot{width:8px;height:8px;border-radius:50%;background:var(--cyan);box-shadow:0 0 14px var(--cyan)}h1{font-size:clamp(42px,6vw,70px);line-height:1.02;letter-spacing:-.055em;margin:22px 0;color:#fff}h1 span{background:linear-gradient(90deg,#75a7ff,#42dfcf);color:transparent;background-clip:text}.lead{max-width:600px;color:#b7c7da;font-size:18px}.pills{display:flex;flex-wrap:wrap;gap:8px;margin:25px 0 30px}.pills span{padding:7px 10px;border:1px solid #24415f;border-radius:9px;background:#0b1c31;color:#b7c9df;font-size:12px}.cta{display:inline-flex;min-height:50px;align-items:center;justify-content:center;padding:0 22px;border:0;border-radius:12px;background:linear-gradient(135deg,#397dff,#2456db);color:white;font-weight:800;font-size:15px;cursor:pointer;box-shadow:0 14px 34px #1d5fe04a}.cta:hover{filter:brightness(1.12);transform:translateY(-1px)}.fine{color:#849bb6;font-size:12px;margin-top:14px}
+    .demo{padding:26px;border:1px solid #2b5275;border-radius:22px;background:linear-gradient(155deg,#132f50,#0b1b30);box-shadow:0 28px 80px #0007}.demo-head{display:flex;justify-content:space-between;align-items:center;padding-bottom:18px;border-bottom:1px solid #294761}.demo-head strong{font-size:14px}.tag{color:#69e2c2;font-size:10px;font-weight:850;letter-spacing:.12em}.credential{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:19px 0}.credential div{padding:14px;border:1px solid #2a4968;border-radius:13px;background:#09192b}.credential small{display:block;color:#829bb8;font-size:10px;text-transform:uppercase;letter-spacing:.1em}.credential b{display:block;margin-top:5px;font-size:20px}.perks{display:grid;gap:12px;margin-top:20px}.perk{display:flex;gap:11px;align-items:flex-start;color:#b4c6dc;font-size:13px}.check{color:var(--cyan);font-weight:900}.band{border-top:1px solid #193653;border-bottom:1px solid #193653;background:#09192b}.grid{display:grid;grid-template-columns:repeat(4,1fr)}.stat{text-align:center;padding:22px 10px;border-right:1px solid #193653}.stat:last-child{border:0}.stat b{display:block;font-size:20px}.stat span{color:#8da4bd;font-size:11px}.foot{padding:24px 0;color:#748da9;font-size:12px;display:flex;justify-content:space-between;gap:20px}
+    @media(max-width:780px){.hero{grid-template-columns:1fr;gap:30px;padding:48px 0}.demo{order:2}.grid{grid-template-columns:1fr 1fr}.stat:nth-child(2){border-right:0}.foot{flex-direction:column;text-align:center}.nav{height:68px}.hero h1{font-size:48px}}
+  </style>
+</head>
+<body>
+  <header class="wrap nav"><div class="brand"><span class="mark">A</span><span>AYEC Pro<small>TEKNIK SERVIS YONETIMI</small></span></div><a href="https://ayecpro.com/">AYEC Pro ana sayfa</a></header>
+  <main>
+    <section class="wrap hero">
+      <div>
+        <span class="eyebrow"><i class="dot"></i>AYEC PRO CANLI DEMO</span>
+        <h1>Servis operasyonunu<br><span>kendin kesfet.</span></h1>
+        <p class="lead">Servis kaydindan stok ve finansa kadar AYEC Pro arayuzunu hazir test verileriyle incele. Her ziyaretci icin ayri bir calisma alani acilir.</p>
+        <div class="pills"><span>Servis ve teknisyen</span><span>Kanban ve cihaz takibi</span><span>Stok ve finans</span><span>OCR ve saha operasyonu</span></div>
+        <form id="demo-entry-form" method="post" action="<?= $entryUrl ?>">
+          <button class="cta" type="submit">Demoyu Incele <span aria-hidden="true">&nbsp; &rarr;</span></button>
+        </form>
+        <p class="fine">Tek tikla size ozel, gecici ve bagimsiz demo oturumu acilir. Giris bilgisi yazmaniz gerekmez.</p>
+      </div>
+      <aside class="demo" aria-label="Tek tikla demo erisimi">
+        <div class="demo-head"><strong>Demo oturumu hazir</strong><span class="tag">IZOLE ORTAM</span></div>
+        <div class="credential"><div><small>Erisim yontemi</small><b>Tek tik</b></div><div><small>Giris</small><b>Otomatik</b></div></div>
+        <div class="perks">
+          <div class="perk"><span class="check">&#10003;</span><span>Uretim sisteminden ve gercek firma verilerinden tamamen ayridir.</span></div>
+          <div class="perk"><span class="check">&#10003;</span><span>Her ziyaretci temiz test verileriyle baslayan kendine ait bir veritabani alir.</span></div>
+          <div class="perk"><span class="check">&#10003;</span><span>Demo calisma alanlari iki saat sonra otomatik temizlenir.</span></div>
+        </div>
+      </aside>
+    </section>
+    <section class="band"><div class="wrap grid"><div class="stat"><b>Servis</b><span>Cihaz kabul ve takip</span></div><div class="stat"><b>Stok</b><span>Parca ve hareketler</span></div><div class="stat"><b>Finans</b><span>Gelir ve gider</span></div><div class="stat"><b>Saha</b><span>Teknisyen is akisi</span></div></div></section>
+  </main>
+  <footer class="wrap foot"><span>AYEC Pro teknik servis yonetim platformu</span><span>Demo verileri gecicidir; bu alana gercek musteri bilgisi girmeyin.</span></footer>
+  <script src="auto-start.js" defer></script>
+</body>
+</html>

@@ -17,14 +17,16 @@ def test_web_service_intake_supports_desktop_custom_device_type():
     assert 'data-service-other-device hidden' in web
     assert 'otherDeviceInput.required=isOther' in web
     assert 'values.device_type==="Di\\u011fer"?String(values.other_device_type||"").trim()' in web
-    assert 'device_brands?limit=500' in web
+    assert 'loadAllDesktopTableRows("device_brands")' in web
+    assert 'device_brands?limit=500' not in web
     assert 'serviceModelOptions' in web
     assert 'row.device_type' in web and 'row.device_model' in web
     assert 'serviceCustomerOptions' in web
     assert 'customerSearchInput.addEventListener("input"' in web
     assert 'history.map(row=>String(row.device_type||"").trim())' in web
     assert 'deviceTypeInput.insertBefore(option,otherTypeOption||null)' in web
-    assert '/api/desktop/table/fast_notes?limit=500' in web
+    assert 'loadAllDesktopTableRows("fast_notes")' in web
+    assert '/api/desktop/table/fast_notes?limit=500' not in web
     assert 'data-service-fault-note-options' in web
     assert '"name": "inspection_summary"' in technical_plugin
     assert 'name="inspection_summary"' in web
@@ -71,6 +73,13 @@ def test_service_intake_uploads_selected_photos_to_intake_gallery():
     assert 'stage:"Giri\\u015f"' in web
 
 
+def test_service_intake_does_not_open_a_second_form_unless_requested():
+    app = (WEB / "app.js").read_text(encoding="utf-8")
+    assert 'name="open_form"></label>' in app
+    assert 'name="open_form" checked' not in app
+    assert 'intakeDialog.close("ok");render();' in app
+
+
 def test_service_intake_migrates_desktop_handover_and_bios_fields():
     app = (WEB / "app.js").read_text(encoding="utf-8")
     backend = (ROOT / "Web_Arayuzu" / "Main.py").read_text(encoding="utf-8")
@@ -86,4 +95,15 @@ def test_service_intake_migrates_desktop_handover_and_bios_fields():
     technical_marker = "[TEKN" + chr(304) + "K]"
     assert 'full_desc += f"\\n' + technical_marker + ": {data['internal_notes']}\"" in desktop
     assert '"bios_password", "TEXT"' in backend
+
+
+def test_service_intake_dialog_is_centered_and_scrolls_inside_viewport():
+    styles = (WEB / "typography-layout-fixes.css").read_text(encoding="utf-8")
+    assert "#appDialog.service-accept-dialog[open] {" in styles
+    assert "position: fixed;" in styles
+    assert "top: 50%;" in styles
+    assert "height: min(920px, calc(100svh - 32px));" in styles
+    assert "#appDialog.service-accept-dialog #dialogBody {" in styles
+    assert "overflow: auto;" in styles
+    assert "height: auto !important;" in styles
 

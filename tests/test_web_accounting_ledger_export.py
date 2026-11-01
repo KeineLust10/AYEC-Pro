@@ -254,3 +254,22 @@ def test_accounting_ledger_page_uses_bounded_offset_pages(monkeypatch, tmp_path)
     assert second["page"] == 1 and second["has_more"] is False and len(second["rows"]) == 1
     assert {row["id"] for row in first["rows"]}.isdisjoint({row["id"] for row in second["rows"]})
     assert second["rows"][0]["description"].startswith("PageAudit-")
+    assert "created_at" in second["rows"][0]
+
+
+def test_desktop_bootstrap_includes_all_accounting_rows(monkeypatch, tmp_path):
+    _actor, tenant_path = _setup_tenant(monkeypatch, tmp_path)
+    current_date = datetime.now().strftime("%Y-%m-%d")
+    with sqlite3.connect(tenant_path) as conn:
+        conn.executemany(
+            "INSERT INTO accounting(type,category,amount,description,date) VALUES(?,?,?,?,?)",
+            [("Gelir", "Bootstrap", index + 1, f"BootstrapAudit-{index:04d}", current_date) for index in range(1001)],
+        )
+        conn.commit()
+    web_main.set_tenant_context(web_main.tenant_by_id("tenant-1"))
+    try:
+        payload = web_main.desktop_bootstrap()
+    finally:
+        web_main.clear_tenant_context()
+    matching = [row for row in payload["finance"] if str(row.get("description", "")).startswith("BootstrapAudit-")]
+    assert len(matching) == 1001

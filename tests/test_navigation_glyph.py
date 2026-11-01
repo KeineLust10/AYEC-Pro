@@ -7,7 +7,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PyQt6.QtWidgets import QApplication
 
 from src.ui.widgets._side_menu_constants import PAGE_ICONS
-from src.ui.widgets.navigation_glyph import NavigationChevron, NavigationGlyph, PAGE_KINDS, PATHS
+from src.ui.widgets.navigation_glyph import ICON_COLORS, NavigationChevron, NavigationGlyph, PAGE_KINDS, PATHS
 from src.utils.theme_colors import qc
 from src.utils.theme_manager import ThemeManager
 
@@ -31,7 +31,8 @@ def test_glyph_preserves_metadata_and_renders_token_states():
         glyph.set_navigation_state(active, disabled)
         assert not glyph.grab().isNull()
         assert glyph._renderer.isValid()
-        assert glyph._render_key == ("tag", qc(token).name())
+        expected = qc(token).name() if active or disabled else ICON_COLORS["tag"]
+        assert glyph._render_key == ("tag", expected)
     glyph.close()
     glyph.deleteLater()
     app.processEvents()
@@ -62,7 +63,8 @@ def test_glyph_rebuilds_stroke_colors_after_theme_change():
             for active, token in ((False, "text_muted"), (True, "selection_text")):
                 glyph.set_navigation_state(active)
                 glyph.grab()
-                assert glyph._render_key == ("tag", qc(token).name())
+                expected = qc(token).name() if active else ICON_COLORS["tag"]
+                assert glyph._render_key == ("tag", expected)
                 assert glyph._renderer.isValid()
     finally:
         ThemeManager._activate_runtime_cache(previous)

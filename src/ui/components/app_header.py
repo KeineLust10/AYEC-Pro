@@ -312,7 +312,9 @@ class AppHeader(QWidget):
         ))
         self.lbl_app_name.setText("AYEC PRO")
         self.lbl_app_name.setFixedWidth(82)
-        self.lbl_app_name.setStyleSheet(theme_qss("color: @text; font-size: 14px; font-weight: 800;"))
+        self.lbl_app_name.setStyleSheet(theme_qss(
+            "color: @text; background: transparent; border: none; font-size: 14px; font-weight: 800;"
+        ))
         self.btn_back.setFixedSize(80, 32)
         self.btn_back.setText("\u2190  Geri")
         self.btn_back.setStyleSheet(theme_qss(
@@ -1057,9 +1059,9 @@ class AppHeader(QWidget):
             )
         self.lbl_app_name.setStyleSheet(
             (
-                theme_qss("QLabel#AppNameLabel { color: @text; font-size: 14px; font-weight: 800; }")
+                theme_qss("QLabel#AppNameLabel { color: @text; background: transparent; border: none; font-size: 14px; font-weight: 800; }")
                 if classic
-                else theme_qss("QLabel#AppNameLabel { color: @text; font-size: 14px; font-weight: 800; }")
+                else theme_qss("QLabel#AppNameLabel { color: @text; background: transparent; border: none; font-size: 14px; font-weight: 800; }")
             )
         )
         self.btn_back.setFixedSize(80, 32)

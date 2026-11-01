@@ -82,6 +82,15 @@ async function run() {
       return result;
     })()`);
     if (pageSettingDisabled.prevented || pageSettingDisabled.open) throw new Error(`Loaner page setting did not suppress its context menu: ${JSON.stringify(pageSettingDisabled)}`);
+    const viewportEdgePlacement = await evaluate(`(() => {
+      ayecLoanerView = "depot";
+      const row = document.querySelector('[data-loaner-kind="depot"][data-loaner-row="71"]');
+      row.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 280, clientY: innerHeight - 4 }));
+      const menu = document.querySelector("#contextMenu"), rect = menu.getBoundingClientRect();
+      return { open: menu.classList.contains("open"), top: Math.round(rect.top), bottom: Math.round(rect.bottom), height: Math.round(rect.height), viewportHeight: innerHeight };
+    })()`);
+    if (!viewportEdgePlacement.open || viewportEdgePlacement.bottom > viewportEdgePlacement.viewportHeight - 7 || viewportEdgePlacement.bottom < viewportEdgePlacement.viewportHeight - 9) throw new Error(`Loaner menu viewport-edge placement mismatch: ${JSON.stringify(viewportEdgePlacement)}`);
+    await evaluate('document.querySelector("#contextMenu").classList.remove("open")');
     const touchMenu = await evaluate(`(async () => {
       const row = document.querySelector('[data-loaner-kind="depot"][data-loaner-row="71"]');
       const menu = document.querySelector("#contextMenu");
@@ -156,8 +165,8 @@ async function run() {
     if (returnSubmit.open || returnSubmit.request?.url !== "/api/desktop/loaners/return" || returnSubmit.request.payload.transaction_id !== 91 || returnSubmit.request.payload.condition_in !== "Screen clean" || returnSubmit.request.payload.penalty_applied !== "25") throw new Error(`Loan return dialog did not submit the expected values: ${JSON.stringify(returnSubmit)}`);
     const selector = await evaluate(`(async () => {
       apiFetch = async (url, options = {}) => {
-        if (url.includes("loaner_devices?limit=1000")) return { rows: [{ id: 71, status: "Depoda", brand_model: "Fixture Laptop", serial_mac: "FIX-SN-71" }, { id: 72, status: "Depoda", brand_model: "Assigned Laptop", serial_mac: "FIX-SN-72" }] };
-        if (url.includes("loaner_transactions?limit=1000")) return { rows: [{ id: 92, device_id: 72, status: "Aktif" }] };
+        if (url.includes("loaner_devices?limit=1000")) { const offset = Number(new URL(url, "http://localhost").searchParams.get("offset") || 0); window.__loanerDeviceOffsets = [...(window.__loanerDeviceOffsets || []), offset]; return offset ? { rows: [{ id: 72, status: "Depoda", brand_model: "Assigned Laptop", serial_mac: "FIX-SN-72" }, { id: 73, status: "Depoda", brand_model: "Second Page Laptop", serial_mac: "FIX-SN-73" }], count: 1002 } : { rows: Array.from({ length: 1000 }, (_, index) => ({ id: index === 0 ? 71 : 1000 + index, status: index === 0 ? "Depoda" : "Musteride", brand_model: index === 0 ? "Fixture Laptop" : "Unavailable", serial_mac: index === 0 ? "FIX-SN-71" : "FIX-UNAVAILABLE" })), count: 1002 }; }
+        if (url.includes("loaner_transactions?limit=1000")) { const offset = Number(new URL(url, "http://localhost").searchParams.get("offset") || 0); window.__loanerTransactionOffsets = [...(window.__loanerTransactionOffsets || []), offset]; return offset ? { rows: [{ id: 92, device_id: 72, status: "Aktif" }], count: 1001 } : { rows: Array.from({ length: 1000 }, (_, index) => ({ id: index + 1, device_id: 1000 + index, status: "Kapali" })), count: 1001 }; }
         if (options.method === "POST") { window.__loanerDeviceRequest = { url, payload: JSON.parse(options.body) }; return { ok: true }; }
         return { ok: true };
       };
@@ -165,9 +174,9 @@ async function run() {
       document.querySelector("[data-generic-add]").click();
       await new Promise(resolve => setTimeout(resolve, 20));
       const select = document.querySelector('#dialogBody [name="device_id"]');
-      return { title: document.querySelector("#dialogTitle").textContent, submit: document.querySelector("#dialogSubmit").textContent, options: Array.from(select.options, option => ({ value: option.value, text: option.textContent })) };
+      return { title: document.querySelector("#dialogTitle").textContent, submit: document.querySelector("#dialogSubmit").textContent, options: Array.from(select.options, option => ({ value: option.value, text: option.textContent })), transactionOffsets: window.__loanerTransactionOffsets || [], deviceOffsets: window.__loanerDeviceOffsets || [] };
     })()`);
-    if (selector.title !== "Yeni Emanet Ver" || selector.options.length !== 1 || selector.options[0].value !== "71") throw new Error(`New loan selector did not filter unavailable devices: ${JSON.stringify(selector)}`);
+    if (selector.title !== "Yeni Emanet Ver" || selector.options.map(option => option.value).join(",") !== "71,73" || selector.transactionOffsets.join(",") !== "0,1000" || selector.deviceOffsets.join(",") !== "0,1000") throw new Error(`New loan selector did not filter unavailable devices: ${JSON.stringify(selector)}`);
     const selectorScreenshot = await send("Page.captureScreenshot", { format: "png", captureBeyondViewport: true });
     fs.writeFileSync(path.join(outputDir, "loaner-new-assignment-device-picker-headless.png"), Buffer.from(selectorScreenshot.data, "base64"));
     const nextForm = await evaluate(`(async () => {
@@ -230,8 +239,19 @@ async function run() {
     if (!assignmentForm.nativeRequired || assignmentSubmit.open || assignmentSubmit.request?.url !== "/api/desktop/loaners/assign") throw new Error(`Assignment form did not validate or submit: ${JSON.stringify({ assignmentForm, assignmentSubmit })}`);
     if (assignmentForm.controls.map(control => control.name).join(",") !== "customer_name,customer_phone,tracking_no,condition_out,expected_return") throw new Error(`Unexpected assignment fields: ${JSON.stringify(assignmentForm.controls)}`);
     if (assignmentSubmit.request.payload.device_id !== 71 || assignmentSubmit.request.payload.customer_name !== "Fixture Customer" || assignmentSubmit.request.payload.expected_return.length !== 16) throw new Error(`Unexpected assignment payload: ${JSON.stringify(assignmentSubmit.request)}`);
+    const personnelViewportEdgePlacement = await evaluate(`(async () => {
+      document.querySelector("#appDialog")?.close("audit");
+      page = "personnel"; document.body.dataset.page = "personnel"; db.settings.contextMenu = true; currentAuthUser = { role: "Admin" };
+      document.querySelector("#content").innerHTML = '<div id="personnelRows"><div data-personnel-id="81"></div></div>';
+      const row = document.querySelector('#personnelRows [data-personnel-id="81"]');
+      row.addEventListener("contextmenu", event => window.showContext(event, "personnel", row.dataset.personnelId));
+      row.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 300, clientY: innerHeight - 4 }));
+      const menu = document.querySelector("#contextMenu"), rect = menu.getBoundingClientRect();
+      return { open: menu.classList.contains("open"), bottom: Math.round(rect.bottom), viewportHeight: innerHeight, actions: Array.from(menu.querySelectorAll("[data-personnel-context]"), item => item.dataset.personnelContext) };
+    })()`);
+    if (!personnelViewportEdgePlacement.open || personnelViewportEdgePlacement.actions.join(",") !== "edit,remove" || personnelViewportEdgePlacement.bottom < personnelViewportEdgePlacement.viewportHeight - 9 || personnelViewportEdgePlacement.bottom > personnelViewportEdgePlacement.viewportHeight - 7) throw new Error(`Personnel menu viewport placement mismatch: ${JSON.stringify(personnelViewportEdgePlacement)}`);
     if (exceptions.length) throw new Error(`Browser exceptions: ${exceptions.join(" | ")}`);
-    process.stdout.write(JSON.stringify({ depot, active, stateMenus, pageSettingDisabled, touchMenu, keyboardMenu, returnDialog, returnSubmit, selector, nextForm, deviceForm, deviceWrite, deviceEdit, deviceEditSubmit, assignmentForm, assignmentSubmit, exceptions: exceptions.length, headless: true }, null, 2) + "\n");
+    process.stdout.write(JSON.stringify({ depot, active, stateMenus, pageSettingDisabled, viewportEdgePlacement, personnelViewportEdgePlacement, touchMenu, keyboardMenu, returnDialog, returnSubmit, selector, nextForm, deviceForm, deviceWrite, deviceEdit, deviceEditSubmit, assignmentForm, assignmentSubmit, exceptions: exceptions.length, headless: true }, null, 2) + "\n");
   } finally {
     try { socket?.close(); } catch (_) {}
     const query = `$needle='${profile.replace(/'/g, "''")}'; Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'msedge.exe' -and $_.CommandLine -like ('*' + $needle + '*') } | Select-Object -ExpandProperty ProcessId`;

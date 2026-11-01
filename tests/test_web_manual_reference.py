@@ -18,8 +18,14 @@ def test_manual_viewer_has_desktop_tabs_and_escapes_document_content():
     assert 'setup: "Kurulum Rehberi"' in script
     assert 'result.content' in script
     assert 'replace(/</g, "&lt;")' in script
+    assert 'listStack = []' in script
+    assert 'ArrowRight' in script and 'ArrowLeft' in script and 'event.key === "Home"' in script and 'event.key === "End"' in script
+    assert 'role="tabpanel"' in script and 'aria-controls="manualDocument"' in script
+    assert 'start="${start}"' in script
+    assert 'manual-reference.js?v=20261027-manual-tabs-keyboard-ordered-nested-lists-1' in index
     assert "manual-reference.js" in index
     assert "manual-reference.css" in index
+    assert "manual-reference.css?v=20261025-native-font-size-3" in index
     assert "@media(max-width:640px)" in styles
 
 

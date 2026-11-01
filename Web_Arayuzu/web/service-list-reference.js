@@ -1,8 +1,9 @@
 // Service list reference route for desktop web and mobile layouts.
 const ayecServiceListState = {
-  tab: "all", query: "", status: "all", date: "last_30", priority: "all",
+  tab: "all", query: "", status: "all", date: "all", priority: "all",
   page: 1, pageSize: 15, currentId: null, selected: new Set()
 };
+let ayecActiveServiceContextMenuClose = null;
 
 function setServiceListCurrentRow(row) {
   if (!row) return;
@@ -11,6 +12,7 @@ function setServiceListCurrentRow(row) {
     const current = item === row;
     item.classList.toggle("is-current", current);
     item.setAttribute("aria-selected", String(current));
+    item.tabIndex = current ? 0 : -1;
   });
 }
 
@@ -128,7 +130,7 @@ async function exportServiceList(format, selectedOnly = false) {
     ...Object.fromEntries(columns.map(([key, , getValue]) => [key, getValue(item) ?? ""])),
     price_display: ayecServiceListMoney(item.price, item.currency || "TRY")
   }));
-  const date = new Date().toISOString().slice(0, 10).replaceAll("-", "");
+  const date = today().replaceAll("-", "");
   if (format === "csv") {
     download(`servis_listesi_${date}.csv`, csv(rows.map(item => Object.fromEntries(columns.map(([, label, getValue]) => [label, getValue(item) ?? ""])))));
     return true;
@@ -142,8 +144,10 @@ async function exportServiceList(format, selectedOnly = false) {
   if (!response.ok) {
     let message = "D\u0131\u015fa aktar\u0131m tamamlanamad\u0131";
     try { message = (await response.json()).error || message; } catch {}
+    if (response.status === 401 && window.handleUnauthorized) window.handleUnauthorized();
     throw new Error(message);
   }
+  if (typeof assertDownloadResponse === "function") assertDownloadResponse(response);
   const blob = await response.blob();
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -175,6 +179,8 @@ function renderServiceListReference() {
   ayecServiceListState.page = Math.min(ayecServiceListState.page, pages);
   const start = (ayecServiceListState.page - 1) * ayecServiceListState.pageSize;
   const visible = rows.slice(start, start + ayecServiceListState.pageSize);
+  const pageItems = pages <= 7 ? Array.from({length: pages}, (_, index) => index + 1) : ayecServiceListState.page <= 4 ? [1, 2, 3, 4, 5, "...", pages] : ayecServiceListState.page >= pages - 3 ? [1, "...", pages - 4, pages - 3, pages - 2, pages - 1, pages] : [1, "...", ayecServiceListState.page - 1, ayecServiceListState.page, ayecServiceListState.page + 1, "...", pages];
+  const pageButtons = pageItems.map(value => value === "..." ? '<span class="service-list-page-ellipsis" aria-hidden="true">...</span>' : `<button type="button" data-service-page-number="${value}" ${value === ayecServiceListState.page ? 'aria-current="page"' : ""}>${value}</button>`).join("");
   const tabs = ayecServiceListTabs.map(([key, label]) =>
     `<button type="button" class="service-list-tab ${ayecServiceListState.tab === key ? "active" : ""}" data-service-tab="${key}">${label}<b>${count(key)}</b></button>`
   ).join("");
@@ -185,7 +191,7 @@ function renderServiceListReference() {
     const statusTone = serviceStatusKey(item);
     const phone = item.phone || item.customer_contact || "";
     const serial = item.serial_no || item.serial || "";
-    return `<tr data-kind="service" aria-selected="${current}" class="${[selected ? "is-selected" : "", current ? "is-current" : ""].filter(Boolean).join(" ")}" data-id="${esc(item.id)}" data-customer="${esc(item.customerId || item.customer_id || "")}">
+    return `<tr data-kind="service" tabindex="0" aria-selected="${current}" class="${[selected ? "is-selected" : "", current ? "is-current" : ""].filter(Boolean).join(" ")}" data-id="${esc(item.id)}" data-customer="${esc(item.customerId || item.customer_id || "")}">
       <td data-label="Se\u00e7"><input type="checkbox" data-service-select="${esc(item.id)}" ${selected ? "checked" : ""} aria-label="Kayd\u0131 se\u00e7"></td>
       <td data-label="Takip No"><strong class="service-list-ticket">${esc(item.id || "-")}</strong></td>
       <td data-label="M\u00fc\u015fteri"><strong>${esc(item.customer)}</strong><small>${esc(phone)}</small></td>
@@ -222,7 +228,7 @@ function renderServiceListReference() {
     <section class="service-list-filters"><input id="serviceListSearch" type="search" value="${esc(ayecServiceListState.query)}" placeholder="Takip no, m\u00fc\u015fteri veya cihaz ara..." aria-label="Servis ara"><select id="serviceListStatus" aria-label="Durum filtresi"><option value="all">Durum: T\u00fcm\u00fc</option>${[["waiting","Bekliyor"],["repair",currentSector === "otomotiv" ? "Serviste" : "Tamirde"],["parts","Par\u00e7a Bekliyor"],["testing","Test S\u00fcrecinde"],["delivered","Teslim Edildi"],["cancelled","\u0130ptal / \u0130ade"]].map(([key,label])=>`<option value="${key}" ${ayecServiceListState.status === key ? "selected" : ""}>${label}</option>`).join("")}</select><select id="serviceListDate" aria-label="Tarih aral\u0131\u011f\u0131"><option value="all">Tarih Aral\u0131\u011f\u0131: T\u00fcm\u00fc</option><option value="today" ${ayecServiceListState.date === "today" ? "selected" : ""}>Bug\u00fcn</option><option value="week" ${ayecServiceListState.date === "week" ? "selected" : ""}>Bu Hafta</option><option value="month" ${ayecServiceListState.date === "month" ? "selected" : ""}>Bu Ay</option><option value="last_30" ${ayecServiceListState.date === "last_30" ? "selected" : ""}>Son 30 G\u00fcn</option><option value="year" ${ayecServiceListState.date === "year" ? "selected" : ""}>Bu Y\u0131l</option></select><select id="serviceListPriority" aria-label="\u00d6ncelik filtresi"><option value="all">\u00d6ncelik: T\u00fcm</option><option value="Normal" ${ayecServiceListState.priority === "Normal" ? "selected" : ""}>Normal</option><option value="Acil" ${ayecServiceListState.priority === "Acil" ? "selected" : ""}>Acil</option></select><button type="button" class="primary" data-service-command="filter">Filtrele</button><button type="button" class="secondary" data-service-command="clear">Temizle</button></section>
     <section class="service-list-quick-actions" aria-label="H\u0131zl\u0131 i\u015flemler"><button type="button" data-service-command="history">&#9719; Servis Ge\u00e7mi\u015fi</button><button type="button" data-service-command="print">&#9113; Detayl\u0131 Fi\u015f Yazd\u0131r</button><button type="button" data-service-command="cargo">&#128666; Kargo Fi\u015fi Yazd\u0131r</button><button type="button" data-service-command="dispatch">E-\u0130rsaliye</button><button type="button" data-service-command="invoice">E-Fatura</button><button type="button" data-service-command="whatsapp">WhatsApp Bildirim</button></section>
     <section class="service-list-table-wrap"><table class="service-list-table"><thead><tr><th><input type="checkbox" data-service-select-all aria-label="T\u00fcm kay\u0131tlar\u0131 se\u00e7"></th><th>TAK\u0130P NO</th><th>M\u00dc\u015eTER\u0130</th><th>C\u0130HAZ / MODEL</th><th>KABUL TAR\u0130H\u0130</th><th>TESL\u0130M TAR\u0130H\u0130</th><th>\u00dcCRET</th><th>DURUM</th><th>AC\u0130L\u0130YET</th><th>\u0130\u015eLEMLER</th></tr></thead><tbody>${body || `<tr><td colspan="10" class="service-list-empty">Bu filtrede servis kayd\u0131 bulunamad\u0131.</td></tr>`}</tbody></table></section>
-    <footer class="service-list-pagination"><span>${rows.length} kay\u0131ttan ${rows.length ? start + 1 : 0}-${Math.min(start + ayecServiceListState.pageSize, rows.length)} aras\u0131 g\u00f6steriliyor.</span><div><label>Sayfa ba\u015f\u0131na <select id="serviceListPageSize">${[8,15,25,50,100].map(size=>`<option value="${size}" ${ayecServiceListState.pageSize===size?"selected":""}>${size}</option>`).join("")}</select></label><button type="button" data-service-page="prev" ${ayecServiceListState.page <= 1 ? "disabled" : ""} aria-label="\u00d6nceki">&lt;</button><b>${ayecServiceListState.page}</b><button type="button" data-service-page="next" ${ayecServiceListState.page >= pages ? "disabled" : ""} aria-label="Sonraki">&gt;</button></div></footer>
+    <footer class="service-list-pagination"><span>${rows.length} kay\u0131ttan ${rows.length ? start + 1 : 0}-${Math.min(start + ayecServiceListState.pageSize, rows.length)} aras\u0131 g\u00f6steriliyor.</span><div><label>Sayfa ba\u015f\u0131na <select id="serviceListPageSize">${[8,15,25,50,100].map(size=>`<option value="${size}" ${ayecServiceListState.pageSize===size?"selected":""}>${size}</option>`).join("")}</select></label><button type="button" data-service-page="prev" ${ayecServiceListState.page <= 1 ? "disabled" : ""} aria-label="\u00d6nceki">&lt;</button>${pageButtons}<button type="button" data-service-page="next" ${ayecServiceListState.page >= pages ? "disabled" : ""} aria-label="Sonraki">&gt;</button></div></footer>
   </div>`;
 }
 
@@ -237,23 +243,26 @@ render = function () {
   if (search) search.oninput = () => {
     ayecServiceListState.query = search.value;
     ayecServiceListState.page = 1;
+    ayecServiceListState.selected.clear();
     const start = search.selectionStart;
     render();
     const next = $("#serviceListSearch");
     next?.focus();
     next?.setSelectionRange(start, start);
   };
-  $("#serviceListStatus").onchange = event => { ayecServiceListState.status = event.target.value; ayecServiceListState.page = 1; render(); };
-  $("#serviceListDate").onchange = event => { ayecServiceListState.date = event.target.value; ayecServiceListState.page = 1; render(); };
-  $("#serviceListPriority").onchange = event => { ayecServiceListState.priority = event.target.value; ayecServiceListState.page = 1; render(); };
-  $("#serviceListPageSize").onchange = event => { ayecServiceListState.pageSize = Number(event.target.value) || 15; ayecServiceListState.page = 1; render(); };
+  $("#serviceListStatus").onchange = event => { ayecServiceListState.status = event.target.value; ayecServiceListState.page = 1; ayecServiceListState.selected.clear(); render(); };
+  $("#serviceListDate").onchange = event => { ayecServiceListState.date = event.target.value; ayecServiceListState.page = 1; ayecServiceListState.selected.clear(); render(); };
+  $("#serviceListPriority").onchange = event => { ayecServiceListState.priority = event.target.value; ayecServiceListState.page = 1; ayecServiceListState.selected.clear(); render(); };
+  $("#serviceListPageSize").onchange = event => { ayecServiceListState.pageSize = Number(event.target.value) || 15; ayecServiceListState.page = 1; ayecServiceListState.selected.clear(); render(); };
   content.onclick = async event => {
     const serviceRow = event.target.closest(".service-list-table tbody tr[data-kind=service]");
     if (serviceRow) setServiceListCurrentRow(serviceRow);
     const tab = event.target.closest("[data-service-tab]");
-    if (tab) { ayecServiceListState.tab = tab.dataset.serviceTab; ayecServiceListState.page = 1; render(); return; }
+    if (tab) { ayecServiceListState.tab = tab.dataset.serviceTab; ayecServiceListState.page = 1; ayecServiceListState.selected.clear(); render(); return; }
+    const pageNumber = event.target.closest("[data-service-page-number]");
+    if (pageNumber) { const targetPage = Number(pageNumber.dataset.servicePageNumber); if (Number.isInteger(targetPage) && targetPage >= 1 && targetPage <= Math.ceil(ayecServiceListFiltered().length / ayecServiceListState.pageSize)) { ayecServiceListState.page = targetPage; ayecServiceListState.selected.clear(); render(); } return; }
     const pageButton = event.target.closest("[data-service-page]");
-    if (pageButton && !pageButton.disabled) { ayecServiceListState.page += pageButton.dataset.servicePage === "next" ? 1 : -1; render(); return; }
+    if (pageButton && !pageButton.disabled) { ayecServiceListState.page += pageButton.dataset.servicePage === "next" ? 1 : -1; ayecServiceListState.selected.clear(); render(); return; }
     const command = event.target.closest("[data-service-command]");
     if (!command) return;
     const action = command.dataset.serviceCommand;
@@ -286,10 +295,10 @@ render = function () {
       openServiceBulkPrint(records);
       return;
     }
-    if (action === "refresh") { try { await hydrateDesktop(false); render(); } catch (error) { toast(error.message || "Servis listesi yenilenemedi", "error"); } return; }
+    if (action === "refresh") { try { await hydrateDesktop(false); ayecServiceListState.selected.clear(); ayecServiceListState.currentId = null; render(); } catch (error) { toast(error.message || "Servis listesi yenilenemedi", "error"); } return; }
     if (action === "export") { openServiceListExportDialog(); return; }
-    if (action === "clear") { Object.assign(ayecServiceListState, { tab: "all", query: "", status: "all", date: "all", priority: "all", page: 1 }); render(); return; }
-    if (action === "filter") { ayecServiceListState.query = search?.value || ""; ayecServiceListState.page = 1; render(); return; }
+    if (action === "clear") { Object.assign(ayecServiceListState, { tab: "all", query: "", status: "all", date: "all", priority: "all", page: 1 }); ayecServiceListState.selected.clear(); render(); return; }
+    if (action === "filter") { ayecServiceListState.query = search?.value || ""; ayecServiceListState.page = 1; ayecServiceListState.selected.clear(); render(); return; }
     if (action === "print") {
       const currentId = ayecServiceListState.currentId;
       if (!currentId) { toast("L\u00fctfen fi\u015fini yazd\u0131rmak istedi\u011finiz bir servis se\u00e7in.", "warning"); return; }
@@ -298,7 +307,7 @@ render = function () {
       openServiceBulkPrint([{customer, service}]);
       return;
     }
-    const selectedId = command.dataset.id || [...ayecServiceListState.selected][0];
+    const selectedId = command.dataset.id || [...ayecServiceListState.selected][0] || ayecServiceListState.currentId;
     if (!selectedId) { toast("\u00d6nce bir servis kayd\u0131 se\u00e7in", "warning"); return; }
     const row = ayecServiceListRows().find(item => String(item.id) === String(selectedId));
     const [customer, service] = findService(selectedId);
@@ -309,11 +318,10 @@ render = function () {
     if (!service || !customer) { toast("Servis ayr\u0131nt\u0131s\u0131 bulunamad\u0131", "error"); return; }
     if (action === "invoice") {
       navigate("invoices");
-      const input = document.querySelector("#invoiceCustomer");
-      if (input) {
-        input.value = customer.name || "";
-        input.dispatchEvent(new Event("input", { bubbles: true }));
-        input.dispatchEvent(new Event("change", { bubbles: true }));
+      const picker = document.querySelector("#invoiceCustomer");
+      if (picker) {
+        picker.value = String(customer.id ?? customer.name ?? "");
+        picker.dispatchEvent(new Event("change", { bubbles: true }));
       }
       return;
     }
@@ -341,6 +349,7 @@ render = function () {
         try {
           await apiFetch("/api/desktop/table/devices", {method:"POST", body:JSON.stringify({id:deviceId,_action:"delete"})});
           customer.services = (customer.services || []).filter(item => String(item.id) !== String(service.id));
+          if (Array.isArray(db.serviceDevices)) db.serviceDevices = db.serviceDevices.filter(item => String(item.id) !== String(service.id) && String(item.no || item.tracking_no) !== String(service.no));
           ayecServiceListState.selected.delete(String(selectedId));
           toast("Servis kayd\u0131 silindi.", "warning");
           render();
@@ -391,6 +400,8 @@ function openServiceStatusDialog(customer, service) {
     const status = String(formData.get("status") || "");
     await apiFetch("/api/desktop/table/devices", {method:"POST", body:JSON.stringify({id:deviceId,status,_action:"update"})});
     service.status = status;
+    const source = (db.serviceDevices || []).find(item => String(item.id) === String(service.id));
+    if (source) source.status = status;
     toast("Durum g\u00fcncellendi: " + status, "success");
     render();
     return true;
@@ -452,6 +463,7 @@ function openServiceCargoReceipt(customer, service) {
   popup.document.write(`<!doctype html><html lang="tr"><head><meta charset="utf-8"><title>Kargo Fi\u015fi ${esc(tracking)}</title><style>@page{size:105mm 150mm;margin:3mm}*{box-sizing:border-box}body{margin:0;color:#111827;font:11px Arial,sans-serif}.service-cargo-receipt{width:99mm;min-height:144mm;padding:3mm;border:1px solid #94a3b8}.service-cargo-receipt header{display:grid;grid-template-columns:1fr auto;gap:3mm;padding-bottom:3mm;border-bottom:1px solid #111827}.service-cargo-receipt header strong{font-size:15px}.service-cargo-receipt header small{grid-column:1/-1;font-weight:700}.service-cargo-receipt section{margin-top:4mm}.service-cargo-receipt h2{margin:0 0 2mm;padding:1.5mm;background:#e2e8f0;font-size:10px}.service-cargo-receipt dl{margin:0}.service-cargo-receipt dl div{display:grid;grid-template-columns:27mm 1fr;gap:2mm;padding:1.2mm 0;border-bottom:1px dotted #cbd5e1}.service-cargo-receipt dt{font-weight:700}.service-cargo-receipt dd{margin:0;overflow-wrap:anywhere}.service-cargo-receipt footer{margin-top:4mm;padding-top:2mm;border-top:1px solid #94a3b8;font-size:9px}@media screen{body{padding:16px;background:#e2e8f0}.service-cargo-receipt{margin:auto;background:#fff;box-shadow:0 4px 18px #0f172a22}}</style></head><body>${body}</body></html>`);
   popup.document.close();
   popup.focus();
+  popup.onafterprint = () => popup.close();
   popup.print();
 }
 
@@ -493,6 +505,7 @@ function openServiceCompactPrint(customer, service, mode) {
   popup.document.write(`<!doctype html><html lang="tr"><head><meta charset="utf-8"><title>${label} ${esc(tracking)}</title><style>@page{size:${size};margin:3mm}*{box-sizing:border-box}body{margin:0;color:#111827;font:10px Arial,sans-serif}.service-compact-receipt{width:100%;padding:3mm;border:1px solid #64748b}.service-compact-receipt header{display:flex;justify-content:space-between;gap:3mm;padding-bottom:2mm;border-bottom:1px solid #111827;font-size:12px}.service-compact-receipt dl{margin:2mm 0}.service-compact-receipt dl div{display:grid;grid-template-columns:22mm 1fr;gap:2mm;padding:1.2mm 0;border-bottom:1px dotted #cbd5e1}.service-compact-receipt dt{font-weight:700}.service-compact-receipt dd{margin:0;overflow-wrap:anywhere}.label{font-size:8px}.label header{font-size:10px}.label dl div{grid-template-columns:17mm 1fr;padding:.6mm 0}.label dl{margin:1mm 0}@media screen{body{padding:16px;background:#e2e8f0}.service-compact-receipt{margin:auto;width:${size.split(" ")[0]};min-height:${size.split(" ")[1]};background:#fff;box-shadow:0 4px 18px #0f172a22}}</style></head><body>${body}</body></html>`);
   popup.document.close();
   popup.focus();
+  popup.onafterprint = () => popup.close();
   popup.print();
 }
 
@@ -510,10 +523,14 @@ async function openServicePhotosDialog(customer, service) {
   grid.onclick = async event => {
     const button = event.target.closest("[data-service-photo-delete]");
     if (!button) return;
+    const dialog = $("#appDialog");
+    const returnToGallery = () => setTimeout(() => { if (dialog && !dialog.open) openServicePhotosDialog(customer, service); }, 0);
     openDialog("Servis Foto\u011fraf\u0131n\u0131 Sil", "S\u0130LME ONAYI", "<p>Bu foto\u011fraf silinsin mi?</p>", async () => {
-      try { await apiFetch("/api/desktop/external-tracking/photos", {method:"POST",body:JSON.stringify({_action:"delete",id:button.dataset.servicePhotoDelete})}); await load(); return true; }
+      try { await apiFetch("/api/desktop/external-tracking/photos", {method:"POST",body:JSON.stringify({_action:"delete",id:button.dataset.servicePhotoDelete})}); returnToGallery(); return true; }
       catch (error) { toast(error.message || "Foto\u011fraf silinemedi.", "error"); return false; }
     }, "Evet, Sil");
+    document.querySelector("#dialogCancel").onclick = () => { dialog?.close("cancel"); returnToGallery(); };
+    document.querySelector("#dialogClose").onclick = () => { dialog?.close("cancel"); returnToGallery(); };
     document.querySelector("#dialogCancel").textContent = "Hay\u0131r";
     document.querySelector("#dialogSubmit").classList.remove("primary");
     document.querySelector("#dialogSubmit").classList.add("danger");
@@ -539,6 +556,7 @@ function serviceContextRolePermissions(){
 showContext = function(event, kind, id) {
   if (kind !== "service" || !["service-list", "dashboard"].includes(page)) return ayecServiceBaseShowContext(event, kind, id);
   if (!ayecContextMenuEnabled()) return;
+  ayecActiveServiceContextMenuClose?.();
   event.preventDefault();
   const menu = document.createElement("div");
   menu.className = "service-list-context-menu";
@@ -591,14 +609,13 @@ showContext = function(event, kind, id) {
     printPanel.remove();
     statusPanel.remove();
     document.removeEventListener("pointerdown", outsidePointerDown, true);
+    if(ayecActiveServiceContextMenuClose===close)ayecActiveServiceContextMenuClose=null;
   };
+  ayecActiveServiceContextMenuClose=close;
   const outsidePointerDown = e => {
     if (!menu.contains(e.target) && !printPanel.contains(e.target) && !statusPanel.contains(e.target)) close();
   };
   document.addEventListener("pointerdown", outsidePointerDown, true);
-  menu.addEventListener("keydown", e => { if (e.key === "Escape") close(); });
-  printPanel.addEventListener("keydown", e => { if (e.key === "Escape") close(); });
-  statusPanel.addEventListener("keydown", e => { if (e.key === "Escape") close(); });
   const printTrigger=menu.querySelector('[data-service-submenu-trigger="print"]');
   const statusTrigger=menu.querySelector('[data-service-submenu-trigger="status"]');
   const placeSubmenu=(trigger,panel)=>{
@@ -630,6 +647,36 @@ showContext = function(event, kind, id) {
     statusTrigger?.setAttribute("aria-expanded","true");
     placeSubmenu(statusTrigger,statusPanel);
   };
+  const handleMenuKeys=(container,e)=>{
+    if(e.key==="Escape"){e.preventDefault();close();return}
+    const items=[...container.querySelectorAll('[role="menuitem"]')].filter(item=>!item.hidden&&!item.disabled);
+    const index=items.indexOf(document.activeElement);
+    if(e.key==="ArrowDown"||e.key==="ArrowUp"||e.key==="Home"||e.key==="End"){
+      e.preventDefault();
+      const next=e.key==="Home"?0:e.key==="End"?items.length-1:e.key==="ArrowDown"?(index+1+items.length)%items.length:(index-1+items.length)%items.length;
+      items[next]?.focus();
+      return;
+    }
+    if(container===menu&&e.key==="ArrowRight"){
+      const trigger=document.activeElement?.closest("[data-service-submenu-trigger]");
+      if(!trigger)return;
+      e.preventDefault();
+      const panel=trigger.dataset.serviceSubmenuTrigger==="status"?statusPanel:printPanel;
+      trigger.dataset.serviceSubmenuTrigger==="status"?openStatusPanel():openPrintPanel();
+      panel.querySelector('[role="menuitem"]:not([hidden])')?.focus();
+      return;
+    }
+    if(container!==menu&&e.key==="ArrowLeft"){
+      e.preventDefault();
+      const trigger=container===statusPanel?statusTrigger:printTrigger;
+      container.hidden=true;
+      trigger?.setAttribute("aria-expanded","false");
+      trigger?.focus();
+    }
+  };
+  menu.addEventListener("keydown",e=>handleMenuKeys(menu,e));
+  printPanel.addEventListener("keydown",e=>handleMenuKeys(printPanel,e));
+  statusPanel.addEventListener("keydown",e=>handleMenuKeys(statusPanel,e));
   statusTrigger?.addEventListener("pointerenter",openStatusPanel);
   menu.onclick = async e => {
     const submenuTrigger=e.target.closest("[data-service-submenu-trigger]");
@@ -652,13 +699,13 @@ showContext = function(event, kind, id) {
     if (action === "whatsapp") { const row = [...document.querySelectorAll('.service-list-table tr[data-kind="service"]')].find(item => item.dataset.id === String(id)); row?.querySelector('[data-service-command="whatsapp"]')?.click(); return; }
     if (action === "payment") return paymentDialog(customer);
     if (action === "photos") { try { await openServicePhotosDialog(customer, service); } catch (error) { toast(error.message || "Foto\u011fraf galerisi a\u00e7\u0131lamad\u0131.", "error"); } return; }
-    if (action === "invoice") { navigate("invoices"); setTimeout(() => { const input = $("#invoiceCustomer"); if (input) { input.value = customer.name || ""; input.dispatchEvent(new Event("input", {bubbles:true})); input.dispatchEvent(new Event("change", {bubbles:true})); } }, 0); return; }
+    if (action === "invoice") { serviceInvoiceDialog(customer); return; }
     if (action === "print-detailed") return openServiceBulkPrint([{customer, service}]);
     if (action === "delete") return document.querySelector(`.service-list-table tr[data-id="${CSS.escape(String(id))}"] [data-service-command="delete"]`)?.click();
     if (action === "status") {
       const deviceId = Number(service.id);
       if (!Number.isInteger(deviceId) || deviceId <= 0) return toast("Servis kayd\u0131 kimli\u011fi bulunamad\u0131.", "error");
-      try { await apiFetch("/api/desktop/table/devices", {method:"POST",body:JSON.stringify({id:deviceId,status,_action:"update"})}); service.status = status; toast("Durum g\u00fcncellendi: " + status, "success"); render(); }
+      try { await apiFetch("/api/desktop/table/devices", {method:"POST",body:JSON.stringify({id:deviceId,status,_action:"update"})}); service.status = status; const source=(db.serviceDevices||[]).find(item=>String(item.id)===String(deviceId)); if(source)source.status=status; toast("Durum g\u00fcncellendi: " + status, "success"); render(); }
       catch (error) { toast(error.message || "Durum g\u00fcncellenemedi.", "error"); }
     }
   };
@@ -676,6 +723,17 @@ showContext = function(event, kind, id) {
     menu.onclick(e);
   };
 };
+
+document.addEventListener("focusin",event=>{
+  if(page!=="service-list")return;
+  const serviceRow=event.target.closest(".service-list-table tbody tr[data-kind=service]");
+  if(serviceRow)setServiceListCurrentRow(serviceRow);
+});
+document.addEventListener("click",event=>{
+  if(page!=="service-list")return;
+  const serviceRow=event.target.closest(".service-list-table tbody tr[data-kind=service]");
+  if(serviceRow)setServiceListCurrentRow(serviceRow);
+},true);
 
 document.addEventListener("dblclick",event=>{
   const serviceRow=event.target.closest(".service-list-table tbody tr[data-kind=service]");
@@ -706,6 +764,11 @@ document.addEventListener("contextmenu",event=>{
 },true);
 document.addEventListener("keydown",event=>{
   const serviceRow=event.target.closest(".service-list-table tbody tr[data-kind=service]");
+  if(page==="service-list"&&serviceRow&&!event.target.closest("input,select,textarea,button,[contenteditable='true']")){
+    const rows=[...document.querySelectorAll(".service-list-table tbody tr[data-kind=service]")],index=rows.indexOf(serviceRow);
+    const targetIndex=event.key==="ArrowDown"?Math.min(rows.length-1,index+1):event.key==="ArrowUp"?Math.max(0,index-1):event.key==="Home"?0:event.key==="End"?rows.length-1:-1;
+    if(targetIndex>=0&&rows[targetIndex]){event.preventDefault();setServiceListCurrentRow(rows[targetIndex]);rows[targetIndex].focus({preventScroll:true});rows[targetIndex].scrollIntoView({block:"nearest"});return}
+  }
   if(!(event.key==="ContextMenu"||(event.shiftKey&&event.key==="F10")))return;
   if(page==="service-list"&&serviceRow){
     event.preventDefault();const box=serviceRow.getBoundingClientRect();showContext({preventDefault(){},clientX:box.left+24,clientY:box.top+24,currentTarget:serviceRow},"service",serviceRow.dataset.id);return;
@@ -783,8 +846,10 @@ function openServiceBulkPrint(records) {
   const printPageWidth = printOrientation === "landscape" ? paperDimensions[1] : paperDimensions[0];
   const printPageHeight = printOrientation === "landscape" ? paperDimensions[0] : paperDimensions[1];
   const printContentWidth = (printPageWidth - 12) * 0.945;
-  const printTableWidth = (printPageWidth - 12) * 0.9;
-  const printTableOffset = (printPageWidth - 12 - printTableWidth) / 2 - 2;
+  const printTableWidth = (printPageWidth - 12) * 0.9042;
+  const printTableOffset = (printPageWidth - 12 - printTableWidth) / 2 - 2.42;
+  const printBaseTableWidth = (printPageWidth - 12) * 0.9;
+  const printBaseTableOffset = (printPageWidth - 12 - printBaseTableWidth) / 2 - 2;
   const slips = records.map(({customer, service}) => {
     const tracking = service.no || ayecDashboardId(service);
     const serviceCustomer = service.customer_name || service.customer || customer.name || "-";
@@ -806,10 +871,10 @@ function openServiceBulkPrint(records) {
     const info = [["MUSTERI", serviceCustomer], ["TAKIP NO", tracking], ["CIHAZ", device], ["SERI NO", serial], ["DURUM", service.status || "Bekliyor"], ["TESLIM SEKLI", service.delivery_method || service.delivery_type || "-"]];
     const faultSection = fault && fault !== "-" ? `<section class="service-receipt-notes service-receipt-fault"><h3>BILDIRILEN ARIZA</h3><p>${esc(fault)}</p></section>` : "";
     const notesSection = technicianNotes && technicianNotes !== "-" ? `<section class="service-receipt-notes"><h3>YAPILAN ISLEMLER / TEKNISYEN NOTU</h3><p>${esc(technicianNotes)}</p></section>` : "";
-    const trackingQrSection = `<section class="service-receipt-qr"><img src="${esc(trackingQr)}" alt="Takip QR"><p>Takip QR<br><b>${esc(tracking)}</b><br>Servis kaydini hizli acmak icin okutun.</p></section>`;
+    const trackingQrSection = `<section class="service-receipt-qr"><img src="${esc(trackingQr)}" alt="Takip QR"><p>Takip QR<br>${esc(tracking)}<br>Servis kaydini hizli acmak icin okutun.</p></section>`;
     return `<article class="service-bulk-slip"><header><strong>${esc(String(companyName).toLocaleUpperCase("tr-TR"))}</strong><small>${businessContact}</small></header><h2><span>DETAYLI SERVIS FISI</span><time>${esc(printedAt)}</time></h2><dl class="service-receipt-info">${info.map(([label,value]) => `<div><dt>${label}</dt><dd>${esc(value || "-")}</dd></div>`).join("")}</dl><dl class="service-receipt-parties"><div><dt>CIHAZ SAHIBI</dt><dd>${esc(serviceCustomer)}</dd></div><div><dt>TESLIM EDEN</dt><dd>${esc(deliveredBy)}</dd></div><div><dt>ILETISIM</dt><dd>${esc(customerPhone)}</dd></div><div><dt>TESLIM EDEN TEL</dt><dd>${esc(deliveredPhone)}</dd></div></dl>${trackingQrSection}${faultSection}${notesSection}<h3>PARCA VE ISCLIK DETAYI</h3><table class="service-receipt-parts"><thead><tr><th>SIRA</th><th>URUN / ISLEM</th><th>ADET</th><th>TUTAR</th></tr></thead><tbody>${partRows.join("")}</tbody></table><div class="service-receipt-total"><strong>GENEL TOPLAM</strong><b>${receiptMoney(total)}</b></div><section class="service-receipt-terms"><h3>SERVIS SARTLARI</h3><p>${esc(terms)}</p></section><footer><span>TESLIM EDEN IMZASI</span><span>SERVIS YETKILISI</span></footer></article>`;
   }).join("");
-  openDialog("Se\u00e7ili Servis Fi\u015fleri", "TOPLU SERV\u0130S \u00c7IKTISI", `<style>@page{size:${printPageWidth}mm ${printPageHeight}mm;margin:6mm}.service-bulk-print{max-width:${printContentWidth}mm;margin:0 auto}.service-bulk-slip{box-sizing:border-box;width:100%}@media print{html,body{background:#fff!important}html{background:#fff!important;min-height:100%!important}body{height:100vh!important;min-height:100vh!important}#appDialog{position:static!important;inset:auto!important;width:100%!important;max-width:none!important;height:100vh!important;max-height:none!important;margin:0!important;padding:0!important;border:0!important;background:#fff!important;overflow:visible!important;box-shadow:none!important}#appDialog::backdrop{background:transparent!important}.service-bulk-print{display:block;width:${printContentWidth}mm;max-width:none;margin:0 0 0 2.18mm}.service-bulk-slip{width:100%}.service-bulk-slip .service-receipt-info{margin-top:10px!important}.service-bulk-slip .service-receipt-notes p{min-height:0!important;padding:0!important;border:0!important}.service-bulk-slip .service-receipt-fault{margin-top:5px!important}.service-bulk-slip .service-receipt-parts th,.service-bulk-slip .service-receipt-parts td{line-height:18px!important}.service-bulk-slip .service-receipt-info,.service-bulk-slip .service-receipt-parties,.service-bulk-slip .service-receipt-qr,.service-bulk-slip .service-receipt-parts{width:var(--service-receipt-table-width);margin-left:var(--service-receipt-table-offset)}.service-bulk-slip .service-receipt-total{width:43.1%;margin:5px 2pt 0 auto;padding:5px 7px 5px 8px;justify-content:space-between}}</style><div class="service-bulk-print">${slips}</div>`, () => true, "Kapat");
+  openDialog("Se\u00e7ili Servis Fi\u015fleri", "TOPLU SERV\u0130S \u00c7IKTISI", `<style>@page{size:${printPageWidth}mm ${printPageHeight}mm;margin:6mm}.service-bulk-print{max-width:${printContentWidth}mm;margin:0 auto}.service-bulk-slip{box-sizing:border-box;width:100%}@media print{html,body{background:#fff!important}html{background:#fff!important;min-height:100%!important}body{height:100vh!important;min-height:100vh!important}#appDialog{position:static!important;inset:auto!important;width:100%!important;max-width:none!important;height:100vh!important;max-height:none!important;margin:0!important;padding:0!important;border:0!important;background:#fff!important;overflow:visible!important;box-shadow:none!important}#appDialog::backdrop{background:transparent!important}.service-bulk-print{display:block;width:${printContentWidth}mm;max-width:none;margin:0 0 0 2.18mm}.service-bulk-slip{width:100%}.service-bulk-slip .service-receipt-info{margin-top:10px!important}.service-bulk-slip .service-receipt-notes p{min-height:0!important;padding:0!important;border:0!important}.service-bulk-slip .service-receipt-fault{margin-top:5px!important}.service-bulk-slip .service-receipt-parts th,.service-bulk-slip .service-receipt-parts td{line-height:18px!important}.service-bulk-slip .service-receipt-parts th:first-child,.service-bulk-slip .service-receipt-parts td:first-child{padding-left:0!important;padding-right:5px!important}.service-bulk-slip .service-receipt-parts td:last-child{padding-right:7px!important}.service-bulk-slip .service-receipt-info,.service-bulk-slip .service-receipt-parties,.service-bulk-slip .service-receipt-qr,.service-bulk-slip .service-receipt-parts{width:var(--service-receipt-table-width);margin-left:var(--service-receipt-table-offset)}.service-bulk-slip .service-receipt-total{width:43.3%;margin:5px 2pt 0 auto;padding:5px 7px 5px 8px;justify-content:space-between}html body .service-bulk-slip .service-receipt-parts th{border-top:.8pt solid #111827!important;border-bottom:.8pt solid #111827!important}}</style><div class="service-bulk-print">${slips}</div>`, () => true, "Kapat");
   const dialog = $("#appDialog");
   const fitServiceReceiptToPage = () => {
     const availableHeight = (printPageHeight - 6) * 96 / 25.4;
@@ -823,6 +888,8 @@ function openServiceBulkPrint(records) {
       slip.style.zoom = String(scale);
       slip.style.setProperty("--service-receipt-table-width", `${printTableWidth / scale}mm`);
       slip.style.setProperty("--service-receipt-table-offset", `${printTableOffset / scale}mm`);
+      slip.style.setProperty("--service-receipt-base-table-width", `${printBaseTableWidth / scale}mm`);
+      slip.style.setProperty("--service-receipt-base-table-offset", `${printBaseTableOffset / scale}mm`);
     });
     return previous;
   };
@@ -833,6 +900,19 @@ function openServiceBulkPrint(records) {
     root.className = "service-receipt-print-root";
     root.innerHTML = `${dialog.querySelector(".service-bulk-print")?.outerHTML || ""}<style>@page{background:#fff!important}@media print{html,body{margin:0!important;padding:0!important;background:#fff!important;color:#111!important}body>*:not(#serviceReceiptPrintRoot){display:none!important}body>#serviceReceiptPrintRoot{display:block!important;visibility:visible!important;position:static!important;width:100%!important;height:auto!important;min-height:0!important;margin:0!important;padding:0!important;background:#fff!important;color:#111!important;overflow:visible!important}}</style>`;
     document.body.append(root);
+    const availableHeight = (printPageHeight - 12) * 96 / 25.4;
+    root.querySelectorAll(".service-bulk-slip").forEach(slip => {
+      const previousScale = Number(slip.style.zoom || 1);
+      slip.style.zoom = "1";
+      const naturalHeight = slip.getBoundingClientRect().height;
+      const fitScale = Math.min(1, availableHeight / Math.max(naturalHeight, 1));
+      const scale = Math.max(0.4, Math.min(previousScale, fitScale));
+      slip.style.zoom = String(scale);
+      slip.style.setProperty("--service-receipt-table-width", `${printTableWidth / scale}mm`);
+      slip.style.setProperty("--service-receipt-table-offset", `${printTableOffset / scale}mm`);
+      slip.style.setProperty("--service-receipt-base-table-width", `${printBaseTableWidth / scale}mm`);
+      slip.style.setProperty("--service-receipt-base-table-offset", `${printBaseTableOffset / scale}mm`);
+    });
     if (dialog.open) dialog.close();
     return root;
   };

@@ -62,18 +62,37 @@ async function run() {
       await delay(200);
     }
     const appointmentStatusCheck = await evaluate(`(async () => {
-      const originalAppointments = db.appointments, originalWrite = desktopWrite, writes = [];
-      db.appointments = [{ id: 731, status: "Bekliyor" }];
-      desktopWrite = async (table, payload) => { writes.push({ table, ...payload }); };
-      await setAppointmentStatus(731, "Gidildi");
-      const persistedStatus = db.appointments[0].status;
-      desktopWrite = async () => { throw new Error("QA write failure"); };
-      await setAppointmentStatus(731, "Gidilmedi");
-      const failureKeepsStatus = db.appointments[0].status === "Gidildi";
-      desktopWrite = originalWrite; db.appointments = originalAppointments; save();
-      return { persistedStatus, writeStatus: writes[0]?.status, failureKeepsStatus };
+      const originalAppointments = db.appointments, originalApiFetch = apiFetch, writes = [];
+      try {
+        db.appointments = [{ id: 731, status: "Bekliyor" }];
+        apiFetch = async (url, options = {}) => { writes.push({ url, ...JSON.parse(options.body || "{}") }); return { ok: true }; };
+        await setAppointmentStatus(731, "Gidildi");
+        const persistedStatus = db.appointments[0].status;
+        apiFetch = async () => { throw new Error("QA write failure"); };
+        await setAppointmentStatus(731, "Gidilmedi");
+        const failureKeepsStatus = db.appointments[0].status === "Gidildi";
+        return { persistedStatus, writeStatus: writes[0]?.status, writeUrl: writes[0]?.url, failureKeepsStatus };
+      } finally {
+        apiFetch = originalApiFetch; db.appointments = originalAppointments; save(); render();
+      }
     })()`);
-    if (appointmentStatusCheck.persistedStatus !== "Gidildi" || appointmentStatusCheck.writeStatus !== "Gidildi" || !appointmentStatusCheck.failureKeepsStatus) throw new Error(`Appointment status persistence mismatch: ${JSON.stringify(appointmentStatusCheck)}`);
+    if (appointmentStatusCheck.persistedStatus !== "Gidildi" || appointmentStatusCheck.writeStatus !== "Gidildi" || appointmentStatusCheck.writeUrl !== "/api/desktop/table/appointments" || !appointmentStatusCheck.failureKeepsStatus) throw new Error(`Appointment status persistence mismatch: ${JSON.stringify(appointmentStatusCheck)}`);
+    const appointmentCompletionCheck = await evaluate(`(async () => {
+      const originalAppointments = db.appointments, originalApiFetch = apiFetch, writes = [];
+      try {
+        db.appointments = [{ id: 732, customer_id: 71, customer_name: "QA Customer", workflow: "kesif_onarim", status: "Bekliyor", plan_items: [] }];
+        apiFetch = async (url, options = {}) => { writes.push({ url, ...JSON.parse(options.body || "{}") }); return { ok: true }; };
+        const completed = await contextAction("appointment", 732, "complete");
+        const completedStatus = db.appointments[0].status, completedAt = db.appointments[0].completed_at;
+        db.appointments[0].status = "Bekliyor";
+        apiFetch = async () => { throw new Error("QA completion write failure"); };
+        const failed = await contextAction("appointment", 732, "complete");
+        return { completed, completedStatus, completedAt, failed, failureKeepsStatus: db.appointments[0].status === "Bekliyor", writes };
+      } finally {
+        apiFetch = originalApiFetch; db.appointments = originalAppointments; save(); render();
+      }
+    })()`);
+    if (!appointmentCompletionCheck.completed || appointmentCompletionCheck.completedStatus !== "Tamamland\u0131" || !appointmentCompletionCheck.completedAt || appointmentCompletionCheck.failed !== false || !appointmentCompletionCheck.failureKeepsStatus || appointmentCompletionCheck.writes[0]?.url !== "/api/desktop/table/appointments" || appointmentCompletionCheck.writes[0]?.status !== "Tamamland\u0131") throw new Error(`Appointment completion persistence mismatch: ${JSON.stringify(appointmentCompletionCheck)}`);
     const maintenancePdfCheck = await evaluate(`(async () => {
       const originalFetch = window.fetch, originalCreate = URL.createObjectURL, originalRevoke = URL.revokeObjectURL, originalClick = HTMLAnchorElement.prototype.click;
       let request = "", downloaded = "";
@@ -89,6 +108,90 @@ async function run() {
       return { request, downloaded };
     })()`);
     if (!maintenancePdfCheck.request.includes("/api/desktop/vehicle-maintenance/export/pdf?q=") || !/^arac_bakim_.*\.pdf$/.test(maintenancePdfCheck.downloaded)) throw new Error(`Maintenance PDF download mismatch: ${JSON.stringify(maintenancePdfCheck)}`);
+    const appointmentSaveWorkflow = await evaluate(`(async () => {
+      const originalApiFetch = apiFetch, originalHydrate = hydrateDesktop, originalQuotes = db.quotes, originalPersonnel = db.personnel, originalCustomers = db.customers, originalOpenPreparation = window.openAppointmentMontagePreparation, originalSetTimeout = window.setTimeout;
+      const calls = [];
+      try {
+        db.customers = [{ id: 71, name: "QA Customer" }];
+        db.quotes = [{ id: 818, customerId: "71", no: "QA-OFFER-818", items: [{ name: "QA Camera", quantity: 2 }] }];
+        db.personnel = [{ id: 8, name: "QA Tech", role: "Teknisyen", active: 1 }];
+        window.openAppointmentMontagePreparation = function () {};
+        window.setTimeout = function () { return 1; };
+        apiFetch = async (url, options = {}) => {
+          const payload = options.body ? JSON.parse(options.body) : null;
+          calls.push({ url, method: options.method || "GET", payload });
+          if (url === "/api/desktop/appointments/bootstrap") return { ok: true };
+          if (url === "/api/desktop/table/appointments" && options.method === "POST") return { id: 991 };
+          if (url === "/api/desktop/appointments/montage-plan" && options.method === "POST") return { ok: true, plans: [] };
+          throw new Error("Unexpected appointment workflow request: " + url);
+        };
+        hydrateDesktop = async () => true;
+        appointmentDialog(null, { date: "2026-10-14", time: "15:00" });
+        const form = document.querySelector("#dialogForm");
+        form.elements.customerSearch.value = "QA Customer";
+        form.elements.customerSearch.dispatchEvent(new Event("input", { bubbles: true }));
+        form.elements.workflow.value = "installation";
+        form.elements.workflow.dispatchEvent(new Event("change", { bubbles: true }));
+        form.elements.offerId.value = "818";
+        form.elements.offerId.dispatchEvent(new Event("change", { bubbles: true }));
+        form.elements.personnel.value = "QA Tech";
+        form.elements.date.value = "2026-10-14";
+        form.elements.time.value = "15:00";
+        form.elements.device.value = "QA Camera Kit";
+        form.elements.notes.value = "QA install note";
+        form.elements.color.value = "#2563EB";
+        await form.onsubmit({ preventDefault() {} });
+        const save = calls.find(call => call.url === "/api/desktop/table/appointments")?.payload;
+        return { calls, save, dialogClosed: !document.querySelector("#appDialog")?.open };
+      } finally {
+        apiFetch = originalApiFetch;
+        hydrateDesktop = originalHydrate;
+        db.quotes = originalQuotes;
+        db.personnel = originalPersonnel;
+        db.customers = originalCustomers;
+        window.openAppointmentMontagePreparation = originalOpenPreparation;
+        window.setTimeout = originalSetTimeout;
+        document.querySelector("#dialogClose")?.click();
+      }
+    })()`);
+    const appointmentSave = appointmentSaveWorkflow.save || {};
+    if (appointmentSaveWorkflow.calls.map(call => call.url).join(",") !== "/api/desktop/appointments/bootstrap,/api/desktop/table/appointments,/api/desktop/appointments/montage-plan" || appointmentSave.customer_id !== 71 || appointmentSave.personnel_name !== "QA Tech" || appointmentSave.date !== "2026-10-14" || appointmentSave.time !== "15:00" || appointmentSave.workflow !== "teklif_montaj" || appointmentSave.offer_id !== 818 || appointmentSave.offer_no !== "QA-OFFER-818" || !appointmentSave.description.includes("QA Camera Kit") || !appointmentSave.description.includes("QA install note") || !appointmentSaveWorkflow.dialogClosed) throw new Error(`Appointment offer-montage save workflow mismatch: ${JSON.stringify(appointmentSaveWorkflow)}`);
+    const appointmentCancellationCheck = await evaluate(`(async () => {
+      const originalAppointments = db.appointments, originalApiFetch = apiFetch, originalHydrate = hydrateDesktop, originalSetTimeout = window.setTimeout;
+      const calls = [];
+      try {
+        db.appointments = [{ id: 733, customer_id: 71, customer_name: "QA Customer", workflow: "teklif_montaj", offer_id: 818, offer_no: "QA-OFFER-818", status: "Bekliyor", plan_items: [{ id: 501, item_role: "material", name: "QA Cable", loaded_qty: 3, used_qty: 0, returned_qty: 0, unit: "Adet" }] }];
+        apiFetch = async (url, options = {}) => {
+          const payload = options.body ? JSON.parse(options.body) : null;
+          calls.push({ url, payload });
+          if (url === "/api/desktop/appointments/montage-plan" && payload.action === "prepare") return { ok: true, plans: [] };
+          if (url === "/api/desktop/appointments/montage-plan" && payload.action === "complete") return { ok: true };
+          if (url === "/api/desktop/table/appointments" && payload.status === "\u0130ptal") return { ok: true };
+          throw new Error("Unexpected appointment cancellation request: " + url);
+        };
+        hydrateDesktop = async () => true;
+        window.setTimeout = function (callback) { window.__appointmentCancelResult = callback(); return 1; };
+        await contextAction("appointment", 733, "cancel");
+        const input = document.querySelector('#dialogBody [name="used_501"]');
+        input.value = "1";
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        const returnedQuantity = document.querySelector("#returned_501")?.value;
+        const form = document.querySelector("#dialogForm");
+        await form.onsubmit({ preventDefault() {} });
+        const canceled = db.appointments[0].status === "\u0130ptal";
+        return { calls, status: db.appointments[0].status, returnedQuantity, canceled, dialogClosed: !document.querySelector("#appDialog")?.open };
+      } finally {
+        apiFetch = originalApiFetch;
+        hydrateDesktop = originalHydrate;
+        window.setTimeout = originalSetTimeout;
+        delete window.__appointmentCancelResult;
+        db.appointments = originalAppointments;
+        save();
+        render();
+      }
+    })()`);
+    const cancellationCalls = appointmentCancellationCheck.calls || [];
+    if (cancellationCalls.map(call => call.payload?.action || call.payload?.status).join(",") !== "prepare,complete,\u0130ptal" || cancellationCalls[1]?.payload?.lines?.[0]?.plan_id !== 501 || cancellationCalls[1]?.payload?.lines?.[0]?.used_qty !== 1 || appointmentCancellationCheck.returnedQuantity !== "2" || appointmentCancellationCheck.status !== "\u0130ptal" || !appointmentCancellationCheck.canceled || !appointmentCancellationCheck.dialogClosed) throw new Error(`Appointment material-return cancellation mismatch: ${JSON.stringify(appointmentCancellationCheck)}`);
     const state = await evaluate(`(async () => {
       const NativeDate = Date;
       window.Date = class extends NativeDate { constructor(...args) { super(...(args.length ? args : ["${fixedDate}"])); } static now() { return new NativeDate("${fixedDate}").valueOf(); } };
@@ -179,7 +282,7 @@ async function run() {
       const originalPersonnelApiFetch = apiFetch;
       window.__appointmentOriginalPersonnelApiFetch = originalPersonnelApiFetch;
       apiFetch = async (url, options = {}) => {
-        if (url === "/api/desktop/table/personnel?limit=1000&include_deleted=1") return { rows: [
+        if (String(url).startsWith("/api/desktop/table/personnel?limit=1000&offset=0&include_deleted=1")) return { rows: [
           { id: 8, name: "QA Tech", role: "Teknisyen", active: 1 },
           { id: 12, name: "No Appointment Tech", role: "Muhasebe", active: 1 },
           { id: 13, name: "Inactive QA", role: "Teknisyen", active: 0 },
@@ -267,12 +370,12 @@ async function run() {
       const geometry = await evaluate(`(() => {const selectors=[".appointment-ref-page",".appointment-ref-toolbar",".appointment-ref-nav-row",".appointment-ref-title",".appointment-ref-views",".appointment-ref-filter-row",".appointment-ref-metrics",".appointment-ref-layout",".appointment-ref-calendar",".appointment-ref-legend"];return Object.fromEntries(selectors.map(selector=>{const node=document.querySelector(selector),r=node?.getBoundingClientRect();return[selector,r?{x:Math.round(r.x),y:Math.round(r.y),width:Math.round(r.width),height:Math.round(r.height)}:null]}))})()`);
       const headerDateCheck = await evaluate(`(() => {const headers=[...document.querySelectorAll(".appointment-ref-grid-head>b:not(:first-child)")];return{count:headers.length,allHaveWeekday:headers.every(node=>node.querySelector("span")?.textContent.trim()),allHaveDate:headers.every(node=>/^\\d{2}\\.\\d{2}\\.\\d{4}$/.test(node.querySelector("small")?.textContent.trim()||"")),firstWeekday:headers[0]?.querySelector("span")?.textContent.trim(),firstDate:headers[0]?.querySelector("small")?.textContent.trim()}})()`); if(headerDateCheck.count!==7||!headerDateCheck.allHaveWeekday||!headerDateCheck.allHaveDate||headerDateCheck.firstDate!=="12.10.2026") throw new Error(`Calendar header date layout mismatch: ${JSON.stringify(headerDateCheck)}`);
       const toolbarDateCheck = await evaluate(`(() => {const title=document.querySelector(".appointment-ref-title>b"),period=document.querySelector(".appointment-ref-title small"),week=document.querySelector(".appointment-ref-grid-head>b:not(:first-child) span");return{page:document.body.dataset.page,period:period?.textContent.trim(),titleFont:title?getComputedStyle(title).fontSize:"",periodFont:period?getComputedStyle(period).fontSize:"",weekdayFont:week?getComputedStyle(week).fontSize:""}})()`);
-      if(toolbarDateCheck.period!=="12.10.2026 - 18.10.2026") throw new Error(`Calendar toolbar date format mismatch: ${JSON.stringify(toolbarDateCheck)}`);
+      if(toolbarDateCheck.period!=="12.10.2026 - 18.10.2026"||toolbarDateCheck.titleFont!=="14px") throw new Error(`Calendar toolbar date or title typography mismatch: ${JSON.stringify(toolbarDateCheck)}`);
       const matched = await send("Page.captureScreenshot", { format: "png", captureBeyondViewport: true, clip: { x: 0, y: 0, width: contentWidth, height, scale: 1 } });
       const matchedPath = path.join(outputDir, `appointments-week-matched-${contentWidth}x${height}.png`);
       fs.writeFileSync(matchedPath, Buffer.from(matched.data, "base64"));
       if (exceptions.length) throw new Error(`Calendar capture raised browser exceptions: ${JSON.stringify(exceptions)}`);
-      process.stdout.write(`${JSON.stringify({ matchedViewport: [width, height], geometry, headerDateCheck, toolbarDateCheck, appointmentChecks: { editTimeMatchesDesktop: state.editTimeMatchesDesktop, plannedStatusCheck: state.plannedStatusCheck }, screenshot: matchedPath, browserExceptions: exceptions })}\n`);
+      process.stdout.write(`${JSON.stringify({ matchedViewport: [width, height], geometry, headerDateCheck, toolbarDateCheck, appointmentChecks: { editTimeMatchesDesktop: state.editTimeMatchesDesktop, plannedStatusCheck: state.plannedStatusCheck }, appointmentStatusCheck, appointmentCompletionCheck, appointmentSaveWorkflow, appointmentCancellationCheck, screenshot: matchedPath, browserExceptions: exceptions })}\n`);
       return;
     }
     await delay(250);
@@ -381,21 +484,27 @@ async function run() {
       document.querySelector("#dialogCancel")?.click();
       let stored = "";
       const transfer = { setData(_type, value) { stored = value; }, getData() { return stored; }, effectAllowed: "" };
-      desktopWrite = async (_table, payload) => { window.__appointmentWrite = payload; };
+      const movementWrites = [];
+      apiFetch = async (url, options = {}) => { const payload = JSON.parse(options.body || "{}"); movementWrites.push({ url, ...payload }); window.__appointmentWrite = payload; return { ok: true }; };
       const card = document.querySelector('.appointment-ref-event');
       const drag = new Event("dragstart", { bubbles: true }); Object.defineProperty(drag, "dataTransfer", { value: transfer }); card.dispatchEvent(drag);
       const target = document.querySelector('.appointment-ref-slot[data-date="2026-10-14"][data-time="11:00"]');
       const drop = new Event("drop", { bubbles: true, cancelable: true }); Object.defineProperty(drop, "dataTransfer", { value: transfer }); target.dispatchEvent(drop);
       await new Promise(resolve => setTimeout(resolve, 80));
       const item = db.appointments.find(row => row.id === 91);
+      apiFetch = async () => { throw new Error("QA appointment move failure"); };
+      const failedTarget = document.querySelector('.appointment-ref-slot[data-date="2026-10-15"][data-time="12:00"]');
+      const failedDrop = new Event("drop", { bubbles: true, cancelable: true }); Object.defineProperty(failedDrop, "dataTransfer", { value: transfer }); failedTarget.dispatchEvent(failedDrop);
+      await new Promise(resolve => setTimeout(resolve, 80));
+      const failureRestoresPosition = item.date === "2026-10-14" && item.time === "11:00";
       const refreshButton = document.querySelector("[data-appointment-refresh]");
       let refreshUrl = "";
       apiFetch = async url => { refreshUrl = url; return { rows: [{ id: 92, customer_id: 71, customer_name: "QA Refreshed", date: "2026-10-15", time: "16:00", description: "Refreshed item", personnel_name: "QA Tech", status: "Bekliyor", plan_items: [{ source_location_id: 7 }] }] }; };
       refreshButton.click();
       await new Promise(resolve => setTimeout(resolve, 80));
-      return { fields, customerLookup, stored, date: item.date, time: item.time, write: window.__appointmentWrite, refreshUrl, refreshed: db.appointments.map(row => ({ id: row.id, customer: row.customer, time: row.time, planItemCount: row.plan_items?.length || 0 })) };
+      return { fields, customerLookup, stored, date: item.date, time: item.time, write: window.__appointmentWrite, movementWrites, failureRestoresPosition, refreshUrl, refreshed: db.appointments.map(row => ({ id: row.id, customer: row.customer, time: row.time, planItemCount: row.plan_items?.length || 0 })) };
     })()`);
-    if (interaction.fields.date !== "2026-10-14" || interaction.fields.time !== "14:00" || interaction.date !== "2026-10-14" || interaction.time !== "11:00" || interaction.write?.date !== "2026-10-14") throw new Error(`Appointment interaction check failed: ${JSON.stringify(interaction)}`);
+    if (interaction.fields.date !== "2026-10-14" || interaction.fields.time !== "14:00" || interaction.date !== "2026-10-14" || interaction.time !== "11:00" || interaction.write?.date !== "2026-10-14" || interaction.write?.time !== "11:00" || interaction.write?._action !== "update" || interaction.movementWrites[0]?.url !== "/api/desktop/table/appointments" || !interaction.failureRestoresPosition) throw new Error(`Appointment interaction check failed: ${JSON.stringify(interaction)}`);
     if (interaction.customerLookup.value !== "QA Customer" || interaction.customerLookup.id !== "71" || interaction.customerLookup.options !== 1) throw new Error(`Appointment customer lookup failed: ${JSON.stringify(interaction.customerLookup)}`);
     if (interaction.refreshUrl !== "/api/desktop/table/appointments?limit=1000" || interaction.refreshed[0]?.id !== "92" || interaction.refreshed[0]?.time !== "16:00" || interaction.refreshed[0]?.planItemCount !== 1) throw new Error(`Appointment refresh check failed: ${JSON.stringify(interaction)}`);
     const reminder = await evaluate(`(async () => {
@@ -643,7 +752,7 @@ async function run() {
     const dashboardScreenshotPath = path.join(outputDir, "dashboard-today-appointments-headless.png");
     fs.writeFileSync(dashboardScreenshotPath, Buffer.from(dashboardScreenshot.data, "base64"));
     if (exceptions.length) throw new Error(`Browser exceptions: ${exceptions.join(" | ")}`);
-    process.stdout.write(`${JSON.stringify({ ...state, appointmentStatusCheck, maintenancePdfCheck, interaction, reminder, shortcutState, dashboardAppointment, shortcutActions, maintenanceVehicleLookup, customDeviceType, screenshot: screenshotPath, fullShellScreenshot: fullShellScreenshotPath, fullShellGeometry, topbarDetails, headerBackCheck, navigationScrollReset, dashboardScreenshot: dashboardScreenshotPath, shortcutsScreenshot: shortcutScreenshotPath, browserExceptions: exceptions.length })}\n`);
+    process.stdout.write(`${JSON.stringify({ ...state, appointmentStatusCheck, appointmentCompletionCheck, appointmentSaveWorkflow, appointmentCancellationCheck, maintenancePdfCheck, interaction, reminder, shortcutState, dashboardAppointment, shortcutActions, maintenanceVehicleLookup, customDeviceType, screenshot: screenshotPath, fullShellScreenshot: fullShellScreenshotPath, fullShellGeometry, topbarDetails, headerBackCheck, navigationScrollReset, dashboardScreenshot: dashboardScreenshotPath, shortcutsScreenshot: shortcutScreenshotPath, browserExceptions: exceptions.length })}\n`);
   } finally {
     if (socket) socket.close();
     try { execFileSync("taskkill", ["/PID", String(browser.pid), "/T", "/F"], { stdio: "ignore" }); } catch (_) {}

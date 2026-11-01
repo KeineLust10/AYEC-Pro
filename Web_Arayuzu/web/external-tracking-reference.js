@@ -29,8 +29,7 @@
   };
   const refresh = async () => {
     try {
-      const data = await apiFetch(url + "?limit=500");
-      rows = data.rows || [];
+      rows = await loadAllDesktopTableRows(table);
       const serviceSelect = $("#externalTrackingService");
       if (serviceSelect) {
         const selected = serviceSelect.value;
@@ -121,7 +120,7 @@
       detail.textContent = count + " " + suffix;
     });
   };
-  const formBody = row => '<div class="external-tracking-form"><label>M\u00FC\u015Fteri Emanet No<input name="internal_tracking_no" required value="' + safe(row.internal_tracking_no) + '" placeholder="\u00D6rn: M.NO 1025 / Cihaz Takip No"></label><label>M\u00FC\u015Fteri Bilgisi<input name="customer_name" value="' + safe(row.customer_name) + '" placeholder="M\u00FC\u015Fteri se\u00E7in veya yaz\u0131n"></label><label>\u00DCr\u00FCn / Par\u00E7a<input name="product_name" value="' + safe(row.product_name) + '" placeholder="Marka / Model / Par\u00E7a Ad\u0131"></label><label>G\u00F6nderilen Yer<input name="external_service_name" value="' + safe(row.external_service_name) + '" placeholder="Asus Servis, Penta, vb."></label><label>Servis Kay\u0131t No<input name="external_service_no" value="' + safe(row.external_service_no) + '" placeholder="Kar\u015F\u0131 taraf\u0131n verdi\u011Fi servis no"></label><label>G\u00F6nderim Tarihi<input name="sent_date" type="date" value="' + safe(String(row.sent_date || new Date().toISOString().slice(0, 10)).slice(0, 10)) + '"></label><label>G\u00FCncel Durum<select name="status">' + statuses.map(status => '<option' + (String(row.status || statuses[0]) === status ? " selected" : "") + '>' + status + '</option>').join("") + '</select></label><fieldset><legend>Kargo Bilgileri</legend><label>Gidi\u015F Kargo No<input name="outbound_cargo_no" value="' + safe(row.outbound_cargo_no) + '"></label><label>D\u00F6n\u00FC\u015F Kargo No<input name="inbound_cargo_no" value="' + safe(row.inbound_cargo_no) + '"></label></fieldset><label class="external-tracking-notes">Notlar<textarea name="notes" rows="3">' + safe(row.notes) + '</textarea></label><div class="external-tracking-photo-note">Foto\u011Fraf galerisi masa\u00FCst\u00FC dosya yollar\u0131na ba\u011Fl\u0131 oldu\u011Fundan taray\u0131c\u0131ya aktar\u0131lam\u0131yor.</div></div>';
+  const formBody = row => '<div class="external-tracking-form"><label>M\u00FC\u015Fteri Emanet No<input name="internal_tracking_no" required value="' + safe(row.internal_tracking_no) + '" placeholder="\u00D6rn: M.NO 1025 / Cihaz Takip No"></label><label>M\u00FC\u015Fteri Bilgisi<input name="customer_name" value="' + safe(row.customer_name) + '" placeholder="M\u00FC\u015Fteri se\u00E7in veya yaz\u0131n"></label><label>\u00DCr\u00FCn / Par\u00E7a<input name="product_name" value="' + safe(row.product_name) + '" placeholder="Marka / Model / Par\u00E7a Ad\u0131"></label><label>G\u00F6nderilen Yer<input name="external_service_name" value="' + safe(row.external_service_name) + '" placeholder="Asus Servis, Penta, vb."></label><label>Servis Kay\u0131t No<input name="external_service_no" value="' + safe(row.external_service_no) + '" placeholder="Kar\u015F\u0131 taraf\u0131n verdi\u011Fi servis no"></label><label>G\u00F6nderim Tarihi<input name="sent_date" type="date" value="' + safe(String(row.sent_date || today()).slice(0, 10)) + '"></label><label>G\u00FCncel Durum<select name="status">' + statuses.map(status => '<option' + (String(row.status || statuses[0]) === status ? " selected" : "") + '>' + status + '</option>').join("") + '</select></label><fieldset><legend>Kargo Bilgileri</legend><label>Gidi\u015F Kargo No<input name="outbound_cargo_no" value="' + safe(row.outbound_cargo_no) + '"></label><label>D\u00F6n\u00FC\u015F Kargo No<input name="inbound_cargo_no" value="' + safe(row.inbound_cargo_no) + '"></label></fieldset><label class="external-tracking-notes">Notlar<textarea name="notes" rows="3">' + safe(row.notes) + '</textarea></label><div class="external-tracking-photo-note">Foto\u011Fraf galerisi masa\u00FCst\u00FC dosya yollar\u0131na ba\u011Fl\u0131 oldu\u011Fundan taray\u0131c\u0131ya aktar\u0131lam\u0131yor.</div></div>';
   const galleryFormBody = row => formBody(row).replace(/<div class="external-tracking-photo-note">[\s\S]*?<\/div>/, '<section class="external-tracking-gallery"><div><strong>Foto\u011Fraf Galerisi</strong><button type="button" class="secondary" data-external-photo-pick>Foto\u011Fraf Ekle</button><input type="file" accept=".jpg,.jpeg,.png,.bmp,image/jpeg,image/png,image/bmp" multiple data-external-photo-input hidden></div><p data-external-photo-status>Kayda ba\u011Fl\u0131 foto\u011Fraflar</p><div data-external-photo-list></div></section>');
   const galleryUpload = async file => new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -208,7 +207,8 @@
     try {
       const ids = records.map(row => row.id).join(",");
       const response = await fetch("/api/desktop/external-tracking/export?ids=" + encodeURIComponent(ids), { credentials: "same-origin", headers: ayecFiscalArchiveHeaders() });
-      if (!response.ok) { const data = await response.json().catch(() => ({})); throw new Error(data.error || "Excel dosyas\u0131 olu\u015Fturulamad\u0131"); }
+      if (!response.ok) { const data = await response.json().catch(() => ({})); if (response.status === 401 && window.handleUnauthorized) window.handleUnauthorized(); throw new Error(data.error || "Excel dosyas\u0131 olu\u015Fturulamad\u0131"); }
+      if (typeof assertDownloadResponse === "function") assertDownloadResponse(response);
       const anchor = document.createElement("a");
       anchor.href = URL.createObjectURL(await response.blob());
       anchor.download = "Dis_Takip_Listesi_" + today() + ".xlsx";
@@ -316,7 +316,6 @@
       input.accept = ".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv";
       input.hidden = true;
       input.dataset.externalImportFile = "";
-      input.onchange = () => { importWorkbook(input.files?.[0]); input.value = ""; };
       button.onclick = () => input.click();
       actions.insertBefore(button, actions.querySelector("[data-external-manifest]"));
       actions.append(input);
@@ -390,6 +389,12 @@
   };
   document.addEventListener("input", event => { if (page === "logistics" && event.target.id === "externalTrackingSearch") { pageIndex = 0; renderRows(); } });
   document.addEventListener("change", event => { if (page === "logistics" && ["externalTrackingStatus", "externalTrackingService", "externalTrackingMonth"].includes(event.target.id)) { pageIndex = 0; renderRows(); } });
+  document.addEventListener("change", event => {
+    const input = event.target.closest?.("[data-external-import-file]");
+    if (page !== "logistics" || !input) return;
+    const file = input.files?.[0];
+    importWorkbook(file).finally(() => { input.value = ""; });
+  });
   document.addEventListener("click", event => {
     if (page !== "logistics") return;
     const tab = event.target.closest("[data-external-view]");

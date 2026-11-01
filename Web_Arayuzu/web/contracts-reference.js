@@ -9,6 +9,7 @@
     const match = String(value || "").slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if (!match) return null;
     const target = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+    if (target.getFullYear() !== Number(match[1]) || target.getMonth() !== Number(match[2]) - 1 || target.getDate() !== Number(match[3])) return null;
     const today = new Date();
     target.setHours(0, 0, 0, 0);
     today.setHours(0, 0, 0, 0);
@@ -47,6 +48,34 @@
     };
   }
 
+  function updateContractFooter(source) {
+    const host = document.querySelector(".contracts-reference-footer");
+    if (!host) return;
+    const customerNames = new Map((Array.isArray(db.customers) ? db.customers : []).map((item) => [String(item.id), item.name || item.company_name || ""]));
+    const today = contractTodayKey();
+    const endDate = new Date();
+    endDate.setHours(0, 0, 0, 0);
+    endDate.setDate(endDate.getDate() + 6);
+    const weekEnd = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, "0")}-${String(endDate.getDate()).padStart(2, "0")}`;
+    const plans = (Array.isArray(db.appointments) ? db.appointments : []).filter((item) => {
+      const date = String(item.date || "").slice(0, 10);
+      const status = contractSearchKey(item.status);
+      return date >= today && date <= weekEnd
+        && contractSearchKey(item.description || item.title || item.fault).includes("bak")
+        && !["iptal", "tamamlandi"].includes(status)
+        && Number(item.is_deleted || 0) === 0;
+    }).sort((left, right) => `${left.date || ""} ${left.time || ""}`.localeCompare(`${right.date || ""} ${right.time || ""}`)).slice(0, 20)
+      .map((item) => `${String(item.date || "").slice(0, 10)} ${item.time || ""} | ${item.customer_name || customerNames.get(String(item.customerId ?? item.customer_id ?? "")) || ""} | ${item.personnel_name || item.personnel || ""}`);
+    const renewals = source.filter((item) => contractCategories(item).renewal)
+      .map((item) => `${item.customer_name || customerNames.get(String(item.customer_id ?? "")) || item.customer_id || "-"} | ${item.end_date || ""}`);
+    const planDetail = host.querySelector("[data-contract-footer-plans]");
+    const renewalDetail = host.querySelector("[data-contract-footer-renewals]");
+    const renewalAction = host.querySelector("[data-contract-renewal-view]");
+    if (planDetail) planDetail.textContent = plans.length ? plans.slice(0, 2).join("\n") : "Bu hafta i\u00e7in planlanm\u0131\u015f bak\u0131m bulunmuyor.";
+    if (renewalDetail) renewalDetail.textContent = renewals.length ? `Yenileme Bekleyen: ${renewals.length}\n${renewals.slice(0, 2).join("\n")}` : "Yenileme bekleyen kay\u0131t bulunmuyor.";
+    if (renewalAction) renewalAction.disabled = renewals.length === 0;
+  }
+
   function contractRows(meta, data) {
     const source = Array.isArray(data.rows) ? data.rows : [];
     const status = document.querySelector("[data-contract-status].active")?.dataset.contractStatus || "all";
@@ -54,11 +83,11 @@
     const query = contractSearchKey(document.querySelector("#genericSearch")?.value || "");
     const customerNames = new Map((Array.isArray(db.customers) ? db.customers : []).map((item) => [String(item.id), item.name || item.company_name || ""]));
     const rows = source.map((row, index) => ({ row, index })).filter(({ row }) => {
-      const rowType = String(row.contract_type || "").toLocaleLowerCase();
+      const rowType = contractSearchKey(row.contract_type);
       const categories = contractCategories(row);
       const sla = document.querySelector("#contractSla")?.value || "all";
       const rowSla = String(row.contract_type || "").toLocaleLowerCase();
-      if (type !== "all" && rowType !== type.toLocaleLowerCase()) return false;
+      if (type !== "all" && !rowType.includes(contractSearchKey(type))) return false;
       if (sla !== "all" && rowSla !== sla.toLocaleLowerCase()) return false;
       if (status === "active" && !categories.active) return false;
       if (status === "renewal" && !categories.renewal) return false;
@@ -85,6 +114,7 @@
   function contractTable(meta, data) {
     const { rows, total, pageCount } = contractRows(meta, data);
     const source = Array.isArray(data.rows) ? data.rows : [];
+    updateContractFooter(source);
     const activeCount = source.filter((item) => contractCategories(item).active).length;
     const renewalCount = source.filter((item) => contractCategories(item).renewal).length;
     const metricValues = document.querySelectorAll(".contracts-reference-metrics .metric strong");
@@ -134,7 +164,7 @@
     const host = document.querySelector("#genericHost");
     if (host) host.dataset.visibleCount = String(rows.length);
     const count = document.querySelector("#genericCount");
-    if (count) count.textContent = `${total ? contractPage * contractPageSize + 1 : 0}-${Math.min((contractPage + 1) * contractPageSize, total)} / ${total} s\u00f6zle\u015fme`;
+    if (count) count.textContent = `Listelenen: ${rows.length} / ${total} kay\u0131t`;
     const pageLabel = document.querySelector("[data-contract-page-label]");
     if (pageLabel) pageLabel.textContent = `${contractPage + 1} / ${pageCount}`;
     document.querySelector('[data-contract-page="-1"]')?.toggleAttribute("disabled", contractPage <= 0);
@@ -185,6 +215,11 @@
   }
   document.addEventListener("click", (event) => {
     if (document.body.dataset.page !== "contracts" || !event.target.closest("[data-generic-add],.generic-edit,.generic-delete,[data-contract-delete]")) return;
+    contractDataCache = null;
+    contractDataCacheQuery = null;
+  }, true);
+  document.addEventListener("click", (event) => {
+    if (document.body.dataset.page !== "contracts" || !event.target.closest("#dialogSubmit")) return;
     contractDataCache = null;
     contractDataCacheQuery = null;
   }, true);
@@ -250,12 +285,48 @@
     const renewal = contracts.filter((item) => /yenile/i.test(String(item.status || ""))).length;
     const volume = contracts.reduce((sum, item) => sum + Number(item.price || 0), 0);
     const typeOptions = ["SLA", "Bak\u0131m", "Lisans", "Di\u011fer"];
-    return `${pageHead("S\u00f6zle\u015fme Y\u00f6netimi", "Kurumsal bak\u0131m anla\u015fmalar\u0131n\u0131, SLA taahh\u00fctlerini ve yenileme takibini y\u00f6netin.", '<button class="secondary" type="button" data-contract-plan>Periyodik Bak\u0131m Planla</button><button class="secondary" type="button" data-contract-export>Excel Raporu</button><button class="secondary" type="button" data-generic-refresh>Yenile</button><button class="secondary danger" type="button" data-contract-delete>S\u00f6zle\u015fme Sil</button><button class="primary" type="button" data-generic-add>+ Yeni S\u00f6zle\u015fme</button>')}<div class="metric-grid contracts-reference-metrics">${metric("Aktif S\u00f6zle\u015fmeler", active, "Y\u00fcr\u00fcrl\u00fckte olan kurumsal SLA", "\u2713")}${metric("Yakla\u015fan Yenilemeler", renewal, "30 g\u00fcn i\u00e7inde bitecekler", "\u25f7")}${metric("S\u00f6zle\u015fme Hacmi", money(volume, "TRY"), "Kay\u0131tl\u0131 s\u00f6zle\u015fme bedelleri", "\u20ba")}${metric("Ortalama SLA Yan\u0131t S\u00fcresi", "-", "SLA \u00f6l\u00e7\u00fcm\u00fc bekleniyor", "\u231b")}</div><section class="card contracts-reference-list"><div class="contracts-reference-status" role="group" aria-label="S\u00f6zle\u015fme durumu">${[["all", "T\u00fcm\u00fc"], ["active", "Aktif"], ["renewal", "Yenileme Bekleyen"], ["expired", "S\u00fcresi Dolanlar"], ["draft", "Taslaklar"]].map(([value, label], index) => `<button class="secondary${index === 0 ? " active" : ""}" type="button" data-contract-status="${value}">${label}</button>`).join("")}</div><div class="toolbar contracts-reference-filters"><input class="control search" id="genericSearch" placeholder="S\u00f6zle\u015fme, m\u00fc\u015fteri veya ba\u015fl\u0131k ara" aria-label="S\u00f6zle\u015fme ara"><select class="control" id="contractType" aria-label="S\u00f6zle\u015fme t\u00fcr\u00fc"><option value="all">T\u00fcm t\u00fcrler</option>${typeOptions.map((value) => `<option value="${esc(value)}">${esc(value)}</option>`).join("")}</select><select class="control" id="contractSla" aria-label="SLA seviyesi"><option value="all">SLA Seviyesi: T\u00fcm\u00fc</option></select><span class="muted" id="genericCount">S\u00f6zle\u015fmeler y\u00fckleniyor</span></div><div id="genericHost">${empty("S\u00f6zle\u015fmeler y\u00fckleniyor", "Masa\u00fcst\u00fc veritaban\u0131 okunuyor.")}</div><div class="contracts-reference-pager"><span class="muted">Sayfa ba\u015f\u0131na ${4}</span><div><button class="secondary" type="button" data-contract-page="-1" disabled>&lt;</button><span data-contract-page-label>1 / 1</span><button class="secondary" type="button" data-contract-page="1" disabled>&gt;</button></div></div></section>`;
+    return `${pageHead("S\u00f6zle\u015fme Y\u00f6netimi", "Kurumsal bak\u0131m anla\u015fmalar\u0131n\u0131, SLA taahh\u00fctlerini ve yenileme takibini y\u00f6netin.", '<button class="secondary" type="button" data-contract-plan>Periyodik Bak\u0131m Planla</button><button class="secondary" type="button" data-contract-export>Excel Raporu</button><button class="primary" type="button" data-generic-add>+ Yeni S\u00f6zle\u015fme</button><button class="secondary danger" type="button" data-contract-delete>S\u00f6zle\u015fme Sil</button>')}<div class="metric-grid contracts-reference-metrics">${metric("Aktif S\u00f6zle\u015fmeler", active, "Y\u00fcr\u00fcrl\u00fckte olan kurumsal SLA", "\u2713")}${metric("Yakla\u015fan Yenilemeler", renewal, "30 g\u00fcn i\u00e7inde bitecekler", "\u25f7")}${metric("S\u00f6zle\u015fme Hacmi", money(volume, "TRY"), "Kay\u0131tl\u0131 s\u00f6zle\u015fme bedelleri", "\u20ba")}${metric("Ortalama SLA Yan\u0131t S\u00fcresi", "-", "SLA \u00f6l\u00e7\u00fcm\u00fc bekleniyor", "\u231b")}</div><section class="card contracts-reference-list"><div class="contracts-reference-status" role="group" aria-label="S\u00f6zle\u015fme durumu">${[["all", "T\u00fcm\u00fc"], ["active", "Aktif"], ["renewal", "Yenileme Bekleyen"], ["expired", "S\u00fcresi Dolanlar"], ["draft", "Taslaklar"]].map(([value, label], index) => `<button class="secondary${index === 0 ? " active" : ""}" type="button" data-contract-status="${value}">${label}</button>`).join("")}</div><div class="toolbar contracts-reference-filters"><input class="control search" id="genericSearch" placeholder="S\u00f6zle\u015fme, m\u00fc\u015fteri veya ba\u015fl\u0131k ara" aria-label="S\u00f6zle\u015fme ara"><select class="control" id="contractType" aria-label="S\u00f6zle\u015fme t\u00fcr\u00fc"><option value="all">T\u00fcm t\u00fcrler</option>${typeOptions.map((value) => `<option value="${esc(value)}">${esc(value)}</option>`).join("")}</select><select class="control" id="contractSla" aria-label="SLA seviyesi"><option value="all">SLA Seviyesi: T\u00fcm\u00fc</option></select><button class="secondary" type="button" data-generic-refresh>Yenile</button></div><div id="genericHost">${empty("S\u00f6zle\u015fmeler y\u00fckleniyor", "Masa\u00fcst\u00fc veritaban\u0131 okunuyor.")}</div><div class="contracts-reference-pager"><span class="muted" id="genericCount">S\u00f6zle\u015fmeler y\u00fckleniyor</span><div><button class="secondary" type="button" data-contract-page="-1" disabled>&lt;</button><span data-contract-page-label>1 / 1</span><button class="secondary" type="button" data-contract-page="1" disabled>&gt;</button></div></div><div class="contracts-reference-footer"><article><strong>Bu Haftaki Periyodik Bak\u0131m &amp; Saha Ziyaretleri</strong><p data-contract-footer-plans>Bak\u0131m plan\u0131 bulunmuyor.</p><button type="button" class="secondary" data-contract-calendar>T\u00fcm Takvimi A\u00e7</button></article><article><strong>SLA / Yenileme Takibi</strong><p data-contract-footer-renewals>Yenileme bekleyen kay\u0131t bulunmuyor.</p><button type="button" class="secondary" data-contract-renewal-view disabled>Yenileme Bekleyenleri G\u00f6r</button></article></div></section>`;
   };
 
   function bindContractControls() {
     if (document.body.dataset.page !== "contracts") return;
+    if (!window.ayecContractSearchShortcutBound) {
+      window.ayecContractSearchShortcutBound = true;
+      document.addEventListener("keydown", (event) => {
+        if (document.body.dataset.page !== "contracts" || !event.ctrlKey || event.altKey || event.metaKey || event.key.toLowerCase() !== "k" || document.querySelector("#appDialog")?.open) return;
+        const search = document.querySelector("#genericSearch");
+        if (!search) return;
+        event.preventDefault();
+        search.focus();
+        search.select();
+      }, true);
+    }
     const meta = genericModules.contracts;
+    const host = document.querySelector("#genericHost");
+    if (host && host.dataset.contractRowSelectionBound !== "1") {
+      const selectRow = (row) => {
+        host.querySelectorAll("tr[data-generic-row]").forEach((item) => {
+          item.classList.toggle("is-selected", item === row);
+          item.setAttribute("aria-selected", String(item === row));
+        });
+      };
+      host.addEventListener("click", (event) => {
+        if (event.target.closest("button,a,input,select,textarea")) return;
+        const row = event.target.closest("tr[data-generic-row]");
+        if (row) selectRow(row);
+      });
+      host.addEventListener("keydown", (event) => {
+        if (!["ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) return;
+        const rows = [...host.querySelectorAll("tr[data-generic-row]")];
+        if (!rows.length || !event.target.closest("tr[data-generic-row]")) return;
+        const current = rows.indexOf(event.target.closest("tr[data-generic-row]"));
+        const next = event.key === "Home" ? 0 : event.key === "End" ? rows.length - 1 : Math.max(0, Math.min(rows.length - 1, current + (event.key === "ArrowDown" ? 1 : -1)));
+        event.preventDefault();
+        selectRow(rows[next]);
+        rows[next].focus();
+      });
+      host.dataset.contractRowSelectionBound = "1";
+    }
     const search = document.querySelector("#genericSearch");
     const reload = () => loadGenericModule(meta, search?.value || "");
     const add = document.querySelector("[data-generic-add]");
@@ -293,6 +364,8 @@
       reload();
     });
     document.querySelector("[data-contract-plan]")?.addEventListener("click", () => navigate("appointments"));
+    document.querySelector("[data-contract-calendar]")?.addEventListener("click", () => navigate("appointments"));
+    document.querySelector("[data-contract-renewal-view]")?.addEventListener("click", () => document.querySelector('[data-contract-status="renewal"]')?.click());
     document.querySelector("[data-contract-delete]")?.addEventListener("click", () => {
       const selected = document.querySelector("#genericHost tr.is-selected[data-generic-row]");
       if (!selected) return toast("Silmek i\u00e7in bir s\u00f6zle\u015fme se\u00e7in", "warning");

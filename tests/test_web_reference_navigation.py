@@ -1,3 +1,4 @@
+import ast
 import json
 import shutil
 import re
@@ -27,6 +28,16 @@ def _section(start, end):
     return ''.join(selected)
 
 
+def test_mobile_route_audit_rejects_content_overflow_and_offscreen_action_areas():
+    route_smoke = (ROOT / 'tools' / 'quality' / 'web_route_smoke_offscreen.cjs').read_text(encoding='utf-8')
+
+    assert 'mobileResult.offenders.length' in route_smoke
+    assert 'item.contentWidth > item.viewport + 1' in route_smoke
+    assert '["appointments", ".appointment-ref-filter-row"]' in route_smoke
+    assert '["customers", ".customer-export-actions"]' in route_smoke
+    assert '["service-status", ".page-head .actions"]' in route_smoke
+
+
 def test_web_nested_reference_menu_routes_and_ancestor_expansion():
     model = _section('ayecSectorMenuModels.teknik_servis=[', 'const ayecDesktopPageIds=')
     runtime = _section('function ayecMenuItems(', 'const ayecNavigateBeforeSectorMenus=')
@@ -52,6 +63,10 @@ const navBadge=()=>"";
 assert.deepEqual(ayecMenuPath('brands').map(item=>item.id),['service-settings-parent','brands']);
 assert.equal(ayecParentForPage('brands'),'service-settings-parent');
 assert.deepEqual(ayecMenuPath('dashboard').map(item=>item.id),['service-parent','dashboard']);
+assert.deepEqual(ayecMenuPath('service-definitions').map(item=>item.id),['stock-parent','service-definitions']);
+assert.deepEqual(ayecMenuPath('service-definitions','otomotiv').map(item=>item.id),['automotive-stock-parent','service-definitions']);
+assert.deepEqual(ayecMenuItem('stock-parent').children.map(item=>item.id),['stock','loaners','stock-locations','mobile-guide','pc-builder','service-definitions']);
+assert.deepEqual(ayecMenuItem('automotive-stock-parent','otomotiv').children.map(item=>item.id),['automotive-stock','loaners','stock-locations','service-definitions']);
     assert.equal(ayecMenuItem('sales').label,'Teklif Olu\u015ftur');
     assert.equal(ayecParentForPage('sales'),'offer-parent');
     page='sales';
@@ -84,7 +99,124 @@ for(const sector of ['teknik_servis','otomotiv']){
     assert.ok(output.includes(`name="visible_${sector}_${id}"`));
   }
 }
+page='pc-builder';
+stored={teknik_servis:'service-parent'};
+renderNav();
+assert.match(nav.innerHTML,/data-parent="nav-teknik_servis-service-parent"[^>]*aria-expanded="false"/);
+assert.match(nav.innerHTML,/data-parent="nav-teknik_servis-stock-parent"[^>]*aria-expanded="true"/);
 console.log('nested navigation passed');
+'''
+    result = subprocess.run([NODE, '-e', script], capture_output=True, text=True, timeout=20)
+    assert result.returncode == 0, result.stderr
+
+
+def test_offscreen_route_sweep_checks_only_current_sidebar_parent_is_expanded():
+    runner = (ROOT / 'tools' / 'quality' / 'web_route_smoke_offscreen.cjs').read_text(encoding='utf-8')
+    assert 'const sidebarParentWorkflow = await evaluate(' in runner
+    assert 'sidebarParentWorkflow.serviceExpanded!=="false"' in runner
+    assert 'sidebarParentWorkflow.stockExpanded!=="true"' in runner
+    assert "!sidebarParentWorkflow.topLevelParentCleared" in runner
+
+
+def test_web_side_menu_uses_desktop_custom_page_labels_as_fallback():
+    labeler = _section('labelFor=function', 'function desktopAllowedMenuPages(')
+    script = f'''
+const assert=require('node:assert/strict');
+let labelFor;
+const ayecDesktopPageIds={{offers:313}};
+const desktopInternalSettings={{menu_label_page_313:"Desktop Offer Label"}};
+let currentSector="teknik_servis",sectorLabels={{}};
+const menuLabels=sector=>sectorLabels[sector]||{{}};
+{labeler}
+assert.equal(labelFor({{id:"offers",label:"Offers"}}),"Desktop Offer Label");
+sectorLabels.teknik_servis={{offers:"Sector Offer Label"}};
+assert.equal(labelFor({{id:"offers",label:"Offers"}}),"Sector Offer Label");
+assert.equal(labelFor({{id:"other",label:"Default Label"}}),"Default Label");
+'''
+    result = subprocess.run([NODE, '-e', script], capture_output=True, text=True, timeout=20)
+    assert result.returncode == 0, result.stderr
+
+
+def test_interface_editor_saves_menu_labels_and_visibility_to_desktop_settings():
+    editor = _section('function interfaceEditorDialog(){', 'function rateForCode(')
+    script = f'''
+const assert=require('node:assert/strict');
+let submitHandler,rendered=0,navigated='',stored={{}},desktopInternalSettings={{}};
+const menu=[{{items:[{{id:"dashboard",label:"Dashboard"}},{{id:"offers",label:"Offers"}}]}}];
+const menuLabels=()=>({{}}),menuVisibility=()=>({{}}),esc=value=>String(value);
+const openDialog=(title,eyebrow,body,submit)=>{{assert.equal(title,"Aray\\u00fcz D\\u00fczenle");submitHandler=submit}};
+const $$=()=>[], $=()=>({{prepend(){{}}}});
+const document={{createElement:()=>({{type:"",className:"",textContent:"",onclick:null}})}};
+const localStorage={{setItem:(key,value)=>stored[key]=value}};
+const desktopWrite=async(table,payload)=>{{stored[payload.key]=payload.value;return{{ok:true}}}};
+const firstVisiblePage=()=>"dashboard",renderNav=()=>rendered++,navigate=target=>navigated=target;
+const toast=()=>{{}},openSectorMenuResetConfirmation=()=>{{}};
+let page="offers";
+{editor}
+(async()=>{{
+  interfaceEditorDialog();
+  const form={{get:key=>key==="menu_offers"?"Open Quotes":key==="menu_dashboard"?"Dashboard":"",has:key=>key!=="visible_offers"}};
+  await submitHandler(form);
+  assert.deepEqual(JSON.parse(stored.web_menu_labels),{{offers:"Open Quotes"}});
+  assert.deepEqual(JSON.parse(stored.web_menu_visibility),{{offers:false}});
+  assert.equal(rendered,1);
+  assert.equal(navigated,"dashboard");
+}})().catch(error=>{{console.error(error);process.exitCode=1}});
+'''
+    result = subprocess.run([NODE, '-e', script], capture_output=True, text=True, timeout=20)
+    assert result.returncode == 0, result.stderr
+
+
+def test_sector_editor_tabs_support_roving_keyboard_navigation():
+    source = SOURCE.read_text(encoding='utf-8')
+    start = source.index('  const setEditorSector=sector=>{', source.index('interfaceEditorDialog=function(){'))
+    end = source.index('  $$(".menu-visibility-toggle").forEach(toggle=>{', start)
+    behavior = source[start:end]
+    script = '''
+const assert=require('node:assert/strict');
+let currentSector="teknik_servis",focused=null;
+const tabs=["teknik_servis","otomotiv"].map(editorSector=>({dataset:{editorSector},tabIndex:-1,attributes:{},classes:new Set(),classList:{toggle(name,active){active?this.owner.classes.add(name):this.owner.classes.delete(name)}},setAttribute(name,value){this.attributes[name]=value},focus(){focused=this},click(){focused=this;this.onclick()}}));
+tabs.forEach(tab=>tab.classList.owner=tab);
+const panels=["teknik_servis","otomotiv"].map(editorPanel=>({dataset:{editorPanel},classes:new Set(),classList:{toggle(name,active){active?this.owner.classes.add(name):this.owner.classes.delete(name)}}}));
+panels.forEach(panel=>panel.classList.owner=panel);
+const $$=selector=>selector==="[data-editor-sector]"?tabs:selector==="[data-editor-panel]"?panels:[];
+__SECTOR_TAB_BEHAVIOR__
+assert.equal(tabs[0].tabIndex,0);
+assert.equal(tabs[1].tabIndex,-1);
+assert.equal(tabs[0].attributes["aria-selected"],"true");
+const press=(tab,key)=>tab.onkeydown({key,preventDefault(){}});
+press(tabs[0],"ArrowLeft");
+assert.equal(focused,tabs[1]);
+assert.equal(tabs[1].attributes["aria-selected"],"true");
+assert.equal(panels[1].classes.has("mobile-active"),true);
+press(tabs[1],"ArrowRight");
+assert.equal(focused,tabs[0]);
+press(tabs[0],"End");
+assert.equal(focused,tabs[1]);
+press(tabs[1],"Home");
+assert.equal(tabs[0].tabIndex,0);
+'''.replace('__SECTOR_TAB_BEHAVIOR__', behavior)
+    result = subprocess.run([NODE, '-e', script], capture_output=True, text=True, timeout=20)
+    assert result.returncode == 0, result.stderr
+
+
+def test_web_menu_visibility_honors_desktop_page_visibility_settings():
+    resolver = _section('menuVisible=function(item,sector=currentSector){', 'function ayecMenuItems(')
+    script = f'''
+const assert=require('node:assert/strict');
+let currentSector="teknik_servis",menuVisible,webVisibility={{}};
+const ayecDesktopPageIds={{offers:313}},desktopInternalSettings={{menu_visible_page_313:"0"}};
+const currentAuthUser=null,desktopAllowedMenuPages=()=>null,canAccessControlCenter=()=>false;
+const menuVisibility=()=>webVisibility;
+{resolver}
+assert.equal(menuVisible({{id:"offers"}}),false);
+desktopInternalSettings.menu_visible_page_313="1";
+assert.equal(menuVisible({{id:"offers"}}),true);
+delete desktopInternalSettings.menu_visible_page_313;
+assert.equal(menuVisible({{id:"offers"}}),true);
+desktopInternalSettings.menu_visible_page_313="0";
+webVisibility={{offers:false}};
+assert.equal(menuVisible({{id:"offers"}}),false);
 '''
     result = subprocess.run([NODE, '-e', script], capture_output=True, text=True, timeout=20)
     assert result.returncode == 0, result.stderr
@@ -114,6 +246,13 @@ def test_web_status_footer_matches_the_desktop_shell():
     assert 'html[data-theme="forest"] .customer-data-table td' in styles
     assert 'const sectorLicense=$(".sidebar-license strong")' in source
     assert 'sectorLicense.textContent=sector==="otomotiv"?"Otomotiv":"Teknik Servis"' in source
+
+
+def test_hidden_route_captures_match_desktop_exchange_rate_and_restore_runtime_state():
+    route_smoke = (ROOT / "tools" / "quality" / "web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+    assert "result.shellRateCapture = await evaluate" in route_smoke
+    assert 'result.shellRateCapture !== "USD kuru: 44.00 TL"' in route_smoke
+    assert "result.shellRateRestore?.matches" in route_smoke
 
 
 def test_web_context_menu_preferences_keep_desktop_page_scopes():
@@ -234,8 +373,18 @@ def test_reference_navigation_styles_are_linked_and_keep_mobile_controls_availab
     assert 'background: var(--nav-active)' in css
     assert '.nav-button .nav-active-dot' in css
     desktop_parity = (web / 'desktop-parity.css').read_text(encoding='utf-8')
-    assert '.sidebar .submenu {\n  display: none;\n  margin: 8px 0 5px 34px;' in desktop_parity
-    assert '.sidebar .submenu .nav-button {\n  min-height: 42px;\n  padding: 6px 0 6px 15px;\n  gap: 8px;\n  font-size: 12px;\n  font-weight: 500;' in desktop_parity
+    assert '.sidebar .nav-group-title {\n  padding: 6px 14px 2px;\n  margin: 6px 10px 0;\n  color: var(--ayec-slate-muted);\n  font: 900 15px "Segoe UI", sans-serif;\n  line-height: 16px;' in desktop_parity
+    assert '.sidebar .nav-parent {\n  border-radius: 8px;' in desktop_parity
+    assert '.sidebar .nav-parent[data-parent="nav-teknik_servis-service-parent"] { transform: translateY(-2px); }' in desktop_parity
+    assert '.sidebar .nav-parent[data-parent="nav-teknik_servis-service-settings-parent"] { transform: translateY(-3px); }' in desktop_parity
+    assert '.sidebar .nav-parent[data-parent="nav-teknik_servis-customer-parent"] { transform: translateY(-4px); }' in desktop_parity
+    assert '.sidebar .submenu {\n  display: none;\n  margin: 5px 0 0 34px;' in desktop_parity
+    assert '.sidebar .submenu .nav-button {\n  min-height: 42px;\n  padding: 6px 0 6px 15px;\n  margin-bottom: 1px;\n  gap: 8px;\n  font-size: 12px;\n  font-weight: 500;' in desktop_parity
+    native_sidebar = (ROOT / 'src' / 'ui' / 'widgets' / '_side_menu_accordion.py').read_text(encoding='utf-8')
+    assert 'font-size: 12px; font-weight: 500; border: none; margin: 0px; padding: 0px;' in native_sidebar
+    assert '.sidebar .submenu.open {\n  display: block;\n  margin-bottom: -2px;' in desktop_parity
+    assert '.sidebar .submenu .nav-button:last-child { margin-bottom: 0; }' in desktop_parity
+    assert 'html[data-theme="midnight"] .sidebar .submenu .nav-button {\n  padding-left: 13px;\n  gap: 8px;' in desktop_parity
     assert 'background: var(--ayec-slate-raised);\n  border-color: transparent;\n  color: var(--ayec-electric);' in desktop_parity
     assert 'height: 100dvh' in css
     assert 'width: min(82vw, 292px)' in css
@@ -285,11 +434,18 @@ def test_desktop_parity_shell_uses_one_full_width_sidebar_contract():
     assert 'html[data-theme="midnight"] .sidebar{font-family:"Segoe UI",sans-serif}' in desktop_parity
     styles = desktop_parity
     assert 'id="headerBackBtn"' in index and 'class="header-app-logo"' in index
+    assert '.app-shell>.topbar>.header-app-logo{display:block;flex:0 0 10px;width:10px;height:10px;color:transparent;background:var(--brand,#2563eb);font-size:0;font-weight:800;line-height:0;border-radius:0}' in desktop_parity
     assert 'id="headerThemePicker"' in index and 'id="headerSettingsBtn"' in index
-    assert 'id="globalSearch" placeholder="Sistem genelinde ara (Marka, Seri No, ...)"' in index
+    assert 'id="globalSearch" aria-label="Sistem genelinde ara" placeholder="Sistem genelinde ara (Marka, Seri No, ...)"' in index
     assert 'id="assistantHeaderBtn"' in index and 'id="headerProfileActions"' in index
+    assert 'id="assistantHeaderBtn" aria-label="Yard&#305;mc&#305;">&#129302;</button>' in index
     assert '--sidebar: min(320px, max(240px, 20vw));' in styles
     assert '.sidebar .nav-button.active' in styles
+    assert 'background-size: 3px calc(100% - 14px);' in styles
+    assert 'background-position: 0 11px;' in styles
+    assert 'html[data-theme="midnight"] .sidebar .submenu .nav-button.active {\n  color: #06b6d4;\n  box-shadow: none;' in styles
+    assert '.sidebar .nav-count-badge::before' in styles and 'content: "  (";' in styles
+    assert '.sidebar .nav-count-badge::after' in styles and 'content: ")";' in styles
     assert '.sidebar-bottom > .nav-button[data-page="settings"]' in styles
     assert '"topbar topbar"\n    "sidebar main"' in styles
     assert 'grid-row: 2;\n  top: 70px;\n  height: calc(100vh - 86px);' in styles
@@ -299,9 +455,12 @@ def test_desktop_parity_shell_uses_one_full_width_sidebar_contract():
     assert 'flex: 0 0 118px;' in styles
     assert '.app-shell>.topbar>div:first-of-type{flex:0 0 116px;width:116px;min-width:0;overflow:hidden}' in styles
     assert '.app-shell>.topbar #pageTitle{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}' in styles
+    assert '@media(min-width:1001px) and (max-width:1350px){.app-shell>.topbar #pageTitle{font-size:16px;font-weight:600;position:relative;left:4px;top:1px}}' in desktop_parity
     assert '.app-shell>.topbar>.top-actions{flex:0 0 auto;gap:6px;margin-left:auto}' in styles
     assert '.app-shell>.topbar>.header-assistant{flex:0 0 32px;margin-left:0}' in styles
-    assert '@media(min-width:761px){.sidebar #nav{width:calc(100% + 17px)}.sidebar nav#nav::-webkit-scrollbar{width:8px}}' in styles
+    assert '@media(min-width:761px){' in styles
+    assert '.sidebar #nav{width:calc(100% + 17px)}' in styles
+    assert '.sidebar nav#nav::-webkit-scrollbar{width:8px}' in styles
     assert '.app-shell>.topbar>.top-actions>.global-search-wrap{position:absolute;left:304px;' in styles
     assert 'customer-banners button[data-customer-filter="vip"]' in styles
     assert 'customer-export-actions .mini' in styles
@@ -349,8 +508,8 @@ def test_desktop_assistant_header_opens_chat_panel_and_routes_native_shortcuts()
 
     assert 'self.btn_shortcuts' in desktop_header
     assert 'self.assistant_btn.clicked.connect(self.main_window.toggle_assistant)' in breadcrumb
-    assert 'desktop-assistant-panel.js?v=20261017-1' in index
-    assert 'desktop-assistant-panel.css?v=20261017-1' in index
+    assert 'desktop-assistant-panel.js?v=20261026-assistant-voice-edit-undo-1' in index
+    assert 'desktop-assistant-panel.css?v=20261026-assistant-voice-edit-undo-1' in index
     assert 'button.onclick = event =>' in panel
     assert 'panel.id = "desktopAssistantPanel"' in panel
     assert 'route: "finance"' in panel
@@ -387,10 +546,17 @@ def test_sidebar_uses_desktop_navigation_glyphs_for_page_ids():
     root = ROOT / 'Web_Arayuzu' / 'web'
     index = (root / 'index.html').read_text(encoding='utf-8')
     icons = (root / 'navigation-icons.js').read_text(encoding='utf-8')
-    assert 'navigation-icons.js?v=20261017-sidebar-icons-render-2' in index
+    assert 'navigation-icons.js?v=20261024-native-icon-stroke-2' in index
     assert 'ayecDesktopPageIds[button.dataset.page]' in icons
     assert 'button.dataset.parent.replace(/^nav-(?:teknik_servis|otomotiv)-/,"")' in icons
-    assert '"41":"board"' in icons and '"42":"clipboard"' in icons
+    assert '"40":"dashboard"' in icons and '"41":"kanban"' in icons
+    assert '"42":"spreadsheet"' in icons and '"43":"activity"' in icons
+    assert '"stock-parent":"layers"' in icons
+    assert '"customer-parent":"users"' in icons and '"automotive-customer-parent":"users"' in icons
+    assert '"automotive-stock-parent":"layers"' in icons and '"offer-parent":"file_check"' in icons
+    assert 'slot.dataset.desktopIconActive===String(iconActive)' in icons
+    assert 'groupActive?"var(--accent,var(--brand,#2563eb))"' in icons
+    assert 'stroke-width="2"' in icons
     assert 'viewBox="0 0 24 24" fill="none" stroke="currentColor"' in icons
     desktop_parity = (root / 'desktop-parity.css').read_text(encoding='utf-8')
     assert '.sidebar .nav-button .nav-icon {\n  width: 20px !important;\n  height: 20px;' in desktop_parity
@@ -402,11 +568,21 @@ def test_sidebar_logo_falls_back_to_product_logo_without_company_logo():
     start = app.index('function refreshCompanyLogo(){')
     end = app.index('\nasync function uploadCompanyLogo', start)
     source = app[start:end]
-    assert 'if(initial)initial.hidden=true;' in source
+    assert 'if(initial)initial.hidden=false;' in source
+    assert 'image.hidden=true;' in source
+    assert source.index('image.hidden=true;') < source.index('image.src=currentAuthUser?')
+    assert 'const image=$("#brandLogo"),initial=$("#brandInitial"),company=$("#brandCompanyName"),product=$("#brandProductName");' in source
+    assert 'product.textContent=String(desktopSettings.site_title||"Servis Y\\u00f6netimi")' in source
     assert 'const fallback="/assets/ayec-logo.png";' in source
     assert 'image.src=currentAuthUser?`/api/desktop/company-logo?v=${Date.now()}`:fallback;' in source
     assert 'if(image.src!==new URL(fallback,location.href).href){image.src=fallback;return}' in source
     assert 'if(initial)initial.hidden=false' in source
+    route_audit = (ROOT / 'tools' / 'quality' / 'web_route_smoke_offscreen.cjs').read_text(encoding='utf-8')
+    assert 'brandLogoFallbackWorkflow' in route_audit
+    assert 'fallbackImageLoaded' in route_audit
+    assert 'image.naturalWidth>0' in route_audit
+    settings = (ROOT / 'Web_Arayuzu' / 'web' / 'settings-theme-reference.js').read_text(encoding='utf-8')
+    assert 'applyDocumentPrintPreferences();\n        refreshCompanyLogo();\n        render();' in settings
 
 def test_settings_route_is_not_duplicated_between_navigation_and_sidebar_footer():
     index = (ROOT / "Web_Arayuzu" / "web" / "index.html").read_text(encoding="utf-8")
@@ -695,3 +871,35 @@ def test_midnight_sidebar_brand_mark_matches_dark_blue_active_surface():
     assert "--ink: #e2e8f0;" in midnight and "--muted: #94a3b8;" in midnight
     assert re.search(r'midnight-reference\.css\?v=[^" ]+', index)
     assert 'var(--ink,#e2e8f0)' in midnight
+
+
+def test_web_navigation_glyphs_match_native_page_kinds_and_paths():
+    native_source = (ROOT / "src" / "ui" / "widgets" / "navigation_glyph.py").read_text(encoding="utf-8")
+    web_source = (ROOT / "Web_Arayuzu" / "web" / "navigation-icons.js").read_text(encoding="utf-8")
+    native_page_kinds = ast.literal_eval(re.search(r"PAGE_KINDS\s*=\s*({.*?\n})", native_source, re.S).group(1))
+    native_paths = ast.literal_eval(re.search(r"PATHS\s*=\s*({.*?\n})", native_source, re.S).group(1))
+    native_icon_colors = ast.literal_eval(re.search(r"ICON_COLORS\s*=\s*({.*?\n})", native_source, re.S).group(1))
+
+    def web_object(name):
+        match = re.search(rf"const {name} = (\{{.*?\}});", web_source)
+        assert match, name
+        return json.loads(match.group(1))
+
+    web_page_kinds = {int(page_id): kind for page_id, kind in web_object("pageKinds").items()}
+    web_paths = web_object("iconPaths")
+    web_icon_colors = web_object("navigationIconColors")
+    assert 'stroke-width="2"' in web_source
+    assert web_page_kinds == native_page_kinds
+    assert web_icon_colors == native_icon_colors
+    assert {kind: web_paths.get(kind) for kind in set(native_page_kinds.values())} == {
+        kind: native_paths[kind] for kind in set(native_page_kinds.values())
+    }
+
+
+def test_sidebar_count_badges_use_the_native_inline_text_style():
+    css = (ROOT / "Web_Arayuzu" / "web" / "desktop-parity.css").read_text(encoding="utf-8")
+    audit = (ROOT / "tools" / "quality" / "sidebar_parity_offscreen_capture.cjs").read_text(encoding="utf-8")
+    assert '.sidebar .nav-count-badge::before' in css and 'content: "  (";' in css
+    assert '.sidebar .nav-count-badge::after' in css and 'content: ")";' in css
+    assert "navBadgeRadius" in audit and 'state.navBadgeRadius !== "0px"' in audit
+    assert "navBadgeBackground" in audit and 'state.navBadgeBackground !== "rgba(0, 0, 0, 0)"' in audit

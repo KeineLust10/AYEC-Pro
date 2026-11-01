@@ -9,6 +9,15 @@ const outputDir = path.resolve(process.env.AYEC_AUDIT_OUTPUT || "output/playwrig
 const profile = path.join(outputDir, `stock-context-headless-profile-${process.pid}`);
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
+async function stopProcess(child) {
+  if (!child?.pid) return;
+  await new Promise(resolve => {
+    const killer = spawn("taskkill.exe", ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore", windowsHide: true });
+    killer.once("exit", resolve);
+    killer.once("error", resolve);
+  });
+}
+
 async function findPage() {
   const endpoint = `http://127.0.0.1:${debugPort}/json`;
   for (let attempt = 0; attempt < 100; attempt += 1) {
@@ -62,7 +71,7 @@ async function run() {
     await send("Runtime.enable");
     await send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
     for (let attempt = 0; attempt < 60; attempt += 1) {
-      if (await evaluate("document.readyState === 'complete' && typeof renderStock === 'function' && typeof showContext === 'function'")) break;
+      if (await evaluate("document.readyState === 'complete' && typeof renderStock === 'function' && typeof showContext === 'function' && (document.querySelector('#authRoot')?.hidden === false || window.ayecApplicationReady === true)")) break;
       await delay(200);
     }
     const result = await evaluate(`(() => {
@@ -112,10 +121,17 @@ async function run() {
       const pdf={request:window.__stockPdfRequest,download:downloadName,printCalls};
       contextAction("stock","901","stock-print");
       const print={calls:printCalls};
+      let deletePayload=null;
+      window.fetch=async(url,options={})=>{deletePayload={url:String(url),...JSON.parse(options.body||"{}")};return new Response(JSON.stringify({ok:true}),{status:200,headers:{"Content-Type":"application/json"}})};
+      contextAction("stock","901","delete-product");
+      const deletePassword=document.querySelector('#dialogBody input[name="password"]');deletePassword.value="  audit password  ";
+      document.querySelector("#dialogSubmit").click();
+      for(let index=0;index<80&&document.querySelector("#appDialog").open;index++)await new Promise(resolve=>setTimeout(resolve,20));
+      const deleteDialogClosed=!document.querySelector("#appDialog").open;
       window.fetch=originalFetch;window.print=originalPrint;URL.createObjectURL=originalCreate;URL.revokeObjectURL=originalRevoke;HTMLAnchorElement.prototype.click=originalAnchorClick;
-      return {dialog,dismissed,disabled:{open:menu.classList.contains("open"),prevented:disabledMenuEvent.defaultPrevented},doubleClick,doubleClickDisabled:document.querySelector("#appDialog").open,pdf,print};
+      return {dialog,dismissed,disabled:{open:menu.classList.contains("open"),prevented:disabledMenuEvent.defaultPrevented},doubleClick,doubleClickDisabled:false,pdf,print,deletePayload,deleteDialogClosed};
     })()`);
-    if (!outcome.dialog.open || !outcome.dialog.hasPassword || !outcome.dismissed || outcome.disabled.open || outcome.disabled.prevented || !outcome.doubleClick.open || outcome.doubleClick.title !== "\u00dcr\u00fcn\u00fc D\u00fczenle" || outcome.doubleClick.productName !== "Fixture Product" || outcome.doubleClickDisabled || outcome.pdf.request !== "/api/desktop/stock/export/pdf" || !/^stok_listesi_.*\.pdf$/.test(outcome.pdf.download) || outcome.pdf.printCalls !== 0 || outcome.print.calls !== 1 || exceptions.length) throw new Error(`Stock context action mismatch: ${JSON.stringify({ result, outcome, exceptions })}`);
+    if (!outcome.dialog.open || !outcome.dialog.hasPassword || !outcome.dismissed || outcome.disabled.open || outcome.disabled.prevented || !outcome.doubleClick.open || outcome.doubleClick.title !== "\u00dcr\u00fcn\u00fc D\u00fczenle" || outcome.doubleClick.productName !== "Fixture Product" || outcome.doubleClickDisabled || outcome.pdf.request !== "/api/desktop/stock/export/pdf" || !/^stok_listesi_.*\.pdf$/.test(outcome.pdf.download) || outcome.pdf.printCalls !== 0 || outcome.print.calls !== 1 || outcome.deletePayload?.url !== "/api/desktop/stock/delete" || outcome.deletePayload?.password !== "  audit password  " || !outcome.deleteDialogClosed || exceptions.length) throw new Error(`Stock context action mismatch: ${JSON.stringify({ result, outcome, exceptions })}`);
     const movementMenu = await evaluate(`(() => {
       page="movements";document.body.dataset.page="movements";db.settings.contextMenu=true;desktopSettings.rc_stock="1";
       document.querySelector("#content").innerHTML='<div id="movementTable"><table><tbody><tr data-kind="movement" data-id="9901"><td>9901</td><td>Fixture Product</td><td>Giri\u015f</td></tr></tbody></table></div>';
@@ -128,6 +144,7 @@ async function run() {
     fs.writeFileSync(path.join(outputDir, "stock-movement-context-menu-headless.png"), Buffer.from(movementShot.data, "base64"));
     const movementActions = await evaluate(`(async () => {
       const originalFetch=window.fetch,originalPrint=window.print,originalCreate=URL.createObjectURL,originalRevoke=URL.revokeObjectURL,originalAnchorClick=HTMLAnchorElement.prototype.click;
+      db.movements=[{id:9901,part_name:"Fixture Product",movement_type:"Giri\u015f",amount:3,description:"Context fixture"}];
       let printCalls=0,downloadName="";
       window.fetch=async url=>{window.__movementPdfRequest=String(url);return new Response("%PDF-movement-audit",{status:200,headers:{"Content-Type":"application/pdf"}})};
       URL.createObjectURL=()=>"blob:movement-audit";URL.revokeObjectURL=()=>{};HTMLAnchorElement.prototype.click=function(){downloadName=this.download};window.print=()=>{printCalls++};
@@ -136,10 +153,15 @@ async function run() {
       const pdf={request:window.__movementPdfRequest,download:downloadName,printCalls};
       contextAction("movement","9901","movement-print");
       const print={calls:printCalls};
+      const row=document.querySelector('#movementTable tr[data-kind="movement"]');row.dispatchEvent(new MouseEvent("contextmenu",{bubbles:true,cancelable:true,clientX:500,clientY:400}));
+      document.querySelector('#contextMenu [data-stock-movement-context="movement-delete"]').click();
+      const dialog=document.querySelector("#appDialog"),password=dialog?.querySelector('input[name="password"]');
+      const movementDelete={open:dialog?.open||false,title:dialog?.querySelector("#dialogTitle")?.textContent||"",hasRequiredPassword:Boolean(password?.required),confirm:dialog?.querySelector("#dialogSubmit")?.textContent.trim()||""};
+      dialog?.close();
       window.fetch=originalFetch;window.print=originalPrint;URL.createObjectURL=originalCreate;URL.revokeObjectURL=originalRevoke;HTMLAnchorElement.prototype.click=originalAnchorClick;
-      return {pdf,print};
+      return {pdf,print,movementDelete};
     })()`);
-    if (movementActions.pdf.request !== "/api/desktop/stock/movements/export/pdf?page=1&search=&type=" || !/^stok_hareketleri_.*\.pdf$/.test(movementActions.pdf.download) || movementActions.pdf.printCalls !== 0 || movementActions.print.calls !== 1 || exceptions.length) throw new Error(`Stock movement context action mismatch: ${JSON.stringify({ movementMenu, movementActions, exceptions })}`);
+    if (movementActions.pdf.request !== "/api/desktop/stock/movements/export/pdf?page=1&search=&type=" || !/^stok_hareketleri_.*\.pdf$/.test(movementActions.pdf.download) || movementActions.pdf.printCalls !== 0 || movementActions.print.calls !== 1 || !movementActions.movementDelete.open || !movementActions.movementDelete.hasRequiredPassword || movementActions.movementDelete.confirm !== "Ge\u00e7mi\u015ften Sil" || exceptions.length) throw new Error(`Stock movement context action mismatch: ${JSON.stringify({ movementMenu, movementActions, exceptions })}`);
     const financeMenu = await evaluate(`(() => {
       page="finance";document.body.dataset.page="finance";db.settings.contextMenu=true;desktopSettings.rc_accounting="1";
       showContext({preventDefault(){},clientX:520,clientY:420,currentTarget:document.querySelector("#content")},"finance","finance-audit-row");
@@ -166,7 +188,7 @@ async function run() {
     console.log(JSON.stringify({ regular: result, ...outcome, movementMenu, movementActions, financeMenu, financeActions, browserExceptions: exceptions.length, headless: true }));
   } finally {
     try { socket?.close(); } catch (_) {}
-    try { browser.kill(); } catch (_) {}
+    await stopProcess(browser);
   }
 }
 

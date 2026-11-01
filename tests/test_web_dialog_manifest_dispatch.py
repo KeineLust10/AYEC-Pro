@@ -80,7 +80,7 @@ def test_bank_detail_manifest_entry_uses_the_existing_bank_account_history_dialo
     end = app.index("function openManifestDialog(", start)
     helper = app[start:end]
     dispatch = app[end:app.index("function customerSelect(", end)]
-    assert 'apiFetch("/api/desktop/table/bank_accounts?limit=500")' in helper
+    assert 'loadAllDesktopTableData("bank_accounts")' in helper
     assert 'ayecOpenBankAccountDetail(accounts[0])' in helper
     assert 'bank_detail_dialog:()=>openBankManifestDetail()' in dispatch
     assert 'function ayecOpenBankAccountDetail(account)' in app
@@ -113,9 +113,13 @@ def test_service_invoice_manifest_entry_selects_customer_and_opens_invoice_edito
     end = app.index("function customerSelect(", start)
     dispatch = app[start:end]
     assert 'service_invoice_dialog:()=>customerSelect(customer=>serviceInvoiceDialog(customer),' in dispatch
-    assert 'async function serviceInvoiceDialog(customer)' in app
+    assert 'async function serviceInvoiceDialog(customer,preselectedTransactions=[])' in app
     assert 'apiFetch(`/api/desktop/service-invoices/${encodeURIComponent(customer.id)}`)' in app
     assert 'data-invoice-transaction' in app
+    assert 'setTimeout(()=>serviceInvoiceDialog(customer,selected),0)' in app
+    assert 'preselected.has(selectedTransactionKey(item))?"checked":""' in app
+    service_invoice_start = app.index('async function serviceInvoiceDialog(')
+    assert 'refreshTotal();' in app[service_invoice_start:app.index('window.ayecOpenServiceInvoiceDialog', service_invoice_start)]
 
 
 def test_auth_manifest_entries_open_the_existing_login_and_registration_flows():
@@ -151,7 +155,9 @@ def test_bulk_payment_manifest_entry_opens_loan_installment_payment_workflow():
     helper = app[start:end]
     dispatch = app[end:app.index("function customerSelect(", end)]
     assert 'bulk_payment_dialog:()=>openBulkLoanPaymentWorkflow()' in dispatch
-    assert '/api/desktop/table/loan_installments?limit=1000' in helper
+    assert 'loadAllDesktopTableRows("loans")' in helper
+    assert 'loadAllDesktopTableRows("loan_installments")' in helper
+    assert 'loan_installments?limit=1000' not in helper
     assert '/api/desktop/loan-installments/${encodeURIComponent(item.id)}/status' in helper
     assert 'data-loan-installment-check' in helper
     assert r'\u0054\u00fcm\u00fcn\u00fc Se\u00e7' in helper
@@ -176,14 +182,27 @@ def test_dialog_manifest_generator_matches_runtime_source_and_served_paths():
     assert len(manifest["dialogs"]) == manifest["summary"]["dialog_count"]
 
 
+def test_archive_detail_dialog_loads_the_complete_service_catalog():
+    app = (Path(__file__).resolve().parents[1] / "Web_Arayuzu" / "web" / "app.js").read_text(encoding="utf-8")
+    start = app.index("async function openArchiveDetailManifestDialog()")
+    end = app.index("function openArchiveDetailView(", start)
+    helper = app[start:end]
+
+    assert 'loadAllDesktopTableRows("devices")' in helper
+    assert 'devices?limit=1000' not in helper
+
+
 def test_customer_notes_manifest_entry_uses_the_existing_customer_notes_workflow():
     app = (Path(__file__).resolve().parents[1] / "Web_Arayuzu" / "web" / "app.js").read_text(encoding="utf-8")
     start = app.index("function openManifestDialog(")
     end = app.index("function customerSelect(", start)
     dispatch = app[start:end]
     assert 'customer_notes_dialog:()=>customerSelect(openCustomerNotes,' in dispatch
-    assert 'apiFetch("/api/desktop/table/customer_notes?limit=1000")' in app
-    assert 'desktopWrite("customer_notes"' in app
+    assert 'loadAllDesktopTableRows("customer_notes")' in app
+    assert 'customer_notes?limit=1000' not in app
+    assert 'apiFetch("/api/desktop/table/customer_notes",{method:"POST"' in app
+    assert 'record.id=saved.id??record.id' in app
+    assert 'id:Number(selected.id),_action:"update"' in app
 
 
 def test_personnel_transaction_manifest_entry_opens_the_salary_and_bonus_workflow():
@@ -195,9 +214,9 @@ def test_personnel_transaction_manifest_entry_opens_the_salary_and_bonus_workflo
     dispatch_end = app.index("function customerSelect(", dispatch_start)
     dispatch = app[dispatch_start:dispatch_end]
     assert 'transaction_dialog:()=>openPersonnelTransactionDialog()' in dispatch
-    assert '/api/desktop/table/personnel?limit=1000' in helper
+    assert 'loadAllDesktopTableData("personnel")' in helper
     assert 'name="transaction_type"' in helper and 'name="amount"' in helper
-    assert 'category:"Gider"' in helper and 'type:"Maaş/Prim"' in helper
+    assert 'category:"Gider"' in helper and r'type:"Maa\u015f/Prim"' in helper
 
 
 def test_sms_settings_manifest_entry_routes_to_the_existing_twilio_settings():
@@ -235,6 +254,8 @@ def test_photo_gallery_manifest_dispatch_uses_the_photo_api_and_controls():
     assert "data-device-photo-prev" in gallery and "data-device-photo-next" in gallery
     assert r'stage:stage||"\u0130\u015flem"' in gallery
     assert "function photoGalleryDialog()" in gallery
+    assert 'query.set("_refresh",String(Date.now()))' in gallery
+    assert "photos.splice(0,photos.length,...(refreshed.rows||[]))" in gallery
 
 
 def test_vehicle_history_qr_manifest_entry_selects_a_maintenance_card():
@@ -263,6 +284,8 @@ def test_device_history_manifest_entry_filters_prior_serial_records():
     for column in ("Takip No", "Tarih", r"M\u00fc\u015fteri", r"Ar\u0131za", "Durum"):
         assert f"<th>{column}</th>" in workflow
     assert '#27ae60' in workflow and '#c0392b' in workflow and '#e67e22' in workflow
+    route_audit = (ROOT / "tools" / "quality" / "web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+    assert "deviceHistoryManifestWorkflow" in route_audit
 
 
 def test_customer_import_manifest_entry_previews_and_persists_mapped_fields():
@@ -419,8 +442,30 @@ def test_customer_vehicle_manifest_entry_opens_the_existing_vehicle_editor():
     assert "customer_vehicle_dialog:()=>window.openAutomotiveVehicleShortcut?.()" in dispatch
     assert "window.openAutomotiveVehicleShortcut=function()" in automotive
     assert "/api/desktop/table/customer_vehicles" in automotive
+    assert "/api/desktop/automotive/vehicle-catalog" in automotive
     for field in ("plate", "brand", "model", "year", "vehicle_type", "engine_type", "fuel_type", "last_known_odometer", "notes"):
         assert f"name=\"{field}\"" in automotive
+    start = automotive.index("async function vehicleEditor(")
+    end = automotive.index("window.openAutomotiveVehicleShortcut=", start)
+    vehicle_editor = automotive[start:end]
+    assert '<input name="plate" required' in vehicle_editor
+    assert '<input name="brand" required' not in vehicle_editor
+    assert '<input name="model" required' not in vehicle_editor
+    assert 'String(values.plate||"").trim().toUpperCase()' in vehicle_editor
+    assert 'String(values.last_known_odometer||"0").trim().replace(",",".")' in vehicle_editor
+    assert 'last_known_odometer:Math.trunc(odometerNumber)' in vehicle_editor
+    assert 'brand:String(values.brand||"").trim()' in vehicle_editor
+    assert 'model:String(values.model||"").trim()' in vehicle_editor
+    assert '<input name="year" type="text" inputmode="numeric"' in vehicle_editor
+    assert '<input name="year" type="number"' not in vehicle_editor
+    assert '["Benzin","Dizel","LPG","Elektrik","Hibrit","Diger"]' in vehicle_editor
+    assert '<datalist id="automotiveVehicleBrandOptions">' in vehicle_editor
+    assert '<datalist id="automotiveVehicleModelOptions">' in vehicle_editor
+    assert '<datalist id="automotiveVehicleYearOptions">' in vehicle_editor
+    assert '<select name="vehicle_type">${selectMarkup(vehicleTypeChoices,vehicle.vehicle_type||vehicleTypeChoices[0])}</select>' in vehicle_editor
+    assert '<select name="engine_type">${selectMarkup(engineTypeChoices,vehicle.engine_type||engineTypeChoices[0])}</select>' in vehicle_editor
+    assert 'catalog.vehicle_types' in vehicle_editor and 'catalog.engine_types' in vehicle_editor
+    assert 'modelsFor(brandField.value)' in vehicle_editor
 
 
 def test_offer_acceptance_manifest_entry_uses_the_transactional_workflow():
@@ -472,7 +517,7 @@ def test_scheduled_alert_manifest_and_bank_detail_use_edit_workflow():
     end = app.index("const ayecRenderBeforeBankReference=render;", start)
     workflow = app[start:end]
     assert "alert_edit_dialog:()=>openScheduledAlertManifestDialog()" in dispatch
-    assert 'apiFetch("/api/desktop/table/scheduled_alerts?limit=500")' in workflow
+    assert 'loadAllDesktopTableRows("scheduled_alerts")' in workflow
     assert 'apiFetch("/api/desktop/table/scheduled_alerts",{method:"POST"' in workflow
     assert 'trigger_time:triggerTime,is_enabled:form.has("is_enabled")?1:0' in workflow
     assert 'Yakla\\u015fan Otomatik \\u00d6demeler ve Bildirimler' in workflow
@@ -484,8 +529,8 @@ def test_loan_detail_manifest_entry_renders_overview_plan_and_attachment_tabs():
     dispatch = app[app.index("function openManifestDialog("):app.index("function customerSelect(")]
     workflow = app[app.index("function openLoanDetailManifestDialog()"):app.index("function openManifestDialog(")]
     assert "loan_detail_dialog:()=>openLoanDetailManifestDialog()" in dispatch
-    assert 'apiFetch("/api/desktop/table/loans?limit=1000")' in workflow
-    assert 'apiFetch("/api/desktop/table/loan_installments?limit=1000")' in workflow
+    assert 'loadAllDesktopTableRows("loans")' in workflow
+    assert 'loadAllDesktopTableRows("loan_installments")' in workflow
     assert 'apiFetch("/api/desktop/loans/"+encodeURIComponent(loan.id)+"/attachments")' in workflow
     for tab in ("overview", "plan", "docs"):
         assert f'data-loan-detail-tab="{tab}"' in workflow
@@ -557,6 +602,10 @@ def test_fiscal_rollover_manifest_entry_uses_protected_accounting_controls():
     assert 'apiFetch("/api/desktop/fiscal/rollover-plan")' in workflow
     assert '"#ayecFiscalRollover").disabled=!plan?.can_execute' in workflow
     assert '"#ayecFiscalRollover").onclick=()=>ayecOpenFiscalRollover(plan)' in workflow
+    assert 'if(action==="finance-fiscal"){ayecOpenFiscalControls();return}' in app
+    route_smoke = (ROOT / "tools" / "quality" / "web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+    assert 'if (entry.id === "finance")' in route_smoke
+    assert "financeFiscalWorkflow" in route_smoke
 
 
 def test_device_selection_manifest_opens_searchable_tenant_service_picker():
@@ -582,7 +631,8 @@ def test_technician_dialog_exposes_desktop_wizard_service_fields():
     assert "accessories:values.accessories" in dialog
     assert "checklist_status:values.checklist_status" in dialog
     assert 'id="manualUsedPartAdd"' in app
-    assert "payload.manual_used_parts=lines.filter(line=>line.manual).map" in app
+    assert "window.ayecBuildUsedPartsPayload=(payload,serviceKey)=>" in app
+    assert "manual_used_parts:lines.filter(line=>line.manual).map" in app
     assert "window.ayecUsedPartsDrafts.delete(serviceKey)" in app
     assert "async function bindTechnicianPanelTabs(service,historyUi)" in app
     assert "button.dataset.technicianTab=key" in app
@@ -614,6 +664,7 @@ def test_partner_documents_dialog_supports_tenant_upload_open_and_delete():
 def test_advanced_filter_dialog_applies_service_search_criteria():
     app = (ROOT / "Web_Arayuzu" / "web" / "app.js").read_text(encoding="utf-8")
     dispatch = app[app.index("function openManifestDialog("):app.index("function customerSelect(")]
+    date_helper = app[app.index("function ayecPreviousMonthDate("):app.index("function openAdvancedServiceFilterDialog(")]
     dialog = app[app.index("function openAdvancedServiceFilterDialog()"):app.index("async function openPartnerDocumentsDialog()")]
     services = app[app.index("function renderServiceOperationsBoard()"):app.index("renderServices=function(){return renderServiceOperationsBoard()};")]
     assert "advanced_filter:()=>openAdvancedServiceFilterDialog()" in dispatch
@@ -621,6 +672,9 @@ def test_advanced_filter_dialog_applies_service_search_criteria():
     assert "name=\"customer\"" in dialog and "name=\"tracking\"" in dialog
     assert "name=\"serial\"" in dialog and "name=\"date_start\"" in dialog
     assert "window.ayecAdvancedServiceFilter=values" in dialog
+    assert "Math.min(source.getDate()" in date_helper
+    assert "startDefaultDate=ayecPreviousMonthDate(endDefaultDate)" in dialog
+    assert "monthAgo=ayecPreviousMonthDate(now)" in app
     assert 'dialog.style.width="min(440px, calc(100vw - 28px))"' in dialog
     assert "includes(item.customer,criteria.customer)" in services
     assert "criteria.date_start" in services and "criteria.date_end" in services
@@ -705,7 +759,9 @@ def test_service_report_migrates_hardware_checks_signature_and_delivery_actions(
     assert 'id="serviceReportSignature"' in report
     assert 'id="serviceReportClearSignature"' in report
     assert 'id="serviceReportDeliverButton"' in report
-    assert 'collect_payment:deliver' in report
+    assert 'async function saveServiceReport(deliver,collectPayment=deliver)' in report
+    assert 'collect_payment:collectPayment' in report
+    assert 'saveServiceReport(true,false)' in report
     assert '/api/desktop/service-tracking/qr?tracking_no=' in report
     styles = (ROOT / "Web_Arayuzu" / "web" / "styles.css").read_text(encoding="utf-8")
     assert "service-report-pane[hidden]{display:block!important}" in styles
@@ -750,6 +806,7 @@ def test_bulk_password_manifest_opens_the_existing_admin_workflow():
 
 def test_app_lock_manifest_uses_the_authenticated_web_lock_dialog():
     app = (ROOT / "Web_Arayuzu" / "web" / "app.js").read_text(encoding="utf-8")
+    route_smoke = (ROOT / "tools" / "quality" / "web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
     start = app.index("function openAppLockDialog()")
     end = app.index("const startApplicationWithoutAppLock", start)
     helper = app[start:end]
@@ -759,10 +816,16 @@ def test_app_lock_manifest_uses_the_authenticated_web_lock_dialog():
     assert '/api/desktop/security-settings/verify-app-lock' in helper
     assert 'app_lock_dialog:()=>openAppLockDialog()' in app[dispatch_start:dispatch_end]
     assert 'const unlocked=await openAppLockDialog()' in app[end:]
+    assert "appLockAudit" in route_smoke
+    assert "emptyRejected" in route_smoke
+    assert "wrongRejected" in route_smoke
+    assert "passwordAccepted" in route_smoke
+    assert '"/api/desktop/security-settings/verify-app-lock"' in route_smoke
 
 
 def test_sector_customer_manifest_dialog_uses_the_existing_profile_form():
     app = (ROOT / "Web_Arayuzu" / "web" / "app.js").read_text(encoding="utf-8")
+    route_smoke = (ROOT / "tools" / "quality" / "web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
     start = app.index("function openManifestDialog(")
     end = app.index("function customerSelect(", start)
     dispatch = app[start:end]
@@ -781,4 +844,199 @@ def test_sector_customer_manifest_dialog_uses_the_existing_profile_form():
     assert 'body.querySelector(".used-parts-editor")' in app
     assert 'function openTechnicianLoginManifestDialog(showManualProduct=false)' in app
     assert 'String(x.id)===String(no)' in app
+    assert "lockAudit" in route_smoke
+    assert "cancelRejected" in route_smoke
+    assert "technicianLoginAudit" in route_smoke
+    assert "manualProductAudit" in route_smoke
+    assert "lockedManualProductAudit" in route_smoke
+    assert "technicianManualProductSaveWorkflow" in route_smoke
+    assert '"/api/desktop/security-settings/verify-tech-lock"' in route_smoke
 
+
+def test_manifest_fallback_preserves_label_and_select_field_types():
+    app = (Path(__file__).resolve().parents[1] / "Web_Arayuzu" / "web" / "app.js").read_text(encoding="utf-8")
+    start = app.index("function manifestInput(field)")
+    end = app.index("\n", start)
+    renderer = app[start:end]
+
+    assert 'if(kind==="label")return `<div class="field full manifest-field-label"' in renderer
+    assert 'if(kind==="select")' in renderer
+    assert 'function manifestRuntimeChoices(field)' in app
+    assert '"self.cmb_technical_profile_main"' in app
+    assert '"self.cmb_type"' in app
+    assert '"self.combo_size"' in app
+    assert 'options=choices.map(option=>' in renderer
+    assert 'type="checkbox"' in renderer
+    assert 'type="radio"' in renderer
+    assert 'radioName=esc(field.group||field.name)' in renderer
+    assert 'passwordField=/(?:password|passwd|sifre|parola)/i.test(fieldIdentity)' in renderer
+    assert 'sensitiveField=passwordField||/(?:secret|token|api[_-]?key)/i.test(fieldIdentity)' in renderer
+    assert 'autocomplete="${passwordField?"current-password":sensitiveField?"new-password":"off"}"' in renderer
+    assert 'value="${sensitiveField?"":value}"' in renderer
+    manifest = json.loads((Path(__file__).resolve().parents[1] / "Web_Arayuzu" / "web" / "dialogs.generated.json").read_text(encoding="utf-8"))
+    password_prompt = next(dialog for dialog in manifest["dialogs"] if dialog["key"] == "password_prompt_dialog")
+    assert any(field["name"] == "self.password_input" for field in password_prompt["fields"])
+    route_smoke = (Path(__file__).resolve().parents[1] / "tools" / "quality" / "web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+    assert 'manifestSensitiveFieldAudit.inputType !== "password"' in route_smoke
+    assert 'field.default="QA_SECRET_SENTINEL"' in route_smoke
+    assert 'manifestSensitiveFieldAudit.autocomplete !== "current-password"' in route_smoke
+    assert "manifestSensitiveFieldAudit" in route_smoke
+
+
+
+def test_manifest_button_uses_one_dispatch_path_for_legacy_shortcuts():
+    app = (ROOT / "Web_Arayuzu" / "web" / "app.js").read_text(encoding="utf-8")
+    start = app.index("function openManifestDialog(")
+    end = app.index("function customerSelect(", start)
+    dispatch = app[start:end]
+    assert 'if(/print|pdf|yaz\\u0131d\\u0131r/.test(signal))return window.print()' in dispatch
+    assert 'if(/import|ocr|scan|reparse|mapping|add_empty_row|remove_selected_rows|save_rows|i\\u00e7e aktar/.test(signal))' in dispatch
+    assert 'if(/customer|m\\u00fc\\u015fteri/.test(signal))' in dispatch
+    assert 'document.addEventListener("click",e=>{const button=e.target.closest(".manifest-button")' not in app
+
+
+
+def test_dialog_manifest_extractor_captures_static_combobox_options():
+    import ast
+    import importlib.util
+
+    extractor_path = ROOT / "Web_Arayuzu" / "tools" / "extract_dialog_manifest.py"
+    spec = importlib.util.spec_from_file_location("dialog_manifest_extractor", extractor_path)
+    extractor = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(extractor)
+    tree = ast.parse(
+        "class Dialog:\n"
+        "    def __init__(self):\n"
+        "        self.query = QLineEdit()\n"
+        "        self.query.setPlaceholderText('Search here')\n"
+        "        self.mode_a = QRadioButton('A')\n"
+        "        self.mode_b = QRadioButton('B')\n"
+        "        self.mode_group = QButtonGroup(self)\n"
+        "        self.mode_group.addButton(self.mode_a, 1)\n"
+        "        self.mode_group.addButton(self.mode_b, 2)\n"
+        "        self.unit = QComboBox()\n"
+        "        self.unit.addItems(['Unit', 'Kg'])\n"
+        "        self.unit.setEditable(True)\n"
+        "        self.unit.addItem(f'Dynamic {value}')\n"
+        "        self.bank = QComboBox()\n"
+        "        self.bank.addItem('Main', -1)\n"
+        "        self.bank.addItem(bank.name, bank.id)\n"
+        "class ProviderDialog:\n"
+        "    PROVIDERS = (('Alpha', 'a'), ('Beta', 'b'))\n"
+        "    def __init__(self):\n"
+        "        self.provider = QComboBox()\n"
+        "        for label, code in self.PROVIDERS:\n"
+        "            self.provider.addItem(label, code)\n"
+    )
+    visitor = extractor.DialogVisitor("fixture.py")
+    visitor.visit(tree)
+    visitor.finalize_radio_groups()
+    fields = {field["name"]: field for field in visitor.fields}
+    assert fields["self.unit"]["options"] == ["Unit", "Kg"]
+    assert fields["self.unit"]["editable"] is True
+    assert fields["self.query"]["placeholder"] == "Search here"
+    assert fields["self.mode_a"]["group"] == "self.mode_group"
+    assert fields["self.mode_a"]["group_value"] == 1
+    assert fields["self.mode_a"]["group_checked"] is True
+    assert fields["self.mode_b"]["group"] == "self.mode_group"
+    assert fields["self.mode_b"]["group_value"] == 2
+    assert fields["self.mode_b"]["group_checked"] is False
+    assert fields["self.bank"]["options"] == [{"label": "Main", "value": -1}]
+    provider = next(field for field in visitor.fields if field["name"] == "self.provider")
+    assert provider["options"] == [
+        {"label": "Alpha", "value": "a"},
+        {"label": "Beta", "value": "b"},
+    ]
+
+def test_generated_dialog_manifest_includes_desktop_static_combo_options():
+    manifest = json.loads((ROOT / "Web_Arayuzu" / "web" / "dialogs.generated.json").read_text(encoding="utf-8"))
+    stock = next(dialog for dialog in manifest["dialogs"] if dialog["key"] == "add_stock_dialog")
+    unit = next(field for field in stock["fields"] if field["name"] == "self.cmb_unit")
+    bank = next(field for field in stock["fields"] if field["name"] == "self.cmb_bank")
+    currency_radios = [field for field in stock["fields"] if field.get("group") == "self.btn_grp_curr"]
+    assert [field["group_value"] for field in currency_radios] == [1, 2, 3]
+    assert [field["group_checked"] for field in currency_radios] == [True, False, False]
+    assert unit["options"] == ["Adet", "Metre", "Kg", "Lt", "Paket", "Kutu"]
+    assert bank["options"] == [{"label": "Se\u00e7iniz...", "value": -1}]
+    project_transaction = next(dialog for dialog in manifest["dialogs"] if dialog["key"] == "project_transaction_dialog")
+    description = next(field for field in project_transaction["fields"] if field["name"] == "self.txt_desc")
+    assert description["editable"] is True
+    assert description["placeholder"]
+    einvoice = next(dialog for dialog in manifest["dialogs"] if dialog["key"] == "einvoice_integration_dialog")
+    provider = next(field for field in einvoice["fields"] if field["name"] == "self.provider")
+    assert provider["options"] == [
+        {"label": "Diger / Ozel Entegrator", "value": "custom"},
+        {"label": "Uyumsoft", "value": "uyumsoft"},
+        {"label": "Logo", "value": "logo"},
+        {"label": "eFinans", "value": "efinans"},
+        {"label": "Foriba", "value": "foriba"},
+    ]
+
+
+def test_add_stock_manifest_entry_routes_to_stock_creation_workflow():
+    app = (ROOT / "Web_Arayuzu" / "web" / "app.js").read_text(encoding="utf-8")
+    start = app.index("function openManifestDialog(")
+    end = app.index("function customerSelect(", start)
+    dispatch = app[start:end]
+    assert 'add_stock_dialog:()=>openDialog(' in dispatch
+    assert 'productForm(),fd=>saveProduct(fd)' in dispatch
+    assert '"/api/desktop/stock/save"' in app
+
+
+def test_add_customer_manifest_entry_routes_to_customer_profile_workflow():
+    app = (ROOT / "Web_Arayuzu" / "web" / "app.js").read_text(encoding="utf-8")
+    start = app.index("function openManifestDialog(")
+    end = app.index("function customerSelect(", start)
+    dispatch = app[start:end]
+    assert 'add_customer_dialog:()=>openDialog(' in dispatch
+    assert 'customerForm(),fd=>saveCustomer(fd)' in dispatch
+    assert 'apiFetch("/api/desktop/table/customers"' in app
+
+
+def test_stock_save_preserves_the_selected_inventory_unit():
+    app = (ROOT / "Web_Arayuzu" / "web" / "app.js").read_text(encoding="utf-8")
+    start = app.index("saveProduct=async function(fd,existing)")
+    end = app.index("movementDialog=function(product)", start)
+    save = app[start:end]
+    assert "unit:values.unit" in save
+    assert 'unit:part.unit||values.unit||"Adet"' in save
+    assert "oem_code:values.oem_code" in save
+    assert "equivalent_code:values.equivalent_code" in save
+    assert "shelf_number:values.shelf_number" in save
+    assert "compatible_models:values.compatible_models" in save
+
+    form_start = app.index("productForm=function(product={})")
+    form_end = app.index("saveProduct=async function(fd,existing)", form_start)
+    form = app[form_start:form_end]
+    for field_name in ("oem_code", "equivalent_code", "shelf_number", "compatible_models"):
+        assert f'name="{field_name}"' in form
+
+
+def test_stock_category_suggestion_and_scanner_enter_handler_are_loaded():
+    index = (ROOT / "Web_Arayuzu" / "web" / "index.html").read_text(encoding="utf-8")
+    parity = (ROOT / "Web_Arayuzu" / "web" / "stock-category-parity.js").read_text(encoding="utf-8")
+    route_audit = (ROOT / "tools" / "quality" / "web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+
+    assert 'stock-category-parity.js?v=20261026-stock-category-parity-1' in index
+    assert "CATEGORY_BRAND_MAP" in parity
+    assert "CATEGORY_KEYWORDS" in parity
+    assert 'input[name="code"]' in parity
+    assert "event.preventDefault()" in parity
+    assert "suggestedCategory" in route_audit
+    assert "scannerEnterPrevented" in route_audit
+    assert "focusoutSuggestedCategory" in route_audit
+
+
+def test_password_gated_modern_confirm_is_covered_for_its_only_call_site():
+    source_root = ROOT / "src"
+    import_marker = "from src.ui.dialogs.modern_confirm import ModernConfirmDialog"
+    callers = [
+        path.relative_to(ROOT).as_posix()
+        for path in source_root.rglob("*.py")
+        if import_marker in path.read_text(encoding="utf-8")
+    ]
+    assert callers == ["src/ui/pages/personnel_page.py"]
+
+    route_audit = (ROOT / "tools" / "quality" / "web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+    assert "personnelDeleteWorkflow" in route_audit
+    assert 'personnelDeleteWorkflow.calls[0]?.payload.admin_password !== "qa-admin-pass"' in route_audit

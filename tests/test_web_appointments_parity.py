@@ -40,7 +40,7 @@ def test_appointment_calendar_matches_desktop_week_grid_and_slot_actions():
     assert 'appointmentDialog(null,{date:slot.dataset.date,time:slot.dataset.time})' in page
     assert 'e.dataTransfer.setData("text/plain",ayecDraggedAppointmentId)' in page
     assert 'slot.dataset.date;item.time=slot.dataset.time' in page
-    assert 'await desktopWrite("appointments",{id:+item.id,_action:"update",date:item.date,time:item.time})' in page
+    assert 'await apiFetch("/api/desktop/table/appointments",{method:"POST",body:JSON.stringify({id:+item.id,_action:"update",date:item.date,time:item.time})})' in page
     assert "slot && slot.date ? slot.date : today()" in form
     assert "slot && slot.time ? String(slot.time).slice(0, 2) + ':00'" in form
     assert "function renderAppointments()" in page
@@ -50,7 +50,9 @@ def test_appointment_calendar_matches_desktop_week_grid_and_slot_actions():
 def test_appointment_technician_filter_and_status_use_the_personnel_directory():
     page = (WEB / "appointments-reference.js").read_text(encoding="utf-8")
     desktop = (ROOT / "src" / "ui" / "pages" / "appointments_page.py").read_text(encoding="utf-8")
-    assert 'apiFetch("/api/desktop/table/personnel?limit=1000&include_deleted=1")' in page
+    assert 'apLoadAllTableRows("personnel","&include_deleted=1")' in page
+    assert 'async function apLoadAllTableRows(table,extraQuery="")' in page
+    assert 'offset<Number(first.count||0)' in page
     assert 'activePersonnel=namedPersonnel.filter(person=>Number(person.active??1)!==0).sort((a,b)=>String(a.name||"").localeCompare(String(b.name||""),"tr-TR"))' in page
     assert 'totalTechnicianCount=namedPersonnel.length' in page
     assert "activeTechnicianCount+'/'+totalTechnicianCount+' Aktif</b>" in page
@@ -107,6 +109,7 @@ def test_appointment_refresh_preserves_plan_item_locations_for_filtering():
     source = (ROOT / "Web_Arayuzu" / "Main.py").read_text(encoding="utf-8")
     assert '(a.plan_items||[]).map(item=>String(item.source_location_id||""))' in page
     assert 'if table == "appointments":' in source
+    assert 'appointments = rows(conn, "SELECT * FROM appointments ORDER BY date DESC,time DESC")' in source
     appointment_route = source[source.index('if table == "appointments":', source.index('if path.startswith("/api/desktop/table/")')):]
     appointment_route = appointment_route[:appointment_route.index('if table == "settings":')]
     assert 'FROM appointment_plan_items WHERE appointment_id IN (' in appointment_route
@@ -162,14 +165,17 @@ def test_appointment_customer_combo_supports_desktop_style_text_search():
 def test_appointment_page_toolbar_refresh_and_calendar_cards_match_desktop():
     page = (WEB / "appointments-reference.js").read_text(encoding="utf-8")
     style = (WEB / "midnight-reference.css").read_text(encoding="utf-8")
+    parity = (WEB / "desktop-parity.css").read_text(encoding="utf-8")
 
     assert 'textContent="Randevu Merkezi & Takvim"' in page
     assert 'data-appointment-refresh' in page
-    assert 'apiFetch("/api/desktop/table/appointments?limit=1000")' in page
+    assert 'apLoadAllTableRows("appointments")' in page
     assert 'appointment-ref-calendar-event' in page
     assert 'grid-template-rows:34px 34px' in style
     assert 'grid-template-columns:minmax(0,1fr) 280px' in style
     assert 'grid-auto-rows:minmax(112px,auto)' in style
+    assert 'body[data-page="appointments"] .appointment-ref-toolbar {\n    grid-template-columns: minmax(0, 1fr);' in parity
+    assert 'body[data-page="appointments"] .appointment-ref-filter-row select,\n  body[data-page="appointments"] .appointment-ref-filter-row button {\n    width: 100%;\n    min-width: 0;' in parity
 
 
 def test_appointment_side_panel_exposes_desktop_outcome_and_edit_actions():
@@ -190,8 +196,8 @@ def test_appointment_context_status_commits_before_updating_local_state():
     end = montage.index("async function deleteAppointment", start)
     update = montage[start:end]
 
-    assert 'await desktopWrite("appointments", { id: +appointment.id, _action: "update", status: status })' in update
-    assert update.index("await desktopWrite(") < update.index("appointment.status = status")
+    assert 'await apiFetch("/api/desktop/table/appointments", {' in update
+    assert update.index("await apiFetch(") < update.index("appointment.status = status")
     assert "catch (error)" in update and '"error"' in update
 
 
@@ -202,11 +208,22 @@ def test_appointment_completion_persists_timestamp_and_preserves_installment_pay
     combined_update = 'status: "Tamamland\\u0131", completed_at: completedAt'
     assert combined_update in montage
     completion = montage[montage.index("async function completeAppointmentStatus(id)"):montage.index("function openAppointmentPayment(id)")]
-    assert completion.index("await desktopWrite(") < completion.index('appointment.status = "Tamamland\\u0131"')
+    assert completion.index("await apiFetch(") < completion.index('appointment.status = "Tamamland\\u0131"')
     assert "function openAppointmentPayment(id)" in montage
     assert "Montaj tamamland\\u0131 | Teklif: " in montage
     assert "description.value = reference" in montage
     assert 'if (!customer) {\n      toast("\\u00d6deme i\\u00e7in randevuya ba\\u011fl\\u0131 bir m\\u00fc\\u015fteri se\\u00e7ilmelidir.", "warning");\n      return;\n    }' in montage
+
+
+def test_appointment_cancellation_status_uses_api_before_local_commit():
+    montage = (WEB / "appointment-montage.js").read_text(encoding="utf-8")
+    start = montage.index("async function cancelAppointmentStatus(id)")
+    end = montage.index("function openAppointmentPayment(id)", start)
+    cancel = montage[start:end]
+
+    assert 'await apiFetch("/api/desktop/table/appointments", {' in cancel
+    assert cancel.index("await apiFetch(") < cancel.index('appointment.status = "\\u0130ptal"')
+    assert "catch (error)" in cancel and '"error"' in cancel
 
 
 def test_service_status_print_action_offers_desktop_document_types():
@@ -223,7 +240,8 @@ def test_service_status_print_action_offers_desktop_document_types():
 
     detail = app[app.index("async function ayecOpenStatusServiceDetail"):app.index('document.addEventListener("click", event => {', app.index("async function ayecOpenStatusServiceDetail"))]
     assert "serviceDetailDialog(customer, service)" in detail
-    assert 'apiFetch("/api/desktop/table/used_parts?limit=1000")' in detail
+    assert 'loadAllDesktopTableRows("used_parts")' in detail
+    assert 'used_parts?limit=1000' not in detail
     technician = app[app.index("function technicianDialog(c,s)"):app.index("\n", app.index("function technicianDialog(c,s)"))]
     assert "Number.isInteger(+s.id)?+s.id:" in technician
     assert '"Haz\\u0131r"' in app

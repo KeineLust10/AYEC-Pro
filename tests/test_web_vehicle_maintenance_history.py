@@ -9,6 +9,71 @@ from Web_Arayuzu import Main as web_main
 
 ROOT = Path(__file__).resolve().parents[1]
 APP = ROOT / "Web_Arayuzu" / "web" / "app.js"
+AUTOMOTIVE = ROOT / "Web_Arayuzu" / "web" / "automotive-parity.js"
+
+
+def test_automotive_technician_loads_complete_service_form_results():
+    source = AUTOMOTIVE.read_text(encoding="utf-8")
+    start = source.index("technicianDialog=async function(customer,service){")
+    end = source.index("const damageMarks=", start)
+    block = source[start:end]
+
+    assert 'loadAllDesktopTableData("automotive_service_forms",{q:service.no||""})' in block
+    assert "automotive_service_forms?limit=500" not in block
+
+
+def test_maintenance_items_inputs_match_dark_dialog_theme():
+    css = (ROOT / "Web_Arayuzu" / "web" / "automotive-parity.css").read_text(encoding="utf-8")
+    index = (ROOT / "Web_Arayuzu" / "web" / "index.html").read_text(encoding="utf-8")
+    runner = (ROOT / "tools" / "quality" / "vehicle_maintenance_items_manifest_offscreen.cjs").read_text(encoding="utf-8")
+
+    assert '.maintenance-items-dialog-panel .maintenance-item input:not([type="checkbox"])' in css
+    assert "background:var(--input-bg)" in css
+    assert "color:var(--ink)" in css
+    assert "color-scheme:dark" in css
+    assert ".maintenance-items-dialog-panel .maintenance-item{grid-template-columns:repeat(6,minmax(0,1fr))" in css
+    assert ".maintenance-items-dialog-panel .maintenance-item input[type=\"checkbox\"]{accent-color:#657483}" in css
+    assert ".maintenance-items-dialog-panel .maintenance-number-steps button{width:100%;height:27px" in css
+    assert 'data-maintenance-step="1"' in APP.read_text(encoding="utf-8")
+    assert "dayDueUp" in runner
+    assert "kmDueUp" in runner
+    assert 'automotive-parity.css?v=20261026-maintenance-grid-parity-3' in index
+
+
+def test_vehicle_maintenance_dialog_fixture_preserves_injected_dollar_helpers():
+    runner = (ROOT / "tools" / "quality" / "vehicle_maintenance_items_manifest_offscreen.cjs").read_text(encoding="utf-8")
+    fixture = (ROOT / "tools" / "quality" / "vehicle_maintenance_items_manifest_fixture.js").read_text(encoding="utf-8")
+
+    assert 'replace("/*PRODUCTION_FUNCTIONS*/",()=>functions)' in runner
+    assert 'req.url==="/assets/ayec-logo.png"' in runner
+    assert 'res.setHeader("content-type","image/png")' in runner
+    assert 'service_date:"2026-04-01",odometer:100000' in fixture
+
+
+def test_offscreen_route_audit_covers_vehicle_maintenance_creation_and_items():
+    audit = (ROOT / "tools" / "quality" / "web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+    assert 'document.querySelector("[data-maintenance-add]")?.click()' in audit
+    assert 'document.querySelector("[data-maintenance-items-open]")?.click()' in audit
+    assert 'vehicleMaintenanceWorkflow.savedPayload.vehicle_id !== 83' in audit
+    assert 'vehicleMaintenanceWorkflow.savedPayload.items.length !== 1' in audit
+    assert 'vehicleMaintenanceWorkflow.photoCounterAfterAdd !== "1 / 1"' in audit
+    assert 'vehicleMaintenanceWorkflow.photoCalls[1]?.photo_id !== 9901' in audit
+
+
+def test_vehicle_maintenance_supports_native_keyboard_row_navigation():
+    app = APP.read_text(encoding="utf-8")
+    audit = (ROOT / "tools" / "quality" / "web_route_smoke_offscreen.cjs").read_text(encoding="utf-8")
+
+    assert "function bindVehicleMaintenanceKeyboard(row)" in app
+    assert 'event.key==="ArrowDown"' in app
+    assert 'event.key==="ArrowUp"' in app
+    assert 'event.key==="Home"' in app
+    assert 'event.key==="End"' in app
+    assert "bindVehicleMaintenanceKeyboard(row)" in app
+    assert "maintenanceKeyboardWorkflow" in audit
+    assert 'maintenanceKeyboardWorkflow?.downId !== "82"' in audit
+    assert 'maintenanceKeyboardWorkflow?.homeId !== "81"' in audit
+    assert 'maintenanceKeyboardWorkflow?.downAria !== "true"' in audit
 
 
 def test_vehicle_history_returns_same_tenant_maintenance_and_service_records(monkeypatch, tmp_path):
@@ -119,6 +184,62 @@ def test_vehicle_maintenance_cards_api_returns_desktop_derived_rows_and_requires
     anonymous.do_GET()
     assert errors[0][0]["code"] == "AUTH_REQUIRED"
     assert errors[0][1] == 401
+
+
+def test_vehicle_maintenance_save_api_requires_authentication(monkeypatch):
+    handler = object.__new__(web_main.AYECRequestHandler)
+    handler.path = "/api/desktop/vehicle-maintenance/save"
+    handler.headers = {"Content-Length": "2"}
+    handler.current_user = lambda: None
+    handler.read_json = lambda: {}
+    calls = []
+    responses = []
+    monkeypatch.setattr(web_main, "save_vehicle_maintenance_web", lambda payload: calls.append(payload) or {"ok": True})
+    handler.send_json = lambda payload, status=200: responses.append((payload, status))
+
+    handler.do_POST()
+
+    assert calls == []
+    assert len(responses) == 1
+    assert responses[0][0]["code"] == "AUTH_REQUIRED"
+    assert responses[0][1] == 401
+
+
+def test_authenticated_vehicle_maintenance_save_api_persists_workflow(tmp_path, monkeypatch):
+    database_path = tmp_path / "vehicle-maintenance-http.db"
+    db = database_module.Database(str(database_path))
+    customer_id = db.add_customer({"name": "HTTP Maintenance Customer"})
+    db.close()
+    web_main.clear_tenant_context()
+    monkeypatch.setattr(web_main, "DB_PATH", database_path)
+
+    payload = {
+        "customer_id": customer_id,
+        "vehicle_plate": "35HTTP35",
+        "vehicle_brand": "Ford",
+        "vehicle_model": "Focus",
+        "items": [{"item_type": "oil_change", "item_label": "Oil change", "performed": True}],
+    }
+    handler = object.__new__(web_main.AYECRequestHandler)
+    handler.path = "/api/desktop/vehicle-maintenance/save"
+    handler.headers = {"Content-Length": "2"}
+    handler.current_user = lambda: {"id": 1, "role": "admin"}
+    handler.read_json = lambda: payload
+    responses = []
+    handler.send_json = lambda result, status=200: responses.append((result, status))
+
+    handler.do_POST()
+
+    assert responses[0][1] == 200
+    assert responses[0][0]["ok"] is True
+    assert responses[0][0]["vehicle_plate"] == "35HTTP35"
+    db = database_module.Database(str(database_path))
+    assert db.conn.execute("SELECT COUNT(*) FROM vehicle_maintenance_cards").fetchone()[0] == 1
+    assert db.conn.execute("SELECT COUNT(*) FROM customer_vehicles").fetchone()[0] == 1
+    assert db.conn.execute("SELECT COUNT(*) FROM devices").fetchone()[0] == 1
+    assert db.conn.execute("SELECT COUNT(*) FROM automotive_service_forms").fetchone()[0] == 1
+    db.close()
+    web_main.clear_tenant_context()
 
 
 def test_vehicle_maintenance_page_has_qr_history_action_and_local_qr_image():

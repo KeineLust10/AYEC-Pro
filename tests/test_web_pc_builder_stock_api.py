@@ -61,11 +61,14 @@ def test_pc_builder_stock_deduction_is_atomic_for_authenticated_tenant(
         "Content-Type": "application/json",
     }
 
-    def post(payload):
+    def post(payload, origin=None):
+        request_headers = dict(headers)
+        if origin:
+            request_headers["Origin"] = origin
         request = urllib.request.Request(
             base_url + "/api/desktop/pc-builder/deduct-stock",
             data=json.dumps(payload).encode("utf-8"),
-            headers=headers,
+            headers=request_headers,
             method="POST",
         )
         try:
@@ -75,6 +78,9 @@ def test_pc_builder_stock_deduction_is_atomic_for_authenticated_tenant(
             return error.code, json.loads(error.read())
 
     try:
+        cross_origin_status, _ = post({"items": []}, "http://attacker.invalid")
+        assert cross_origin_status == 403
+
         status, result = post(
             {
                 "reference": "PC-QA-ORDER",

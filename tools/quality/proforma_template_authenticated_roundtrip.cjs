@@ -60,7 +60,7 @@ async function run() {
     await send("Page.navigate", { url: baseUrl });
     let authenticated = false;
     for (let attempt = 0; attempt < 120; attempt += 1) {
-      authenticated = await evaluate("typeof currentAuthUser !== 'undefined' && Boolean(currentAuthUser?.id && document.querySelector('#appShell'))");
+      authenticated = await evaluate("typeof currentAuthUser !== 'undefined' && Boolean(window.ayecApplicationReady && currentAuthUser?.id && document.querySelector('#appShell'))");
       if (authenticated) break;
       await delay(100);
     }
@@ -86,9 +86,31 @@ async function run() {
       if(!source||!toggle||!saveButton)throw new Error(JSON.stringify({message:"Proforma editor save controls are missing.",readyState:document.readyState,page,settingsSection,href:location.href,source:Boolean(source),toggle:Boolean(toggle),saveButton:Boolean(saveButton),title:document.querySelector("#dialogTitle")?.textContent||"",body:document.body.innerText.slice(0,240)}));
       const legacyHtml='<p>Legacy template</p><img src="file:///private/secret.png" />';
       if(!source||!toggle||!saveButton)throw new Error("Proforma editor save controls are missing.");
-      const editorHtml="<p><strong>Authenticated Editor QA</strong></p><p>{{musteri_adi}}</p>";
-      source.value=editorHtml;
-      source.dispatchEvent(new Event("input",{bubbles:true}));
+      const canvas=document.querySelector("#proformaTemplateCanvas");
+      if(!canvas)throw new Error("Proforma live editor canvas is missing.");
+      canvas.innerHTML="<p>Authenticated Editor QA</p>";
+      const textNode=canvas.querySelector("p")?.firstChild;
+      const range=document.createRange();
+      range.setStart(textNode,0);
+      range.setEnd(textNode,"Authenticated Editor".length);
+      const selection=window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+      document.querySelector('[data-proforma-format="bold"]')?.click();
+      const formattingApplied=source.value.includes("<b>Authenticated Editor</b>");
+      const pasteRange=document.createRange();
+      pasteRange.selectNodeContents(canvas);
+      pasteRange.collapse(false);
+      selection.removeAllRanges();
+      selection.addRange(pasteRange);
+      const pasteEvent=new Event("paste",{bubbles:true,cancelable:true});
+      Object.defineProperty(pasteEvent,"clipboardData",{value:{getData:type=>type==="text/html"?"<p>Paste <b>safe</b><script>bad()</script></p>":"Paste safe bad"}});
+      canvas.dispatchEvent(pasteEvent);
+      const pasteSanitized=source.value.includes("<b>safe</b>")&&!source.value.includes("<script")&&!source.value.includes("bad()");
+      document.querySelector('[data-proforma-token="{{musteri_adi}}"]')?.click();
+      const tokenInserted=source.value.includes("{{musteri_adi}}");
+      if(!formattingApplied||!pasteSanitized||!tokenInserted)throw new Error(JSON.stringify({formattingApplied,pasteSanitized,tokenInserted,html:source.value}));
+      const editorHtml=source.value;
       toggle.checked=true;
       const originalFetch=window.fetch.bind(window);
       window.__proformaPreview={status:0,type:""};
@@ -102,13 +124,34 @@ async function run() {
       saveButton.click();
       for(let attempt=0;attempt<160&&!document.querySelector("#toastRoot .toast.success")?.textContent.includes("sablon ayarlari kaydedildi");attempt++)await new Promise(resolve=>setTimeout(resolve,50));
       const activeSettings=await apiFetch("/api/desktop/bootstrap");
-      const saved=activeSettings.settings.proforma_use_custom_editor==="1"&&String(activeSettings.settings.proforma_editor_html||"").includes("Authenticated Editor QA");
+      const saved=activeSettings.settings.proforma_use_custom_editor==="1"&&String(activeSettings.settings.proforma_editor_html||"").includes("Authenticated Editor")&&String(activeSettings.settings.proforma_editor_html||"").includes(" QA");
       const preview={...window.__proformaPreview};
       for(let attempt=0;attempt<80&&saveButton.disabled;attempt++)await new Promise(resolve=>setTimeout(resolve,25));
       const restoreSource=document.querySelector("#proformaTemplateHtml");
       const restoreToggle=document.querySelector('[data-setting-key="proforma_use_custom_editor"]');
       const restoreButton=document.querySelector('[data-action="save-settings"]');
       if(!restoreSource||!restoreToggle||!restoreButton)throw new Error("Proforma editor restore controls are missing.");
+      let forcedPreviewFailure=0;
+      window.fetch=async(input,init)=>{
+        const url=String(typeof input==="string"?input:input?.url||"");
+        if(url.includes("/api/desktop/pc-builder/proforma.pdf")){forcedPreviewFailure++;return new Response(JSON.stringify({error:"QA forced preview failure"}),{status:500,headers:{"Content-Type":"application/json"}})}
+        return originalFetch(input,init);
+      };
+      restoreSource.value="<p>Template that must be rolled back</p>";
+      restoreSource.dispatchEvent(new Event("input",{bubbles:true}));
+      restoreToggle.checked=true;
+      document.querySelectorAll("#toastRoot .toast").forEach(node=>node.remove());
+      restoreButton.click();
+      for(let attempt=0;attempt<160&&!document.querySelector("#toastRoot .toast.error")?.textContent.includes("QA forced preview failure");attempt++)await new Promise(resolve=>setTimeout(resolve,50));
+      const rollbackToast=document.querySelector("#toastRoot .toast.error")?.textContent||"";
+      for(let attempt=0;attempt<80&&restoreButton.disabled;attempt++)await new Promise(resolve=>setTimeout(resolve,25));
+      const rollbackSettings=await apiFetch("/api/desktop/bootstrap");
+      const rollbackActivation=String(rollbackSettings.settings.proforma_use_custom_editor||"");
+      const rollbackHtml=String(rollbackSettings.settings.proforma_editor_html||"");
+      const rollbackHtmlHasSaved=rollbackHtml.includes("Authenticated Editor")&&rollbackHtml.includes(" QA");
+      const rollbackRecovered=forcedPreviewFailure===1&&rollbackToast.includes("QA forced preview failure")&&rollbackActivation==="1"&&rollbackHtmlHasSaved;
+      const rollbackCheckboxRestored=restoreToggle.checked;
+      window.fetch=originalFetch;
       restoreSource.value=legacyHtml;
       restoreSource.dispatchEvent(new Event("input",{bubbles:true}));
       restoreToggle.checked=false;
@@ -118,10 +161,10 @@ async function run() {
       const legacyWarning=document.querySelector("#toastRoot .toast.error")?.textContent||"";
       const legacyRestoreRejected=legacyWarning.includes("Eski masa\u00fcst\u00fc g\u00f6rsellerini");
       const rejectedSettings=await apiFetch("/api/desktop/bootstrap");
-      const legacyRestorePreserved=rejectedSettings.settings.proforma_use_custom_editor==="1"&&String(rejectedSettings.settings.proforma_editor_html||"").includes("Authenticated Editor QA");
-      return{saved,previewStatus:preview.status,previewContentType:preview.type,legacyRestoreRejected,legacyRestorePreserved,legacyGuardVerified:legacyRestoreRejected&&legacyRestorePreserved,restoreToast:legacyWarning};
+      const legacyRestorePreserved=rejectedSettings.settings.proforma_use_custom_editor==="1"&&String(rejectedSettings.settings.proforma_editor_html||"").includes("Authenticated Editor")&&String(rejectedSettings.settings.proforma_editor_html||"").includes(" QA");
+      return{saved,formattingApplied,pasteSanitized,tokenInserted,previewStatus:preview.status,previewContentType:preview.type,rollbackRecovered,rollbackActivation,rollbackHtmlHasSaved,rollbackCheckboxRestored,legacyRestoreRejected,legacyRestorePreserved,legacyGuardVerified:legacyRestoreRejected&&legacyRestorePreserved,restoreToast:legacyWarning};
     })()`);
-    if (!editor.saved || editor.previewStatus !== 200 || !editor.previewContentType.includes("application/pdf") || !editor.legacyRestoreRejected || !editor.legacyRestorePreserved) throw new Error(JSON.stringify({ editor }));
+    if (!editor.saved || editor.previewStatus !== 200 || !editor.previewContentType.includes("application/pdf") || !editor.rollbackRecovered || !editor.rollbackCheckboxRestored || !editor.legacyRestoreRejected || !editor.legacyRestorePreserved) throw new Error(JSON.stringify({ editor }));
     const encodedTemplate = JSON.stringify(templateBase64);
     const upload = await evaluate(`(async () => {
       const input=document.querySelector('[data-proforma-pdf-file]');
@@ -158,7 +201,7 @@ async function run() {
       return{oversizeRejected,oversizeToast,inputClearedAfterOversize,invalidPdfRejected,invalidPdfToast,unchanged:settings.settings.proforma_template_uploaded==="0",filename:settings.settings.proforma_template_filename||""};
     })()`);
     if (!removal.removedFromUi || removal.uploaded !== "0" || removal.filename || !validation.oversizeRejected || !validation.inputClearedAfterOversize || !validation.invalidPdfRejected || !validation.unchanged || validation.filename || exceptions.length) throw new Error(JSON.stringify({ upload, removal, validation, exceptions }));
-    process.stdout.write(JSON.stringify({ authenticated, editorSaved: editor.saved, editorPreviewStatus: editor.previewStatus, editorPreviewContentType: editor.previewContentType, legacyGuardVerified: editor.legacyGuardVerified, legacyRestoreRejected: editor.legacyRestoreRejected, legacyRestorePreserved: editor.legacyRestorePreserved, upload: { filename: upload.filename, uploaded: upload.uploaded, base64Exposed: Boolean(upload.base64) }, removal, oversizeRejected: validation.oversizeRejected, invalidPdfRejected: validation.invalidPdfRejected, validationUnchanged: validation.unchanged, browserExceptions: exceptions.length }) + "\n");
+    process.stdout.write(JSON.stringify({ authenticated, editorSaved: editor.saved, editorFormattingApplied: editor.formattingApplied, editorPasteSanitized: editor.pasteSanitized, editorTokenInserted: editor.tokenInserted, editorPreviewStatus: editor.previewStatus, editorPreviewContentType: editor.previewContentType, legacyGuardVerified: editor.legacyGuardVerified, legacyRestoreRejected: editor.legacyRestoreRejected, legacyRestorePreserved: editor.legacyRestorePreserved, upload: { filename: upload.filename, uploaded: upload.uploaded, base64Exposed: Boolean(upload.base64) }, removal, oversizeRejected: validation.oversizeRejected, invalidPdfRejected: validation.invalidPdfRejected, validationUnchanged: validation.unchanged, browserExceptions: exceptions.length }) + "\n");
   } finally {
     if (socket?.readyState === WebSocket.OPEN) {
       try { socket.send(JSON.stringify({ id: 999999, method: "Browser.close" })); } catch (_) { socket.close(); }

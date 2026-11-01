@@ -565,9 +565,10 @@ def test_technician_payment_selects_and_persists_a_bank_account():
         app.index("const technicianDialogWithoutLock=technicianDialog")
     ]
 
-    assert 'apiFetch("/api/desktop/table/bank_accounts?limit=500")' in technician
+    assert 'loadAllDesktopTableRows("bank_accounts")' in technician
     assert 'name="bank_account_id"' in technician
-    assert "Havale/EFT" in technician
+    assert "Havale / EFT" in technician
+    assert 'name="payment_currency"><option>TRY</option><option>USD</option><option>EUR</option></select>' in technician
     assert "bank_account_id:Number(values.bank_account_id)||0" in technician
     assert '"bank_account_id": bank_account_id or None' in Path(
         __file__
@@ -677,13 +678,26 @@ def test_technician_test_catalog_uses_active_profile_and_sector_notes(tmp_path, 
         "ON CONFLICT(key) DO UPDATE SET value=excluded.value"
     )
     phone_category = "Teknik Servis::Cep Telefonu::Cihaz Testi"
-    conn.execute("DELETE FROM fast_notes WHERE category IN (?,?)", (phone_category, "Otomotiv Kontrol Listesi"))
+    phone_accessory_category = "Teknik Servis::Cep Telefonu::Aksesuar"
+    phone_fault_category = "Teknik Servis::Cep Telefonu::Ar\u0131za H\u0131zl\u0131 Se\u00e7imi"
+    phone_process_category = "Teknik Servis::Cep Telefonu::\u0130\u015flem Detay\u0131"
+    phone_internal_category = "Teknik Servis::Cep Telefonu::Gizli Not"
+    conn.execute(
+        "DELETE FROM fast_notes WHERE category IN (?,?,?,?,?,?)",
+        (phone_category, "Otomotiv Kontrol Listesi", phone_accessory_category, phone_fault_category, phone_process_category, phone_internal_category),
+    )
     conn.executemany(
         "INSERT INTO fast_notes(category,label,is_active,display_order) VALUES(?,?,?,?)",
         [
             (phone_category, "Display check", 1, 0),
             (phone_category, "Hidden check", 0, 1),
             ("Otomotiv Kontrol Listesi", "Vehicle check", 1, 0),
+            (phone_accessory_category, "Charger", 1, 0),
+            (phone_accessory_category, "Case", 0, 1),
+            (phone_fault_category, "No image", 1, 0),
+            (phone_fault_category, "No charge", 0, 1),
+            (phone_process_category, "Repair complete", 1, 0),
+            (phone_internal_category, "Internal note", 0, 0),
         ],
     )
     conn.commit()
@@ -695,17 +709,48 @@ def test_technician_test_catalog_uses_active_profile_and_sector_notes(tmp_path, 
         {"name": "Display check", "active": True},
         {"name": "Hidden check", "active": False},
     ]
+    assert phone["quick_notes"] == {
+        "accessories": ["Charger"],
+        "fault": ["No image"],
+        "process": ["Repair complete"],
+        "internal": ["Internal note"],
+    }
+
+    conn = sqlite3.connect(database_path)
+    conn.execute(
+        "DELETE FROM fast_notes WHERE category IN (?,?,?,?)",
+        (phone_accessory_category, phone_fault_category, phone_process_category, phone_internal_category),
+    )
+    conn.commit()
+    conn.close()
+    phone_defaults = web_main.technician_service_test_catalog("TECH-CATALOG-1")
+    assert phone_defaults["quick_notes"]["accessories"][0] == "SIM Kart"
+    assert phone_defaults["quick_notes"]["fault"][0] == "EKRAN KIRIK"
+    assert phone_defaults["quick_notes"]["process"][0] == "Ekran De\u011fi\u015fti"
+    assert phone_defaults["quick_notes"]["internal"][0] == "TEST OK"
 
     conn = sqlite3.connect(database_path)
     conn.execute(
         "INSERT INTO internal_settings(key,value) VALUES('current_sector','otomotiv') "
         "ON CONFLICT(key) DO UPDATE SET value=excluded.value"
     )
+    conn.execute(
+        "DELETE FROM fast_notes WHERE category IN (?,?,?,?)",
+        ("Otomotiv Ara\u00e7 Kabul", "Otomotiv Ar\u0131za H\u0131zl\u0131 Se\u00e7imi", "Otomotiv \u0130\u015flem Detay\u0131", "Gizli Not"),
+    )
     conn.commit()
     conn.close()
     vehicle = web_main.technician_service_test_catalog("TECH-CATALOG-1")
     assert vehicle["category"] == "Otomotiv Kontrol Listesi"
     assert vehicle["tests"] == [{"name": "Vehicle check", "active": True}]
+    assert set(vehicle["quick_notes"]) == {"accessories", "fault", "process", "internal"}
+    assert all(vehicle["quick_notes"][group] for group in vehicle["quick_notes"])
+    assert {group: labels[0] for group, labels in vehicle["quick_notes"].items()} == {
+        "accessories": "RUHSAT",
+        "fault": "MOTOR ARIZA LAMBASI YANIYOR",
+        "process": "YA\u011e DE\u011e\u0130\u015eT\u0130",
+        "internal": "TEST OK",
+    }
 
     with pytest.raises(LookupError):
         web_main.technician_service_test_catalog("UNKNOWN-CATALOG")

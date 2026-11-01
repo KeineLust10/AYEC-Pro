@@ -76,8 +76,24 @@ Set-Location $ProjectPath
 while ($true) {
     $stamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     Write-ServerLog -Path $LauncherLog -Message "[$stamp] AYEC Pro Web starting: $HostAddress`:$Port"
-    & $Python -X faulthandler "Main.py" --host $HostAddress --port $Port --db $Database --tenant-dir $env:AYEC_TENANT_DIR 1>> $OutLog 2>> $ErrorLog
-    $exitCode = $LASTEXITCODE
+    $previousErrorActionPreference = $ErrorActionPreference
+    $nativePreferenceExists = Test-Path Variable:PSNativeCommandUseErrorActionPreference
+    if ($nativePreferenceExists) {
+        $previousNativePreference = $PSNativeCommandUseErrorActionPreference
+    }
+    $ErrorActionPreference = "Continue"
+    $PSNativeCommandUseErrorActionPreference = $false
+    try {
+        & $Python -X faulthandler "Main.py" --host $HostAddress --port $Port --db $Database --tenant-dir $env:AYEC_TENANT_DIR 1>> $OutLog 2>> $ErrorLog
+        $exitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+        if ($nativePreferenceExists) {
+            $PSNativeCommandUseErrorActionPreference = $previousNativePreference
+        } else {
+            Remove-Variable PSNativeCommandUseErrorActionPreference -ErrorAction SilentlyContinue
+        }
+    }
     $stamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     Write-ServerLog -Path $ErrorLog -Message "[$stamp] Web server stopped (code: $exitCode); restarting in 5 seconds."
     Start-Sleep -Seconds 5

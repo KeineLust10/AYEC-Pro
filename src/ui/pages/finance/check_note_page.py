@@ -295,10 +295,10 @@ class CheckNotePage(QWidget):
             tab_button.setCheckable(True)
             tab_button.setChecked(key == "all")
             tab_button.setFixedHeight(34)
-            tab_button.setFixedWidth({"all": 157, "checks": 158, "notes": 153, "own": 157, "endorsed": 201}[key])
+            tab_button.setFixedWidth({"all": 138, "checks": 138, "notes": 138, "own": 138, "endorsed": 178}[key])
             tab_button.setStyleSheet(theme_qss(
                 "QPushButton { background: @finance_surface_alt; color: @text_muted; border: 1px solid @border; "
-                "border-radius: 7px; padding: 6px 11px; font-size: 14px; } "
+                "border-radius: 7px; padding: 4px 6px; font-size: 11px; } "
                 "QPushButton:checked { background: @accent; color: @selection_text; border-color: @accent; font-weight: 700; }"
             ))
             tab_button.clicked.connect(lambda _checked=False, value=key: self._select_reference_filter(value))
@@ -307,7 +307,7 @@ class CheckNotePage(QWidget):
             if key == "endorsed":
                 tab_button.setStyleSheet(theme_qss(
                     "QPushButton { background: @finance_surface_alt; color: @finance_tertiary; border: 1px solid @border; "
-                    "border-radius: 7px; padding: 6px 8px; font-size: 13px; } "
+                    "border-radius: 7px; padding: 4px 6px; font-size: 11px; } "
                     "QPushButton:checked { background: @accent; color: @selection_text; border-color: @accent; font-weight: 700; }"
                 ))
         top_filter_row.addWidget(reference_tabs_frame)
@@ -1238,6 +1238,9 @@ class CheckNotePage(QWidget):
         menu.exec(self.table.viewport().mapToGlobal(position))
 
     def change_status(self, check_id, new_status):
+        self.db.cursor.execute("SELECT status FROM checks_notes WHERE id=?", (check_id,))
+        previous_status_row = self.db.cursor.fetchone()
+        previous_status = previous_status_row[0] if previous_status_row else None
         if not self.db.update_check_status(check_id, new_status):
             show_error(self.main_window, "Durum güncellenemedi.")
             return
@@ -1302,6 +1305,11 @@ class CheckNotePage(QWidget):
                                         selected = cmb.currentData()
                                         if selected != -1:
                                             bank_id = selected
+                                    else:
+                                        if previous_status is not None and not self.db.update_check_status(check_id, previous_status):
+                                            show_error(self.main_window, "Durum geri al\u0131namad\u0131.")
+                                        self.load_data()
+                                        return
                         except Exception as e:
                             logger.error(f"Banka seçim dialogu hatası: {e}")
 

@@ -21,6 +21,7 @@ def test_automotive_stock_view_matches_desktop_columns_tabs_and_feature_flag():
     assert 'revealedPurchasePriceIds' in script
     assert "automotive-stock-reference.js" in index
     assert "automotive-stock-reference.css" in index
+    assert "@media(max-width:720px)" in css
     assert ".automotive-stock-table{min-width:0}" in css
 
 
@@ -31,3 +32,12 @@ def test_automotive_stock_usage_guide_covers_desktop_shortcuts():
     assert "OEM/muadil" in script
     assert r"Par\u00e7a Hareketleri Sekmesi" in script
     assert r"Ak\u0131ll\u0131 \u0130\u00e7e Aktarma" in script
+
+
+def test_automotive_purchase_prices_default_to_desktop_visible_state():
+    root = Path(__file__).resolve().parents[1]
+    web = (root / "Web_Arayuzu" / "web" / "automotive-stock-reference.js").read_text(encoding="utf-8")
+    desktop = (root / "src" / "ui" / "pages" / "_stock_list_tab.py").read_text(encoding="utf-8")
+
+    assert "let purchasePricesVisible = true;" in web
+    assert "self._purchase_prices_all_visible = True" in desktop

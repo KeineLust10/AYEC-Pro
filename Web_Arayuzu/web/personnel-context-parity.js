@@ -19,8 +19,8 @@
     const items = [["&#x1F4DD; D\u00fczenle", "edit"], ["&#x1F5D1;&#xFE0F; Personel \u00c7\u0131kar", "remove"]];
     menu.innerHTML = items.map(([label, action]) => `${action === "remove" ? '<hr class="context-menu-separator" role="separator">' : ""}<button data-personnel-context="${action}">${label}</button>`).join("");
     menu.style.left = `${Math.max(8, Math.min(event.clientX, innerWidth - 210))}px`;
-    menu.style.top = `${Math.max(8, Math.min(event.clientY, innerHeight - items.length * 40 - 20))}px`;
     menu.classList.add("open");
+    menu.style.top = `${Math.max(8, Math.min(event.clientY, innerHeight - menu.offsetHeight - 8))}px`;
     menu.querySelectorAll("[data-personnel-context]").forEach(button => {
       button.onclick = () => {
         menu.classList.remove("open");
