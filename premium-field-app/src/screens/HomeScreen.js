@@ -153,9 +153,9 @@ export default function HomeScreen({ route }) {
     const [stockLocations, setStockLocations] = useState([]);
     const [customers, setCustomers] = useState([]);
     const [stockItems, setStockItems] = useState([]);
-    const [activeModule, setActiveModule] = useState('');
+    const [activeModule, setActiveModule] = useState('portal');
     const [portalToken, setPortalToken] = useState('');
-    const [portalLoading, setPortalLoading] = useState(false);
+    const [portalLoading, setPortalLoading] = useState(true);
     const [showAppointments, setShowAppointments] = useState(false);
     const [summary, setSummary] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -560,7 +560,6 @@ export default function HomeScreen({ route }) {
                 { key: 'appointments', title: 'Randevu Takvimi', description: `${appointmentRows.length} planlı randevu`, color: '#a78bfa' },
                 { key: 'module:customers', title: 'Müşteriler', description: `${customers.length} müşteri kaydı`, color: '#34d399' },
                 { key: 'module:offers', title: 'Teklifler', description: `${offers.length} açık teklif`, color: '#fbbf24' },
-                { key: 'portal', title: 'AYEC Pro Tüm Program Menüleri', description: 'Tüm program modülleri, akıllı içe aktarma ve kütüphaneler', color: '#818cf8' },
             ],
         },
         {
@@ -624,22 +623,22 @@ export default function HomeScreen({ route }) {
     const activeService = serviceDetail?.device || selectedService || {};
     const serviceEvidence = serviceDetail?.evidence || [];
 
-    if (loading) {
+    if (loading && activeModule !== 'portal') {
         return <View style={styles.center}><ActivityIndicator size="large" color="#3b82f6" /></View>;
     }
 
     return (
         <SafeAreaView style={styles.container}>
             <StatusBar barStyle="light-content" backgroundColor="#071525" />
-            <Modal visible={Boolean(activeModule)} animationType="slide" onRequestClose={() => setActiveModule('')}>
+            <Modal visible={Boolean(activeModule)} animationType="slide" onRequestClose={() => { if (activeModule !== 'portal') setActiveModule(''); }}>
                 <SafeAreaView style={{ flex: 1, backgroundColor: '#06111f' }}>
-                    <View style={styles.moduleHeader}>
+                    {activeModule !== 'portal' ? <View style={styles.moduleHeader}>
                         <View style={{ flex: 1 }}>
                             <Text style={styles.moduleEyebrow}>AYEC PRO / SAHA ÇALIŞMA ALANI</Text>
                             <Text style={styles.moduleTitle}>{({ portal: 'AYEC Pro Full Program', customers: 'Müşteri Defteri', offers: 'Teklif Merkezi', stock: 'Stok ve Araç Deposu', reports: 'Servis Raporları', profile: 'Hesap Bilgileri', help: 'Saha Hızlı Kılavuzu' })[activeModule] || 'Modul'}</Text>
                         </View>
                         <TouchableOpacity onPress={() => setActiveModule('')} style={styles.headerButton}><X size={19} color="#dbeafe" /></TouchableOpacity>
-                    </View>
+                    </View> : null}
                     {activeModule === 'portal' ? (
                         (() => {
                             const baseUrl = String(client.defaults.baseURL || 'https://panel.ayecpro.com/api').replace(/\/api\/?$/, '');
